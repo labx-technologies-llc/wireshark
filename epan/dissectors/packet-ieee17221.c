@@ -2071,6 +2071,7 @@ static int hf_aecp_u_flag = -1;
 static int hf_aecp_unlock_flag = -1;
 static int hf_aecp_values = -1;
 static int hf_aecp_values_count = -1;
+static int hf_aecp_video_format = -1;
 static int hf_aecp_status_code = -1;
 
 /* ***************************************************************** */
@@ -2550,33 +2551,35 @@ dissect_17221_stream_format(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-dissect_17221_audio_format(tvbuff_t *tvb, proto_tree *tree)
-{
-   /* TODO */
-}
-
-static void
 dissect_17221_video_format(tvbuff_t *tvb, proto_tree *tree)
 {
    /* TODO */
+   proto_tree_add_item(tree, hf_aecp_video_format, tvb,
+      0, 4, ENC_NA);
 }
 
 static void
 dissect_17221_video_aspect_ratio(tvbuff_t *tvb, proto_tree *tree)
 {
    /* TODO */
+   proto_tree_add_item(tree, hf_aecp_video_format, tvb,
+      0, 2, ENC_NA);
 }
 
 static void
 dissect_17221_video_frame_size(tvbuff_t *tvb, proto_tree *tree)
 {
    /* TODO */
+   proto_tree_add_item(tree, hf_aecp_video_format, tvb,
+      0, 4, ENC_NA);
 }
 
 static void
 dissect_17221_sensor_format(tvbuff_t *tvb, proto_tree *tree)
 {
    /* TODO */
+   proto_tree_add_item(tree, hf_aecp_video_format, tvb,
+      0, 8, ENC_NA);
 }
 
 #if 0 /* old, prior to D21. Fix for D21 video format */
@@ -5594,6 +5597,10 @@ proto_register_17221(void)
             FT_BYTES, BASE_NONE, NULL, 0x00, NULL, HFILL }
       },
 
+      { &hf_aecp_video_format,
+         {"Video Format", "ieee17221.video_format",
+            FT_BYTES, BASE_NONE, NULL, 0x00, NULL, HFILL }
+      },
       { &hf_aecp_sampling_rate,
          {"Sampling Rate", "ieee17221.sampling_rate",
             FT_UINT32, BASE_HEX, NULL, 0x00, NULL, HFILL }
