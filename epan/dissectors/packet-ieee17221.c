@@ -6046,7 +6046,7 @@ proto_register_17221(void)
       },
       { &hf_aem_buffer_length,
          {"Buffer Length", "ieee17221.buffer_length",
-            FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
+            FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
 
       /* array head. uses ett_aem_stream_formats */
