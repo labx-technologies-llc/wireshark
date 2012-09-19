@@ -1,6 +1,6 @@
 /**-*-C-*-**********************************************************************
- * text_import.h
- * State machine for text import
+ * text_import_scanner.h
+ * Scanner for text import
  * November 2010, Jaap Keuter <jaap.keuter@xs4all.nl>
  *
  * $Id$
@@ -28,60 +28,31 @@
  *******************************************************************************/
 
 
-#ifndef TEXT_IMPORT_H
-#define TEXT_IMPORT_H
+#ifndef __TEXT_IMPORT_SCANNER_H__
+#define __TEXT_IMPORT_SCANNER_H__
 
-#include <glib.h>
-#include "wtap.h"
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
-#define IMPORT_MAX_PACKET 64000
+typedef enum {
+    T_BYTE = 1,
+    T_OFFSET,
+    T_DIRECTIVE,
+    T_TEXT,
+    T_EOL
+} token_t;
 
-/* The parameter interface */
 
-enum offset_type
-{
-    OFFSET_HEX,
-    OFFSET_OCT,
-    OFFSET_DEC
-};
+void parse_token(token_t token, char *str);
+void write_current_packet(void);
 
-enum dummy_header_type
-{
-    HEADER_NONE,
-    HEADER_ETH,
-    HEADER_IPV4,
-    HEADER_UDP,
-    HEADER_TCP,
-    HEADER_SCTP,
-    HEADER_SCTP_DATA
-};
+extern FILE *text_importin;
 
-typedef struct
-{
-    /* Input info */
-    guchar *import_text_filename;
-    FILE *import_text_file;
-    enum offset_type offset_type;
-    gboolean date_timestamp;
-    guchar *date_timestamp_format;
+int text_importlex(void);
 
-    /* Import info */
-    guint encapsulation;
-    wtap_dumper* wdh;
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
-    /* Dummy header info (if encapsulation == 1) */
-    enum dummy_header_type dummy_header_type;
-    guint pid;
-    guint protocol;
-    guint src_port;
-    guint dst_port;
-    guint tag;
-    guint ppi;
-
-    guint max_frame_length;
-} text_import_info_t;
-
-void text_import_setup(text_import_info_t *info);
-void text_import_cleanup(void);
-
-#endif
+#endif /* __TEXT_IMPORT_SCANNER_H__ */

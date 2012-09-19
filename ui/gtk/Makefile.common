@@ -27,25 +27,19 @@
 include Makefile_custom.common
 
 # Generated header files that we want in the distribution.
-GENERATED_HEADER_FILES = \
-	text_import_scanner_lex.h
+GENERATED_HEADER_FILES =
 
 # Generated C source files that we want in the distribution.
 GENERATED_C_FILES = \
 	wireshark-tap-register.c
 
-DIRTY_GENERATED_C_FILES = \
-	text_import_scanner.c
-
 # All the generated files.
 GENERATED_FILES = \
 	$(GENERATED_HEADER_FILES) \
-	$(GENERATED_C_FILES) \
-	$(DIRTY_GENERATED_C_FILES)
+	$(GENERATED_C_FILES)
 
 # Files that generate compileable files
-GENERATOR_FILES = \
-	text_import_scanner.l
+GENERATOR_FILES =
 
 WIRESHARK_GTK_SRC = \
 	about_dlg.c	\
@@ -143,7 +137,6 @@ WIRESHARK_GTK_SRC = \
 	summary_dlg.c	\
 	supported_protos_dlg.c	\
 	tap_param_dlg.c	\
-	text_import.c	\
 	text_page_utils.c	\
 	time_shift_dlg.c	\
 	uat_gui.c	\
@@ -343,8 +336,6 @@ noinst_HEADERS = \
 	summary_dlg.h   \
 	supported_protos_dlg.h   \
 	tap_param_dlg.h	\
-	text_import.h	\
-	text_import_scanner.h	\
 	text_page_utils.h	\
 	uat_gui.h \
 	voip_calls.h	\

@@ -108,6 +108,34 @@ static int hf_dns_ptr_domain_name = -1;
 static int hf_dns_wks_address = -1;
 static int hf_dns_wks_protocol = -1;
 static int hf_dns_wks_bits = -1;
+static int hf_dns_hinfo_cpu_length = -1;
+static int hf_dns_hinfo_cpu = -1;
+static int hf_dns_hinfo_os_length = -1;
+static int hf_dns_hinfo_os = -1;
+static int hf_dns_mx_preference = -1;
+static int hf_dns_mx_mail_exchange = -1;
+static int hf_dns_txt_length = -1;
+static int hf_dns_txt = -1;
+static int hf_dns_spf_length = -1;
+static int hf_dns_spf = -1;
+static int hf_dns_rrsig_type_covered = -1;
+static int hf_dns_rrsig_algorithm = -1;
+static int hf_dns_rrsig_labels = -1;
+static int hf_dns_rrsig_original_ttl = -1;
+static int hf_dns_rrsig_signature_expiration = -1;
+static int hf_dns_rrsig_signature_inception = -1;
+static int hf_dns_rrsig_key_tag = -1;
+static int hf_dns_rrsig_signers_name = -1;
+static int hf_dns_rrsig_signature = -1;
+static int hf_dns_dnskey_flags = -1;
+static int hf_dns_dnskey_flags_zone_key = -1;
+static int hf_dns_dnskey_flags_key_revoked = -1;
+static int hf_dns_dnskey_flags_secure_entry_point = -1;
+static int hf_dns_dnskey_flags_reserved = -1;
+static int hf_dns_dnskey_protocol = -1;
+static int hf_dns_dnskey_algorithm = -1;
+static int hf_dns_dnskey_key_id = -1;
+static int hf_dns_dnskey_public_key = -1;
 static int hf_dns_rr_ns = -1;
 static int hf_dns_rr_opt = -1;
 static int hf_dns_rr_opt_code = -1;
@@ -1258,7 +1286,7 @@ dissect_type_bitmap(proto_tree *rr_tree, tvbuff_t *tvb, int cur_offset, int rr_l
 #define DNS_ALGO_PRIVATEDNS         253 /* Private, domain name  */
 #define DNS_ALGO_PRIVATEOID         254 /* Private, OID */
 
-static const value_string algo_vals[] = {
+static const value_string dnssec_algo_vals[] = {
   { DNS_ALGO_RSAMD5,            "RSA/MD5" },
   { DNS_ALGO_DH,                "Diffie-Hellman" },
   { DNS_ALGO_DSA,               "DSA" },
@@ -1277,6 +1305,14 @@ static const value_string algo_vals[] = {
   { DNS_ALGO_PRIVATEOID,        "Private, OID" },
   { 0,                          NULL }
 };
+
+/* DNSKEY : RFC4034 */
+#define DNSKEY_FLAGS_ZK 0x0100
+#define DNSKEY_FLAGS_KR 0x0080
+#define DNSKEY_FLAGS_SEP 0x0001
+#define DNSKEY_FLAGS_RSV 0xFE7E
+
+static const true_false_string dns_dnskey_zone_key_tfs = { "This is the zone key for specified zone", "This it not a zone key" };
 
 /* See RFC 4398 */
 #define DNS_CERT_PKIX             1     /* X509 certificate */
@@ -1606,7 +1642,7 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
     }
     break;
 
-    case T_HINFO:
+    case T_HINFO: /* Host Information (13) */
     {
       int         cpu_offset;
       int         cpu_len;
@@ -1627,15 +1663,22 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
       }
       proto_item_append_text(trr, ", CPU %.*s, OS %.*s",
                              cpu_len, cpu, os_len, os);
-      proto_tree_add_text(rr_tree, tvb, cpu_offset, 1 + cpu_len, "CPU: %.*s",
-                          cpu_len, cpu);
-      proto_tree_add_text(rr_tree, tvb, os_offset, 1 + os_len, "OS: %.*s",
-                          os_len, os);
+
+      proto_tree_add_item(rr_tree, hf_dns_hinfo_cpu_length, tvb, cur_offset, 1, ENC_BIG_ENDIAN);
+      cur_offset += 1;
+      proto_tree_add_item(rr_tree, hf_dns_hinfo_cpu, tvb, cur_offset, cpu_len, ENC_BIG_ENDIAN);
+      cur_offset += cpu_len;
+
+      proto_tree_add_item(rr_tree, hf_dns_hinfo_os_length, tvb, cur_offset, 1, ENC_BIG_ENDIAN);
+      cur_offset += 1;
+      proto_tree_add_item(rr_tree, hf_dns_hinfo_os, tvb, cur_offset, os_len, ENC_BIG_ENDIAN);
+      /* cur_offset += os_len;*/
+
 
     }
     break;
 
-    case T_MX:
+    case T_MX: /* Mail Exchange (15) */
     {
       guint16       preference = 0;
       const guchar *mx_name;
@@ -1650,15 +1693,15 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
       }
       proto_item_append_text(trr, ", preference %u, mx %s",
                              preference, name_out);
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 2, "Preference: %u", preference);
-      proto_tree_add_text(rr_tree, tvb, cur_offset + 2, mx_name_len, "Mail exchange: %s",
-                          name_out);
+      proto_tree_add_item(rr_tree, hf_dns_mx_preference, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+      cur_offset += 2;
+      proto_tree_add_string(rr_tree, hf_dns_mx_mail_exchange, tvb, cur_offset, mx_name_len, name_out);
+      /* cur_offset += mx_name_len; */
 
     }
     break;
 
-    case T_TXT:
-    case T_SPF:
+    case T_TXT: /* Text Strings (16) */
     {
       int rr_len = data_len;
       int txt_offset;
@@ -1668,129 +1711,127 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
       txt_offset = cur_offset;
       while (rr_len != 0) {
         txt_len = tvb_get_guint8(tvb, txt_offset);
-        proto_tree_add_text(rr_tree, tvb, txt_offset, 1 + txt_len,
-                            "Text: %.*s", txt_len, tvb_get_ephemeral_string(tvb, txt_offset + 1, txt_len));
-        txt_offset += 1 + txt_len;
-        rr_len     -= 1 + txt_len;
+        proto_tree_add_item(rr_tree, hf_dns_txt_length, tvb, txt_offset, 1, ENC_BIG_ENDIAN);
+        txt_offset += 1;
+        rr_len     -= 1;
+        proto_tree_add_item(rr_tree, hf_dns_txt, tvb, txt_offset, txt_len, ENC_BIG_ENDIAN);
+        txt_offset +=  txt_len;
+        rr_len     -= txt_len;
       }
 
     }
     break;
 
-    case T_RRSIG:
-    case T_SIG:
+    case T_SPF: /* Sender Policy Framework (99) */
+    {
+      int rr_len = data_len;
+      int spf_offset;
+      int spf_len;
+
+
+      spf_offset = cur_offset;
+      while (rr_len != 0) {
+        spf_len = tvb_get_guint8(tvb, spf_offset);
+        proto_tree_add_item(rr_tree, hf_dns_spf_length, tvb, spf_offset, 1, ENC_BIG_ENDIAN);
+        spf_offset += 1;
+        rr_len     -= 1;
+        proto_tree_add_item(rr_tree, hf_dns_spf, tvb, spf_offset, spf_len, ENC_BIG_ENDIAN);
+        spf_offset +=  spf_len;
+        rr_len     -= spf_len;
+      }
+
+    }
+    break;
+
+    case T_RRSIG: /* RRSIG (46) */
+    case T_SIG: /* Security Signature (24) */
     {
       int           rr_len = data_len;
-      guint16       type_covered;
-      nstime_t      nstime;
       const guchar *signer_name;
       int           signer_name_len;
-
+      proto_item    *ti;
 
       if (rr_len < 2) {
         goto bad_rr;
       }
-      type_covered = tvb_get_ntohs(tvb, cur_offset);
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 2, "Type covered: %s",
-                          dns_type_description(type_covered));
+      ti = proto_tree_add_item(rr_tree, hf_dns_rrsig_type_covered, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+      /* Fix me : need to remove dns_type_description and replace by value_string */
+      proto_item_append_text(ti, " (%s)", dns_type_description(tvb_get_ntohs(tvb, cur_offset)));
       cur_offset += 2;
       rr_len     -= 2;
 
-      if (rr_len < 1) {
-        goto bad_rr;
-      }
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 1, "Algorithm: %s",
-                          val_to_str(tvb_get_guint8(tvb, cur_offset), algo_vals,
-                                     "Unknown (0x%02X)"));
+      proto_tree_add_item(rr_tree, hf_dns_rrsig_algorithm, tvb, cur_offset, 1, ENC_BIG_ENDIAN);
       cur_offset += 1;
       rr_len     -= 1;
 
       if (rr_len < 1) {
         goto bad_rr;
       }
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 1, "Labels: %u",
-                          tvb_get_guint8(tvb, cur_offset));
+      proto_tree_add_item(rr_tree, hf_dns_rrsig_labels, tvb, cur_offset, 1, ENC_BIG_ENDIAN);
       cur_offset += 1;
       rr_len     -= 1;
 
       if (rr_len < 4) {
         goto bad_rr;
       }
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 4, "Original TTL: %s",
-                          time_secs_to_str(tvb_get_ntohl(tvb, cur_offset)));
+      ti = proto_tree_add_item(rr_tree, hf_dns_rrsig_original_ttl, tvb, cur_offset, 4, ENC_BIG_ENDIAN);
+      proto_item_append_text(ti, " (%s)", time_secs_to_str(tvb_get_ntohl(tvb, cur_offset)));
       cur_offset += 4;
       rr_len     -= 4;
 
       if (rr_len < 4) {
         goto bad_rr;
       }
-      nstime.secs = tvb_get_ntohl(tvb, cur_offset);
-      nstime.nsecs = 0;
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 4, "Signature expiration: %s",
-                          abs_time_to_str(&nstime, ABSOLUTE_TIME_LOCAL, TRUE));
+      proto_tree_add_item(rr_tree, hf_dns_rrsig_signature_expiration, tvb, cur_offset, 4, ENC_BIG_ENDIAN);
       cur_offset += 4;
       rr_len     -= 4;
 
       if (rr_len < 4) {
         goto bad_rr;
       }
-      nstime.secs = tvb_get_ntohl(tvb, cur_offset);
-      nstime.nsecs = 0;
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 4, "Time signed: %s",
-                          abs_time_to_str(&nstime, ABSOLUTE_TIME_LOCAL, TRUE));
+      proto_tree_add_item(rr_tree, hf_dns_rrsig_signature_inception, tvb, cur_offset, 4, ENC_BIG_ENDIAN);
       cur_offset += 4;
       rr_len     -= 4;
 
       if (rr_len < 2) {
         goto bad_rr;
       }
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 2, "Id of signing key(footprint): %u",
-                          tvb_get_ntohs(tvb, cur_offset));
+      proto_tree_add_item(rr_tree, hf_dns_rrsig_key_tag, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
       cur_offset += 2;
       rr_len     -= 2;
 
       /* XXX Fix data length */
       signer_name_len = get_dns_name(tvb, cur_offset, 0, dns_data_offset, &signer_name);
-      proto_tree_add_text(rr_tree, tvb, cur_offset, signer_name_len,
-                          "Signer's name: %s",
-                          format_text(signer_name, strlen(signer_name)));
+      proto_tree_add_string(rr_tree, hf_dns_rrsig_signers_name, tvb, cur_offset, signer_name_len, signer_name);
       cur_offset += signer_name_len;
       rr_len     -= signer_name_len;
 
       if (rr_len != 0) {
-        proto_tree_add_text(rr_tree, tvb, cur_offset, rr_len, "Signature");
+        proto_tree_add_item(rr_tree, hf_dns_rrsig_signature, tvb, cur_offset, rr_len, ENC_BIG_ENDIAN);
       }
     }
     break;
 
-    case T_DNSKEY:
+    case T_DNSKEY: /* DNSKEY (48) */
     {
       int         rr_len = data_len;
-      guint16     flags;
       proto_item *tf, *ti_gen;
       proto_tree *flags_tree;
-      guint8      algo;
       guint16     key_id;
+      guint8 algo;
 
 
       if (rr_len < 2) {
         goto bad_rr;
       }
-      flags = tvb_get_ntohs(tvb, cur_offset);
-      tf = proto_tree_add_text(rr_tree, tvb, cur_offset, 2, "Flags: 0x%04X", flags);
+
+
+      tf = proto_tree_add_item(rr_tree, hf_dns_dnskey_flags, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
       flags_tree = proto_item_add_subtree(tf, ett_t_key_flags);
-      proto_tree_add_text(flags_tree, tvb, cur_offset, 2, "%s",
-                          decode_boolean_bitfield(flags, 0x0100,
-                                                  2*8, "This is the zone key for the specified zone",
-                                                  "This is not a zone key"));
-      proto_tree_add_text(flags_tree, tvb, cur_offset, 2, "%s",
-                          decode_boolean_bitfield(flags, 0x0080,
-                                                  2*8, "Key is revoked",
-                                                  "Key is not revoked"));
-      proto_tree_add_text(flags_tree, tvb, cur_offset, 2, "%s",
-                          decode_boolean_bitfield(flags, 0x0001,
-                                                  2*8, "Key is a Key Signing Key",
-                                                  "Key is a Zone Signing Key"));
+      proto_tree_add_item(flags_tree, hf_dns_dnskey_flags_zone_key, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+      proto_tree_add_item(flags_tree, hf_dns_dnskey_flags_key_revoked, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+      proto_tree_add_item(flags_tree, hf_dns_dnskey_flags_secure_entry_point, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+      proto_tree_add_item(flags_tree, hf_dns_dnskey_flags_reserved, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
 
       cur_offset += 2;
       rr_len     -= 2;
@@ -1798,27 +1839,26 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
       if (rr_len < 1) {
         goto bad_rr;
       }
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 1, "Protocol: %u",
-                          tvb_get_guint8(tvb, cur_offset));
+      /* Must have value 3, Add check ? */
+      proto_tree_add_item(flags_tree, hf_dns_dnskey_protocol, tvb, cur_offset, 1, ENC_BIG_ENDIAN);
       cur_offset += 1;
       rr_len     -= 1;
 
       if (rr_len < 1) {
         goto bad_rr;
       }
+      proto_tree_add_item(flags_tree, hf_dns_dnskey_algorithm, tvb, cur_offset, 1, ENC_BIG_ENDIAN);
       algo = tvb_get_guint8(tvb, cur_offset);
-      proto_tree_add_text(rr_tree, tvb, cur_offset, 1, "Algorithm: %s",
-                          val_to_str(algo, algo_vals, "Unknown (0x%02X)"));
+
       cur_offset += 1;
       rr_len     -= 1;
 
       key_id = compute_key_id(tvb, cur_offset-4, rr_len+4, algo);
-      ti_gen = proto_tree_add_text(rr_tree, tvb, 0, 0, "Key id: %u", key_id);
+      ti_gen = proto_tree_add_uint(rr_tree, hf_dns_dnskey_key_id, tvb, 0, 0, key_id);
       PROTO_ITEM_SET_GENERATED(ti_gen);
 
-      if (rr_len != 0) {
-        proto_tree_add_text(rr_tree, tvb, cur_offset, rr_len, "Public key");
-      }
+      proto_tree_add_item(rr_tree, hf_dns_dnskey_public_key, tvb, cur_offset, rr_len, ENC_BIG_ENDIAN);
+
     }
     break;
 
@@ -1888,7 +1928,7 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
       }
       algo = tvb_get_guint8(tvb, cur_offset);
       proto_tree_add_text(rr_tree, tvb, cur_offset, 1, "Algorithm: %s",
-                          val_to_str(algo, algo_vals, "Unknown (0x%02X)"));
+                          val_to_str(algo, dnssec_algo_vals, "Unknown (0x%02X)"));
       cur_offset += 1;
       rr_len     -= 1;
 
@@ -2300,7 +2340,7 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
       }
       cert_keyalg = tvb_get_guint8(tvb, cur_offset);
       proto_tree_add_text(rr_tree, tvb, cur_offset, 1, "Algorithm: %s",
-                          val_to_str(cert_keyalg, algo_vals,
+                          val_to_str(cert_keyalg, dnssec_algo_vals,
                                      "Unknown (0x%02X)"));
       cur_offset += 1;
       rr_len     -= 1;
@@ -2341,7 +2381,7 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
         rropt_tree = proto_item_add_subtree(rropt, ett_dns_opts);
         proto_tree_add_item(rropt_tree, hf_dns_rr_opt_code, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
         cur_offset += 2;
-        proto_tree_add_item(rropt_tree, hf_dns_rr_opt_len, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+        rropt = proto_tree_add_item(rropt_tree, hf_dns_rr_opt_len, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
         cur_offset += 2;
 
         proto_tree_add_item(rropt_tree, hf_dns_rr_opt_data, tvb, cur_offset, optlen, ENC_NA);
@@ -2361,6 +2401,13 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
             proto_tree_add_item(rropt_tree, hf_dns_rr_opt_client_scope, tvb, cur_offset, 1, ENC_BIG_ENDIAN);
             cur_offset += 1;
 
+            if (optlen-4 > 16) {
+              expert_add_info_format(pinfo, rropt, PI_MALFORMED, PI_ERROR,
+                  "Length too long for any type of IP address.");
+              /* Avoid stack-smashing which occurs otherwise with the
+               * following tvb_memcpy. */
+              optlen = 20;
+            }
             tvb_memcpy(tvb, ip_addr.bytes, cur_offset, (optlen - 4));
             switch(family) {
               case AFNUM_INET:
@@ -2421,7 +2468,7 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
       }
       ds_algorithm = tvb_get_guint8(tvb, cur_offset);
       proto_tree_add_text(rr_tree, tvb, cur_offset, 1,
-                          "Algorithm: %s", val_to_str(ds_algorithm, algo_vals,"Unknown (0x%02X)") );
+                          "Algorithm: %s", val_to_str(ds_algorithm, dnssec_algo_vals,"Unknown (0x%02X)") );
       cur_offset += 1;
       rr_len     -= 1;
 
@@ -4060,6 +4107,146 @@ proto_register_dns(void)
     { &hf_dns_wks_bits,
       { "Bits", "dns.wks.bits",
         FT_UINT8, BASE_HEX, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_hinfo_cpu_length,
+      { "CPU Length", "dns.hinfo.cpu_length",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_hinfo_cpu,
+      { "CPU", "dns.hinfo.cpu",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_hinfo_os_length,
+      { "OS Length", "dns.hinfo.os_length",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_hinfo_os,
+      { "OS", "dns.hinfo.os",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_mx_preference,
+      { "Preference", "dns.mx.preference",
+        FT_UINT16, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_mx_mail_exchange,
+      { "Mail Exchange", "dns.mx.mail_exchange",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_txt_length,
+      { "TXT Length", "dns.txt.length",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_txt,
+      { "TXT", "dns.txt",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_spf_length,
+      { "SPF Length", "dns.spf.length",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_spf,
+      { "SPF", "dns.spf",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_rrsig_type_covered,
+      { "Type Covered", "dns.rrsig.type_covered",
+        FT_UINT16, BASE_DEC, NULL, 0x0,
+        "Identifies the type of the RRset that is covered by this RRSIG record", HFILL }},
+
+    { &hf_dns_rrsig_algorithm,
+      { "Algorithm", "dns.rrsig.algorithm",
+        FT_UINT8, BASE_DEC, VALS(dnssec_algo_vals), 0x0,
+        "Identifies the cryptographic algorithm used to create the signature", HFILL }},
+
+    { &hf_dns_rrsig_labels,
+      { "Labels", "dns.rrsig.labels",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        "Specifies the number of labels in the original RRSIG RR owner name", HFILL }},
+
+    { &hf_dns_rrsig_original_ttl,
+      { "Original TTL", "dns.rrsig.original_ttl",
+        FT_UINT32, BASE_DEC, NULL, 0x0,
+        "Specifies the TTL of the covered RRset as it appears in the authoritative zone", HFILL }},
+
+    { &hf_dns_rrsig_signature_expiration,
+      { "Signature Expiration", "dns.rrsig.signature_expiration",
+        FT_ABSOLUTE_TIME, ABSOLUTE_TIME_LOCAL, NULL, 0x0,
+        "Specify a validity period for the signature", HFILL }},
+
+    { &hf_dns_rrsig_signature_inception,
+      { "Signature Inception", "dns.rrsig.signature_inception",
+        FT_ABSOLUTE_TIME, ABSOLUTE_TIME_LOCAL, NULL, 0x0,
+        "Specify a validity period for the signature", HFILL }},
+
+    { &hf_dns_rrsig_key_tag,
+      { "Key Tag", "dns.rrsig.key_tag",
+        FT_UINT16, BASE_DEC, NULL, 0x0,
+        "Contains the key tag value of the DNSKEY RR that validates this signature", HFILL }},
+
+    { &hf_dns_rrsig_signers_name,
+      { "Signer's name", "dns.rrsig.signers_name",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        "Identifies the owner name of the DNSKEY RR that a validator is supposed to use to validate this signature", HFILL }},
+
+    { &hf_dns_rrsig_signature,
+      { "Signature", "dns.rrsig.signature",
+        FT_BYTES, BASE_NONE, NULL, 0x0,
+        "Contains the cryptographic signature that covers the RRSIG RDATA", HFILL }},
+
+    { &hf_dns_dnskey_flags,
+      { "Flags", "dns.dnskey.flags",
+        FT_UINT16, BASE_HEX, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_dnskey_flags_zone_key,
+      { "Zone Key", "dns.dnskey.flags.zone_key",
+        FT_BOOLEAN, 16, TFS(&dns_dnskey_zone_key_tfs), DNSKEY_FLAGS_ZK,
+        NULL, HFILL }},
+
+    { &hf_dns_dnskey_flags_key_revoked,
+      { "Key Revoked", "dns.dnskey.flags.key_revoked",
+        FT_BOOLEAN, 16, TFS(&tfs_yes_no), DNSKEY_FLAGS_KR,
+        NULL, HFILL }},
+
+    { &hf_dns_dnskey_flags_secure_entry_point,
+      { "Key Signing Key", "dns.dnskey.flags.secure_entry_point",
+        FT_BOOLEAN, 16, TFS(&tfs_yes_no), DNSKEY_FLAGS_SEP,
+        NULL, HFILL }},
+
+    { &hf_dns_dnskey_flags_reserved,
+      { "Key Signing Key", "dns.dnskey.flags.reserved",
+        FT_UINT16, BASE_HEX, NULL, DNSKEY_FLAGS_RSV,
+        "Must be zero", HFILL }},
+
+    { &hf_dns_dnskey_protocol,
+      { "Protocol", "dns.dnskey.protocol",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        "Must be 3", HFILL }},
+
+    { &hf_dns_dnskey_algorithm,
+      { "Algorithm", "dns.dnskey.algorithm",
+        FT_UINT8, BASE_DEC, VALS(dnssec_algo_vals), 0x0,
+        "Identifies the public key's cryptographic algorithm and determines the format of the Public Key field", HFILL }},
+
+    { &hf_dns_dnskey_key_id,
+      { "Key id", "dns.dnskey.key_id",
+        FT_UINT16, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_dnskey_public_key,
+      { "Public Key", "dns.dnskey.public_key",
+        FT_BYTES, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_dns_rr_ns,

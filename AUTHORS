@@ -3467,6 +3467,11 @@ Tobias Rutz		<tobias.rutz[at]work-microwave.de> {
 	DVB-S2 Baseband Frame and GSE support
 }
 
+Michal Labedzki		<michal.labedzki[at]tieto.com> {
+	Bluetooth BNEP dissector
+	Bluetooth HID dissector
+}
+
 
 and by:
 
@@ -3668,6 +3673,8 @@ Ben Bowen		<bbowen[AT]godaddy.com>
 Bodo Petermann		<bp245[AT]hotmail.com>
 Martin Kupec		<martin.kupec[AT]kupson.cz>
 Litao Gao		<ltgao[AT]juniper.net>
+Niels Widger		<niels[AT]qacafe.com>
+Pontus Fuchs		<pontus.fuchs[AT]gmail.com>
 
 Dan Lasley <dlasley[AT]promus.com> gave permission for his
 dumpit() hex-dump routine to be used.

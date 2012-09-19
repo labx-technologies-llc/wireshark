@@ -28,13 +28,17 @@ include Makefile.common
 
 
 # if you add files here, be sure to include them also in Makefile.am EXTRA_DIST
-WIRESHARK_UI_SRC = \
-	$(WIRESHARK_UI_SRC) \
-	$(GENERATED_C_FILES)
-
 WIRESHARK_UI_OBJECTS = \
 	$(WIRESHARK_UI_SRC:.c=.obj) \
-	$(GENERATED_C_FILES:.c=.obj)
+	$(GENERATED_C_FILES:.c=.obj) \
+	$(DIRTY_GENERATED_C_FILES:.c=.obj)
+
+RUNLEX=..\tools\runlex.sh
+
+text_import_scanner.h: text_import_scanner.c
+text_import_scanner_lex.h: text_import_scanner.c
+text_import_scanner.obj : text_import_scanner.c
+	$(CC) $(GENERATED_CFLAGS) $(WSUG_CFLAGS) -Fd.\ -c $?
 
 libui.lib	: ..\config.h $(WIRESHARK_UI_OBJECTS)
 	link /lib /out:libui.lib $(WIRESHARK_UI_OBJECTS)

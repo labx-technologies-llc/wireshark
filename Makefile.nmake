@@ -387,6 +387,9 @@ dumpcap.exe	: $(LIBS_CHECK) config.h $(dumpcap_OBJECTS) wsutil\libwsutil.lib ima
 
 config.h	: config.h.win32 config.nmake
 	sed -e s/@VERSION@/$(VERSION)/ \
+	    -e s/@VERSION_MAJOR@/$(VERSION_MAJOR)/ \
+	    -e s/@VERSION_MINOR@/$(VERSION_MINOR)/ \
+	    -e s/@VERSION_MICRO@/$(VERSION_MICRO)/ \
 	    -e "s/@HAVE_C_ARES@/$(C_ARES_CONFIG)/" \
 	    -e "s/@HAVE_GNU_ADNS@/$(ADNS_CONFIG)/" \
  	    -e "s/@HAVE_KFW@/$(KFW_CONFIG)/" \
@@ -451,6 +454,10 @@ PORTAUDIO_DIR = $(PORTAUDIO_DIR:\=/)
 GEOIP_DIR = $(GEOIP_DIR:\=/)
 
 INTL_DLL = $(INTL_DLL)
+
+guilibsdll = $(guilibsdll)
+
+HHC_LIBS = $(HHC_LIBS)
 
 MSVC_VARIANT = $(MSVC_VARIANT)
 MSVCR_DLL = "$(MSVCR_DLL:\=/)"
@@ -856,6 +863,8 @@ setup: verify_tools clean_setup process_libs
 # (The choice is determined by the value of the macro WIN_SETUP_OPT).
 process_libs:
 	@if not exist "$(WIRESHARK_LIB_DIR)" md "$(WIRESHARK_LIB_DIR)"
+	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
+		. WinPcap_$(PCAP_VERSION).exe
 !IFDEF GTK_DIR
 	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
 		"$(GTK_NAME)" gtk+-bundle_$(GTK_PKG)_$(WIRESHARK_TARGET_PLATFORM)$(PKG_SUFIX).zip
@@ -1172,6 +1181,9 @@ install-all: install-generated-files
 	xcopy $(GTK_DIR)\bin\$(XML_DLL) $(INSTALL_DIR) /d
 !ENDIF
 !IF "$(GTK_INST_VERSION)" == "3.4"
+	if not exist $(INSTALL_DIR)\$(GTK_SCHEMAS_INST_DIR) mkdir $(INSTALL_DIR)\$(GTK_SCHEMAS_INST_DIR)
+	if not exist $(GTK_DIR)\$(GTK_SCHEMAS_INST_DIR)\gschemas.compiled $(GTK_DIR)\bin\glib-compile-schemas $(GTK_DIR)\$(GTK_SCHEMAS_INST_DIR)
+	xcopy $(GTK_DIR)\$(GTK_SCHEMAS_INST_DIR)\gschemas.compiled  $(INSTALL_DIR)\$(GTK_SCHEMAS_INST_DIR) /d
 !ELSE
 	if not exist $(INSTALL_DIR)\$(GTK_WIMP_DLLDST_DIR) mkdir $(INSTALL_DIR)\$(GTK_WIMP_DLLDST_DIR)
 	xcopy "$(GTK_WIMP_DLLSRC_DIR)\libwimp.dll" $(INSTALL_DIR)\$(GTK_WIMP_DLLDST_DIR) /d
@@ -1228,8 +1240,11 @@ install-all: install-generated-files
 !ENDIF
 	cd $(INSTALL_DIR)
 	peflags --dynamicbase=true --nxcompat=true *.dll
+!IF "$(GTK_INST_VERSION)" == "3.4"
+!ELSE
 	peflags --dynamicbase=true --nxcompat=true lib/gtk-2.0/*/engines/*.dll
 	peflags --dynamicbase=true --nxcompat=true lib/gtk-2.0/modules/*.dll
+!ENDIF
 	cd ..
 
 checkapi_local:

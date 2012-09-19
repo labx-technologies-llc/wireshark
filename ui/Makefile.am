@@ -29,15 +29,20 @@ if HAVE_WARNINGS_AS_ERRORS
 AM_CLEAN_CFLAGS = -Werror
 endif
 
-noinst_LIBRARIES = libui.a
+noinst_LIBRARIES = libui.a libui_dirty.a
 
 CLEANFILES = \
 	libui.a		\
+	libui_dirty.a	\
 	*~
 
 MAINTAINERCLEANFILES = \
 	$(GENERATED_FILES)	\
 	Makefile.in
+
+RUNLEX=$(top_srcdir)/tools/runlex.sh
+
+text_import_scanner_lex.h: text_import_scanner.c
 
 # All sources that should be put in the source distribution tarball
 libui_a_SOURCES = \
@@ -49,6 +54,11 @@ libui_a_SOURCES = \
 libui_a_CFLAGS = $(AM_CLEAN_CFLAGS)
 
 libui_a_DEPENDENCIES =
+
+libui_dirty_a_SOURCES = \
+	$(DIRTY_GENERATED_C_FILES)
+
+libui_dirty_a_DEPENDENCIES =
 
 # Common headers
 AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap $(LIBGCRYPT_CFLAGS) $(LIBGNUTLS_CFLAGS) $(PORTAUDIO_INCLUDES)
@@ -71,6 +81,7 @@ checkapi-todo:
 
 EXTRA_DIST = \
 	$(GENERATOR_FILES)		\
+	CMakeLists.txt			\
 	doxygen.cfg.in			\
 	Makefile.common			\
 	Makefile.nmake

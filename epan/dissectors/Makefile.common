@@ -311,6 +311,7 @@ DISSECTOR_SRC = \
 	packet-bt-dht.c		\
 	packet-bt-utp.c		\
 	packet-btamp.c		\
+	packet-btbnep.c		\
 	packet-bthci_acl.c	\
 	packet-bthci_cmd.c	\
 	packet-bthci_evt.c	\
@@ -542,6 +543,7 @@ DISSECTOR_SRC = \
 	packet-fmp_notify.c	\
 	packet-fmtp.c		\
 	packet-force10-oui.c	\
+	packet-forces.c		\
 	packet-fp_hint.c	\
 	packet-fr.c		\
 	packet-fractalgeneratorprotocol.c \
@@ -667,6 +669,7 @@ DISSECTOR_SRC = \
 	packet-imf.c		\
 	packet-infiniband.c	\
 	packet-infiniband_sdp.c \
+	packet-interlink.c	\
 	packet-ip.c		\
 	packet-ipars.c		\
 	packet-ipdc.c		\

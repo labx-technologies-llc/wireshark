@@ -28,20 +28,17 @@ if HAVE_WARNINGS_AS_ERRORS
 AM_CLEAN_CFLAGS = -Werror
 endif
 
-noinst_LIBRARIES = libgtkui.a libgtkui_dirty.a
+noinst_LIBRARIES = libgtkui.a
 
 CLEANFILES = \
-	libgtkui.a		\
-	libgtkui_dirty.a	\
+	libgtkui.a				\
+	wireshark-tap-register.c-tmp		\
+	wireshark-tap-register-cache.pkl	\
 	*~
 
 MAINTAINERCLEANFILES = \
 	$(GENERATED_FILES)	\
 	Makefile.in
-
-RUNLEX=$(top_srcdir)/tools/runlex.sh
-
-text_import_scanner_lex.h: text_import_scanner.c
 
 #
 # Build "wireshark-tap-register.c", which contains a function
@@ -57,9 +54,14 @@ text_import_scanner_lex.h: text_import_scanner.c
 # The first argument is the directory in which the source files live.
 # All subsequent arguments are the files to scan.
 #
-wireshark-tap-register.c: $(WIRESHARK_TAP_SRC) $(top_srcdir)/tools/make-tapreg-dotc
-	@echo Making wireshark-tap-register.c
-	@$(top_srcdir)/tools/make-tapreg-dotc wireshark-tap-register.c $(srcdir) $(WIRESHARK_TAP_SRC)
+wireshark-tap-register.c: $(WIRESHARK_TAP_SRC) $(top_srcdir)/tools/make-tapreg-dotc $(top_srcdir)/tools/make-tap-reg.py
+	@if test -n "$(PYTHON)"; then \
+		echo Making wireshark-tap-register.c with python ; \
+		$(PYTHON) $(top_srcdir)/tools/make-tap-reg.py $(srcdir) taps $(WIRESHARK_TAP_SRC); \
+	else \
+		echo Making wireshark-tap-register.c; \
+		$(top_srcdir)/tools/make-tapreg-dotc wireshark-tap-register.c $(srcdir) $(WIRESHARK_TAP_SRC); \
+	fi
 
 WIRESHARK_CLEAN_LIBGTKUI_SRC = \
  	$(WIRESHARK_GTK_SRC) \
@@ -74,11 +76,6 @@ libgtkui_a_SOURCES = \
 libgtkui_a_CFLAGS = $(AM_CLEAN_CFLAGS)
 
 libgtkui_a_DEPENDENCIES =
-
-libgtkui_dirty_a_SOURCES = \
-	$(DIRTY_GENERATED_C_FILES)
-
-libgtkui_dirty_a_DEPENDENCIES =
 
 # Common headers
 AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap $(PORTAUDIO_INCLUDES)

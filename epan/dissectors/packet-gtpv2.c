@@ -3347,11 +3347,11 @@ dissect_gtpv2_mm_context_eps_qq(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tre
     offset += 1;
 
     /* Octet 8-10 NAS Downlink Count*/
-    proto_tree_add_item(tree, hf_gtpv2_mm_context_nas_dl_cnt, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_gtpv2_mm_context_nas_dl_cnt, tvb, offset, 3, ENC_BIG_ENDIAN);
     offset += 3;
 
     /* Octet 11-13 NAS Uplink Count */
-    proto_tree_add_item(tree, hf_gtpv2_mm_context_nas_ul_cnt, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_gtpv2_mm_context_nas_ul_cnt, tvb, offset, 3, ENC_BIG_ENDIAN);
     offset += 3;
 
     /* Octet 14-45 */
@@ -4345,7 +4345,9 @@ dissect_gtpv2_private_ext(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tre
     proto_tree_add_item(tree, hf_gtpv2_enterprise_id, tvb, offset, 2, ENC_BIG_ENDIAN);
     offset+=2;
 
-    next_tvb = tvb_new_subset_remaining(tvb, offset);
+    proto_item_append_text(item, "%s (%u)", val_to_str_ext_const(ext_id, &sminmpec_values_ext, "Unknown"),ext_id);
+
+    next_tvb = tvb_new_subset(tvb, offset, length-2, length-2);
     if(dissector_try_uint(gtpv2_priv_ext_dissector_table, ext_id, next_tvb, pinfo, tree))
         return;
 
@@ -4413,7 +4415,7 @@ dissect_gtpv2_mbms_session_duration(tvbuff_t *tvb, packet_info *pinfo _U_, proto
  * 8.70 MBMS Service Area
  */
 void
-dissect_gtpv2_mbms_service_area(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item _U_, guint16 length _U_, guint8 message_type _U_, guint8 instance _U_)
+dissect_gtpv2_mbms_service_area(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item, guint16 length _U_, guint8 message_type _U_, guint8 instance _U_)
 {
     int         offset = 0;
     proto_item *sai_item;
@@ -4437,6 +4439,7 @@ dissect_gtpv2_mbms_service_area(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tre
         if(sai == 0) {
             proto_item_append_text(sai_item, " Entire PLMN");
         }
+		proto_item_append_text(item, " %u", sai);
         offset += 2;
     }
 }
@@ -4460,11 +4463,12 @@ dissect_gtpv2_mbms_session_id(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree 
  * 8.72 MBMS Flow Identifier
  */
 static void
-dissect_gtpv2_mbms_flow_id(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item _U_, guint16 length _U_, guint8 message_type _U_, guint8 instance _U_)
+dissect_gtpv2_mbms_flow_id(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item, guint16 length _U_, guint8 message_type _U_, guint8 instance _U_)
 {
     int offset = 0;
     /* Two octets OctetString. */
     proto_tree_add_item(tree, hf_gtpv2_mbms_flow_id, tvb, offset, 2, ENC_NA);
+    proto_item_append_text(item, " %s", tvb_bytes_to_str(tvb, offset, 2));
 
     offset += 2;
     if(length > 2)
@@ -4481,7 +4485,7 @@ static const value_string gtpv2_mbms_hc_indicator_vals[] = {
 };
 
 static void
-dissect_gtpv2_mbms_ip_mc_dist(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item _U_, guint16 length _U_, guint8 message_type _U_, guint8 instance _U_)
+dissect_gtpv2_mbms_ip_mc_dist(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item, guint16 length _U_, guint8 message_type _U_, guint8 instance _U_)
 {
     int offset = 0;
 
@@ -4494,10 +4498,12 @@ dissect_gtpv2_mbms_ip_mc_dist(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree 
     if((tvb_get_guint8(tvb, offset)&0x3f) == 4) {
         offset += 1;
         proto_tree_add_item(tree, hf_gtpv2_mbms_ip_mc_dist_addrv4, tvb, offset, 4, ENC_BIG_ENDIAN);
+        proto_item_append_text(item, " IPv4 Dist %s", tvb_ip_to_str(tvb, offset));
         offset += 4;
     } else if((tvb_get_guint8(tvb, offset)&0x3f) == 16) {
         offset += 1;
         proto_tree_add_item(tree, hf_gtpv2_mbms_ip_mc_dist_addrv6, tvb, offset, 16, ENC_NA);
+        proto_item_append_text(item, " IPv6 Dist %s", tvb_ip6_to_str(tvb, offset));
         offset += 16;
     }
 
@@ -4507,10 +4513,12 @@ dissect_gtpv2_mbms_ip_mc_dist(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree 
     if((tvb_get_guint8(tvb, offset)&0x3f) == 4) {
         offset += 1;
         proto_tree_add_item(tree, hf_gtpv2_mbms_ip_mc_src_addrv4, tvb, offset, 4, ENC_BIG_ENDIAN);
+        proto_item_append_text(item, " IPv4 Src %s", tvb_ip_to_str(tvb, offset));
         offset += 4;
     } else if((tvb_get_guint8(tvb, offset)&0x3f) == 16) {
         offset += 1;
         proto_tree_add_item(tree, hf_gtpv2_mbms_ip_mc_src_addrv6, tvb, offset, 16, ENC_NA);
+        proto_item_append_text(item, " IPv6 Src %s", tvb_ip6_to_str(tvb, offset));
         offset += 16;
     }
 
@@ -4650,7 +4658,7 @@ dissect_gtpv2_node_features(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
  * MBMS Time to Data Transfer
  */
 void
-dissect_gtpv2_mbms_time_to_data_xfer(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item _U_, guint16 length _U_, guint8 message_type _U_, guint8 instance _U_)
+dissect_gtpv2_mbms_time_to_data_xfer(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item, guint16 length _U_, guint8 message_type _U_, guint8 instance _U_)
 {
     int     offset = 0;
     guint8  binary_secs;
@@ -4660,7 +4668,7 @@ dissect_gtpv2_mbms_time_to_data_xfer(tvbuff_t *tvb, packet_info *pinfo _U_, prot
     real_secs = (guint16)binary_secs + 1;
 
     proto_tree_add_string_format(tree, hf_gtpv2_time_to_data_xfer, tvb, offset, 1, "", "MBMS Time to Data Transfer: %d second(s)", real_secs);
-
+    proto_item_append_text(item, " %u second(s)", real_secs);
     offset += 1;
     if(length > 1)
         proto_tree_add_text(tree, tvb, offset, length-1, "Spare: %s", tvb_bytes_to_str(tvb, offset, length-1));
@@ -5161,7 +5169,7 @@ void proto_register_gtpv2(void)
         },
         {&hf_gtpv2_flags,
          {"Flags", "gtpv2.flags",
-          FT_UINT8, BASE_DEC, NULL, 0x0,
+          FT_UINT8, BASE_HEX, NULL, 0x0,
           NULL, HFILL}
         },
         {&hf_gtpv2_version,

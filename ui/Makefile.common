@@ -24,12 +24,14 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 # Generated header files that we want in the distribution.
-GENERATED_HEADER_FILES =
+GENERATED_HEADER_FILES = \
+	text_import_scanner_lex.h
 
 # Generated C source files that we want in the distribution.
 GENERATED_C_FILES =
 
-DIRTY_GENERATED_C_FILES =
+DIRTY_GENERATED_C_FILES = \
+	text_import_scanner.c
 
 # All the generated files we want in the distribution.
 GENERATED_FILES = \
@@ -38,23 +40,29 @@ GENERATED_FILES = \
 	$(DIRTY_GENERATED_C_FILES)
 
 # Files that generate compileable files
-GENERATOR_FILES =
+GENERATOR_FILES = \
+	text_import_scanner.l
 
 WIRESHARK_UI_SRC = \
 	alert_box.c	\
 	iface_lists.c	\
+	help_url.c	\
+	text_import.c	\
 	util.c
 
 noinst_HEADERS = \
 	alert_box.h		\
 	capture_globals.h	\
 	last_open_dir.h		\
+	help_url.h		\
 	iface_lists.h		\
 	main_statusbar.h	\
 	progress_dlg.h		\
 	recent.h		\
 	recent_utils.h		\
 	simple_dialog.h		\
+	text_import.h		\
+	text_import_scanner.h	\
 	ui_util.h		\
 	utf8_entities.h		\
 	util.h

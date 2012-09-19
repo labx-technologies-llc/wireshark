@@ -182,7 +182,7 @@ sub read_svn_info {
 		}
 		close (CFGNMAKE);
 	}
-	if ($revision == 0) {
+	if ($revision == 0 and -d "$srcdir/.git") {
 
 		# Try git...
 		eval {
@@ -203,6 +203,26 @@ sub read_svn_info {
 			if (defined($line)) {
 				if ($line =~ /\* (\S+)/) {
 					$repo_path = $1;
+				}
+			}
+			1;
+			};
+	}
+	if ($revision == 0 and -d "$srcdir/.bzr") {
+
+		# Try bzr...
+		eval {
+			use warnings "all";
+			no warnings "all";
+			$svn_info_cmd = "(cd $srcdir; bzr log -l 1)";
+			$line = qx{$svn_info_cmd};
+			if (defined($line)) {
+				if ($line =~ /timestamp: \S+ (\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/) {
+					$last_change = timegm($6, $5, $4, $3, $2 - 1, $1);
+				}
+				if ($line =~ /svn revno: (\d+) \(on (\S+)\)/) {
+					$revision = $1;
+					$repo_path = $2;
 				}
 			}
 			1;
@@ -278,7 +298,7 @@ Fin
 }
 
 
-# Read configure.in, then write it back out with an updated
+# Read configure.ac, then write it back out with an updated
 # "AC_INIT" line.
 sub update_configure_ac
 {
@@ -291,14 +311,12 @@ sub update_configure_ac
 
 	open(CFGIN, "< $filepath") || die "Can't read $filepath!";
 	while ($line = <CFGIN>) {
-		if ($line =~ /^AC_INIT\(wireshark, (\d+)\.(\d+).(\d+) *,(.*[\r\n]+)$/) {
-			$line = sprintf("AC_INIT\(wireshark, %d.%d.%d%s,$4",
-					$set_version ? $version_pref{"version_major"} : $1,
-					$set_version ? $version_pref{"version_minor"} : $2,
-					$set_version ? $version_pref{"version_micro"} : $3,
-					$package_string
-				       );
-
+		if ($line =~ /^m4_define\(version_major *,.*([\r\n]+)$/) {
+			$line = sprintf("m4_define(version_major, %d)$1", $version_pref{"version_major"});
+		} elsif ($line =~ /^m4_define\(version_minor *,.*([\r\n]+)$/) {
+			$line = sprintf("m4_define(version_minor, %d)$1", $version_pref{"version_minor"});
+		} elsif ($line =~ /^m4_define\(version_micro *,.*([\r\n]+)$/) {
+			$line = sprintf("m4_define(version_micro, %d)$1", $version_pref{"version_micro"});
 		}
 		$contents .= $line
 	}
@@ -610,3 +628,17 @@ make-version.pl [options] [source directory]
 
 Options can be used in any combination. If none are specified B<--set-svn>
 is assumed.
+
+#
+# Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+#
+# Local variables:
+# c-basic-offset: 8
+# tab-width: 8
+# indent-tabs-mode: t
+# End:
+#
+# vi: set shiftwidth=8 tabstop=8 noexpandtab:
+# :indentSize=8:tabSize=8:noTabs=false:
+#
+#

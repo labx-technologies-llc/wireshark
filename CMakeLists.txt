@@ -33,42 +33,53 @@ if(COMMAND cmake_policy)
 #	cmake_policy(SET CMP0015 NEW)
 endif(COMMAND cmake_policy)
 
-# set(PROJECT_VERSION "1.3.4-rc5")
-# set(PROJECT_VERSION "1.3.4rc5")
-# set(PROJECT_VERSION "1.3.4")
-# If not set, copy over Wireshark version from configure.ac AC_INIT
-if(NOT PROJECT_VERSION)
+# set(PROJECT_MAJOR_VERSION 1)
+# set(PROJECT_MINOR_VERSION 9)
+# set(PROJECT_PATCH_VERSION 0)
+# set(PROJECT_VERSION_EXTENSION "-rc5")
+# If not set, copy over Wireshark version from configure.ac
+if(NOT PROJECT_MAJOR_VERSION)
 	file(STRINGS
 		${CMAKE_SOURCE_DIR}/configure.ac
-		VERSIONLINE
-		REGEX "\\(wireshark, .*\\)"
+		PROJECT_MAJOR_VERSION_TMP
+		REGEX "^m4_define\\(version_major, [0-9]+\\)"
 	)
-	string(REGEX REPLACE ".*\\(wireshark, ([^,)]*).*"
+	file(STRINGS
+		${CMAKE_SOURCE_DIR}/configure.ac
+		PROJECT_MINOR_VERSION_TMP
+		REGEX "^m4_define\\(version_minor, [0-9]+\\)"
+	)
+	file(STRINGS
+		${CMAKE_SOURCE_DIR}/configure.ac
+		PROJECT_PATCH_VERSION_TMP
+		REGEX "^m4_define\\(version_micro, [0-9]+\\)"
+	)
+	# XXX pull VERSION_EXTENSION out of configure.ac ?
+
+	string(REGEX REPLACE "m4_define\\(version_major, ([0-9]+)\\)"
 		"\\1"
-		PROJECT_VERSION
-		${VERSIONLINE}
+		PROJECT_MAJOR_VERSION
+		${PROJECT_MAJOR_VERSION_TMP}
+	)
+	string(REGEX REPLACE "m4_define\\(version_minor, ([0-9]+)\\)"
+		"\\1"
+		PROJECT_MINOR_VERSION
+		${PROJECT_MINOR_VERSION_TMP}
+	)
+	string(REGEX REPLACE "m4_define\\(version_micro, ([0-9]+)\\)"
+		"\\1"
+		PROJECT_PATCH_VERSION
+		${PROJECT_PATCH_VERSION_TMP}
 	)
 endif()
-string(REGEX REPLACE "([0-9]+)\\..*"
-	"\\1"
-	PROJECT_MAJOR_VERSION
-	${PROJECT_VERSION}
-)
-string(REGEX REPLACE ".*\\.([0-9]+)\\..*"
-	"\\1"
-	PROJECT_MINOR_VERSION
-	${PROJECT_VERSION}
-)
-string(REGEX REPLACE ".*\\..*\\.([0-9]+).*"
-	"\\1"
-	PROJECT_PATCH_VERSION
-	${PROJECT_VERSION}
-)
-string(REGEX REPLACE ".*\\..*\\.[0-9]+(.*)"
-	"\\1"
-	PROJECT_VERSION_EXTENSION
-	${PROJECT_VERSION}
-)
+
+
+if(PROJECT_VERSION_EXTENSION)
+	set(PROJECT_VERSION ${PROJECT_MAJOR_VERSION}.${PROJECT_MINOR_VERSION}.${PROJECT_PATCH_VERSION}${PROJECT_VERSION_EXTENSION})
+else()
+	set(PROJECT_VERSION ${PROJECT_MAJOR_VERSION}.${PROJECT_MINOR_VERSION}.${PROJECT_PATCH_VERSION})
+endif()
+
 message(STATUS "V: ${PROJECT_VERSION}, MaV: ${PROJECT_MAJOR_VERSION}, MiV: ${PROJECT_MINOR_VERSION}, PL: ${PROJECT_PATCH_VERSION}, EV: ${PROJECT_VERSION_EXTENSION}.")
 
 #Where to find local cmake scripts
@@ -471,6 +482,10 @@ add_subdirectory( tools/lemon )
 add_subdirectory( wiretap )
 add_subdirectory( wsutil )
 
+if((BUILD_wireshark AND GTK_FOUND) OR (BUILD_qtshark AND QT_FOUND))
+	add_subdirectory( ui )
+endif()
+
 if(BUILD_wireshark AND GTK_FOUND)
 	add_subdirectory( ui/gtk )
 endif()
@@ -526,6 +541,7 @@ PRINT_ENABLED_FEATURES()
 PRINT_DISABLED_FEATURES()
 
 link_directories(
+	${CMAKE_BINARY_DIR}/ui
 	${CMAKE_BINARY_DIR}/ui/gtk
 	${CMAKE_BINARY_DIR}/ui/qt
 	${CMAKE_BINARY_DIR}/codecs
@@ -720,9 +736,6 @@ if( (BUILD_wireshark AND GTK_FOUND) OR (BUILD_qtshark AND QT_FOUND) )
 		summary.c
 		tempfile.c
 		u3.c
-		ui/alert_box.c
-		ui/iface_lists.c
-		ui/util.c
 		ws80211_utils.c
 		${SHARK_COMMON_CAPTURE_SRC}
 		${WIRESHARK_COMMON_SRC}
@@ -732,6 +745,7 @@ endif()
 if(BUILD_wireshark AND GTK_FOUND)
 	set(wireshark_LIBS
 		gtkui
+		ui
 		${GTK2_LIBRARIES}
 		${GTK3_LIBRARIES}
 		${GTHREAD2_LIBRARIES}
@@ -754,6 +768,7 @@ endif()
 if(BUILD_qtshark AND QT_FOUND)
 	set(qtshark_LIBS
 		qtui
+		ui
 		${QT_LIBRARIES}
 		${GTHREAD2_LIBRARIES}
 		codecs
@@ -1115,4 +1130,3 @@ if(DOC_DIR)
 		PATTERN "*.pdf"
 	)
 endif()
-

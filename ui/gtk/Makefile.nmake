@@ -35,8 +35,7 @@ WIRESHARK_CLEAN_LIBGTKUI_SRC = \
 	capture_if_details_dlg_win32.c
 
 WIRESHARK_LIBGTKUI_SRC = \
-	$(WIRESHARK_CLEAN_LIBGTKUI_SRC) \
-	$(DIRTY_GENERATED_C_FILES) \
+	$(WIRESHARK_CLEAN_LIBGTKUI_SRC)
 
 PORT_AUDIO_SRC = \
 !IFDEF PORTAUDIO_DIR
@@ -86,13 +85,6 @@ wireshark-tap-register.c: $(WIRESHARK_TAP_SRC) ../../tools/make-tapreg-dotc Make
 	@echo Making wireshark-tap-register.c
 	@$(SH) ../../tools/make-tapreg-dotc wireshark-tap-register.c . $(WIRESHARK_TAP_SRC)
 !ENDIF
-
-RUNLEX=..\..\tools\runlex.sh
-
-text_import_scanner.h: text_import_scanner.c
-text_import_scanner_lex.h: text_import_scanner.c
-text_import_scanner.obj : text_import_scanner.c
-	$(CC) $(GENERATED_CFLAGS) $(WSUG_CFLAGS) -Fd.\ -c $?
 
 !IF "$(PORTAUDIO_VERSION)" == "18"
 pa_lib.obj: $(PORTAUDIO_DIR)\pa_common\pa_lib.c
@@ -147,7 +139,8 @@ pa_win_waveformat.obj: $(PORTAUDIO_DIR)\src\os\win\pa_win_waveformat.c
 
 clean:
 	rm -f $(WIRESHARK_LIBGTKUI_OBJECTS) libgtkui.lib *.pdb *.sbr \
-		doxygen.cfg html/*.* wireshark-tap-register-cache.pkl
+		doxygen.cfg html/*.* wireshark-tap-register-cache.pkl \
+		wireshark-tap-register.c-tmp
 	if exist html rmdir html
 
 distclean: clean
