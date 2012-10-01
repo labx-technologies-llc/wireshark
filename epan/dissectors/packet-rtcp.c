@@ -62,9 +62,7 @@
  * (http://www.iana.org/assignments/rtcp-xr-block-types/rtcp-xr-block-types.xml).
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <stdlib.h>
 
@@ -810,7 +808,6 @@ static int
 dissect_rtcp_rtpfb_nack( tvbuff_t *tvb, int offset, proto_tree *rtcp_tree, proto_item *top_item)
 {
     int           i;
-    char          strbuf[64];
     int           nack_num_frames_lost;
     proto_tree   *bitfield_tree;
     unsigned int  rtcp_rtpfb_nack_pid;
@@ -822,27 +819,22 @@ dissect_rtcp_rtpfb_nack( tvbuff_t *tvb, int offset, proto_tree *rtcp_tree, proto
     offset += 2;
 
     ti = proto_tree_add_item(rtcp_tree, hf_rtcp_rtpfb_nack_blp, tvb, offset, 2, ENC_BIG_ENDIAN);
-
-    proto_item_set_text(ti, "RTCP Transport Feedback NACK BLP: ");
     rtcp_rtpfb_nack_blp = tvb_get_ntohs(tvb, offset);
-    bitfield_tree = proto_item_add_subtree( ti, ett_rtcp_nack_blp);
+    bitfield_tree = proto_item_add_subtree(ti, ett_rtcp_nack_blp);
     nack_num_frames_lost = 1;
     if (rtcp_rtpfb_nack_blp) {
+        proto_item_append_text(ti, " (Frames");
         for (i = 0; i < 16; i ++) {
-            g_snprintf(strbuf, 64, "Frame %d also lost", rtcp_rtpfb_nack_pid + i + 1);
-            proto_tree_add_text(bitfield_tree, tvb, offset, 2, "%s",
-                                decode_boolean_bitfield(rtcp_rtpfb_nack_blp, (1<<i), 16, strbuf, ""));
-
             if (rtcp_rtpfb_nack_blp & (1<<i)) {
-                proto_item *hidden_ti;
-                hidden_ti = proto_tree_add_uint(bitfield_tree, hf_rtcp_rtpfb_nack_pid, tvb, offset, 2, rtcp_rtpfb_nack_pid + i + 1);
-                PROTO_ITEM_SET_HIDDEN(hidden_ti);
-                proto_item_append_text(ti, "%d ", rtcp_rtpfb_nack_pid + i + 1);
+                proto_tree_add_uint_format(bitfield_tree, hf_rtcp_rtpfb_nack_pid, tvb, offset, 2, rtcp_rtpfb_nack_pid + i + 1,
+                    "Frame %u also lost", rtcp_rtpfb_nack_pid + i + 1);
+                proto_item_append_text(ti, " %u", rtcp_rtpfb_nack_pid + i + 1);
                 nack_num_frames_lost ++;
             }
         }
+        proto_item_append_text(ti, " lost)");
     } else {
-        proto_item_set_text(ti, "0 (No additional frames lost)");
+        proto_item_append_text(ti, " (No additional frames lost)");
     }
     offset += 2;
 
@@ -4531,8 +4523,8 @@ proto_register_rtcp(void)
         {
             &hf_rtcp_rtpfb_nack_pid,
             {
-                "RTCP Transport Feedback NACK",
-                "rtcp.rtpfb.nack",
+                "RTCP Transport Feedback NACK PID",
+                "rtcp.rtpfb.nack_pid",
                 FT_UINT16,
                 BASE_DEC,
                 NULL,
@@ -4544,9 +4536,9 @@ proto_register_rtcp(void)
             &hf_rtcp_rtpfb_nack_blp,
             {
                 "RTCP Transport Feedback NACK BLP",
-                "rtcp.rtpfb.nack.blp",
+                "rtcp.rtpfb.nack_blp",
                 FT_UINT16,
-                BASE_DEC,
+                BASE_HEX,
                 NULL,
                 0x0,
                 NULL, HFILL

@@ -23,9 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif
 
 #include <string.h>
 
@@ -972,9 +970,7 @@ static void win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
     mac_lte_stat_t *hs = (mac_lte_stat_t *)data;
 
-    protect_thread_critical_region();
     remove_tap_listener(hs);
-    unprotect_thread_critical_region();
 
     if (hs->mac_lte_stat_dlg_w != NULL) {
         window_destroy(hs->mac_lte_stat_dlg_w);

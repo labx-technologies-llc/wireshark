@@ -22,9 +22,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -83,8 +81,8 @@ gboolean auto_scroll_live;
 
 static guint32 cum_bytes;
 static nstime_t first_ts;
-static nstime_t prev_dis_ts;
-static nstime_t prev_cap_ts;
+static frame_data *prev_dis;
+static frame_data *prev_cap;
 
 static gulong computed_elapsed;
 
@@ -334,15 +332,15 @@ cf_open(capture_file *cf, const char *fname, gboolean is_tempfile, int *err)
 
   nstime_set_zero(&cf->elapsed_time);
   nstime_set_unset(&first_ts);
-  nstime_set_unset(&prev_dis_ts);
-  nstime_set_unset(&prev_cap_ts);
+  prev_dis = NULL;
+  prev_cap = NULL;
   cum_bytes = 0;
 
   /* Adjust timestamp precision if auto is selected, col width will be adjusted */
   cf_timestamp_auto_precision(cf);
   /* XXX needed ? */
   packet_list_queue_draw();
-  fileset_file_opened(fname);
+  cf_callback_invoke(cf_cb_file_opened, cf);
 
   if (cf->cd_t == WTAP_FILE_BER) {
     /* tell the BER dissector the file name */
@@ -444,8 +442,6 @@ cf_reset_state(capture_file *cf)
 
   /* We have no file open. */
   cf->state = FILE_CLOSED;
-
-  fileset_file_closed();
 }
 
 /* Reset everything to a pristine state */
@@ -862,8 +858,9 @@ cf_continue_tail(capture_file *cf, volatile int to_read, int *err)
   } else if (*err != 0) {
     /* We got an error reading the capture file.
        XXX - pop up a dialog box instead? */
-    g_warning("Error \"%s\" while reading: \"%s\"\n",
-        wtap_strerror(*err), cf->filename);
+    g_warning("Error \"%s\" while reading: \"%s\" (\"%s\")",
+        wtap_strerror(*err), err_info, cf->filename);
+    g_free(err_info);
 
     return CF_READ_ERROR;
   } else
@@ -960,6 +957,10 @@ cf_finish_tail(capture_file *cf, int *err)
   if (*err != 0) {
     /* We got an error reading the capture file.
        XXX - pop up a dialog box? */
+
+    g_warning("Error \"%s\" while reading: \"%s\" (\"%s\")",
+        wtap_strerror(*err), err_info, cf->filename);
+    g_free(err_info);
     return CF_READ_ERROR;
   } else {
     return CF_READ_OK;
@@ -1096,7 +1097,8 @@ add_packet_to_packet_list(frame_data *fdata, capture_file *cf,
   cinfo = (tap_flags & TL_REQUIRES_COLUMNS) ? &cf->cinfo : NULL;
 
   frame_data_set_before_dissect(fdata, &cf->elapsed_time,
-                                &first_ts, &prev_dis_ts, &prev_cap_ts);
+                                &first_ts, prev_dis, prev_cap);
+  prev_cap = fdata;
 
   /* If either
     + we have a display filter and are re-applying it;
@@ -1150,7 +1152,8 @@ add_packet_to_packet_list(frame_data *fdata, capture_file *cf,
 
   if (fdata->flags.passed_dfilter || fdata->flags.ref_time)
   {
-    frame_data_set_after_dissect(fdata, &cum_bytes, &prev_dis_ts);
+    frame_data_set_after_dissect(fdata, &cum_bytes);
+    prev_dis = fdata;
 
     /* If we haven't yet seen the first frame, this is it.
 
@@ -1773,6 +1776,7 @@ rescan_packets(capture_file *cf, const char *action, const char *action_item,
   guint       tap_flags;
   gboolean    add_to_packet_list = FALSE;
   gboolean    compiled;
+  guint32     frames_count;
 
   /* Compile the current display filter.
    * We assume this will not fail since cf->dfilter is only set in
@@ -1833,8 +1837,8 @@ rescan_packets(capture_file *cf, const char *action, const char *action_item,
      to check whether it should be displayed and, if so, add it to
      the display list. */
   nstime_set_unset(&first_ts);
-  nstime_set_unset(&prev_dis_ts);
-  nstime_set_unset(&prev_cap_ts);
+  prev_dis = NULL;
+  prev_cap = NULL;
   cum_bytes = 0;
 
   /* Update the progress bar when it gets to this value. */
@@ -1861,7 +1865,8 @@ rescan_packets(capture_file *cf, const char *action, const char *action_item,
 
   selected_frame_seen = FALSE;
 
-  for (framenum = 1; framenum <= cf->count; framenum++) {
+  frames_count = cf->count;
+  for (framenum = 1; framenum <= frames_count; framenum++) {
     fdata = frame_data_sequence_find(cf->frames, framenum);
 
     /* Create the progress bar if necessary.
@@ -1884,11 +1889,11 @@ rescan_packets(capture_file *cf, const char *action, const char *action_item,
        * with count == 0, so let's assert that
        */
       g_assert(cf->count > 0);
-      progbar_val = (gfloat) count / cf->count;
+      progbar_val = (gfloat) count / frames_count;
 
       if (progbar != NULL) {
         g_snprintf(status_str, sizeof(status_str),
-                  "%4u of %u frames", count, cf->count);
+                  "%4u of %u frames", count, frames_count);
         update_progress_dlg(progbar, progbar_val, status_str);
       }
 
@@ -1920,6 +1925,7 @@ rescan_packets(capture_file *cf, const char *action, const char *action_item,
        * "init_dissection()"), and null out the GSList pointer. */
       fdata->flags.visited = 0;
       frame_data_cleanup(fdata);
+      frames_count = cf->count;
     }
 
     if (redissect || refilter) {
@@ -1968,6 +1974,7 @@ rescan_packets(capture_file *cf, const char *action, const char *action_item,
   cf->redissecting = FALSE;
 
   if (redissect) {
+      frames_count = cf->count;
     /* Clear out what remains of the visited flags and per-frame data
        pointers.
 
@@ -1977,7 +1984,7 @@ rescan_packets(capture_file *cf, const char *action, const char *action_item,
        even though the user requested that the scan stop, and that
        would leave the user stuck with an Wireshark grinding on
        until it finishes.  Should we just stick them with that? */
-    for (; framenum <= cf->count; framenum++) {
+    for (; framenum <= frames_count; framenum++) {
       fdata = frame_data_sequence_find(cf->frames, framenum);
       fdata->flags.visited = 0;
       frame_data_cleanup(fdata);
@@ -2074,7 +2081,7 @@ ref_time_packets(capture_file *cf)
   frame_data *fdata;
 
   nstime_set_unset(&first_ts);
-  nstime_set_unset(&prev_dis_ts);
+  prev_dis = NULL;
   cum_bytes = 0;
 
   for (framenum = 1; framenum <= cf->count; framenum++) {
@@ -2103,8 +2110,8 @@ ref_time_packets(capture_file *cf)
      it's because this is the first displayed packet.  Save the time
      stamp of this packet as the time stamp of the previous displayed
      packet. */
-    if (nstime_is_unset(&prev_dis_ts)) {
-        prev_dis_ts = fdata->abs_ts;
+    if (prev_dis == NULL) {
+        prev_dis = fdata;
     }
 
     /* Get the time elapsed between the first packet and this packet. */
@@ -2121,8 +2128,8 @@ ref_time_packets(capture_file *cf)
     /* If this frame is displayed, get the time elapsed between the
      previous displayed packet and this packet. */
     if ( fdata->flags.passed_dfilter ) {
-        nstime_delta(&fdata->del_dis_ts, &fdata->abs_ts, &prev_dis_ts);
-        prev_dis_ts = fdata->abs_ts;
+        fdata->prev_dis = prev_dis;
+        prev_dis = fdata;
     }
 
     /*

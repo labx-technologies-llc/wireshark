@@ -35,9 +35,7 @@
  * Ref: STANAG 4406 Annex E
  */
 
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif
 
 #include <epan/packet.h>
 #include <epan/oids.h>
@@ -80,7 +78,7 @@ static int hf_cdt_contentType_OID = -1;           /* T_contentType_OID */
 static int hf_cdt_compressedContent = -1;         /* CompressedContent */
 
 /*--- End of included file: packet-cdt-hf.c ---*/
-#line 62 "../../asn1/cdt/packet-cdt-template.c"
+#line 60 "../../asn1/cdt/packet-cdt-template.c"
 
 static dissector_handle_t data_handle = NULL;
 
@@ -94,7 +92,7 @@ static gint ett_cdt_CompressedContentInfo = -1;
 static gint ett_cdt_T_contentType = -1;
 
 /*--- End of included file: packet-cdt-ett.c ---*/
-#line 67 "../../asn1/cdt/packet-cdt-template.c"
+#line 65 "../../asn1/cdt/packet-cdt-template.c"
 
 
 /*--- Included file: packet-cdt-fn.c ---*/
@@ -339,7 +337,7 @@ static void dissect_CompressedData_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_
 
 
 /*--- End of included file: packet-cdt-fn.c ---*/
-#line 69 "../../asn1/cdt/packet-cdt-template.c"
+#line 67 "../../asn1/cdt/packet-cdt-template.c"
 
 
 /*--- proto_register_cdt -------------------------------------------*/
@@ -410,7 +408,7 @@ void proto_register_cdt (void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-cdt-hfarr.c ---*/
-#line 99 "../../asn1/cdt/packet-cdt-template.c"
+#line 97 "../../asn1/cdt/packet-cdt-template.c"
   };
 
   /* List of subtrees */
@@ -424,7 +422,7 @@ void proto_register_cdt (void) {
     &ett_cdt_T_contentType,
 
 /*--- End of included file: packet-cdt-ettarr.c ---*/
-#line 104 "../../asn1/cdt/packet-cdt-template.c"
+#line 102 "../../asn1/cdt/packet-cdt-template.c"
   };
 
   /* Register protocol */
@@ -446,7 +444,7 @@ void proto_reg_handoff_cdt (void) {
 
 
 /*--- End of included file: packet-cdt-dis-tab.c ---*/
-#line 119 "../../asn1/cdt/packet-cdt-template.c"
+#line 117 "../../asn1/cdt/packet-cdt-template.c"
 
   data_handle = find_dissector ("data");
 }

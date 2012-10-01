@@ -24,13 +24,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
-#include <glib.h>
+#include "config.h"
 
 #include <epan/packet.h>
+
 #include "packet-btl2cap.h"
 
 /* Initialize the protocol and registered fields */

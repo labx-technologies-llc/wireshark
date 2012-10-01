@@ -26,9 +26,7 @@
  * References: 3GPP TS 24.301 V10.6.1 (2012-03)
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
@@ -4755,7 +4753,7 @@ dissect_nas_eps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             dissect_nas_eps_emm_msg(tvb, pinfo, nas_eps_tree, offset, FALSE);
             return;
         } else {
-            proto_tree_add_text(tree, tvb, offset, len, "All ESM messages should be integrity protected");
+            proto_tree_add_text(tree, tvb, offset, len, "All ESM / Test Procedures messages should be integrity protected");
             return;
         }
     } else {

@@ -23,9 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
@@ -153,15 +151,19 @@ static gint ett_unknown_info = -1;
 /*
  * At
  *
- *	http://www.alternic.org/drafts/drafts-f-g/draft-forster-wrec-wccp-v1-00.html
+ *	http://tools.ietf.org/html/draft-forster-wrec-wccp-v1-00
  *
- * is a copy of the now-expired Internet-Draft for WCCP 1.0.
+ * is a copy of the Internet-Draft for WCCP 1.0.
  *
  * At
  *
  *	http://tools.ietf.org/id/draft-wilson-wrec-wccp-v2-01.txt
  *
  * is an Internet-Draft for WCCP 2.0.
+ *
+ * At   http://tools.ietf.org/id/draft-mclaggan-wccp-v2rev1-00.txt
+ *
+ * is an Internet-Draft for WCCP 2 revision 1
  */
 
 /* This is NOT IANA assigned */

@@ -22,9 +22,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <string.h>
 
@@ -52,6 +50,7 @@
 #include "ui/gtk/packet_panes.h"
 #include "ui/gtk/old-gtk-compat.h"
 #include "ui/gtk/edit_packet_comment_dlg.h"
+#include "ui/gtk/capture_comment_icons.h"
 
 enum
 {
@@ -336,9 +335,7 @@ win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
     expert_comp_dlg_t *ss=(expert_comp_dlg_t *)data;
 
-    protect_thread_critical_region();
     remove_tap_listener(ss);
-    unprotect_thread_critical_region();
 
     if (expert_comp_dlg_w != NULL) {
         window_destroy(expert_comp_dlg_w);
@@ -358,9 +355,7 @@ expert_dlg_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
     expert_tapdata_t *etd=(expert_tapdata_t *)data;
 
-    protect_thread_critical_region();
     remove_tap_listener(etd);
-    unprotect_thread_critical_region();
 
     /*free_srt_table_data(&etd->afp_srt_table);*/
     g_array_free(etd->ei_array, TRUE);
@@ -380,8 +375,8 @@ static expert_tapdata_t * expert_dlg_new_table(void)
 }
 
 static void
-coments_row_double_click_cb(GtkTreeView *treeview _U_, GtkTreePath *path _U_,
-                            GtkTreeViewColumn *col _U_, gpointer userdata _U_)
+comments_row_double_click_cb(GtkTreeView *treeview _U_, GtkTreePath *path _U_,
+                             GtkTreeViewColumn *col _U_, gpointer userdata _U_)
 {
     edit_packet_comment_dlg(NULL, NULL);
 }
@@ -400,7 +395,7 @@ expert_dlg_init_comments_table(expert_tapdata_t * etd, GtkWidget *vbox)
     store = gtk_list_store_new(N_COLUMNS_COMMENT_TBL,        /* Total number of columns */
                                G_TYPE_UINT,      /* No                      */
                                G_TYPE_POINTER,   /* Summary                 */
-                               G_TYPE_STRING,    /* forground               */
+                               G_TYPE_STRING,    /* Foreground              */
                                G_TYPE_STRING);   /* Background              */
 
     /* Create a view */
@@ -477,7 +472,7 @@ expert_dlg_init_comments_table(expert_tapdata_t * etd, GtkWidget *vbox)
                   NULL);
 
     g_signal_connect(tree, "row-activated",
-                     G_CALLBACK(coments_row_double_click_cb), NULL);
+                     G_CALLBACK(comments_row_double_click_cb), NULL);
 
     etd->scrolled_window_comments=scrolled_window_new(NULL, NULL);
     gtk_container_add(GTK_CONTAINER(etd->scrolled_window_comments), GTK_WIDGET (etd->tree_view_comments));
@@ -502,7 +497,7 @@ expert_dlg_init_table(expert_tapdata_t * etd, GtkWidget *vbox)
                                G_TYPE_POINTER,   /* Group                   */
                                G_TYPE_POINTER,   /* Protocol                */
                                G_TYPE_POINTER,   /* Summary                 */
-                               G_TYPE_STRING,    /* forground               */
+                               G_TYPE_STRING,    /* Foreground              */
                                G_TYPE_STRING);   /* Background              */
 
     /* Create a view */
@@ -862,14 +857,27 @@ expert_comp_init(const char *optarg _U_, void* userdata _U_)
 
     /* Details */
     details_page = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 6, FALSE);
-    ss->all_label = gtk_label_new("Details: 0");
-    gtk_notebook_append_page(GTK_NOTEBOOK(main_nb), details_page, ss->all_label);
+    ss->all_label = gtk_label_new("Details: 0/y");
+    gtk_widget_show(ss->all_label);
+    hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
+    if ( prefs.gui_expert_composite_eyecandy ) {
+        image = pixbuf_to_widget(capture_comment_disabled_pb_data);
+        gtk_widget_show(image);
+        gtk_box_pack_start(GTK_BOX(hbox), image, TRUE, TRUE, 0);
+    }
+    gtk_box_pack_start(GTK_BOX(hbox), ss->all_label, TRUE, TRUE, 0);
+    gtk_notebook_append_page(GTK_NOTEBOOK(main_nb), details_page, hbox);
 
-    /* Paket comments */
+    /* Packet comments */
     comments_page = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 6, FALSE);
     ss->pkt_comments_label = gtk_label_new("Packet Comments: 0/y");
     gtk_widget_show(ss->pkt_comments_label);
     hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
+    if ( prefs.gui_expert_composite_eyecandy ) {
+        image = pixbuf_to_widget(capture_comment_update_pb_data);
+        gtk_widget_show(image);
+        gtk_box_pack_start(GTK_BOX(hbox), image, TRUE, TRUE, 0);
+    }
     gtk_box_pack_start(GTK_BOX(hbox), ss->pkt_comments_label, TRUE, TRUE, 0);
     gtk_notebook_append_page(GTK_NOTEBOOK(main_nb), comments_page, hbox);
 
@@ -942,7 +950,7 @@ expert_comp_init(const char *optarg _U_, void* userdata _U_)
      * Put our window back in front
      */
     gdk_window_raise(gtk_widget_get_window(ss->win));
-    /* Set the lable text */
+    /* Set the label text */
     expert_comp_draw(ss);
 }
 

@@ -25,9 +25,7 @@
  */
 
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <string.h>
 
@@ -227,9 +225,7 @@ win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
 	sctpstat_t *hs=(sctpstat_t *)data;
 
-	protect_thread_critical_region();
 	remove_tap_listener(hs);
-	unprotect_thread_critical_region();
 
 	if(hs->filter){
 		g_free(hs->filter);

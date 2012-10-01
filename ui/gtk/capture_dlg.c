@@ -23,9 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #ifdef HAVE_LIBPCAP
 
@@ -178,7 +176,6 @@ enum
 #define E_REMOTE_OK_BT_KEY              "cap_remote_ok_bt"
 #define E_REMOTE_DEL_BT_KEY             "cap_remote_delete_bt"
 #define E_CAP_CBX_IFTYPE_NOUPDATE_KEY   "cap_cbx_iftype_noupdate"
-#define E_OPT_REMOTE_BT_KEY             "cap_remote_opt_bt"
 #define E_OPT_REMOTE_DIALOG_PTR_KEY     "cap_remote_opt_dialog"
 #define E_OPT_REMOTE_CALLER_PTR_KEY     "cap_remote_opt_caller"
 #endif
@@ -1285,6 +1282,7 @@ insert_new_rows(GList *list)
           device.active_dlt = data_link_info->dlt;
         }
         link->name = g_strdup(str);
+        g_free(str);
         device.links = g_list_append(device.links, link);
         linktype_count++;
       } /* for link_types */
@@ -1353,14 +1351,12 @@ static void
 update_interface_list(void)
 {
   GtkWidget *iftype_cbx;
-  GtkTreeView *if_cb;
   GList     *if_list, *if_r_list;
   int        iftype, err;
   gchar     *err_str;
 
   if (cap_open_w == NULL)
     return;
-  if_cb = (GtkTreeView *)g_object_get_data(G_OBJECT(cap_open_w), E_CAP_IFACE_KEY);
   iftype_cbx = (GtkWidget *)g_object_get_data(G_OBJECT(g_object_get_data(G_OBJECT(new_interfaces_w), E_CAP_REMOTE_DIALOG_PTR_KEY)), E_REMOTE_HOST_TE_KEY);
   iftype = CAPTURE_IFREMOTE;
   if (iftype >= CAPTURE_IFREMOTE) {
@@ -1430,8 +1426,7 @@ capture_remote_destroy_cb(GtkWidget *win, gpointer user_data _U_)
 static void
 capture_remote_ok_cb(GtkWidget *win _U_, GtkWidget *remote_w)
 {
-  GtkWidget *host_te, *port_te, *auth_pwd_rb, *username_te, *passwd_te,
-            *auth_null_rb, *auth_passwd_rb;
+  GtkWidget *host_te, *port_te, *username_te, *passwd_te, *auth_passwd_rb;
   gchar *hostname;
 
   if (remote_w == NULL) {
@@ -1441,12 +1436,9 @@ capture_remote_ok_cb(GtkWidget *win _U_, GtkWidget *remote_w)
   host_te = (GtkWidget *)g_object_get_data(G_OBJECT(remote_w), E_REMOTE_HOST_TE_KEY);
   hostname = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(host_te));
   port_te = (GtkWidget *)g_object_get_data(G_OBJECT(remote_w), E_REMOTE_PORT_TE_KEY);
-  auth_pwd_rb = (GtkWidget *)g_object_get_data(G_OBJECT(remote_w),
-                                               E_REMOTE_AUTH_PASSWD_KEY);
   username_te = (GtkWidget *)g_object_get_data(G_OBJECT(remote_w),
                                                E_REMOTE_USERNAME_TE_KEY);
   passwd_te = (GtkWidget *)g_object_get_data(G_OBJECT(remote_w), E_REMOTE_PASSWD_TE_KEY);
-  auth_null_rb = (GtkWidget *) g_object_get_data(G_OBJECT(remote_w), E_REMOTE_AUTH_NULL_KEY);
   auth_passwd_rb = (GtkWidget *) g_object_get_data(G_OBJECT(remote_w), E_REMOTE_AUTH_PASSWD_KEY);
   g_free(global_remote_opts.remote_host_opts.remote_host);
   global_remote_opts.remote_host_opts.remote_host = hostname;
@@ -1934,9 +1926,12 @@ capture_remote_combo_add_recent(gchar *s)
 
   /* First value is the host */
   rh->remote_host = g_strdup (valp->data);
-  if (strlen(rh->remote_host) == 0)
+  if (strlen(rh->remote_host) == 0) {
     /* Empty remote host */
+    g_free(rh->remote_host);
+    g_free(rh);
     return FALSE;
+  }
   rh->auth_type = CAPTURE_AUTH_NULL;
   valp = valp->next;
 
@@ -2899,37 +2894,40 @@ void options_interface_cb(GtkTreeView *view, GtkTreePath *path, GtkTreeViewColum
 #endif
 
 #ifdef HAVE_PCAP_REMOTE
-  remote_bt = gtk_button_new_with_label("Remote Settings");
-  gtk_widget_set_tooltip_text(remote_bt, "Various settings for remote capture.");
-
+  /*
+   * *IF* this is a remote interface, add the "Remote Settings"
+   * button.  Do *not* add it for other interfaces, as that could
+   * lead users to believe that it could somehow be enabled.
+   */
   /* Both the callback and the data are global */
-  g_signal_connect(remote_bt, "clicked", G_CALLBACK(options_remote_cb), NULL);
-  g_object_set_data(G_OBJECT(opt_edit_w), E_OPT_REMOTE_BT_KEY, remote_bt);
   if (strncmp (device.name, "rpcap://", 8) == 0)  {
-    gtk_widget_set_sensitive(remote_bt, TRUE);
-  } else {
-    gtk_widget_set_sensitive(remote_bt, FALSE);
-  }
-  gtk_box_pack_start(GTK_BOX(right_vb), remote_bt, FALSE, FALSE, 0);
-  gtk_widget_show(remote_bt);
-#endif
-  /* advanced row */
-#ifdef HAVE_AIRPCAP
-  advanced_bt = gtk_button_new_with_label("Wireless Settings");
+    remote_bt = gtk_button_new_with_label("Remote Settings");
+    gtk_widget_set_tooltip_text(remote_bt, "Various settings for remote capture.");
 
-  /* Both the callback and the data are global */
-  g_signal_connect(advanced_bt,"clicked", G_CALLBACK(options_airpcap_advanced_cb), wireless_tb);
-  g_object_set_data(G_OBJECT(top_level),AIRPCAP_OPTIONS_ADVANCED_KEY, advanced_bt);
+    g_signal_connect(remote_bt, "clicked", G_CALLBACK(options_remote_cb), NULL);
+
+    gtk_box_pack_start(GTK_BOX(right_vb), remote_bt, FALSE, FALSE, 0);
+    gtk_widget_show(remote_bt);
+  }
+#endif
+
+#ifdef HAVE_AIRPCAP
+  /*
+   * *IF* this is an AirPcap interface, add the "Wireless Settings"
+   * button.  Do *not* add it for other interfaces, as that can
+   * confuse users, so that they ask why this is grayed out on
+   * their non-Windows machine and ask how to enable it.
+   */
   airpcap_if_selected = get_airpcap_if_from_name(airpcap_if_list, device.name);
   if (airpcap_if_selected != NULL) {
-    /* It is an airpcap interface */
-    gtk_widget_set_sensitive(advanced_bt, TRUE);
-  } else {
-    gtk_widget_set_sensitive(advanced_bt, FALSE);
-  }
+    advanced_bt = gtk_button_new_with_label("Wireless Settings");
 
-  gtk_box_pack_start(GTK_BOX(right_vb), advanced_bt, FALSE, FALSE, 0);
-  gtk_widget_show(advanced_bt);
+    /* Both the callback and the data are global */
+    g_signal_connect(advanced_bt,"clicked", G_CALLBACK(options_airpcap_advanced_cb), wireless_tb);
+
+    gtk_box_pack_start(GTK_BOX(right_vb), advanced_bt, FALSE, FALSE, 0);
+    gtk_widget_show(advanced_bt);
+  }
 #endif
 
 /* Button row: "Start", "Cancel" and "Help" buttons */
@@ -4363,7 +4361,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
 #endif
 
   swindow = gtk_scrolled_window_new (NULL, NULL);
-  gtk_widget_set_size_request(swindow, FALSE, 180);
+  gtk_widget_set_size_request(swindow, 676, 180);
   gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(swindow), GTK_SHADOW_IN);
 
   view = gtk_tree_view_new ();
@@ -5017,7 +5015,7 @@ capture_start_confirmed(void)
   guint i;
 
   /* did the user ever select a capture interface before? */
-  if(global_capture_opts.num_selected == 0 && 
+  if(global_capture_opts.num_selected == 0 &&
       ((prefs.capture_device == NULL) || (*prefs.capture_device != '\0'))) {
     simple_dialog(ESD_TYPE_CONFIRMATION,
                   ESD_BTN_OK,

@@ -79,9 +79,7 @@
  * decoder has not been able to determine.
  *
  */
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
@@ -167,7 +165,6 @@ static int hf_scsi_inq_vendor_id                = -1;
 static int hf_scsi_inq_product_id               = -1;
 static int hf_scsi_inq_product_rev              = -1;
 static int hf_scsi_inq_vendor_specific          = -1;
-static int hf_scsi_inq_reserved                 = -1;
 static int hf_scsi_inq_version_desc             = -1;
 static int hf_scsi_inq_devtype                  = -1;
 static int hf_scsi_inq_rmb                      = -1;
@@ -2552,12 +2549,8 @@ dissect_spc_inquiry(tvbuff_t *tvb, packet_info *pinfo,
         proto_tree_add_item(tree, hf_scsi_inq_vendor_specific, tvb_v, offset_v, 20, ENC_NA);
         offset_v+=20;
 
-        proto_tree_add_item(tree, hf_scsi_inq_reserved, tvb_v, offset_v, 2, ENC_NA);
-        /* clocking, qas, ius */
-        offset_v++;
-
         /* reserved */
-        offset_v++;
+        offset_v += 2;
 
         /* version descriptors */
         for(i = 0;i<8;i++) {
@@ -4397,12 +4390,12 @@ dissect_spc_senddiagnostic(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tr
     if (!tree && !isreq)
         return;
 
-    proto_tree_add_uint(tree, hf_scsi_senddiag_st_code, tvb, offset, 1, 0);
-    proto_tree_add_boolean(tree, hf_scsi_senddiag_pf, tvb, offset, 1, 0);
-    proto_tree_add_boolean(tree, hf_scsi_senddiag_st, tvb, offset, 1, 0);
-    proto_tree_add_boolean(tree, hf_scsi_senddiag_devoff, tvb, offset, 1, 0);
-    proto_tree_add_boolean(tree, hf_scsi_senddiag_unitoff, tvb, offset, 1, 0);
-    proto_tree_add_uint(tree, hf_scsi_paramlen16, tvb, offset+2, 2, 0);
+    proto_tree_add_item(tree, hf_scsi_senddiag_st_code, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_scsi_senddiag_pf, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_scsi_senddiag_st, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_scsi_senddiag_devoff, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_scsi_senddiag_unitoff, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_scsi_paramlen16, tvb, offset+2, 2, ENC_BIG_ENDIAN);
     proto_tree_add_bitmask(tree, tvb, offset+4, hf_scsi_control,
                            ett_scsi_control, cdb_control_fields, ENC_BIG_ENDIAN);
 }
@@ -4415,10 +4408,10 @@ dissect_spc_writebuffer(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     if (!tree && !isreq)
         return;
 
-    proto_tree_add_uint(tree, hf_scsi_wb_mode, tvb, offset, 1, 0);
-    proto_tree_add_uint(tree, hf_scsi_wb_bufferid, tvb, offset+1, 1, 0);
-    proto_tree_add_uint(tree, hf_scsi_wb_bufoffset, tvb, offset+2, 3, 0);
-    proto_tree_add_uint(tree, hf_scsi_paramlen24, tvb, offset+5, 3, 0);
+    proto_tree_add_item(tree, hf_scsi_wb_mode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_scsi_wb_bufferid, tvb, offset+1, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_scsi_wb_bufoffset, tvb, offset+2, 3, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_scsi_paramlen24, tvb, offset+5, 3, ENC_BIG_ENDIAN);
     proto_tree_add_bitmask(tree, tvb, offset+8, hf_scsi_control,
                            ett_scsi_control, cdb_control_fields, ENC_BIG_ENDIAN);
 }
@@ -5339,9 +5332,6 @@ proto_register_scsi(void)
            NULL, 0, NULL, HFILL}},
         { &hf_scsi_inq_vendor_specific,
           {"Vendor Specific", "scsi.inquiry.vendor_specific", FT_BYTES, BASE_NONE,
-           NULL, 0, NULL, HFILL}},
-        { &hf_scsi_inq_reserved,
-          {"Reserved", "scsi.inquiry.reserved", FT_BYTES, BASE_NONE,
            NULL, 0, NULL, HFILL}},
         { &hf_scsi_inq_version_desc,
           {"Version Description", "scsi.inquiry.version_desc", FT_UINT16, BASE_HEX|BASE_EXT_STRING,

@@ -112,8 +112,19 @@ PROCESSOR_ARCHITECTURE=amd64
 
 # "Microsoft Visual C++ 2012 Express Edition"
 # Visual C++ 11.0, _MSC_VER 1700, msvcr110.dll
-## Note: Sep 18,2012: "not ready for prime time" (i.e. build fails)
+## Note: Sep 20,2012: *Beta*: Build with VC11 (2012) succeeds; Seems OK: Minimally tested;
+##       win32.mak is apparently not part of the MS 2012EE install;
+##       To build Windows Wireshark, win32.mak must be obtained*
+##        and copied to a dir specified in the Windows Environment
+##        variable 'include' (or to a dir added to the list in 'include').
+##       *One possibility: download the Windows 7 Platform SDK and copy
+##         win32.mak from ...\Microsoft SDKs\Windows\v7.[something]\include
+##         See: http://ask.wireshark.org/questions/14343/setting-development-project-under-visual-studio-2012
 #MSVC_VARIANT=MSVC2012EE
+
+# "Microsoft Visual Studio 2012"
+# Visual C++ 11.0, _MSC_VER 1700, msvcr110.dll
+#MSVC_VARIANT=MSVC2012
 
 # The default if we haven't set a system environment variable or
 # uncommented an entry above.  We default to the version recommended
@@ -829,7 +840,7 @@ LOCAL_CFLAGS= $(LOCAL_CFLAGS) /analyze:WX-
 !ENDIF
 
 #STANDARD_CFLAGS are flags used for *Wireshark* compiles (not stuff like lemon, etc)
-STANDARD_CFLAGS=-DHAVE_CONFIG_H -D_U_="" /DPCAP_VERSION=$(PCAP_VERSION) $(LOCAL_CFLAGS) $(WARNINGS_CFLAGS)
+STANDARD_CFLAGS=/DPCAP_VERSION=$(PCAP_VERSION) $(LOCAL_CFLAGS) $(WARNINGS_CFLAGS)
 
 # Optional: Define WIRESHARK_GENERATE_BSC_FILE to generate .sbr files for input to bscmake
 !IFDEF WIRESHARK_GENERATE_BSC_FILE
@@ -901,10 +912,20 @@ INSTALL_DIR=wireshark-gtk2
 # packages, the following will use the default paths depending
 # on the package version.
 #
+
+# You can either place the redistributable in its own platform-
+# and compiler-specific directory or in the top-level library
+# directory.
+!IF EXIST("$(WIRESHARK_LIB_DIR)\vcredist_$(MSVC_VARIANT)")
+VCREDIST_DIR=$(WIRESHARK_LIB_DIR)\vcredist_$(MSVC_VARIANT)
+!ELSE
+VCREDIST_DIR=$(WIRESHARK_LIB_DIR)
+!ENDIF
+
 !IF "$(WIRESHARK_TARGET_PLATFORM)" == "win64"
 # We're not creating portable packages and therefore don't have to worry about
 # "deploying using xcopy"
-VCREDIST_EXE=$(WIRESHARK_LIB_DIR)\vcredist_$(TARGET_MACHINE).exe
+VCREDIST_EXE=$(VCREDIST_DIR)\vcredist_$(TARGET_MACHINE).exe
 
 !ELSEIF "$(MSVC_VARIANT)" == "MSVC2005"
 MSVCR_DLL=$(PROGRAM_FILES)\Microsoft Visual Studio 8\VC\redist\$(PROCESSOR_ARCHITECTURE)\Microsoft.VC80.CRT\*.*
@@ -912,7 +933,7 @@ MSVCR_DLL=$(PROGRAM_FILES)\Microsoft Visual Studio 8\VC\redist\$(PROCESSOR_ARCHI
 !ELSEIF "$(MSVC_VARIANT)" == "MSVC2005EE" || "$(MSVC_VARIANT)" == "DOTNET20" || "$(MSVC_VARIANT)" == "MSVC2008EE"
 # you need to download the redistributable package vcredist_x86.exe from Microsoft first,
 # and copy it to the lib folder!!!
-VCREDIST_EXE=$(WIRESHARK_LIB_DIR)\vcredist_$(TARGET_MACHINE).exe
+VCREDIST_EXE=$(VCREDIST_DIR)\vcredist_$(TARGET_MACHINE).exe
 
 !ELSEIF "$(MSVC_VARIANT)" == "MSVC2008"
 MSVCR_DLL=$(PROGRAM_FILES)\Microsoft Visual Studio 9.0\VC\redist\$(PROCESSOR_ARCHITECTURE)\Microsoft.VC90.CRT\*.*
@@ -920,7 +941,7 @@ MSVCR_DLL=$(PROGRAM_FILES)\Microsoft Visual Studio 9.0\VC\redist\$(PROCESSOR_ARC
 !ELSEIF "$(MSVC_VARIANT)" == "MSVC2010EE"
 # you need to download the redistributable package vcredist_x86.exe from Microsoft first,
 # and copy it to the lib folder!!!
-VCREDIST_EXE=$(WIRESHARK_LIB_DIR)\vcredist_$(TARGET_MACHINE).exe
+VCREDIST_EXE=$(VCREDIST_DIR)\vcredist_$(TARGET_MACHINE).exe
 !ELSEIF "$(MSVC_VARIANT)" == "MSVC2010"
 MSVCR_DLL=$(PROGRAM_FILES)\Microsoft Visual Studio 10.0\VC\redist\$(TARGET_MACHINE)\Microsoft.VC100.CRT\*.*
 !ELSEIF "$(MSVC_VARIANT)" == "MSVC2012"

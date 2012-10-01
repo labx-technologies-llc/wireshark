@@ -33,9 +33,7 @@
  * References: 3GPP TS 25.413 version 10.4.0 Release 10
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
@@ -413,7 +411,7 @@ typedef enum _ProtocolIE_ID_enum {
 } ProtocolIE_ID_enum;
 
 /*--- End of included file: packet-ranap-val.h ---*/
-#line 64 "../../asn1/ranap/packet-ranap-template.c"
+#line 62 "../../asn1/ranap/packet-ranap-template.c"
 
 /* Initialize the protocol and registered fields */
 static int proto_ranap = -1;
@@ -1149,7 +1147,7 @@ static int hf_ranap_unsuccessfulOutcome_value = -1;  /* UnsuccessfulOutcome_valu
 static int hf_ranap_value = -1;                   /* T_value */
 
 /*--- End of included file: packet-ranap-hf.c ---*/
-#line 79 "../../asn1/ranap/packet-ranap-template.c"
+#line 77 "../../asn1/ranap/packet-ranap-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_ranap = -1;
@@ -1485,7 +1483,7 @@ static gint ett_ranap_UnsuccessfulOutcome = -1;
 static gint ett_ranap_Outcome = -1;
 
 /*--- End of included file: packet-ranap-ett.c ---*/
-#line 86 "../../asn1/ranap/packet-ranap-template.c"
+#line 84 "../../asn1/ranap/packet-ranap-template.c"
 
 /* Global variables */
 static guint32 ProcedureCode;
@@ -13071,7 +13069,7 @@ static int dissect_RANAP_PDU_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, prot
 
 
 /*--- End of included file: packet-ranap-fn.c ---*/
-#line 146 "../../asn1/ranap/packet-ranap-template.c"
+#line 144 "../../asn1/ranap/packet-ranap-template.c"
 
 static int
 dissect_ProtocolIEFieldValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
@@ -16115,7 +16113,7 @@ void proto_register_ranap(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-ranap-hfarr.c ---*/
-#line 321 "../../asn1/ranap/packet-ranap-template.c"
+#line 319 "../../asn1/ranap/packet-ranap-template.c"
   };
 
   /* List of subtrees */
@@ -16452,7 +16450,7 @@ void proto_register_ranap(void) {
     &ett_ranap_Outcome,
 
 /*--- End of included file: packet-ranap-ettarr.c ---*/
-#line 329 "../../asn1/ranap/packet-ranap-template.c"
+#line 327 "../../asn1/ranap/packet-ranap-template.c"
   };
 
 
@@ -16831,7 +16829,7 @@ proto_reg_handoff_ranap(void)
 
 
 /*--- End of included file: packet-ranap-dis-tab.c ---*/
-#line 375 "../../asn1/ranap/packet-ranap-template.c"
+#line 373 "../../asn1/ranap/packet-ranap-template.c"
 	} else {
 		dissector_delete_uint("sccp.ssn", local_ranap_sccp_ssn, ranap_handle);
 	}

@@ -32,9 +32,7 @@
  * The packets are compared by the ip id. MAC or TTL is used to distinct the different files.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -521,20 +519,12 @@ call_foreach_print_ip_tree(gpointer value, gpointer user_data)
 	return FALSE;
 }
 
-/* since the gtk2 implementation of tap is multithreaded we must protect
- * remove_tap_listener() from modifying the list while draw_tap_listener()
- * is running.  the other protected block is in main.c
- *
- * there should not be any other critical regions in gtk2
- */
 static void
 win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
 	compstat_t *cs=(compstat_t *)data;
 
-	protect_thread_critical_region();
 	remove_tap_listener(cs);
-	unprotect_thread_critical_region();
 
 	first_window=TRUE;
 	gtk_tree_store_clear(cs->simple_list);

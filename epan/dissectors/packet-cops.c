@@ -52,9 +52,7 @@
  */
 
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <string.h>
 
@@ -671,6 +669,8 @@ static gint hf_cops_pc_dfccc_id = -1;
 static gint hf_cops_pcmm_amid_app_type = -1;
 static gint hf_cops_pcmm_amid_am_tag = -1;
 static gint hf_cops_pcmm_gate_spec_flags = -1;
+static gint hf_cops_pcmm_gate_spec_flags_gate = -1;
+static gint hf_cops_pcmm_gate_spec_flags_dscp_overwrite = -1;
 static gint hf_cops_pcmm_gate_spec_dscp_tos_field = -1;
 static gint hf_cops_pcmm_gate_spec_dscp_tos_mask = -1;
 static gint hf_cops_pcmm_gate_spec_session_class_id = -1;
@@ -844,6 +844,8 @@ struct _COPS_CNV
   const gchar *name;
   int* hfidp;
 };
+
+static const true_false_string tfs_upstream_downstream = { "Upstream", "Downstream" };
 
 static COPS_CNV CopsCnv [] =
 {
@@ -2096,6 +2098,19 @@ void proto_register_cops(void)
             FT_UINT8, BASE_HEX, NULL, 0,
             "PacketCable Multimedia GateSpec Flags", HFILL }
         },
+
+        { &hf_cops_pcmm_gate_spec_flags_gate,
+          { "Gate", "cops.pc_mm_gs_flags.gate",
+            FT_BOOLEAN, 8, TFS(&tfs_upstream_downstream), 0x1,
+            NULL, HFILL }
+        },
+
+        { &hf_cops_pcmm_gate_spec_flags_dscp_overwrite,
+          { "DSCP/TOS overwrite", "cops.pc_mm_gs_flags.dscp_overwrite",
+            FT_BOOLEAN, 8, TFS(&tfs_enabled_disabled), 0x2,
+            NULL, HFILL }
+        },
+
         { &hf_cops_pcmm_gate_spec_dscp_tos_field,
           { "DSCP/TOS Field",           "cops.pc_mm_gs_dscp",
             FT_UINT8, BASE_HEX, NULL, 0,
@@ -3200,22 +3215,16 @@ static int
 cops_mm_gate_spec(tvbuff_t *tvb, proto_tree *st, guint n, guint32 offset) {
      proto_item *ti;
      proto_tree *stt, *object_tree;
-     guint8 gs_flags;
 
      /* Create a subtree */
      stt = info_to_cops_subtree(tvb,st,n,offset,"Gate Spec");
      offset += 4;
 
      /* Flags */
-     gs_flags = tvb_get_guint8(tvb, offset);
      ti = info_to_display(tvb,stt,offset,1,"Flags",NULL,FMT_HEX,&hf_cops_pcmm_gate_spec_flags);
      object_tree = proto_item_add_subtree(ti, ett_cops_subtree );
-     proto_tree_add_text(object_tree, tvb, offset, 1, "%s gate",
-                         decode_boolean_bitfield(gs_flags, 1 << 0, 8,
-                                                 "Upstream", "Downstream"));
-     proto_tree_add_text(object_tree, tvb, offset, 1, "%s DSCP/TOS overwrite",
-                         decode_boolean_bitfield(gs_flags, 1 << 1, 8,
-                                                 "Enable", "Disable"));
+     proto_tree_add_item(object_tree, hf_cops_pcmm_gate_spec_flags_gate, tvb, offset, 1, ENC_BIG_ENDIAN);
+     proto_tree_add_item(object_tree, hf_cops_pcmm_gate_spec_flags_dscp_overwrite, tvb, offset, 1, ENC_BIG_ENDIAN);
      offset += 1;
 
      /* DiffServ Code Point */

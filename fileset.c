@@ -22,9 +22,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -269,7 +267,7 @@ fileset_sort_compare(gconstpointer a, gconstpointer b)
 
 
 /* add all file set entries to the dialog */
-void fileset_update_dlg(void)
+void fileset_update_dlg(void *window)
 {
     GList         *le;
 
@@ -277,7 +275,7 @@ void fileset_update_dlg(void)
     /* add all entires to the dialog */
     le = g_list_first(set.entries);
     while(le) {
-        fileset_dlg_add_file((fileset_entry *)le->data);
+        fileset_dlg_add_file((fileset_entry *)le->data, window);
         le = g_list_next(le);
     }
 }
@@ -285,7 +283,7 @@ void fileset_update_dlg(void)
 
 /* walk through the directory of the loaded file and add every file matching the current file */
 void
-fileset_add_dir(const char *fname)
+fileset_add_dir(const char *fname, void *window)
 {
     WS_DIR        *dir;             /* scanned directory */
     WS_DIRENT     *file;            /* current file */
@@ -327,7 +325,7 @@ fileset_add_dir(const char *fname)
     /* sort entries by creation time */
     set.entries = g_list_sort(set.entries, fileset_sort_compare);
 
-    fileset_update_dlg();
+    fileset_update_dlg(window);
 }
 
 
@@ -432,5 +430,3 @@ void fileset_delete(void)
         set.dirname = NULL;
     }
 }
-
-

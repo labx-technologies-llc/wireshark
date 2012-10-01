@@ -38,9 +38,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 
@@ -594,6 +592,9 @@ static int hf_fe_cell_load_info_rt_load_value = -1;
 static int hf_fe_cell_load_info_nrt_load_information_value = -1;
 static int hf_fe_ps_indication = -1;
 static int hf_fe_dtm_ho_command_ind_spare = -1;
+static int hf_gsm_a_bssmap_speech_data_ind = -1;
+static int hf_gsm_a_bssmap_channel_rate_and_type = -1;
+static int hf_gsm_a_bssmap_perm_speech_v_ind = -1;
 
 /* Initialize the subtree pointers */
 static gint ett_bssmap_msg = -1;
@@ -1160,6 +1161,55 @@ be_enc_info(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 off
 /*
  * [2] 3.2.2.11 Channel Type
  */
+
+static const value_string gsm_a_bssap_speech_data_ind_vals[] = {
+    { 0x0,  "Reserved"},
+    { 0x1,  "Speech"},
+    { 0x2,  "Data"},
+    { 0x3,  "Signalling"},
+    { 0x4,  "Speech + CTM Text Telephony"},
+    { 0x5,  "Reserved"},
+    { 0x6,  "Reserved"},
+    { 0x7,  "Reserved"},
+    { 0x8,  "Reserved"},
+    { 0x9,  "Reserved"},
+    { 0xa,  "Reserved"},
+    { 0xb,  "Reserved"},
+    { 0xc,  "Reserved"},
+    { 0xd,  "Reserved"},
+    { 0xe,  "Reserved"},
+    { 0xf,  "Reserved"},
+    { 0,    NULL }
+};
+
+/* Channel Rate and Type */
+static const value_string gsm_a_bssap_channel_rate_and_type_vals[] = {
+    { 0x08,  "Full rate TCH channel Bm.  Prefer full rate TCH"},
+    { 0x09,  "Half rate TCH channel Lm.  Prefer half rate TCH"},
+    { 0x0a,  "Full or Half rate channel, Full rate preferred changes allowed after first allocation"},
+    { 0x0b,  "Full or Half rate channel, Half rate preferred changes allowed after first allocation"},
+    { 0x0f,  "Full or Half rate channel, changes allowed after first allocation"},
+    { 0x1a,  "Full or Half rate channel, Full rate preferred changes between full and half rate not allowed after first allocation"},
+    { 0x1b,  "Full or Half rate channel, Half rate preferred changes between full and half rate not allowed after first allocation"},
+    { 0x1f,  "Full or Half rate channel, changes between full and half rate not allowed after first allocation"},
+	{ 0,    NULL }
+};
+
+/* Bits 7-1 indicate the permitted speech version identifier; */
+static const value_string gsm_a_bssap_perm_speech_v_ind_vals[] = {
+    { 0x01,  "GSM speech full rate version 1 (GSM FR)"},
+    { 0x05,  "GSM speech half rate version 1 (GSM HR)"},
+    { 0x11,  "GSM speech full rate version 2 (GSM EFR)"},
+    { 0x15,  "GSM speech half rate version 2"},
+    { 0x21,  "GSM speech full rate version 3 (FR AMR)"},
+    { 0x25,  "GSM speech half rate version 3 (HR AMR)"},
+    { 0x41,  "GSM speech full rate version 4 (OFR AMR-WB)"},
+    { 0x42,  "GSM speech full rate version 5 (FR AMR-WB)"},
+    { 0x46,  "GSM speech half rate version 4 (OHR AMR-WB)"},
+    { 0x45,  "GSM speech half rate version 6 (OHR AMR)"},
+    { 0,    NULL }
+};
+
 guint16
 be_chan_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string, int string_len)
 {
@@ -1172,30 +1222,15 @@ be_chan_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 of
     curr_offset = offset;
 
     oct = tvb_get_guint8(tvb, curr_offset);
+    sdi = oct & 0x0f;
 
     proto_tree_add_bits_item(tree, hf_gsm_a_bssmap_spare_bits, tvb, curr_offset<<3, 4, ENC_BIG_ENDIAN);
-
-    sdi = oct & 0x0f;
-    switch (sdi)
-    {
-    case 1: str = "Speech"; break;
-    case 2: str = "Data"; break;
-    case 3: str = "Signalling"; break;
-    case 4: str = "Speech + CTM Text Telephony"; break;
-    default:
-        str = "Reserved";
-        break;
-    }
-
-    other_decode_bitfield_value(a_bigbuf, oct, 0x0f, 8);
-    proto_tree_add_text(tree,
-        tvb, curr_offset, 1,
-        "%s = Speech/Data Indicator: %s",
-        a_bigbuf,
-        str);
+    proto_tree_add_item(tree, hf_gsm_a_bssmap_speech_data_ind, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
     if (add_string)
-        g_snprintf(add_string, string_len, " - (%s)", str);
+        g_snprintf(add_string, string_len, " - (%s)", val_to_str_const(tvb_get_guint8(tvb, curr_offset) & 0x0f,
+                gsm_a_bssap_speech_data_ind_vals,
+                "Unknown"));
 
     curr_offset++;
 
@@ -1206,64 +1241,15 @@ be_chan_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 of
     if ((sdi == 0x01)||(sdi == 0x04))
     {
         /* speech */
-
-        switch (oct)
-        {
-        case 0x08: str = "Full rate TCH channel Bm.  Prefer full rate TCH"; break;
-        case 0x09: str = "Half rate TCH channel Lm.  Prefer half rate TCH"; break;
-        case 0x0a: str = "Full or Half rate channel, Full rate preferred changes allowed after first allocation"; break;
-        case 0x0b: str = "Full or Half rate channel, Half rate preferred changes allowed after first allocation"; break;
-        case 0x1a: str = "Full or Half rate channel, Full rate preferred changes between full and half rate not allowed after first allocation"; break;
-        case 0x1b: str = "Full or Half rate channel, Half rate preferred changes between full and half rate not allowed after first allocation"; break;
-        case 0x0f: str = "Full or Half rate channel, changes allowed after first allocation"; break;
-        case 0x1f: str = "Full or Half rate channel, changes between full and half rate not allowed after first allocation"; break;
-        default:
-            str = "Reserved";
-            break;
-        }
-
-        proto_tree_add_text(tree,
-            tvb, curr_offset, 1,
-            "Channel Rate and Type: %s",
-            str);
-
+        proto_tree_add_item(tree, hf_gsm_a_bssmap_channel_rate_and_type, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
         curr_offset++;
-
         NO_MORE_DATA_CHECK(len);
 
         do
         {
-            oct = tvb_get_guint8(tvb, curr_offset);
-
             proto_tree_add_item(tree, hf_gsm_a_bssmap_chan_type_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-            switch (oct & 0x7f)
-            {
-            case 0x01: str = "GSM speech full rate version 1"; break;
-            case 0x11: str = "GSM speech full rate version 2"; break;
-            case 0x21: str = "GSM speech full rate version 3 (FR AMR)"; break;
-            case 0x31: str = "GSM speech full rate version 4 (OFR AMR-WB)"; break;
-            case 0x32: str = "GSM speech full rate version 5 (FR AMR-WB)"; break;
-
-            case 0x05: str = "GSM speech half rate version 1"; break;
-            case 0x15: str = "GSM speech half rate version 2"; break;
-            case 0x25: str = "GSM speech half rate version 3 (HR AMR)"; break;
-            case 0x36: str = "GSM speech half rate version 4 (OHR AMR-WB)"; break;
-            case 0x35: str = "GSM speech half rate version 6 (OHR AMR)"; break;
-
-            default:
-                str = "Reserved";
-                break;
-            }
-
-            other_decode_bitfield_value(a_bigbuf, oct, 0x7f, 8);
-            proto_tree_add_text(tree,
-                tvb, curr_offset, 1,
-                "%s = Speech version identifier: %s",
-                a_bigbuf,
-                str);
-
-            curr_offset++;
+            proto_tree_add_item(tree, hf_gsm_a_bssmap_perm_speech_v_ind, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
+			curr_offset++;
         }
         while ((len - (curr_offset - offset)) > 0);
     }
@@ -7611,6 +7597,21 @@ proto_register_gsm_a_bssmap(void)
     { &hf_fe_dtm_ho_command_ind_spare,
         { "Spare octet", "gsm_a.bssmap.fe_dtm_ho_command_ind.spare",
             FT_UINT8, BASE_HEX, NULL, 0,
+            NULL, HFILL }
+    },
+    { &hf_gsm_a_bssmap_speech_data_ind,
+        { "Speech/Data Indicator", "gsm_a.bssmap.speech_data_ind",
+            FT_UINT8, BASE_DEC, VALS(gsm_a_bssap_speech_data_ind_vals), 0x0f,
+            NULL, HFILL }
+    },
+    { &hf_gsm_a_bssmap_channel_rate_and_type,
+        { "Channel Rate and Type", "gsm_a.bssmap.perm_speech_v_ind",
+            FT_UINT8, BASE_DEC, VALS(gsm_a_bssap_channel_rate_and_type_vals), 0x0,
+            NULL, HFILL }
+    },
+    { &hf_gsm_a_bssmap_perm_speech_v_ind,
+        { "Permitted speech version indication", "gsm_a.bssmap.perm_speech_v_ind",
+            FT_UINT8, BASE_HEX, VALS(gsm_a_bssap_perm_speech_v_ind_vals), 0x7f,
             NULL, HFILL }
     },
     };

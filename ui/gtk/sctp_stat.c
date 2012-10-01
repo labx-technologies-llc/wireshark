@@ -22,9 +22,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -1294,9 +1292,7 @@ void
 remove_tap_listener_sctp_stat(void)
 {
 	if (sctp_tapinfo_struct.is_registered) {
-		protect_thread_critical_region();
 		remove_tap_listener(&sctp_tapinfo_struct);
-		unprotect_thread_critical_region();
 		sctp_tapinfo_struct.is_registered = FALSE;
 	}
 }

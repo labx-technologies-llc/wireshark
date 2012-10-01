@@ -32,9 +32,7 @@
  * (c) 2011 Gaurav Tungatkar <gstungat@ncsu.edu>
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <time.h>
@@ -1358,6 +1356,8 @@ dissect_icmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
               tmp[0] = ~tvb_get_ntohs(tvb, 2);
               tmp[1] = ~0x0800; /* The difference between echo request & reply */
               conv_key[0] = ip_checksum((guint8 *)&tmp, sizeof(tmp));
+              if (conv_key[0] == 0)
+                conv_key[0] = 0xffff;
               if (pinfo->flags.in_gre_pkt)
                 conv_key[0] |= 0x00010000; /* set a bit for "in GRE" */
               conv_key[1] = (guint32)((tvb_get_ntohs(tvb, 4) << 16) |

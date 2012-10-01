@@ -25,9 +25,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 
@@ -240,7 +238,7 @@ get_unicode_or_ascii_string(tvbuff_t *tvb, int *offsetp,
 	}
 
 	if (useunicode) {
-		if ((!nopad) && (*offsetp % 2)) {
+		if ((!nopad) && (*bcp % 2)) {
 			(*offsetp)++;   /* Looks like a pad byte there sometimes */
 			(*bcp)--;
 

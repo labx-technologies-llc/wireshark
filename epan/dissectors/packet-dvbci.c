@@ -31,9 +31,7 @@
  * http://www.kaiser.cx/pcap-dvbci.html.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/addr_resolv.h>
@@ -1772,11 +1770,12 @@ dissect_cc_item(tvbuff_t *tvb, gint offset,
 
 
     offset_start = offset;
+    dat_id = tvb_get_guint8(tvb, offset);
     if (tree) {
-        ti = proto_tree_add_text(tree, tvb, offset_start, -1, "CC data item");
+        ti = proto_tree_add_text(tree, tvb, offset_start, -1, "CC data item: %s",
+                val_to_str_const(dat_id, dvbci_cc_dat_id, "unknown"));
         cc_item_tree = proto_item_add_subtree(ti, ett_dvbci_cc_item);
     }
-    dat_id = tvb_get_guint8(tvb, offset);
     proto_tree_add_item(cc_item_tree, hf_dvbci_cc_dat_id,
             tvb, offset, 1, ENC_BIG_ENDIAN);
     offset++;
@@ -2251,24 +2250,14 @@ dissect_res_id(tvbuff_t *tvb, gint offset, packet_info *pinfo,
 
         /* parameter "value" == complete resource id,
            RES_..._MASK will be applied by the hf definition */
-        proto_tree_add_uint_format(res_tree, hf_dvbci_res_id_type,
-                  tvb, offset, tvb_data_len, res_id, "%s",
-                  decode_numeric_bitfield(res_id, RES_ID_TYPE_MASK, 32,
-                      "Resource ID Type: 0x%x"));
-        proto_tree_add_uint_format(res_tree, hf_dvbci_res_class,
-                  tvb, offset, tvb_data_len, res_id, "%s (%s)",
-                  decode_numeric_bitfield(res_id, RES_CLASS_MASK, 32,
-                      "Resource Class: 0x%x"),
-                  val_to_str_const(RES_CLASS(res_id), dvbci_res_class,
-                      "Invalid Resource class"));
-        proto_tree_add_uint_format(res_tree, hf_dvbci_res_type,
-                  tvb, offset, tvb_data_len, res_id, "%s",
-                  decode_numeric_bitfield(res_id, RES_TYPE_MASK, 32,
-                      "Resource Type: 0x%x"));
-        proto_tree_add_uint_format(res_tree, hf_dvbci_res_ver,
-                  tvb, offset, tvb_data_len, res_id, "%s",
-                  decode_numeric_bitfield(res_id, RES_VER_MASK, 32,
-                      "Resource Version: 0x%x"));
+        proto_tree_add_uint(res_tree, hf_dvbci_res_id_type,
+                  tvb, offset, tvb_data_len, res_id);
+        proto_tree_add_uint(res_tree, hf_dvbci_res_class,
+                  tvb, offset, tvb_data_len, res_id);
+        proto_tree_add_uint(res_tree, hf_dvbci_res_type,
+                  tvb, offset, tvb_data_len, res_id);
+        proto_tree_add_uint(res_tree, hf_dvbci_res_ver,
+                  tvb, offset, tvb_data_len, res_id);
     }
 
     return ti;
@@ -4657,7 +4646,7 @@ proto_register_dvbci(void)
         },
         { &hf_dvbci_res_class,
           { "Resource Class", "dvb-ci.res.class",
-            FT_UINT32, BASE_HEX, NULL, RES_CLASS_MASK, NULL, HFILL }
+            FT_UINT32, BASE_HEX, VALS(dvbci_res_class), RES_CLASS_MASK, NULL, HFILL }
         },
         { &hf_dvbci_res_type,
           { "Resource Type", "dvb-ci.res.type",

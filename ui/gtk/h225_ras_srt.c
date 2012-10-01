@@ -23,9 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <string.h>
 
@@ -249,9 +247,7 @@ win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
 	h225rassrt_t *hs=(h225rassrt_t *)data;
 
-	protect_thread_critical_region();
 	remove_tap_listener(hs);
-	unprotect_thread_critical_region();
 
 	if(hs->filter){
 		g_free(hs->filter);

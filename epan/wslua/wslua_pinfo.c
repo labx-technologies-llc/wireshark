@@ -28,9 +28,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif
 
 /* WSLUA_MODULE Pinfo Obtaining packet information */
 
@@ -945,64 +943,54 @@ WSLUA_CLASS_DEFINE(Pinfo,FAIL_ON_NULL("expired pinfo"),NOP);
 
 static int Pinfo_tostring(lua_State *L) { lua_pushstring(L,"a Pinfo"); return 1; }
 
-#define PINFO_GET_BOOLEAN(name,val) static int name(lua_State *L) {  \
+#define PINFO_GET(name,block) static int name(lua_State *L) {  \
     Pinfo pinfo = checkPinfo(L,1); \
     if (!pinfo) return 0;\
     if (pinfo->expired) { \
         luaL_error(L,"expired_pinfo"); \
         return 0; \
     } \
-    lua_pushboolean(L,val);\
+    block \
     return 1;\
 }
 
-#define PINFO_GET_NUMBER(name,val) static int name(lua_State *L) {  \
-    Pinfo pinfo = checkPinfo(L,1); \
-    if (!pinfo) return 0;\
-    if (pinfo->expired) { \
-        luaL_error(L,"expired_pinfo"); \
-        return 0; \
-    } \
-    lua_pushnumber(L,(lua_Number)(val));\
-    return 1;\
+#define PINFO_GET_BOOLEAN(name,val) \
+    PINFO_GET(name,{lua_pushboolean(L,val);})
+
+#define PINFO_GET_NUMBER(name,val) \
+    PINFO_GET(name,{lua_pushnumber(L,(lua_Number)(val));})
+
+#define PINFO_GET_STRING(name,val) \
+    PINFO_GET(name, { \
+      const gchar* value; \
+      value = val; \
+      if (value) lua_pushstring(L,(const char*)(value)); else lua_pushnil(L); \
+    })
+
+#define PINFO_GET_ADDRESS(name,role) \
+    PINFO_GET(name, { \
+      Address addr; \
+      addr = g_new(address,1); \
+      COPY_ADDRESS(addr, &(pinfo->ws_pinfo->role)); \
+      pushAddress(L,addr); \
+    })
+
+#define PINFO_GET_LIGHTUSERDATA(name, val) \
+    PINFO_GET(name,{lua_pushlightuserdata(L, (void *) (val));})
+
+static double
+lua_nstime_to_sec(const nstime_t *nstime)
+{
+    return (((double)nstime->secs) + (((double)nstime->nsecs) / 1000000000.0));
 }
 
-#define PINFO_GET_STRING(name,val) static int name(lua_State *L) { \
-    Pinfo pinfo = checkPinfo(L,1); \
-    const gchar* value; \
-    if (!pinfo) return 0; \
-    if (pinfo->expired) { \
-        luaL_error(L,"expired_pinfo"); \
-        return 0; \
-    } \
-    value = val; \
-    if (value) lua_pushstring(L,(const char*)(value)); else lua_pushnil(L); \
-    return 1; \
-}
+static double
+lua_delta_nstime_to_sec(const frame_data *fd, const frame_data *prev)
+{
+	nstime_t del;
 
-#define PINFO_GET_ADDRESS(name,role) static int name(lua_State *L) { \
-    Pinfo pinfo = checkPinfo(L,1); \
-    Address addr; \
-    if (!pinfo) return 0; \
-    if (pinfo->expired) { \
-        luaL_error(L,"expired_pinfo"); \
-        return 0; \
-    } \
-    addr = g_new(address,1); \
-    COPY_ADDRESS(addr, &(pinfo->ws_pinfo->role)); \
-    pushAddress(L,addr); \
-    return 1; \
-}
-
-#define PINFO_GET_LIGHTUSERDATA(name, val) static int name(lua_State *L) { \
-    Pinfo pinfo = checkPinfo(L, 1); \
-    if (!pinfo) return 0; \
-    if (pinfo->expired) { \
-        luaL_error(L, "expired_pinfo"); \
-        return 0; \
-    } \
-    lua_pushlightuserdata(L, (void *) (val)); \
-    return 1; \
+	frame_delta_abs_time(fd, prev, &del);
+	return lua_nstime_to_sec(&del);
 }
 
 PINFO_GET_BOOLEAN(Pinfo_fragmented,pinfo->ws_pinfo->fragmented)
@@ -1012,10 +1000,10 @@ PINFO_GET_BOOLEAN(Pinfo_visited,pinfo->ws_pinfo->fd->flags.visited)
 PINFO_GET_NUMBER(Pinfo_number,pinfo->ws_pinfo->fd->num)
 PINFO_GET_NUMBER(Pinfo_len,pinfo->ws_pinfo->fd->pkt_len)
 PINFO_GET_NUMBER(Pinfo_caplen,pinfo->ws_pinfo->fd->cap_len)
-PINFO_GET_NUMBER(Pinfo_abs_ts,(((double)pinfo->ws_pinfo->fd->abs_ts.secs) + (((double)pinfo->ws_pinfo->fd->abs_ts.nsecs) / 1000000000.0) ))
-PINFO_GET_NUMBER(Pinfo_rel_ts,(((double)pinfo->ws_pinfo->fd->rel_ts.secs) + (((double)pinfo->ws_pinfo->fd->rel_ts.nsecs) / 1000000000.0) ))
-PINFO_GET_NUMBER(Pinfo_delta_ts,(((double)pinfo->ws_pinfo->fd->del_cap_ts.secs) + (((double)pinfo->ws_pinfo->fd->del_cap_ts.nsecs) / 1000000000.0) ))
-PINFO_GET_NUMBER(Pinfo_delta_dis_ts,(((double)pinfo->ws_pinfo->fd->del_dis_ts.secs) + (((double)pinfo->ws_pinfo->fd->del_dis_ts.nsecs) / 1000000000.0) ))
+PINFO_GET_NUMBER(Pinfo_abs_ts,lua_nstime_to_sec(&pinfo->ws_pinfo->fd->abs_ts))
+PINFO_GET_NUMBER(Pinfo_rel_ts,lua_nstime_to_sec(&pinfo->ws_pinfo->fd->rel_ts))
+PINFO_GET_NUMBER(Pinfo_delta_ts,lua_delta_nstime_to_sec(pinfo->ws_pinfo->fd, pinfo->ws_pinfo->fd->prev_cap))
+PINFO_GET_NUMBER(Pinfo_delta_dis_ts,lua_delta_nstime_to_sec(pinfo->ws_pinfo->fd, pinfo->ws_pinfo->fd->prev_dis))
 PINFO_GET_NUMBER(Pinfo_ipproto,pinfo->ws_pinfo->ipproto)
 PINFO_GET_NUMBER(Pinfo_circuit_id,pinfo->ws_pinfo->circuit_id)
 PINFO_GET_NUMBER(Pinfo_desegment_len,pinfo->ws_pinfo->desegment_len)

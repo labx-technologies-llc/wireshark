@@ -25,15 +25,17 @@
 
 /* DLSw dissector ( RFC 1434, RFC 1795, RFC 2166) */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
 #include "packet-tcp.h"
 
 static int proto_dlsw = -1;
+static int hf_dlsw_flow_control_indication = -1;
+static int hf_dlsw_flow_control_ack = -1;
+static int hf_dlsw_flow_control_operator = -1;
+static int hf_dlsw_flags_explorer_msg = -1;
 
 static gint ett_dlsw = -1;
 static gint ett_dlsw_header = -1;
@@ -263,20 +265,11 @@ dissect_dlsw_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       flags = tvb_get_guint8(tvb,15);
       ti2 = proto_tree_add_text (dlsw_header_tree, tvb, 15,1,"Flow ctrl byte = 0x%02x",flags);
       dlsw_flags_tree = proto_item_add_subtree(ti2, ett_dlsw_fc);
-      proto_tree_add_text (dlsw_flags_tree, tvb, 15, 1, "%s",
-                           decode_boolean_bitfield(flags, 0x80, 8,
-                                                   "Flow Control Indication: yes",
-                                                   "Flow Control Indication: no"));
+      proto_tree_add_item(dlsw_flags_tree, hf_dlsw_flow_control_indication, tvb, 15, 1, ENC_BIG_ENDIAN);
       if (flags & 0x80)
       {
-        proto_tree_add_text (dlsw_flags_tree, tvb, 15, 1, "%s",
-                             decode_boolean_bitfield(flags, 0x40, 8,
-                                                     "Flow Control Acknowledgment: yes",
-                                                     "Flow Control Acknowledgment: no"));
-        proto_tree_add_text (dlsw_flags_tree, tvb, 15, 1, "%s",
-                             decode_enumerated_bitfield(flags, 0x07, 8,
-                                                        dlsw_fc_cmd_vals,
-                                                        "Flow Control Operator: %s"));
+        proto_tree_add_item(dlsw_flags_tree, hf_dlsw_flow_control_ack, tvb, 15, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(dlsw_flags_tree, hf_dlsw_flow_control_operator, tvb, 15, 1, ENC_BIG_ENDIAN);
       }
     }
     if (hlen != DLSW_INFO_HEADER)
@@ -305,10 +298,7 @@ dissect_dlsw_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         flags = tvb_get_guint8(tvb,21);
         ti2 = proto_tree_add_text (dlsw_header_tree,tvb, 21,1,"SSP Flags      = 0x%02x",flags) ;
         dlsw_flags_tree = proto_item_add_subtree(ti2, ett_dlsw_sspflags);
-        proto_tree_add_text (dlsw_flags_tree, tvb, 21, 1, "%s",
-                             decode_boolean_bitfield(flags, 0x80, 8,
-                                                     "Explorer message: yes",
-                                                     "Explorer message: no"));
+        proto_tree_add_item (dlsw_flags_tree, hf_dlsw_flags_explorer_msg, tvb, 21, 1, ENC_BIG_ENDIAN);
         proto_tree_add_text (dlsw_header_tree,tvb, 22,1,"Circuit priority = %s",
                              val_to_str((tvb_get_guint8(tvb,22)&7),dlsw_pri_vals, "Unknown (%d)")) ;
         proto_tree_add_text (dlsw_header_tree,tvb, 23,1,"Old message type = %s (0x%02x)",
@@ -523,6 +513,21 @@ dissect_dlsw_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 void
 proto_register_dlsw(void)
 {
+  static hf_register_info hf[] = {
+	{&hf_dlsw_flow_control_indication,
+	 {"Flow Control Indication", "dlsw.flow_control_indication", FT_BOOLEAN, 8, TFS(&tfs_yes_no), 0x80,
+	  NULL, HFILL}},
+	{&hf_dlsw_flow_control_ack,
+	 {"Flow Control Acknowledgment", "dlsw.flow_control_ack", FT_BOOLEAN, 8, TFS(&tfs_yes_no), 0x40,
+	  NULL, HFILL}},
+	{&hf_dlsw_flow_control_operator,
+     {"Flow Control Operator", "dlsw.flow_control_operator", FT_UINT8, BASE_DEC, VALS(dlsw_fc_cmd_vals), 0x07,
+	  NULL, HFILL}},
+	{&hf_dlsw_flags_explorer_msg,
+     {"Explorer message", "dlsw.flags.explorer_msg", FT_BOOLEAN, 8, TFS(&tfs_yes_no), 0x80,
+	  NULL, HFILL}},
+  };
+
   static gint *ett[] = {
     &ett_dlsw,
     &ett_dlsw_header,
@@ -533,7 +538,7 @@ proto_register_dlsw(void)
   };
 
   proto_dlsw = proto_register_protocol("Data Link SWitching", "DLSw", "dlsw");
-/* proto_register_field_array(proto_dlsw, hf, array_length(hf)); */
+  proto_register_field_array(proto_dlsw, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 }
 

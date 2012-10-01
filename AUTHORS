@@ -3470,8 +3470,10 @@ Tobias Rutz		<tobias.rutz[at]work-microwave.de> {
 Michal Labedzki		<michal.labedzki[at]tieto.com> {
 	Bluetooth BNEP dissector
 	Bluetooth HID dissector
+	Bluetooth SAP dissector
+	Bluetooth AVCTP dissector
+	Bluetooth AVRCP dissector
 }
-
 
 and by:
 
@@ -3675,6 +3677,7 @@ Martin Kupec		<martin.kupec[AT]kupson.cz>
 Litao Gao		<ltgao[AT]juniper.net>
 Niels Widger		<niels[AT]qacafe.com>
 Pontus Fuchs		<pontus.fuchs[AT]gmail.com>
+Bill Parker		<wp02855[AT]gmail.com>
 
 Dan Lasley <dlasley[AT]promus.com> gave permission for his
 dumpit() hex-dump routine to be used.

@@ -30,13 +30,11 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Ref 3GPP TS 36.355 version 10.5.0 Release 10
+ * Ref 3GPP TS 36.355 version 11.0.0 Release 11
  * http://www.3gpp.org
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
@@ -554,6 +552,7 @@ static int hf_lpp_GNSS_DataBitsSgnList_item = -1;  /* GNSS_DataBitsSgnElement */
 static int hf_lpp_gnss_SignalType = -1;           /* GNSS_SignalID */
 static int hf_lpp_gnss_DataBits = -1;             /* BIT_STRING_SIZE_1_1024 */
 static int hf_lpp_gnss_AcquisitionAssistList = -1;  /* GNSS_AcquisitionAssistList */
+static int hf_lpp_confidence_r10 = -1;            /* INTEGER_0_100 */
 static int hf_lpp_GNSS_AcquisitionAssistList_item = -1;  /* GNSS_AcquisitionAssistElement */
 static int hf_lpp_doppler0 = -1;                  /* INTEGER_M2048_2047 */
 static int hf_lpp_doppler1 = -1;                  /* INTEGER_0_63 */
@@ -564,6 +563,7 @@ static int hf_lpp_codePhaseSearchWindow = -1;     /* INTEGER_0_31 */
 static int hf_lpp_azimuth = -1;                   /* INTEGER_0_511 */
 static int hf_lpp_elevation = -1;                 /* INTEGER_0_127 */
 static int hf_lpp_codePhase1023 = -1;             /* BOOLEAN */
+static int hf_lpp_dopplerUncertaintyExt_r10 = -1;  /* T_dopplerUncertaintyExt_r10 */
 static int hf_lpp_weekNumber_01 = -1;             /* INTEGER_0_255 */
 static int hf_lpp_toa = -1;                       /* INTEGER_0_255 */
 static int hf_lpp_ioda = -1;                      /* INTEGER_0_3 */
@@ -799,6 +799,8 @@ static int hf_lpp_gnssSignalIDs = -1;             /* GNSS_SignalIDs */
 static int hf_lpp_dgnss_ValidityTimeSup = -1;     /* BOOLEAN */
 static int hf_lpp_clockModel = -1;                /* T_clockModel */
 static int hf_lpp_orbitModel = -1;                /* T_orbitModel */
+static int hf_lpp_confidenceSupport_r10 = -1;     /* T_confidenceSupport_r10 */
+static int hf_lpp_dopplerUncertaintyExtSupport_r10 = -1;  /* T_dopplerUncertaintyExtSupport_r10 */
 static int hf_lpp_almanacModel = -1;              /* T_almanacModel */
 static int hf_lpp_utc_Model = -1;                 /* T_utc_Model */
 static int hf_lpp_gnss_SupportListReq = -1;       /* BOOLEAN */
@@ -883,7 +885,7 @@ static int hf_lpp_T_ecid_MeasSupported_rsrqSup = -1;
 static int hf_lpp_T_ecid_MeasSupported_ueRxTxSup = -1;
 
 /*--- End of included file: packet-lpp-hf.c ---*/
-#line 52 "../../asn1/lpp/packet-lpp-template.c"
+#line 50 "../../asn1/lpp/packet-lpp-template.c"
 
 static dissector_handle_t lppe_handle = NULL;
 
@@ -1188,7 +1190,7 @@ static gint ett_lpp_ECID_LocationServerErrorCauses = -1;
 static gint ett_lpp_ECID_TargetDeviceErrorCauses = -1;
 
 /*--- End of included file: packet-lpp-ett.c ---*/
-#line 60 "../../asn1/lpp/packet-lpp-template.c"
+#line 58 "../../asn1/lpp/packet-lpp-template.c"
 
 /* Include constants */
 
@@ -1199,7 +1201,7 @@ static gint ett_lpp_ECID_TargetDeviceErrorCauses = -1;
 #define maxBands                       64
 
 /*--- End of included file: packet-lpp-val.h ---*/
-#line 63 "../../asn1/lpp/packet-lpp-template.c"
+#line 61 "../../asn1/lpp/packet-lpp-template.c"
 
 static const value_string lpp_ePDU_ID_vals[] = {
   { 1, "OMA LPP extensions (LPPe)"},
@@ -1958,8 +1960,40 @@ dissect_lpp_GNSS_DataBitAssistanceSupport(tvbuff_t *tvb _U_, int offset _U_, asn
 }
 
 
+static const value_string lpp_T_confidenceSupport_r10_vals[] = {
+  {   0, "true" },
+  { 0, NULL }
+};
+
+
+static int
+dissect_lpp_T_confidenceSupport_r10(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
+                                     1, NULL, FALSE, 0, NULL);
+
+  return offset;
+}
+
+
+static const value_string lpp_T_dopplerUncertaintyExtSupport_r10_vals[] = {
+  {   0, "true" },
+  { 0, NULL }
+};
+
+
+static int
+dissect_lpp_T_dopplerUncertaintyExtSupport_r10(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
+                                     1, NULL, FALSE, 0, NULL);
+
+  return offset;
+}
+
+
 static const per_sequence_t GNSS_AcquisitionAssistanceSupport_sequence[] = {
-  { NULL, ASN1_EXTENSION_ROOT, 0, NULL }
+  { &hf_lpp_confidenceSupport_r10, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lpp_T_confidenceSupport_r10 },
+  { &hf_lpp_dopplerUncertaintyExtSupport_r10, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lpp_T_dopplerUncertaintyExtSupport_r10 },
+  { NULL, 0, 0, NULL }
 };
 
 static int
@@ -4883,6 +4917,25 @@ dissect_lpp_INTEGER_0_1022(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 }
 
 
+static const value_string lpp_T_dopplerUncertaintyExt_r10_vals[] = {
+  {   0, "d60" },
+  {   1, "d80" },
+  {   2, "d100" },
+  {   3, "d120" },
+  {   4, "noInformation" },
+  { 0, NULL }
+};
+
+
+static int
+dissect_lpp_T_dopplerUncertaintyExt_r10(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
+                                     5, NULL, TRUE, 0, NULL);
+
+  return offset;
+}
+
+
 static const per_sequence_t GNSS_AcquisitionAssistElement_sequence[] = {
   { &hf_lpp_svID            , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_SV_ID },
   { &hf_lpp_doppler0        , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_M2048_2047 },
@@ -4894,6 +4947,7 @@ static const per_sequence_t GNSS_AcquisitionAssistElement_sequence[] = {
   { &hf_lpp_azimuth         , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_511 },
   { &hf_lpp_elevation       , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_127 },
   { &hf_lpp_codePhase1023   , ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lpp_BOOLEAN },
+  { &hf_lpp_dopplerUncertaintyExt_r10, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lpp_T_dopplerUncertaintyExt_r10 },
   { NULL, 0, 0, NULL }
 };
 
@@ -4923,6 +4977,7 @@ dissect_lpp_GNSS_AcquisitionAssistList(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static const per_sequence_t GNSS_AcquisitionAssistance_sequence[] = {
   { &hf_lpp_gnss_SignalID   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_GNSS_SignalID },
   { &hf_lpp_gnss_AcquisitionAssistList, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_GNSS_AcquisitionAssistList },
+  { &hf_lpp_confidence_r10  , ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lpp_INTEGER_0_100 },
   { NULL, 0, 0, NULL }
 };
 
@@ -7939,7 +7994,7 @@ int dissect_lpp_HorizontalVelocity_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_
 
 
 /*--- End of included file: packet-lpp-fn.c ---*/
-#line 70 "../../asn1/lpp/packet-lpp-template.c"
+#line 68 "../../asn1/lpp/packet-lpp-template.c"
 
 
 /*--- proto_register_lpp -------------------------------------------*/
@@ -9931,6 +9986,10 @@ void proto_register_lpp(void) {
       { "gnss-AcquisitionAssistList", "lpp.gnss_AcquisitionAssistList",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
+    { &hf_lpp_confidence_r10,
+      { "confidence-r10", "lpp.confidence_r10",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_100", HFILL }},
     { &hf_lpp_GNSS_AcquisitionAssistList_item,
       { "GNSS-AcquisitionAssistElement", "lpp.GNSS_AcquisitionAssistElement",
         FT_NONE, BASE_NONE, NULL, 0,
@@ -9971,6 +10030,10 @@ void proto_register_lpp(void) {
       { "codePhase1023", "lpp.codePhase1023",
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
+    { &hf_lpp_dopplerUncertaintyExt_r10,
+      { "dopplerUncertaintyExt-r10", "lpp.dopplerUncertaintyExt_r10",
+        FT_UINT32, BASE_DEC, VALS(lpp_T_dopplerUncertaintyExt_r10_vals), 0,
+        "T_dopplerUncertaintyExt_r10", HFILL }},
     { &hf_lpp_weekNumber_01,
       { "weekNumber", "lpp.weekNumber",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -10911,6 +10974,14 @@ void proto_register_lpp(void) {
       { "orbitModel", "lpp.orbitModel",
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
+    { &hf_lpp_confidenceSupport_r10,
+      { "confidenceSupport-r10", "lpp.confidenceSupport_r10",
+        FT_UINT32, BASE_DEC, VALS(lpp_T_confidenceSupport_r10_vals), 0,
+        "T_confidenceSupport_r10", HFILL }},
+    { &hf_lpp_dopplerUncertaintyExtSupport_r10,
+      { "dopplerUncertaintyExtSupport-r10", "lpp.dopplerUncertaintyExtSupport_r10",
+        FT_UINT32, BASE_DEC, VALS(lpp_T_dopplerUncertaintyExtSupport_r10_vals), 0,
+        "T_dopplerUncertaintyExtSupport_r10", HFILL }},
     { &hf_lpp_almanacModel,
       { "almanacModel", "lpp.almanacModel",
         FT_BYTES, BASE_NONE, NULL, 0,
@@ -11237,7 +11308,7 @@ void proto_register_lpp(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-lpp-hfarr.c ---*/
-#line 79 "../../asn1/lpp/packet-lpp-template.c"
+#line 77 "../../asn1/lpp/packet-lpp-template.c"
   };
 
   /* List of subtrees */
@@ -11540,7 +11611,7 @@ void proto_register_lpp(void) {
     &ett_lpp_ECID_TargetDeviceErrorCauses,
 
 /*--- End of included file: packet-lpp-ettarr.c ---*/
-#line 85 "../../asn1/lpp/packet-lpp-template.c"
+#line 83 "../../asn1/lpp/packet-lpp-template.c"
   };
 
 

@@ -31,9 +31,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
@@ -110,7 +108,7 @@ static int hf_ocsp_crlNum = -1;                   /* INTEGER */
 static int hf_ocsp_crlTime = -1;                  /* GeneralizedTime */
 
 /*--- End of included file: packet-ocsp-hf.c ---*/
-#line 50 "../../asn1/ocsp/packet-ocsp-template.c"
+#line 48 "../../asn1/ocsp/packet-ocsp-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_ocsp = -1;
@@ -138,7 +136,7 @@ static gint ett_ocsp_ServiceLocator = -1;
 static gint ett_ocsp_CrlID = -1;
 
 /*--- End of included file: packet-ocsp-ett.c ---*/
-#line 54 "../../asn1/ocsp/packet-ocsp-template.c"
+#line 52 "../../asn1/ocsp/packet-ocsp-template.c"
 
 static const char *responseType_id;
 
@@ -648,7 +646,7 @@ static void dissect_NULL_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tr
 
 
 /*--- End of included file: packet-ocsp-fn.c ---*/
-#line 59 "../../asn1/ocsp/packet-ocsp-template.c"
+#line 57 "../../asn1/ocsp/packet-ocsp-template.c"
 
 
 static int
@@ -912,7 +910,7 @@ void proto_register_ocsp(void) {
         "GeneralizedTime", HFILL }},
 
 /*--- End of included file: packet-ocsp-hfarr.c ---*/
-#line 114 "../../asn1/ocsp/packet-ocsp-template.c"
+#line 112 "../../asn1/ocsp/packet-ocsp-template.c"
   };
 
   /* List of subtrees */
@@ -942,7 +940,7 @@ void proto_register_ocsp(void) {
     &ett_ocsp_CrlID,
 
 /*--- End of included file: packet-ocsp-ettarr.c ---*/
-#line 120 "../../asn1/ocsp/packet-ocsp-template.c"
+#line 118 "../../asn1/ocsp/packet-ocsp-template.c"
   };
 
   /* Register protocol */
@@ -977,6 +975,6 @@ void proto_reg_handoff_ocsp(void) {
 
 
 /*--- End of included file: packet-ocsp-dis-tab.c ---*/
-#line 143 "../../asn1/ocsp/packet-ocsp-template.c"
+#line 141 "../../asn1/ocsp/packet-ocsp-template.c"
 }
 

@@ -29,6 +29,8 @@
 #include "packet_list_record.h"
 #include "cfile.h"
 
+#include "ui/file_dialog.h"
+
 #include <QFileDialog>
 
 class CaptureFileDialog : public QFileDialog
@@ -60,10 +62,15 @@ class CaptureFileDialog : public QFileDialog
     Q_OBJECT
 public:
     explicit CaptureFileDialog(QWidget *parent = NULL, QString &display_filter = *new QString());
+    static check_savability_t checkSaveAsWithComments(QWidget *
+#if defined(Q_WS_WIN)
+            parent
+#endif
+            , capture_file *cf, int file_type);
+
     int mergeType();
-#if !defined(Q_WS_WIN)
     int selectedFileType();
-#endif // Q_WS_WIN
+    bool isCompressed();
 
 private:
     void addMergeControls(QVBoxLayout &v_box);
@@ -77,6 +84,7 @@ private:
 
     QString &display_filter_;
     DisplayFilterEdit* display_filter_edit_;
+    int df_row_;
 
     QLabel preview_format_;
     QLabel preview_size_;
@@ -93,15 +101,22 @@ private:
 
 #if !defined(Q_WS_WIN)
     void addResolutionControls(QVBoxLayout &v_box);
+    void addGzipControls(QVBoxLayout &v_box, capture_file *cf);
 
     QStringList buildFileSaveAsTypeList(capture_file *cf, bool must_support_comments);
+
+    int default_ft_;
 
     QCheckBox mac_res_;
     QCheckBox transport_res_;
     QCheckBox network_res_;
     QCheckBox external_res_;
+
+    QCheckBox compress_;
 #else // Q_WS_WIN
+    int file_type_;
     int merge_type_;
+    gboolean compressed_;
 #endif // Q_WS_WIN
 
 signals:
@@ -110,6 +125,7 @@ public slots:
 
     int exec();
     int open(QString &file_name);
+    check_savability_t saveAs(capture_file *cf, QString &file_name, bool must_support_comments);
     int merge(QString &file_name);
 
 private slots:

@@ -23,9 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <string.h>
 #include <locale.h>
@@ -361,9 +359,7 @@ ct_win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
     conversations_table *conversations=(conversations_table *)data;
 
-    protect_thread_critical_region();
     remove_tap_listener(conversations);
-    unprotect_thread_critical_region();
 
     reset_ct_table_data(conversations);
     g_free(conversations);

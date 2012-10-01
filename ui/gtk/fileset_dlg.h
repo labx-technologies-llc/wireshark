@@ -30,6 +30,19 @@
  *  @ingroup dialog_group
  */
 
+/** Enable file set menu items and look for similar files
+ *
+ * @param cf Capture file struct
+ */
+extern void fileset_file_opened(const capture_file *cf);
+
+/** Disable file set menu items
+ *
+ * @param cf Capture file struct
+ */
+extern void fileset_file_closed(void);
+
+
 /** Open the fileset dialog.
  *
  * @param w calling widget (unused)

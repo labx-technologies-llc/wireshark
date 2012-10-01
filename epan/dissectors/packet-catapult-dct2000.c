@@ -22,9 +22,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 
@@ -1014,14 +1012,14 @@ static void dissect_rrc_lte(tvbuff_t *tvb, gint offset,
                 protocol_handle = find_dissector("lte_rrc.dl_ccch");
                 break;
             case Channel_PCCH:
-                protocol_handle = find_dissector("lte-rrc.pcch");
+                protocol_handle = find_dissector("lte_rrc.pcch");
                 break;
             case Channel_BCCH:
                 if (bcch_transport == 1) {
-                    protocol_handle = find_dissector("lte-rrc.bcch.bch");
+                    protocol_handle = find_dissector("lte_rrc.bcch_bch");
                 }
                 else {
-                    protocol_handle = find_dissector("lte-rrc.bcch.dl.sch");
+                    protocol_handle = find_dissector("lte_rrc.bcch_dl_sch");
                 }
                 break;
 
@@ -1328,11 +1326,7 @@ static dissector_handle_t look_for_dissector(const char *protocol_name)
     }
     else
     if ((strcmp(protocol_name, "fp") == 0) ||
-        (strcmp(protocol_name, "fp_r4") == 0) ||
-        (strcmp(protocol_name, "fp_r5") == 0) ||
-        (strcmp(protocol_name, "fp_r6") == 0) ||
-        (strcmp(protocol_name, "fp_r7") == 0) ||
-        (strcmp(protocol_name, "fp_r8") == 0) ||
+        (strncmp(protocol_name, "fp_r", 4) == 0) ||
         (strcmp(protocol_name, "fpiur_r5") == 0)) {
 
         return find_dissector("fp");
@@ -2216,11 +2210,7 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* FP protocols need info from outhdr attached */
     if ((strcmp(protocol_name, "fp") == 0) ||
-        (strcmp(protocol_name, "fp_r4") == 0) ||
-        (strcmp(protocol_name, "fp_r5") == 0) ||
-        (strcmp(protocol_name, "fp_r6") == 0) ||
-        (strcmp(protocol_name, "fp_r7") == 0) ||
-        (strcmp(protocol_name, "fp_r8") == 0) ||
+        (strncmp(protocol_name, "fp_r", 4) == 0) ||
         (strcmp(protocol_name, "fpiur_r5") == 0)) {
 
         parse_outhdr_string(outhdr_string, outhdr_length);

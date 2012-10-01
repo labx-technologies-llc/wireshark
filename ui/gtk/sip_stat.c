@@ -23,9 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 #include <string.h>
 
 #include <gtk/gtk.h>
@@ -527,22 +525,13 @@ sipstat_draw(void *psp)
     gtk_widget_show_all(sp->win);
 }
 
-
-/* Since the gtk2 implementation of tap is multithreaded we must protect
- * remove_tap_listener() from modifying the list while draw_tap_listener()
- * is running.  The other protected block is in main.c
- *
- * There should not be any other critical regions in gtk2.
- */
 /* When window is destroyed, clean up */
 static void
 win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
     sipstat_t *sp = (sipstat_t *)data;
 
-    protect_thread_critical_region();
     remove_tap_listener(sp);
-    unprotect_thread_critical_region();
 
     g_hash_table_destroy(sp->hash_responses);
     g_hash_table_destroy(sp->hash_requests);

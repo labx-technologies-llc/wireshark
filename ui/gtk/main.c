@@ -26,9 +26,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
@@ -142,6 +140,7 @@
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/color_dlg.h"
 #include "ui/gtk/filter_dlg.h"
+#include "ui/gtk/fileset_dlg.h"
 #include "ui/gtk/uat_gui.h"
 #include "ui/gtk/main.h"
 #include "ui/gtk/main_80211_toolbar.h"
@@ -1331,24 +1330,6 @@ void reset_tap_update_timer(void)
     tap_update_timer_id = g_timeout_add(prefs.tap_update_interval, tap_update_cb, NULL);
 }
 
-void
-protect_thread_critical_region(void)
-{
-    /* Threading support for TAP:s removed
-     * http://www.wireshark.org/lists/wireshark-dev/200611/msg00199.html
-     * See the commit for removed code:
-     * http://anonsvn.wireshark.org/viewvc/viewvc.cgi?view=rev&revision=35027
-     */
-}
-void
-unprotect_thread_critical_region(void)
-{
-    /* Threading support for TAP:s removed
-     * http://www.wireshark.org/lists/wireshark-dev/200611/msg00199.html
-     */
-
-}
-
 /*
  * Periodically process outstanding hostname lookups. If we have new items,
  * redraw the packet list and tree view.
@@ -1812,6 +1793,10 @@ static void
 main_cf_callback(gint event, gpointer data, gpointer user_data _U_)
 {
     switch(event) {
+    case(cf_cb_file_opened):
+        g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Opened");
+        fileset_file_opened(data);
+        break;
     case(cf_cb_file_closing):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Closing");
         main_cf_cb_file_closing(data);
@@ -1819,6 +1804,7 @@ main_cf_callback(gint event, gpointer data, gpointer user_data _U_)
     case(cf_cb_file_closed):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Closed");
         main_cf_cb_file_closed(data);
+        fileset_file_closed();
         break;
     case(cf_cb_file_read_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Read started");

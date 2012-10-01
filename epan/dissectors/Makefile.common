@@ -312,6 +312,8 @@ DISSECTOR_SRC = \
 	packet-bt-utp.c		\
 	packet-btamp.c		\
 	packet-btbnep.c		\
+	packet-btavctp.c	\
+	packet-btavrcp.c	\
 	packet-bthci_acl.c	\
 	packet-bthci_cmd.c	\
 	packet-bthci_evt.c	\
@@ -321,6 +323,7 @@ DISSECTOR_SRC = \
 	packet-btl2cap.c	\
 	packet-btobex.c		\
 	packet-btrfcomm.c	\
+	packet-btsap.c		\
 	packet-btsdp.c		\
 	packet-bvlc.c		\
 	packet-bzr.c		\
@@ -466,6 +469,7 @@ DISSECTOR_SRC = \
 	packet-dpnss.c		\
 	packet-drda.c		\
 	packet-dsi.c		\
+	packet-dtcp-ip.c	\
 	packet-dtls.c		\
 	packet-dtn.c		\
 	packet-dtp.c		\
@@ -544,6 +548,7 @@ DISSECTOR_SRC = \
 	packet-fmtp.c		\
 	packet-force10-oui.c	\
 	packet-forces.c		\
+	packet-foundry.c	\
 	packet-fp_hint.c	\
 	packet-fr.c		\
 	packet-fractalgeneratorprotocol.c \
@@ -1218,6 +1223,7 @@ DISSECTOR_INCLUDES =	\
 	packet-bpq.h	\
 	packet-bssap.h	\
 	packet-bssgp.h	\
+	packet-btavctp.h	\
 	packet-bthci_acl.h	\
 	packet-btl2cap.h	\
 	packet-btrfcomm.h	\

@@ -26,14 +26,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif
 
-#include <glib.h>
 #include <epan/packet.h>
-#include <etypes.h>
-#include <packet-hci_h4.h>
+
+#include "packet-hci_h4.h"
 
 /* Initialize the protocol and registered fields */
 static int proto_bthci_sco = -1;

@@ -24,9 +24,7 @@
  * Foundation,  Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
+#include "config.h"
 #include <string.h>
 
 #include <gtk/gtk.h>
@@ -122,9 +120,7 @@ flow_graph_data_init(void) {
 static void
 remove_tap_listener_flow_graph(void)
 {
-	protect_thread_critical_region();
 	remove_tap_listener(&(tap_identifier));
-	unprotect_thread_critical_region();
 
 	have_frame_tap_listener=FALSE;
 	have_tcp_tap_listener=FALSE;

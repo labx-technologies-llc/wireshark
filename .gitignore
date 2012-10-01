@@ -73,6 +73,7 @@ mergecap
 missing
 randpkt
 rawshark
+reordercap
 stamp-h1
 text2pcap
 tshark

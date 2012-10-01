@@ -25,6 +25,8 @@
 #ifndef __FILE_DLG_WIN32_H__
 #define __FILE_DLG_WIN32_H__
 
+#include "ui/file_dialog.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -44,6 +46,17 @@ typedef enum {
  */
 gboolean win32_open_file (HWND h_wnd, GString *file_name, GString *display_filter);
 
+/** Verify that our proposed capture file format supports comments. If it can't
+ *  ask the user what to do and return his or her response.
+ *
+ * @param h_wnd HWND of the parent window.
+ * @param cf Capture file.
+ * @param file_format Proposed file format.
+ *
+ * @return
+ */
+check_savability_t win32_check_save_as_with_comments(HWND parent, capture_file *cf, int file_type);
+
 /** Open the "Save As" dialog box.
  *
  * @param h_wnd HWND of the parent window.
@@ -56,8 +69,9 @@ gboolean win32_open_file (HWND h_wnd, GString *file_name, GString *display_filte
  * @return TRUE if packets were discarded when saving, FALSE otherwise
  */
 gboolean win32_save_as_file(HWND h_wnd, capture_file *cf,
-                            gboolean must_support_comments,
-                            gboolean dont_reopen);
+                            GString *file_name, int *file_type,
+                            gboolean *compressed,
+                            gboolean must_support_comments);
 
 /** Open the "Export Specified Packets" dialog box.
  *
@@ -131,8 +145,10 @@ void file_set_save_marked_sensitive();
 #define EWFD_PTX_FIRST_PKT 1014
 #define EWFD_PTX_ELAPSED   1015
 
+/* Save as dialog defines */
+#define EWFD_GZIP_CB     1000
 
-/* Save dialog defines */
+/* Export dialog defines */
 #define EWFD_CAPTURED_BTN    1000
 #define EWFD_DISPLAYED_BTN   1001
 #define EWFD_ALL_PKTS_BTN    1002

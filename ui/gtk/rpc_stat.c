@@ -28,9 +28,7 @@
  * It serves as an example on how to use the tap api.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <stdio.h>
 
@@ -200,20 +198,12 @@ rpcstat_find_vers(gpointer *key, gpointer *value _U_, gpointer *user_data _U_)
 	return;
 }
 
-/* since the gtk2 implementation of tap is multithreaded we must protect
- * remove_tap_listener() from modifying the list while draw_tap_listener()
- * is running.  the other protected block is in main.c
- *
- * there should not be any other critical regions in gtk2
- */
 static void
 win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
 	rpcstat_t *rs=(rpcstat_t *)data;
 
-	protect_thread_critical_region();
 	remove_tap_listener(rs);
-	unprotect_thread_critical_region();
 
 	free_srt_table_data(&rs->srt_table);
 	g_free(rs);

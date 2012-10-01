@@ -24,9 +24,7 @@
 #ifndef IMPORT_TEXT_DIALOG_H
 #define IMPORT_TEXT_DIALOG_H
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <stdio.h>
 
@@ -89,3 +87,16 @@ private slots:
 
 
 #endif // IMPORT_TEXT_DIALOG_H
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

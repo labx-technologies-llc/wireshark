@@ -41,9 +41,7 @@
  * Indentation logic: this file is indented with 2 spaces indentation.
  *                    there are no tabs.
  */
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
@@ -604,7 +602,7 @@ static int hf_camel_present = -1;                 /* INTEGER */
 static int hf_camel_InvokeId_present = -1;        /* InvokeId_present */
 
 /*--- End of included file: packet-camel-hf.c ---*/
-#line 111 "../../asn1/camel/packet-camel-template.c"
+#line 109 "../../asn1/camel/packet-camel-template.c"
 
 static struct camelsrt_info_t * gp_camelsrt_info;
 
@@ -831,7 +829,7 @@ static gint ett_camel_T_problem = -1;
 static gint ett_camel_InvokeId = -1;
 
 /*--- End of included file: packet-camel-ett.c ---*/
-#line 139 "../../asn1/camel/packet-camel-template.c"
+#line 137 "../../asn1/camel/packet-camel-template.c"
 
 
 /* Preference settings default */
@@ -1152,7 +1150,7 @@ static const value_string camel_ectTreatmentIndicator_values[] = {
 #define noInvokeId                     NULL
 
 /*--- End of included file: packet-camel-val.h ---*/
-#line 275 "../../asn1/camel/packet-camel-template.c"
+#line 273 "../../asn1/camel/packet-camel-template.c"
 
 
 /*--- Included file: packet-camel-table.c ---*/
@@ -1242,7 +1240,7 @@ static const value_string camel_err_code_string_vals[] = {
 
 
 /*--- End of included file: packet-camel-table.c ---*/
-#line 277 "../../asn1/camel/packet-camel-template.c"
+#line 275 "../../asn1/camel/packet-camel-template.c"
 
 static char camel_number_to_char(int number)
 {
@@ -1296,8 +1294,18 @@ static int dissect_camel_InitialDPArgExtensionV2(gboolean implicit_tag _U_, tvbu
 
 static int
 dissect_camel_AccessPointName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+
+  tvbuff_t   *parameter_tvb;
+  proto_tree *subtree;
+
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                       NULL);
+                                       &parameter_tvb);
+
+
+  if (!parameter_tvb)
+    return offset;
+  subtree = proto_item_add_subtree(actx->created_item, ett_camel_AccessPointName);
+  de_sm_apn(parameter_tvb, subtree, actx->pinfo, 0, tvb_length(parameter_tvb), NULL, 0);
 
   return offset;
 }
@@ -6995,7 +7003,7 @@ static void dissect_CAP_U_ABORT_REASON_PDU(tvbuff_t *tvb _U_, packet_info *pinfo
 
 
 /*--- End of included file: packet-camel-fn.c ---*/
-#line 324 "../../asn1/camel/packet-camel-template.c"
+#line 322 "../../asn1/camel/packet-camel-template.c"
 
 
 /*--- Included file: packet-camel-table2.c ---*/
@@ -7208,7 +7216,7 @@ static int dissect_returnErrorData(proto_tree *tree, tvbuff_t *tvb, int offset,a
 
 
 /*--- End of included file: packet-camel-table2.c ---*/
-#line 326 "../../asn1/camel/packet-camel-template.c"
+#line 324 "../../asn1/camel/packet-camel-template.c"
 
 
 static guint8 camel_pdu_type = 0;
@@ -7409,7 +7417,7 @@ void proto_reg_handoff_camel(void) {
 
 
 /*--- End of included file: packet-camel-dis-tab.c ---*/
-#line 519 "../../asn1/camel/packet-camel-template.c"
+#line 517 "../../asn1/camel/packet-camel-template.c"
   } else {
     range_foreach(ssn_range, range_delete_callback);
     g_free(ssn_range);
@@ -8507,7 +8515,7 @@ void proto_register_camel(void) {
         NULL, HFILL }},
     { &hf_camel_accessPointName,
       { "accessPointName", "camel.accessPointName",
-        FT_STRING, BASE_NONE, NULL, 0,
+        FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_camel_chargingID,
       { "chargingID", "camel.chargingID",
@@ -9523,7 +9531,7 @@ void proto_register_camel(void) {
         "InvokeId_present", HFILL }},
 
 /*--- End of included file: packet-camel-hfarr.c ---*/
-#line 692 "../../asn1/camel/packet-camel-template.c"
+#line 690 "../../asn1/camel/packet-camel-template.c"
   };
 
   /* List of subtrees */
@@ -9738,7 +9746,7 @@ void proto_register_camel(void) {
     &ett_camel_InvokeId,
 
 /*--- End of included file: packet-camel-ettarr.c ---*/
-#line 708 "../../asn1/camel/packet-camel-template.c"
+#line 706 "../../asn1/camel/packet-camel-template.c"
   };
   /* Register protocol */
   proto_camel = proto_register_protocol(PNAME, PSNAME, PFNAME);

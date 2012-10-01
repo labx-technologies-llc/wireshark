@@ -21,9 +21,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif
 
 #include <time.h>
 
@@ -49,7 +47,6 @@
 #include <QFileDialog>
 #include <QDebug>
 #include <QFile>
-#include <QMessageBox>
 #include <QDesktopServices>
 #include <QUrl>
 
@@ -457,3 +454,16 @@ void ImportTextDialog::on_buttonBox_helpRequested()
         g_free(url);
     }
 }
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

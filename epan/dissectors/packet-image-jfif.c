@@ -36,9 +36,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <string.h>
 
@@ -769,7 +767,7 @@ dissect_jfif(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         return 0;
     if (tvb_get_ntohs(tvb, 0) != MARKER_SOI)
         return 0;
-    if (tvb_get_ntohs(tvb, tvb_len-2) != MARKER_EOI)
+    if (tvb_memeql(tvb, 6, "JFIF", 5))
         return 0;
 
     /* Add summary to INFO column if it is enabled */
@@ -851,7 +849,7 @@ dissect_jfif(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         }
     }
 
-    return offset;
+    return tvb_len;
 }
 
 static gboolean

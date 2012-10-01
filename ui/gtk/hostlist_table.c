@@ -23,9 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -258,9 +256,7 @@ hostlist_win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
     hostlist_table *hosts=(hostlist_table *)data;
 
-    protect_thread_critical_region();
     remove_tap_listener(hosts);
-    unprotect_thread_critical_region();
 
     reset_hostlist_table_data(hosts);
     g_free(hosts);
@@ -934,6 +930,14 @@ typedef struct {
     hostlist_table    *talkers;
 } map_t;
 
+static char *map_endpoint_opener;
+
+static void
+map_init(void)
+{
+    map_endpoint_opener = "{\n";
+}
+
 /* XXX output in C locale */
 static gboolean
 map_handle(GtkTreeModel *model, GtkTreePath *path _U_, GtkTreeIter *iter,
@@ -964,7 +968,7 @@ map_handle(GtkTreeModel *model, GtkTreePath *path _U_, GtkTreeIter *iter,
 },
  */
 
-    fputs("{\n", map->out_file);
+    fputs(map_endpoint_opener, map->out_file);
     fputs("  'type': 'Feature', 'geometry': { 'type': 'Point', 'coordinates': [", map->out_file);
 
     /* Longitude */
@@ -1029,7 +1033,9 @@ map_handle(GtkTreeModel *model, GtkTreePath *path _U_, GtkTreeIter *iter,
     /* XXX - we could add specific icons, e.g. depending on the amount of packets or bytes */
 
     fputs("' }\n", map->out_file);
-    fputs("},\n", map->out_file);       /* XXX - Trim the comma from the last item */
+    fputs("}", map->out_file);
+    map_endpoint_opener = ",\n{\n";
+
     map->hosts_written = TRUE;
 
     return FALSE;
@@ -1141,6 +1147,7 @@ open_as_map_cb(GtkWindow *copy_bt, gpointer data _U_)
         fputs(tpl_line, map.out_file);
         /* MUST match ipmap.html */
         if (strstr(tpl_line, "// Start endpoint list")) {
+            map_init();
             gtk_tree_model_foreach(GTK_TREE_MODEL(store), map_handle, &map);
         }
     }
@@ -1416,7 +1423,7 @@ init_hostlist_table(gboolean hide_ports, const char *table_name, const char *tap
     /* XXX - maybe we want to have a "Copy as CSV" stock button here? */
     /*copy_bt = gtk_button_new_with_label ("Copy content to clipboard as CSV");*/
 #ifdef HAVE_GEOIP
-    if( strstr(table_name, "IPv4") != NULL) {
+    if( strstr(table_name, "IPv4") || strstr(table_name, "IPv6") ) {
         bbox = dlg_button_row_new(GTK_STOCK_CLOSE, GTK_STOCK_COPY, WIRESHARK_STOCK_MAP, GTK_STOCK_HELP, NULL);
     } else {
         bbox = dlg_button_row_new(GTK_STOCK_CLOSE, GTK_STOCK_COPY, GTK_STOCK_HELP, NULL);
@@ -1482,7 +1489,8 @@ ct_nb_map_switch_page_cb(GtkNotebook *nb, gpointer *pg _U_, guint page, gpointer
 
     if (pages && page > 0 && (int) page <= GPOINTER_TO_INT(pages[0]) && map_bt) {
         g_object_set_data(G_OBJECT(map_bt), HOST_PTR_KEY, pages[page]);
-        if(strstr( ((hostlist_table *)pages[page])->name, "IPv4") != NULL) {
+        if( strstr(((hostlist_table *)pages[page])->name, "IPv4") ||
+            strstr(((hostlist_table *)pages[page])->name, "IPv6") ) {
             gtk_widget_set_sensitive(map_bt, TRUE);
         } else {
             gtk_widget_set_sensitive(map_bt, FALSE);

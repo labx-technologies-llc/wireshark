@@ -23,9 +23,7 @@
  */
 
 /* #define DEBUG	do{ printf("%s:%d  ",__FILE__,__LINE__);} while(0); */
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 #include <string.h>
 
 #include <gtk/gtk.h>
@@ -214,22 +212,12 @@ wspstat_draw(void *psp)
 	g_hash_table_foreach(sp->hash, (GHFunc)wsp_draw_statuscode, NULL);
 }
 
-
-
-/* Since the gtk2 implementation of tap is multithreaded we must protect
- * remove_tap_listener() from modifying the list while draw_tap_listener()
- * is running.  The other protected block is in main.c
- *
- * There should not be any other critical regions in gtk2
- */
 static void
 win_destroy_cb(GtkWindow *win _U_, gpointer data)
 {
 	wspstat_t *sp = (wspstat_t *)data;
 
-	protect_thread_critical_region();
 	remove_tap_listener(sp);
-	unprotect_thread_critical_region();
 
 	g_free(sp->pdu_stats);
 	g_free(sp->filter);

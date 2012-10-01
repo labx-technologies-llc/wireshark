@@ -2,12 +2,13 @@
 #
 AC_PREREQ(2.60)
 
-m4_define(version_major, 1)
-m4_define(version_minor, 9)
-m4_define(version_micro, 0)
-# XXX version_extra ?
+m4_define([version_major], [1])
+m4_define([version_minor], [9])
+m4_define([version_micro], [0])
+m4_define([version_micro_extra], version_micro)
+m4_append([version_micro_extra], [])
 
-AC_INIT(wireshark, [version_major.version_minor.version_micro], http://bugs.wireshark.org/, , http://www.wireshark.org/)
+AC_INIT(wireshark, [version_major.version_minor.version_micro_extra], http://bugs.wireshark.org/, , http://www.wireshark.org/)
 
 dnl Check for CPU / vendor / OS
 dnl The user is encouraged to use either `AC_CANONICAL_BUILD', or
@@ -449,18 +450,17 @@ AC_WIRESHARK_LDFLAGS_CHECK([-Wl,--as-needed])
 # AC_WIRESHARK_LDFLAGS_CHECK([-fwhole-program])
 
 #
-# If we're running GCC or clang, add '-D_U_="__attribute__((unused))"' to
-# CPPFLAGS as well, so we can use _U_ to flag unused function arguments and
-# not get warnings about them. Otherwise, add '-D_U_=""', so that _U_ used
-# to flag an unused function argument will compile with non-GCC, non-clang
-# compilers.
+# If we're running GCC or clang define _U_ to be "__attribute__((unused))"
+# so we can use _U_ to flag unused function parameters and not get warnings
+# about them. Otherwise, define _U_ to be an empty string so that _U_ used
+# to flag an unused function parameters will compile with other compilers.
 #
-# XXX - other compilers?
+# XXX - similar hints for other compilers?
 #
 if test "x$GCC" = "xyes" -o "x$CC" = "xclang" ; then
-  CPPFLAGS="-D_U_=\"__attribute__((unused))\" $CPPFLAGS"
+  AC_DEFINE(_U_, __attribute__((unused)), [Hint to the compiler that a function parameters is not used])
 else
-  CPPFLAGS="-D_U_=\"\" $CPPFLAGS"
+  AC_DEFINE(_U_, , [Hint to the compiler that a function parameters is not used])
 fi
 
 # If we're running GCC or CLang, use FORTIFY_SOURCE=2
@@ -835,6 +835,7 @@ AC_DEFINE_UNQUOTED(DOC_DIR, "$docdir", [Directory for docs])
 # 3.0.0:  10 Feb 2011
 # 3.2.0:  25 Sep 2011
 # 3.4.0:  26 Mar 2012
+# 3.6.0:  24 Sep 2012
 
 if test "x$enable_wireshark" = "xyes"; then
 	if test "x$with_qt" = "xyes"; then
@@ -913,6 +914,7 @@ fi
 # 2.28.0: 08 Feb 2011
 # 2.30.0: 27 Sep 2011
 # 2.32.0: 24 Mar 2012
+# 2.34.0: 24 Sep 2012
 
 if test "$have_gtk" = "no" ; then
 	#
@@ -1171,6 +1173,24 @@ else
 fi
 AC_SUBST(mergecap_bin)
 AC_SUBST(mergecap_man)
+
+
+# Enable/disable reordercap
+
+AC_ARG_ENABLE(reordercap,
+  AC_HELP_STRING( [--enable-reordercap],
+                  [build reordercap @<:@default=yes@:>@]),
+    enable_reordercap=$enableval,enable_reordercap=yes)
+
+if test "x$enable_reordercap" = "xyes" ; then
+	reordercap_bin="reordercap\$(EXEEXT)"
+	reordercap_man="reordercap.1"
+else
+	reordercap_bin=""
+	reordercap_man=""
+fi
+AC_SUBST(reordercap_bin)
+AC_SUBST(reordercap_man)
 
 
 # Enable/disable text2pcap
@@ -2268,6 +2288,7 @@ echo "                     Build capinfos : $enable_capinfos"
 echo "                      Build editcap : $enable_editcap"
 echo "                      Build dumpcap : $enable_dumpcap"
 echo "                     Build mergecap : $enable_mergecap"
+echo "                   Build reordercap : $enable_reordercap"
 echo "                    Build text2pcap : $enable_text2pcap"
 echo "                      Build randpkt : $enable_randpkt"
 echo "                       Build dftest : $enable_dftest"

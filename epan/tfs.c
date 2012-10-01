@@ -23,9 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include "tfs.h"
 
@@ -35,6 +33,7 @@
  */
 const true_false_string tfs_true_false = { "True", "False" };
 const true_false_string tfs_yes_no = { "Yes", "No" };
+const true_false_string tfs_no_yes = { "No", "Yes" };
 const true_false_string tfs_set_notset = { "Set", "Not set" };
 const true_false_string tfs_enabled_disabled = { "Enabled", "Disabled" };
 const true_false_string tfs_disabled_enabled = { "Disabled", "Enabled" };
@@ -67,4 +66,9 @@ const true_false_string tfs_not_allowed_allowed = { "Not Allowed", "Allowed" };
 const true_false_string tfs_accepted_not_accepted = { "Accepted", "Not Accepted" };
 const true_false_string tfs_detected_not_detected = { "Detected", "Not Detected" };
 const true_false_string tfs_available_not_available = { "Available", "Not available" };
+const true_false_string tfs_shared_independent = { "Shared", "Independent" };
+const true_false_string tfs_valid_invalid = { "Valid", "Invalid" };
+const true_false_string tfs_group_unique_name = { "Group name", "Unique name" };
+
+
 

@@ -27,19 +27,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
-#include <glib.h>
+#include "config.h"
 
 #include <epan/packet.h>
-#include <etypes.h>
-#include <epan/emem.h>
 #include <epan/expert.h>
 #include <epan/tap.h>
-#include "packet-btsdp.h"
+
 #include "packet-bthci_acl.h"
+#include "packet-btsdp.h"
 #include "packet-btl2cap.h"
 
 /* Initialize the protocol and registered fields */
@@ -1172,7 +1167,7 @@ dissect_s_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, proto_t
     proto_tree_add_item(ti_control_subtree, hf_btl2cap_control_supervisory, tvb, offset, 2, ENC_LITTLE_ENDIAN);
     proto_tree_add_item(ti_control_subtree, hf_btl2cap_control_type, tvb, offset, 2, ENC_LITTLE_ENDIAN);
     offset += 2;
-    proto_tree_add_item(ti_control_subtree, hf_btl2cap_fcs, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(btl2cap_tree, hf_btl2cap_fcs, tvb, offset, 2, ENC_LITTLE_ENDIAN);
     offset += 2;
     return offset;
 }
@@ -1348,7 +1343,8 @@ dissect_btl2cap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     else if (cid == BTL2CAP_FIXED_CID_CONNLESS) { /* Connectionless reception channel */
         col_append_str(pinfo->cinfo, COL_INFO, "Connectionless reception channel");
 
-        psm     = tvb_get_letohs(tvb, offset);
+        psm = tvb_get_letohs(tvb, offset);
+        l2cap_data->psm = psm;
         proto_tree_add_item(btl2cap_tree, hf_btl2cap_psm, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset += 2;
 
@@ -1425,6 +1421,7 @@ dissect_btl2cap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              || (psm_data->dcid == (cid | ((pinfo->p2p_dir == P2P_DIR_RECV) ? 0x0000 : 0x8000))))
             ) {
             psm = psm_data->psm;
+            l2cap_data->psm = psm;
 
             if (pinfo->p2p_dir == P2P_DIR_RECV)
                 config_data = &(psm_data->in);

@@ -23,9 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
@@ -55,6 +53,9 @@ static int hf_q2931_message_type_ext = -1;
 static int hf_q2931_message_flag = -1;
 static int hf_q2931_message_action_indicator = -1;
 static int hf_q2931_message_len = -1;
+static int hf_q2931_ie_handling_instructions = -1;
+static int hf_q2931_ie_coding_standard = -1;
+static int hf_q2931_ie_action_indicator = -1;
 
 static gint ett_q2931 = -1;
 static gint ett_q2931_ext = -1;
@@ -249,6 +250,9 @@ static const value_string q2931_codeset_vals[] = {
 	{ 0x07, "User-specific information elements" },
 	{ 0x00, NULL },
 };
+
+static const true_false_string tfs_q2931_handling_instructions = { "Follow explicit error handling instructions", 
+																   "Regular error handling procedures apply" };
 
 static void
 dissect_q2931_shift_ie(tvbuff_t *tvb, int offset, int len,
@@ -1988,21 +1992,10 @@ dissect_q2931_ie(tvbuff_t *tvb, int offset, int len, proto_tree *tree,
 	    "Information element extension: 0x%02x",
 	    info_element_ext);
 	ie_ext_tree = proto_item_add_subtree(ti, ett_q2931_ie_ext);
-	proto_tree_add_text(ie_ext_tree, tvb, offset + 1, 1, "%s",
-	    decode_enumerated_bitfield(info_element_ext,
-	        Q2931_IE_COMPAT_CODING_STD, 8,
-		coding_std_vals, "Coding standard: %s"));
-	proto_tree_add_text(ie_ext_tree, tvb, offset + 1, 1, "%s",
-	    decode_boolean_bitfield(info_element_ext,
-	    Q2931_IE_COMPAT_FOLLOW_INST, 8,
-	    "Follow explicit error handling instructions",
-  	    "Regular error handling procedures apply"));
+	proto_tree_add_item(ie_ext_tree, hf_q2931_ie_coding_standard, tvb, offset+1, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(ie_ext_tree, hf_q2931_ie_handling_instructions, tvb, offset+1, 1, ENC_BIG_ENDIAN);
 	if (info_element_ext & Q2931_IE_COMPAT_FOLLOW_INST) {
-		proto_tree_add_text(ie_ext_tree, tvb, offset + 1, 1, "%s",
-		    decode_enumerated_bitfield(info_element_ext,
-		        Q2931_IE_COMPAT_ACTION_IND, 8,
-			ie_action_ind_vals,
-			"Action indicator: %s"));
+	    proto_tree_add_item(ie_ext_tree, hf_q2931_ie_action_indicator, tvb, offset+1, 1, ENC_BIG_ENDIAN);
 	}
 	proto_tree_add_text(ie_tree, tvb, offset + 2, 2, "Length: %u", len);
 
@@ -2175,6 +2168,17 @@ proto_register_q2931(void)
 		  { "Message length", "q2931.message_len", FT_UINT16, BASE_DEC, NULL, 0x0,
 		  	NULL, HFILL }},
 
+		{ &hf_q2931_ie_handling_instructions,
+		  { "Handling Instructions", "q2931.ie_handling_instructions", FT_BOOLEAN, 8, TFS(&tfs_q2931_handling_instructions), Q2931_IE_COMPAT_FOLLOW_INST,
+		  	NULL, HFILL }},
+
+		{ &hf_q2931_ie_coding_standard,
+		  { "Coding standard", "q2931.ie_coding_standard", FT_UINT8, BASE_DEC, VALS(coding_std_vals), Q2931_IE_COMPAT_CODING_STD,
+		  	NULL, HFILL }},
+
+		{ &hf_q2931_ie_action_indicator,
+		  { "Action indicator", "q2931.ie_action_indicator", FT_UINT8, BASE_DEC, VALS(ie_action_ind_vals), Q2931_IE_COMPAT_ACTION_IND,
+		  	NULL, HFILL }},
 	};
 	static gint *ett[] = {
 		&ett_q2931,

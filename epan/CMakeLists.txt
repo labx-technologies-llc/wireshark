@@ -392,6 +392,8 @@ set(DISSECTOR_SRC
 	dissectors/packet-bt-utp.c
 	dissectors/packet-btamp.c
 	dissectors/packet-btbnep.c
+	dissectors/packet-btavctp.c
+	dissectors/packet-btavrcp.c
 	dissectors/packet-bthci_acl.c
 	dissectors/packet-bthci_cmd.c
 	dissectors/packet-bthci_evt.c
@@ -401,6 +403,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-btl2cap.c
 	dissectors/packet-btobex.c
 	dissectors/packet-btrfcomm.c
+	dissectors/packet-btsap.c
 	dissectors/packet-btsdp.c
 	dissectors/packet-bvlc.c
 	dissectors/packet-bzr.c
@@ -546,6 +549,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-dpnss.c
 	dissectors/packet-drda.c
 	dissectors/packet-dsi.c
+	dissectors/packet-dtcp-ip.c
 	dissectors/packet-dtls.c
 	dissectors/packet-dtn.c
 	dissectors/packet-dtp.c
@@ -624,6 +628,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-fmtp.c
 	dissectors/packet-force10-oui.c
 	dissectors/packet-forces.c
+	dissectors/packet-foundry.c
 	dissectors/packet-fp_hint.c
 	dissectors/packet-fr.c
 	dissectors/packet-fractalgeneratorprotocol.c

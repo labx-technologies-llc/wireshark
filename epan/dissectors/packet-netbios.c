@@ -26,9 +26,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <glib.h>
 
@@ -91,6 +89,8 @@ static int hf_netb_ack_expected = -1;
 static int hf_netb_recv_cont_req = -1;
 static int hf_netb_send_no_ack = -1;
 static int hf_netb_version = -1;
+static int hf_netbios_no_receive_flags = -1;
+static int hf_netbios_no_receive_flags_send_no_ack = -1;
 static int hf_netb_largest_frame = -1;
 static int hf_netb_nb_name = -1;
 static int hf_netb_nb_name_type = -1;
@@ -104,6 +104,9 @@ static int hf_netb_local_ses_no = -1;
 static int hf_netb_remote_ses_no = -1;
 static int hf_netb_data1 = -1;
 static int hf_netb_data2 = -1;
+static int hf_netb_data2_frame = -1;
+static int hf_netb_data2_user = -1;
+static int hf_netb_data2_status = -1;
 static int hf_netb_fragments = -1;
 static int hf_netb_fragment = -1;
 static int hf_netb_fragment_overlap = -1;
@@ -450,19 +453,11 @@ static void netbios_no_receive_flags( tvbuff_t *tvb, proto_tree *tree,
 {
 	proto_tree *field_tree;
 	proto_item *tf;
-	guint flags = tvb_get_guint8( tvb, offset);
 
 		/* decode the flag field for No Receive packet*/
-
-	tf = proto_tree_add_text(tree, tvb, offset, 1,
-			"Flags: 0x%02x", flags);
-
-	if (flags & 0x02) {
-		field_tree = proto_item_add_subtree(tf, ett_netb_flags);
-		proto_tree_add_text(field_tree, tvb, offset, 1, "%s",
-		    decode_boolean_bitfield(flags, 0x02, 8,
-			"SEND.NO.ACK data not received", NULL));
-	}
+	tf = proto_tree_add_item(tree, hf_netbios_no_receive_flags, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	field_tree = proto_item_add_subtree(tf, ett_netb_flags);
+	proto_tree_add_item(field_tree, hf_netbios_no_receive_flags_send_no_ack, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 }
 
 
@@ -804,7 +799,6 @@ dissect_netb_status_resp( tvbuff_t *tvb, int offset, proto_tree *tree)
 	guint8 status_response = tvb_get_guint8( tvb, offset + NB_DATA1);
 	proto_item *td2;
 	proto_tree *data2_tree;
-	guint16 data2;
 
 	nb_call_name_type( tvb, offset, tree);
 	if (status_response == 0) {
@@ -815,24 +809,13 @@ dissect_netb_status_resp( tvbuff_t *tvb, int offset, proto_tree *tree)
 		    "Status response: NetBIOS 2.1, %u names sent so far",
 		    status_response);
 	}
-	data2 = tvb_get_letohs( tvb, offset + NB_DATA2);
 
-	td2 = proto_tree_add_text(tree, tvb, offset + NB_DATA2, 2, "Status: 0x%04x",
-	    data2);
+	td2 = proto_tree_add_item(tree, hf_netb_data2, tvb, offset + NB_DATA2, 2, ENC_LITTLE_ENDIAN);
 	data2_tree = proto_item_add_subtree(td2, ett_netb_status);
-	if (data2 & 0x8000) {
-		proto_tree_add_text(data2_tree, tvb, offset, 2, "%s",
-		    decode_boolean_bitfield(data2, 0x8000, 8*2,
-			"Data length exceeds maximum frame size", NULL));
-	}
-	if (data2 & 0x4000) {
-		proto_tree_add_text(data2_tree, tvb, offset, 2, "%s",
-		    decode_boolean_bitfield(data2, 0x4000, 8*2,
-			"Data length exceeds user's buffer", NULL));
-	}
-	proto_tree_add_text(data2_tree, tvb, offset, 2, "%s",
-	    decode_numeric_bitfield(data2, 0x3FFF, 2*8,
-			"Status data length = %u"));
+	proto_tree_add_item(data2_tree, hf_netb_data2_frame, tvb, offset + NB_DATA2, 2, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(data2_tree, hf_netb_data2_user, tvb, offset + NB_DATA2, 2, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(data2_tree, hf_netb_data2_status, tvb, offset + NB_DATA2, 2, ENC_LITTLE_ENDIAN);
+
 	nb_xmit_corrl( tvb, offset, tree);
 	netbios_add_name("Receiver's Name", tvb, offset + NB_RECVER_NAME, tree);
 	netbios_add_name("Sender's Name", tvb, offset + NB_SENDER_NAME,
@@ -1328,6 +1311,14 @@ void proto_register_netbios(void)
 		{ "NetBIOS Version", "netbios.version", FT_BOOLEAN,  8,
 			TFS( &netb_version_str), 0x01, NULL, HFILL }},
 
+		{ &hf_netbios_no_receive_flags,
+		{ "Flags", "netbios.no_receive_flags", FT_UINT8, BASE_HEX, NULL, 0x0,
+			NULL, HFILL }},
+
+		{ &hf_netbios_no_receive_flags_send_no_ack,
+		{ "SEND.NO.ACK data received", "netbios.no_receive_flags.send_no_ack", FT_BOOLEAN,  8,
+			TFS( &tfs_no_yes), 0x02, NULL, HFILL }},
+
 		{ &hf_netb_largest_frame,
 		{ "Largest Frame", "netbios.largest_frame", FT_UINT8, BASE_DEC, VALS(max_frame_size_vals), 0x0E,
 			NULL, HFILL }},
@@ -1370,6 +1361,18 @@ void proto_register_netbios(void)
 
 		{ &hf_netb_data2,
 		{ "DATA2 value", "netbios.data2", FT_UINT16, BASE_HEX, NULL, 0x0,
+			NULL, HFILL }},
+
+		{ &hf_netb_data2_frame,
+		{ "Data length exceeds maximum frame size", "netbios.data2.frame", FT_BOOLEAN, 16, 
+			TFS(&tfs_yes_no), 0x8000, NULL, HFILL }},
+
+		{ &hf_netb_data2_user,
+		{ "Data length exceeds user's buffer", "netbios.data2.user", FT_BOOLEAN, 16, 
+			TFS(&tfs_yes_no), 0x4000, NULL, HFILL }},
+
+		{ &hf_netb_data2_status,
+		{ "Status data length", "netbios.data2.status", FT_UINT16, BASE_DEC, NULL, 0x3FFF,
 			NULL, HFILL }},
 
 		{ &hf_netb_fragment_overlap,
