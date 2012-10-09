@@ -687,6 +687,7 @@ set(INSTALL_FILES
 	pdml2html.xsl
 	${CMAKE_BINARY_DIR}/randpkt.html
 	${CMAKE_BINARY_DIR}/rawshark.html
+	${CMAKE_BINARY_DIR}/reordercap.html
 	services
 	smi_modules
 	${CMAKE_BINARY_DIR}/text2pcap.html
@@ -924,6 +925,7 @@ endif()
 if(BUILD_capinfos)
 	set(capinfos_LIBS
 		wiretap
+		wsutil
 		${ZLIB_LIBRARIES}
 		${GCRYPT_LIBRARIES}
 		${APPLE_COCOA_LIBRARY}
@@ -1034,6 +1036,7 @@ pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/idl2wrs 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/mergecap 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/randpkt 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/rawshark 1 )
+pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/reordercap 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/text2pcap 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/tshark 1 )
 pod2manhtml( wireshark 1 )
@@ -1051,6 +1054,7 @@ add_custom_target(
 		mergecap.html
 		randpkt.html
 		rawshark.html
+		reordercap.html
 		text2pcap.html
 		tshark.html
 		wireshark.html
@@ -1066,6 +1070,7 @@ set(MAN1_FILES
 	${CMAKE_BINARY_DIR}/mergecap.1
 	${CMAKE_BINARY_DIR}/randpkt.1
 	${CMAKE_BINARY_DIR}/rawshark.1
+	${CMAKE_BINARY_DIR}/reordercap.1
 	${CMAKE_BINARY_DIR}/text2pcap.1
 	${CMAKE_BINARY_DIR}/tshark.1
 	${CMAKE_BINARY_DIR}/wireshark.1

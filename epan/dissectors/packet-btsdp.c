@@ -205,6 +205,8 @@ static const value_string vs_service_classes[] = {
     {0x1132, "Message Access Server"},
     {0x1133, "Message Notification Server"},
     {0x1134, "Message Access Profile"},
+    {0x1135, "Global Navigation Satellite System"},
+    {0x1136, "Global Navigation Satellite System Server"},
     {0x1200, "PnP Information"},
     {0x1201, "Generic Networking"},
     {0x1202, "Generic File Transfer"},
@@ -1105,3 +1107,15 @@ proto_reg_handoff_btsdp(void)
     dissector_add_uint("btl2cap.psm", BTL2CAP_PSM_SDP, btsdp_handle);
 }
 
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

@@ -46,6 +46,13 @@ extern "C" {
  */
 extern void	col_setup(column_info *cinfo, const gint num_cols);
 
+/** Cleanup all the data structures for constructing column data;
+ * undoes the alocations that col_setup() does.
+ *
+ * Internal, don't use this in dissectors!
+ */
+extern void	col_cleanup(column_info *cinfo);
+
 /** Initialize the data structures for constructing column data.
  *
  * Internal, don't use this in dissectors!

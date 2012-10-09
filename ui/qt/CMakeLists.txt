@@ -33,7 +33,7 @@ set(QTSHARK_H_SRC
 	color_utils.h
 	display_filter_combo.h
 	display_filter_edit.h
-	fileset_dialog.h
+	file_set_dialog.h
 	import_text_dialog.h
 	interface_tree.h
 	label_stack.h
@@ -43,10 +43,12 @@ set(QTSHARK_H_SRC
 	monospace_font.h
 	packet_list.h
 	packet_list_model.h
+	packet_range_group_box.h
 	progress_bar.h
 	proto_tree.h
 	recent_file_status.h
 	simple_dialog_qt.h
+	syntax_line_edit.h
 	wireshark_application.h
 
 	# No Q_OBJECT:
@@ -64,7 +66,7 @@ set(QTSHARK_CPP_SRC
 	color_utils.cpp
 	display_filter_combo.cpp
 	display_filter_edit.cpp
-	fileset_dialog.cpp
+	file_set_dialog.cpp
 	import_text_dialog.cpp
 	interface_tree.cpp
 	label_stack.cpp
@@ -72,16 +74,19 @@ set(QTSHARK_CPP_SRC
 	main_status_bar.cpp
 	main_welcome.cpp
 	main_window.cpp
+	main_window_slots.cpp
 	monospace_font.cpp
 	packet_list.cpp
 	packet_list_model.cpp
 	packet_list_record.cpp
+	packet_range_group_box.cpp
 	progress_bar.cpp
 	proto_tree.cpp
 	qt_ui_utils.cpp
 	recent_file_status.cpp
 	simple_dialog_qt.cpp
 	sparkline_delegate.cpp
+	syntax_line_edit.cpp
 	wireshark_application.cpp
 )
 
@@ -90,9 +95,11 @@ set(QTSHARK_SRC
 )
 
 set(QTSHARK_UI
+	file_set_dialog.ui
 	import_text_dialog.ui
 	main_welcome.ui
 	main_window.ui
+	packet_range_group_box.ui
 )
 
 set(QTSHARK_QRC

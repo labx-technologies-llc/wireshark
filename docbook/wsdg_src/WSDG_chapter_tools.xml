@@ -258,8 +258,10 @@ PARTICULAR PURPOSE.]]>
         were compiled using Microsoft Visual C++ 6.0. Using the release
         compilers is recommended for Wireshark development work. "Express
         Edition" compilers such as Visual C++ 2010 Express Edition SP1 can be
-        used but any PortableApps or U3 packages you create will require the
-        installation of a separate Visual C++ Redistributable package. See
+        used but any PortableApps or U3 packages you create with them
+        will require the installation of a separate Visual C++
+        Redistributable package on any machine on which the PortableApps
+        or U3 package is to be used. See
         <quote><link linkend='msvc-runtime-redistributable' endterm='msvc-runtime-redistributable.title'/></quote>
         below for more details.
       </para>
@@ -269,14 +271,15 @@ PARTICULAR PURPOSE.]]>
       </para>
 
       <informaltable frame="all">
-        <tgroup cols="7">
-          <colspec colname="c1" colwidth="14*" />
-          <colspec colname="c2" colwidth="14*" />
-          <colspec colname="c3" colwidth="14*" />
-          <colspec colname="c4" colwidth="14*" />
-          <colspec colname="c5" colwidth="14*" />
-          <colspec colname="c6" colwidth="14*" />
-          <colspec colname="c7" colwidth="14*" />
+        <tgroup cols="8">
+          <colspec colname="compiler_package" colwidth="12*" />
+          <colspec colname="ide_debugger" colwidth="12*" />
+          <colspec colname="publicly_available" colwidth="12*" />
+          <colspec colname="sdk_required" colwidth="12*" />
+          <colspec colname="msvc_variant" colwidth="12*" />
+          <colspec colname="bitwidth" colwidth="12*" />
+          <colspec colname="vcvars_bat" colwidth="12*" />
+          <colspec colname="remarks" colwidth="12*" />
           <tbody>
             <row>
               <entry>
@@ -294,6 +297,9 @@ PARTICULAR PURPOSE.]]>
               <entry>
                 <para>config.nmake:</para>
                 <para>MSVC_VARIANT</para>
+              </entry>
+              <entry>
+                <para>32-bit/64-bit</para>
               </entry>
               <entry>
                 <para>set compiler PATH and alike settings
@@ -322,6 +328,9 @@ PARTICULAR PURPOSE.]]>
                 <para>MSVC2005</para>
               </entry>
               <entry>
+                <para>32-bit only</para>
+              </entry>
+              <entry>
                 <para>Microsoft Visual Studio
                 8\VC\bin\vcvars32.bat</para>
               </entry>
@@ -339,15 +348,18 @@ PARTICULAR PURPOSE.]]>
               <entry>
                 <para>
                 Free Download (link disappeared)
-		</para>
+                </para>
               </entry>
               <entry>
                 <para>
                 Free Download (link disappeared)
-		</para>
+                </para>
               </entry>
               <entry>
                 <para>MSVC2005EE</para>
+              </entry>
+              <entry>
+                <para>32-bit only</para>
               </entry>
               <entry>
                 <para>Microsoft Visual Studio
@@ -356,7 +368,7 @@ PARTICULAR PURPOSE.]]>
               <entry>
                 <para>
                   <filename>vcredist_x86.exe</filename>
-                  <superscript>3</superscript>
+                  <superscript>4</superscript>
                 </para>
               </entry>
             </row>
@@ -376,6 +388,9 @@ PARTICULAR PURPOSE.]]>
               </entry>
               <entry>
                 <para>MSVC2008</para>
+              </entry>
+              <entry>
+                <para>32-bit only?</para>
               </entry>
               <entry>
                 <para>Microsoft Visual Studio
@@ -405,50 +420,65 @@ PARTICULAR PURPOSE.]]>
                 <para>MSVC2008EE</para>
               </entry>
               <entry>
+                <para>32-bit only?</para>
+              </entry>
+              <entry>
                 <para>Microsoft Visual Studio
                 9.0\VC\bin\vcvars32.bat</para>
               </entry>
               <entry>
                 <para>
                   <filename>vcredist_x86.exe</filename>
-                  <superscript>3</superscript>
+                  <superscript>4</superscript>
                 </para>
               </entry>
             </row>
             <row>
-              <entry>
+              <entry morerows="1" valign="middle">
                 <para>Visual Studio 2010</para>
               </entry>
-              <entry>
+              <entry morerows="1" valign="middle">
                 <para>Yes</para>
               </entry>
-              <entry>
+              <entry morerows="1" valign="middle">
                 <para>Commercial</para>
               </entry>
-              <entry>
+              <entry morerows="1" valign="middle">
                 <para>No
                 <superscript>2</superscript></para>
               </entry>
-              <entry>
+              <entry morerows="1" valign="middle">
                 <para>MSVC2010</para>
               </entry>
               <entry>
-                <para>Microsoft Visual Studio
-                10.0\VC\bin\vcvars32.bat</para>
+                <para>32-bit</para>
               </entry>
               <entry>
+                <para>Microsoft Visual Studio
+                10.0\VC\vcvarsall.bat x86</para>
+              </entry>
+              <entry morerows="1" valign="middle">
                 <para>-</para>
               </entry>
             </row>
-             <row>
+            <row>
               <entry>
+                <para>64-bit</para>
+              </entry>
+              <entry>
+                <para>Microsoft Visual Studio
+                10.0\VC\vcvarsall.bat x64</para>
+              </entry>
+            </row>
+            <row>
+              <entry morerows="1" valign="middle">
                 <para>Visual C++ 2010 Express Edition</para>
                 <para>(recommended)</para>
               </entry>
-              <entry>
+              <entry morerows="1" valign="middle">
                 <para>Yes</para>
               </entry>
-              <entry>
+              <entry morerows="1" valign="middle">
                 <para>
                 <ulink url="http://www.microsoft.com/express/Downloads/#Visual_Studio_2010_Express_Downloads">
                 Free Download</ulink></para>
@@ -457,25 +487,46 @@ PARTICULAR PURPOSE.]]>
                 <para>No
                 <superscript>2</superscript></para>
               </entry>
-              <entry>
+              <entry morerows="1" valign="middle">
                 <para>MSVC2010EE</para>
               </entry>
               <entry>
+                <para>32-bit</para>
+              </entry>
+              <entry>
                 <para>Microsoft Visual Studio
-                10.0\VC\vcvarsall.bat"" x86</para>
+                10.0\VC\vcvarsall.bat x86</para>
               </entry>
               <entry>
                 <para>
-                  <filename>vcredist_x86.exe</filename>,
+                  <filename>vcredist_x86.exe</filename>
+                  <superscript>4</superscript>
+                </para>
+              </entry>
+            </row>
+            <row>
+              <entry>
+                <para>Yes
+                <superscript>3</superscript></para>
+              </entry>
+              <entry>
+                <para>64-bit</para>
+              </entry>
+              <entry>
+                <para>Microsoft Visual Studio
+                10.0\VC\vcvarsall.bat x64</para>
+              </entry>
+              <entry>
+                <para>
                   <filename>vcredist_x64.exe</filename>
-                  <superscript>3</superscript>
+                  <superscript>4</superscript>
                 </para>
               </entry>
             </row>
             <row>
               <entry>
                 <para>.NET Framework 2.0 SDK
-                <superscript>4</superscript></para>
+                <superscript>5</superscript></para>
               </entry>
               <entry>
                 <para>No</para>
@@ -483,15 +534,18 @@ PARTICULAR PURPOSE.]]>
               <entry>
                 <para>
                 Free Download (link disappeared)
-		</para>
+                </para>
               </entry>
               <entry>
                 <para>
                 Free Download (link disappeared)
-		</para>
+                </para>
               </entry>
               <entry>
                 <para>DOTNET20</para>
+              </entry>
+              <entry>
+                <para>32-bit only?</para>
               </entry>
               <entry>
                 <para>Microsoft.NET\SDK\v2.0\Bin\sdkvars.bat</para>
@@ -499,7 +553,7 @@ PARTICULAR PURPOSE.]]>
               <entry>
                 <para>
                   <filename>vcredist_x86.exe</filename>
-                  <superscript>3</superscript>
+                  <superscript>4</superscript>
                 </para>
               </entry>
             </row>
@@ -518,7 +572,12 @@ PARTICULAR PURPOSE.]]>
       setting batch file for the SDK!
       </para>
       <para>
-      <superscript>3</superscript><filename>vcredist_x86.exe</filename>
+      <superscript>3</superscript>the Express Edition does not include
+      compilers or assemblers that can generate 64-bit code; those are
+      only included in the SDK
+      </para>
+      <para>
+      <superscript>4</superscript><filename>vcredist_x86.exe</filename>
       (3MB free download) is required to build
       <filename>Wireshark-win32-&WiresharkCurrentVersion;.x.exe</filename>,
       and <filename>vcredist_x64.exe</filename> is required to build
@@ -529,7 +588,7 @@ PARTICULAR PURPOSE.]]>
       installed for the compiler.
       </para>
       <para>
-      <superscript>4</superscript>MSDN remarks that the
+      <superscript>5</superscript>MSDN remarks that the
       corresponding .NET runtime is required. It's currently
       unclear if the runtime needs to be installed for the C
       compiler to work - or is this only needed to compile / run
@@ -779,7 +838,7 @@ Stop.]]>
         for Wireshark have been downloaded and installed. This directory
         is specified by the WIRESHARK_LIB_DIR setting in the
         <filename>config.nmake</filename> file; by default it is
-	<filename>C:\wireshark-win32-libs</filename>.  It need not, and
+        <filename>C:\wireshark-win32-libs</filename>.  It need not, and
         should not, be run after being downloaded.
       </para>
       <section>
@@ -787,45 +846,66 @@ Stop.]]>
         (2005)</title>
         <para>There are three redistribution methods that MSDN
         mentions for MSVC 8 (see:
-        "<ulink url="http://msdn.microsoft.com/library/ms235316(VS.80).aspx">
-        Choosing a Deployment Method</ulink>"):</para>
+        "<ulink url="http://msdn.microsoft.com/library/ms235316(VS.80).aspx">Choosing a Deployment Method</ulink>"):
+        </para>
         <para>
           <orderedlist>
             <listitem>
-              <para>"Redistributable Merge Modules" (kind of loadable
-              modules for building msi installers - not suitable for
-              Wireshark's NSIS based installer)</para>
+              <para>"Using Visual C++ Redistributable Merge Modules"
+              (kind of loadable modules for building msi installers -
+              not suitable for Wireshark's NSIS based installer)</para>
             </listitem>
             <listitem>
-              <para>copy the folder content of Microsoft.VC80.CRT to
+              <para>"Using Visual C++ Redistributable Package", wherein
+              the Microsoft libraries are installed by copying
+              <filename>vcredist_x86.exe</filename>,
+              <filename>vcredist_x64.exe</filename>, or
+              <filename>vcredist_ia64.exe</filename> to the target
+              machine and executing it on that machine (MSDN recommends
+              this for applications built with Visual Studio 2005
+              Express Edition)
+              </para>
+            </listitem>
+            <listitem>
+              <para>"Install a particular Visual C++ assembly as a
+              private assembly for the application", wherein the
+              Microsoft libraries are installed by copying the folder
+              content of <filename>Microsoft.VC80.CRT</filename> to
               the target directory (e.g. <filename>C:\Program
               Files\Wireshark</filename>)</para>
             </listitem>
-            <listitem>
-              <para>
-                <filename>vcredist_x86.exe</filename> (needs to be
-                executed on the target machine - MSDN recommends this
-                for the 2005 Express Editions)
-              </para>
-            </listitem>
-          </orderedlist>To save installer size, MSVC2005 uses the
-          content of Microsoft.VC80.CRT (method 2 - this is the
-          smallest package). As MSVC2005EE and DOTNET20 doesn't
-          provide the folder "Microsoft.VC80.CRT" they use method 3.
-          You'll have to download a <filename>vcredist_x86.exe</filename>
-          from Microsoft that matches your compiler version. The best way
-          to determine this version is to open one of the generated
-          manifest files (e.g.
-          <filename>wireshark.exe.manifest</filename>)
-          and look for the version of the Microsoft.VC80.CRT entry.
+          </orderedlist>
+        </para>
+        <para>
+          To save installer size, and to make a "portable"
+          version of Wireshark (which must be completely self-contained,
+          on a medium such as a flash drive, and not require that an
+          installer be run to install anything on the target machine)
+          possible, when building 32-bit Wireshark with MSVC2005, method
+          3 (copying the content of <filename>Microsoft.VC80.CRT</filename>)
+          is used (this produces the smallest package).
+        </para>
+        <para>
+          As MSVC2005EE and DOTNET20 don't provide the folder
+          <filename>Microsoft.VC80.CRT</filename>, when 32-bit Wireshark
+          is built with either of them method 2 is used.
+          You'll have to download the appropriate version of
+          <filename>vcredist_x86.exe</filename> from Microsoft for your
+          compiler version.
+        </para>
+        <para>
+          A portable version of 64-bit Wireshark is not built, so method
+          3 is used for all 64-bit builds.  You'll have to download the
+          appropriate version of <filename>vcredist_x64.exe</filename>
+          or <filename>vcredist_ia64.exe</filename> from Microsoft
+          for your target processor and compiler version.
         </para>
         <para>
           <itemizedlist>
             <listitem>
               <para>
-                For 32-bit builds using Microsoft Visual C++ 2005, and
-                probably Microsoft Visual C++ 2005 Express Edition
-                without Service Pack 1, you need
+                For 32-bit builds using Microsoft Visual C++ 2005
+                Express Edition without Service Pack 1, you need
                 <command>8.0.50608.0</command>,
                 from: "Microsoft Visual C++ 2005 Redistributable Package (x86)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=3387" />.
@@ -834,8 +914,7 @@ Stop.]]>
             <listitem>
               <para>
                 For 64-bit x86 (x64) builds using Microsoft Visual C++
-                2005, and probably Microsoft Visual C++ 2005 Express Edition
-                without Service Pack 1, you need
+                2005, any edition, without Service Pack 1, you need
                 <command>{fill this in}</command>,
                 from: "Microsoft Visual C++ 2005 Redistributable Package (x64)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=21254" />.
@@ -843,9 +922,8 @@ Stop.]]>
             </listitem>
             <listitem>
               <para>
-                For IA-64 builds using Microsoft Visual C++ 2005, and
-                probably Microsoft Visual C++ 2005 Express Edition
-                without Service Pack 1, you need
+                For IA-64 builds using Microsoft Visual C++ 2005, any
+                edition, without Service Pack 1, you need
                 <command>{fill this in}</command>,
                 from: "Microsoft Visual C++ 2005 Redistributable Package (IA64)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=16326" />.
@@ -862,8 +940,8 @@ Stop.]]>
             </listitem>
             <listitem>
               <para>
-                For 64-bit x86 builds using Microsoft Visual C++ 2005
-                Express Edition with Service Pack 1, you need
+                For 64-bit x86 builds using Microsoft Visual C++ 2005,
+                any edition, with Service Pack 1, you need
                 <command>{fill this in}</command>, from: "Microsoft
                 Visual C++ 2005 SP1 Redistributable Package (x64)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=18471" />.
@@ -878,17 +956,66 @@ Stop.]]>
       </section>
       <section>
         <title>msvcr90.dll / vcredist_x86.exe / vcredist_x64.exe - Version 9.0 (2008)</title>
+        <para>There are three redistribution methods that MSDN
+        mentions for MSVC 9 (see:
+        "<ulink url="http://msdn.microsoft.com/en-US/library/ms235316(v=vs.90).aspx">Choosing a Deployment Method</ulink>"):
+        </para>
         <para>
-          For Microsoft Visual C++ 2008 (MSVC 9), only method 3 is
-          used.  There are both 32-bit and 64-bit versions of the
-          redistributables.
+          <orderedlist>
+            <listitem>
+              <para>"Using Visual C++ Redistributable Merge Modules"
+              (kind of loadable modules for building msi installers -
+              not suitable for Wireshark's NSIS based installer)</para>
+            </listitem>
+            <listitem>
+              <para>"Using Visual C++ Redistributable Package", wherein
+              the Microsoft libraries are installed by copying
+              <filename>vcredist_x86.exe</filename> or
+              <filename>vcredist_x64.exe</filename> to the target
+              machine and executing it on that machine (MSDN recommends
+              this for applications built with Visual Studio 2008
+              Express Edition)
+              </para>
+            </listitem>
+            <listitem>
+              <para>"Install a particular Visual C++ assembly as a
+              private assembly for the application", wherein the
+              Microsoft libraries are installed by copying the folder
+              content of <filename>Microsoft.VC90.CRT</filename> to
+              the target directory (e.g. <filename>C:\Program
+              Files\Wireshark</filename>)</para>
+            </listitem>
+          </orderedlist>
+        </para>
+        <para>
+          To save installer size, and to make a "portable"
+          version of Wireshark (which must be completely self-contained,
+          on a medium such as a flash drive, and not require that an
+          installer be run to install anything on the target machine)
+          possible, when building 32-bit Wireshark with MSVC2008, method
+          3 (copying the content of <filename>Microsoft.VC90.CRT</filename>)
+          is used (this produces the smallest package).
+        </para>
+        <para>
+          As MSVC2008EE doesn't provide the folder
+          <filename>Microsoft.VC90.CRT</filename>,
+          when 32-bit Wireshark is built with it method 2 is used.
+          You'll have to download the appropriate version of
+          <filename>vcredist_x86.exe</filename> from Microsoft for your
+          compiler version.
+        </para>
+        <para>
+	  A portable version of 64-bit Wireshark is not built, so method
+          2 is used for all 64-bit builds.  You'll have to download the
+          appropriate version of <filename>vcredist_x64.exe</filename>
+          from Microsoft for your compiler version.
         </para>
         <para>
           <itemizedlist>
             <listitem>
               <para>
                 For 32-bit builds using Microsoft Visual C++ 2008
-                without Service Pack 1, you need
+                Express Edition without Service Pack 1, you need
                 <command>9.0.21022.8</command>, from:
                 "Microsoft Visual C++ 2008 Redistributable Package (x86)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=29" />.
@@ -896,8 +1023,8 @@ Stop.]]>
             </listitem>
             <listitem>
               <para>
-                For 64-bit builds using Microsoft Visual C++ 2008
-                without Service Pack 1, you need
+                For 64-bit builds using Microsoft Visual C++ 2008,
+                any edition, without Service Pack 1, you need
                 <command>9.0.21022.8</command>, from:
                 "Microsoft Visual C++ 2008 Redistributable Package (x64)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=15336" />.
@@ -906,7 +1033,7 @@ Stop.]]>
             <listitem>
               <para>
                 For 32-bit builds with Microsoft Visual C++ 2008
-                with Service Pack 1, you need
+                Express Edition with Service Pack 1, you need
                 <command>9.0.30729.17</command>, from:
                 "Microsoft Visual C++ 2008 SP1 Redistributable Package (x86)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=5582" />.
@@ -914,8 +1041,8 @@ Stop.]]>
             </listitem>
             <listitem>
               <para>
-                For 64-bit builds with Microsoft Visual C++ 2008
-                with Service Pack 1, you need
+                For 64-bit builds with Microsoft Visual C++ 2008,
+                any edition, with Service Pack 1, you need
                 <command>9.0.30729.17</command>, from:
                 "Microsoft Visual C++ 2008 SP1 Redistributable Package (x64)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=2092" />.
@@ -930,17 +1057,66 @@ Stop.]]>
       </section>
       <section>
         <title>msvcr100.dll / vcredist_x86.exe / vcredist_x64.exe - Version 10.0 (2010)</title>
+        <para>There are three redistribution methods that MSDN
+        mentions for MSVC 10 (see:
+        "<ulink url="http://msdn.microsoft.com/en-US/library/ms235316(v=vs.100).aspx">Choosing a Deployment Method</ulink>"):
+        </para>
         <para>
-          For Microsoft Visual C++ 2010 (MSVC 10), only method 3 is
-          used.  There are both 32-bit and 64-bit versions of the
-          redistributables.
+          <orderedlist>
+            <listitem>
+              <para>"Using Visual C++ Redistributable Package", wherein
+              the Microsoft libraries are installed by copying
+              <filename>vcredist_x86.exe</filename> or
+              <filename>vcredist_x64.exe</filename> to the target
+              machine and executing it on that machine (MSDN recommends
+              this for applications built with Visual Studio 2010,
+              both Express Edition and non-Express editions)
+              </para>
+            </listitem>
+            <listitem>
+              <para>"Using Visual C++ Redistributable Merge Modules"
+              (kind of loadable modules for building msi installers -
+              not suitable for Wireshark's NSIS based installer)</para>
+            </listitem>
+            <listitem>
+              <para>"Install a particular Visual C++ assembly as a
+              private assembly for the application", wherein the
+              Microsoft libraries are installed by copying the folder
+              content of <filename>Microsoft.VC100.CRT</filename> to
+              the target directory (e.g. <filename>C:\Program
+              Files\Wireshark</filename>)</para>
+            </listitem>
+          </orderedlist>
+        </para>
+        <para>
+          To save installer size, and to make a "portable"
+          version of Wireshark (which must be completely self-contained,
+          on a medium such as a flash drive, and not require that an
+          installer be run to install anything on the target machine)
+          possible, when building 32-bit Wireshark with MSVC2010, method
+          3 (copying the content of <filename>Microsoft.VC100.CRT</filename>)
+          is used (this produces the smallest package).
+        </para>
+        <para>
+          As MSVC20010EE doesn't provide the folder
+          <filename>Microsoft.VC100.CRT</filename>,
+          when 32-bit Wireshark is built with it method 1 is used.
+          You'll have to download the appropriate version of
+          <filename>vcredist_x86.exe</filename> from Microsoft that
+          corresponds to your compiler version.
+        </para>
+        <para>
+          A portable version of 64-bit Wireshark is not built, so method
+          1 is used for all 64-bit builds.  You'll have to download the
+          appropriate version of <filename>vcredist_x64.exe</filename>
+          from Microsoft for your compiler version.
         </para>
         <para>
           <itemizedlist>
             <listitem>
               <para>
                 For 32-bit builds using Microsoft Visual C++ 2010
-                without Service Pack 1, you need
+                Express Edition without Service Pack 1, you need
                 <command>10.0.30319.1</command>, from: "Microsoft Visual
                 C++ 2010 Redistributable Package (x86)":
                 <ulink url="http://www.microsoft.com/download/en/details.aspx?id=5555" />.
@@ -948,8 +1124,8 @@ Stop.]]>
             </listitem>
             <listitem>
               <para>
-                For 64-bit builds using Microsoft Visual C++ 2010
-                without Service Pack 1, you need
+                For 64-bit builds using Microsoft Visual C++ 2010,
+                any edition, without Service Pack 1, you need
                 <command>10.0.30319.1</command>, from: "Microsoft Visual
                 C++ 2010 Redistributable Package (x64)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=14632" />.
@@ -957,8 +1133,8 @@ Stop.]]>
             </listitem>
             <listitem>
               <para>
-                For 32-bit builds using Microsoft Visual C++ 2010 with
-                Service Pack 1, you need
+                For 32-bit builds using Microsoft Visual C++ 2010
+                Express Edition with Service Pack 1, you need
                 <command>10.0.40219.1</command>, from: "Microsoft Visual
                 C++ 2010 SP1 Redistributable Package (x86)":
                 <ulink url="http://www.microsoft.com/download/en/details.aspx?id=8328" />.
@@ -966,8 +1142,8 @@ Stop.]]>
             </listitem>
             <listitem>
               <para>
-                For 64-bit builds using Microsoft Visual C++ 2010 with
-                Service Pack 1, you need
+                For 64-bit builds using Microsoft Visual C++ 2010,
+                any edition, with Service Pack 1, you need
                 <command>10.0.40219.1</command>, from: "Microsoft Visual
                 C++ 2010 SP1 Redistributable Package (x64)":
                 <ulink url="http://www.microsoft.com/download/details.aspx?id=13523" />.

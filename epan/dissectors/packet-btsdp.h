@@ -122,8 +122,11 @@
 #define BTSDP_HSP_HS_SERVICE_UUID                       0x1131
 
 #define BTSDP_MAP_ACCESS_SRV_SERVICE_UUID               0x1132
-#define BTSDP_MAP_NOIYFY_SRV_SERVICE_UUID               0x1133
+#define BTSDP_MAP_NOTIFICATION_SRV_SERVICE_UUID         0x1133
 #define BTSDP_MAP_SERVICE_UUID                          0x1134
+
+#define BTSDP_GNSS_UUID                                 0x1135
+#define BTSDP_GNSS_SERVER_UUID                          0x1136
 
 #define BTSDP_DID_SERVICE_UUID                          0x1200
 
@@ -167,3 +170,16 @@ typedef struct _btsdp_data_t {
 extern value_string_ext vs_service_classes_ext;
 
 #endif
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

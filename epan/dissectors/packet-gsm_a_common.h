@@ -716,6 +716,7 @@ guint16 de_emm_ue_net_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, g
 guint16 de_emm_trac_area_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_emm_sec_par_from_eutra(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_);
 guint16 de_emm_sec_par_to_eutra(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_);
+guint16 de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_);
 
 void dtap_rr_ho_cmd(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len);
 void dtap_rr_cip_mode_cpte(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len);
@@ -1073,6 +1074,7 @@ dtap_elem_idx_t;
 typedef enum
 {
     /* GPRS Mobility Management Information Elements [3] 10.5.5 */
+    DE_ADD_UPD_TYPE,                /* [11] 10.5.5.0 Additional Update Type */
     DE_ATTACH_RES,                  /* [7] 10.5.5.1 Attach Result*/
     DE_ATTACH_TYPE,                 /* [7] 10.5.5.2 Attach Type */
     DE_CIPH_ALG,                    /* [7] 10.5.5.3 Cipher Algorithm */
@@ -1099,6 +1101,7 @@ typedef enum
     DE_CELL_NOT,                    /* [7] 10.5.5.21 Cell Notification */
     DE_PS_LCS_CAP,                  /* [7] 10.5.5.22 PS LCS Capability */
     DE_NET_FEAT_SUP,                /* [7] 10.5.5.23 Network Feature Support */
+    DE_ADD_NET_FEAT_SUP,            /* [11] 10.5.5.23a Additional network feature support */
     DE_RAT_INFO_CONTAINER,          /* [7] 10.5.5.24 Inter RAT information container */
     DE_REQ_MS_INFO,                 /* [7] 10.5.5.25 Requested MS information */
     DE_UE_NETWORK_CAP,              /* [7] 10.5.5.26 UE network capability */
@@ -1106,6 +1109,7 @@ typedef enum
     DE_VOICE_DOMAIN_PREF,           /* [7] 10.5.5.28 Voice domain preference and UE's usage setting */
     DE_PTMSI_TYPE,                  /* [10] 10.5.5.29 P-TMSI type */
     DE_LAI_2,                       /* [10] 10.5.5.30 Location Area Identification 2 */
+    DE_NET_RES_ID_CONT,             /* [11] 10.5.5.31 Network resource identifier container */
     /* Session Management Information Elements [3] 10.5.6 */
     DE_ACC_POINT_NAME,              /* Access Point Name */
     DE_NET_SAPI,                    /* Network Service Access Point Identifier */

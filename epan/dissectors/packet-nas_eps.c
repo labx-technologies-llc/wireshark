@@ -23,7 +23,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * References: 3GPP TS 24.301 V10.6.1 (2012-03)
+ * References: 3GPP TS 24.301 V11.4.0 (2012-09)
  */
 
 #include "config.h"
@@ -151,6 +151,7 @@ static int hf_nas_eps_emm_gea4 = -1;
 static int hf_nas_eps_emm_gea5 = -1;
 static int hf_nas_eps_emm_gea6 = -1;
 static int hf_nas_eps_emm_gea7 = -1;
+static int hf_nas_eps_emm_h245_ash_cap = -1;
 static int hf_nas_eps_emm_acc_csfb_cap = -1;
 static int hf_nas_eps_emm_lpp_cap = -1;
 static int hf_nas_eps_emm_lcs_cap = -1;
@@ -183,7 +184,6 @@ static int hf_nas_eps_egbr_dl = -1;
 
 static int hf_nas_eps_esm_cause = -1;
 static int hf_nas_eps_esm_eit = -1;
-static int hf_nas_eps_esm_lnkd_eps_bearer_id = -1;
 static int hf_nas_eps_esm_notif_ind = -1;
 static int hf_nas_eps_esm_pdn_type = -1;
 static int hf_nas_eps_esm_pdn_ipv4 = -1;
@@ -360,6 +360,25 @@ calc_bitrate_ext(guint8 value) {
     }
     else {
         return_value = 256;
+    }
+
+    return return_value;
+}
+static guint32
+calc_bitrate_ext2(guint8 value) {
+    guint32 return_value = 0;
+
+    if ((value > 0) && (value <= 0x3d)) {
+        return_value = 256 + value * 4;
+    }
+    else if ((value > 0x3d) && (value <= 0xa1)) {
+        return_value = 500 + (value-0x3d) * 10;
+    }
+    else if ((value > 0xa1) && (value <= 0xf6)) {
+        return_value = 1500 + (value-0xa1) * 100;
+    }
+    else {
+        return_value = 10000;
     }
 
     return return_value;
@@ -892,6 +911,7 @@ static const value_string nas_eps_emm_cause_values[] = {
     { 0x23, "Requested service option not authorized in this PLMN"},
     { 0x27, "CS service temporarily not available"},
     { 0x28, "No EPS bearer context activated"},
+    { 0x2a, "Severe network failure"},
     { 0x5f, "Semantically incorrect message"},
     { 0x60, "Invalid mandatory information"},
     { 0x61, "Message type non-existent or not implemented"},
@@ -1352,7 +1372,7 @@ static const value_string nas_eps_emm_toi_vals[] = {
     { 0,    "EPS integrity algorithm EIA0 (null integrity protection algorithm)"},
     { 1,    "EPS integrity algorithm 128-EIA1"},
     { 2,    "EPS integrity algorithm 128-EIA2"},
-    { 3,    "EPS integrity algorithm EIA3"},
+    { 3,    "EPS integrity algorithm 128-EIA3"},
     { 4,    "EPS integrity algorithm EIA4"},
     { 5,    "EPS integrity algorithm EIA5"},
     { 6,    "EPS integrity algorithm EIA6"},
@@ -1366,7 +1386,7 @@ static const value_string nas_eps_emm_toc_vals[] = {
     { 0,    "EPS encryption algorithm EEA0 (null ciphering algorithm)"},
     { 1,    "EPS encryption algorithm 128-EEA1"},
     { 2,    "EPS encryption algorithm 128-EEA2"},
-    { 3,    "EPS encryption algorithm EEA3"},
+    { 3,    "EPS encryption algorithm 128-EEA3"},
     { 4,    "EPS encryption algorithm EEA4"},
     { 5,    "EPS encryption algorithm EEA5"},
     { 6,    "EPS encryption algorithm EEA6"},
@@ -1607,6 +1627,11 @@ static const true_false_string  nas_eps_emm_ucs2_supp_flg_value = {
     "The UE has no preference between the use of the default alphabet and the use of UCS2",
     "The UE has a preference for the default alphabet"
 };
+/* H.245-ASH capability (octet 7, bit 6) */
+static const true_false_string nas_eps_emm_h245_ash_cap_flg = {
+    "H.245 after SRVCC handover capability supported",
+    "H.245 after SRVCC handover capability not supported"
+};
 /* ACC-CSFB capability (octet 7, bit 5) */
 static const true_false_string nas_eps_emm_acc_csfb_cap_flg = {
     "eNodeB-based access class control for CSFB supported",
@@ -1668,7 +1693,7 @@ de_emm_ue_net_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint
     proto_tree_add_item(tree, hf_nas_eps_emm_128eia1, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
     /* EPS integrity algorithm 128-EIA2 supported (octet 4, bit 6) */
     proto_tree_add_item(tree, hf_nas_eps_emm_128eia2, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-    /* EPS integrity algorithm EIA3 supported (octet 4, bit 5) */
+    /* EPS integrity algorithm 128-EIA3 supported (octet 4, bit 5) */
     proto_tree_add_item(tree, hf_nas_eps_emm_eia3, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
     /* EPS integrity algorithm EIA4 supported (octet 4, bit 4) */
     proto_tree_add_item(tree, hf_nas_eps_emm_eia4, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
@@ -1734,8 +1759,10 @@ de_emm_ue_net_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint
     if ((curr_offset - offset) >= len)
         return (len);
 
-    /* Bits 8 to 6 of octet 7 are spare and shall be coded as zero. */
-    proto_tree_add_bits_item(tree, hf_nas_eps_spare_bits, tvb, (curr_offset<<3), 3, ENC_BIG_ENDIAN);
+    /* Bits 8 to 7 of octet 7 are spare and shall be coded as zero. */
+    proto_tree_add_bits_item(tree, hf_nas_eps_spare_bits, tvb, (curr_offset<<3), 2, ENC_BIG_ENDIAN);
+    /* H.245-ASH capability (octet 7, bit 6) */
+    proto_tree_add_item(tree, hf_nas_eps_emm_h245_ash_cap, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
     /* ACC-CSFB capability (octet 7, bit 5) */
     proto_tree_add_item(tree, hf_nas_eps_emm_acc_csfb_cap, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
     /* LPP capability (octet 7, bit 4) */
@@ -1767,6 +1794,7 @@ de_emm_ue_ra_cap_inf_upd_need(tvbuff_t *tvb, proto_tree *tree, packet_info *pinf
 
     curr_offset = offset;
 
+    proto_tree_add_bits_item(tree, hf_nas_eps_spare_bits, tvb, (curr_offset<<3)+4, 3, ENC_BIG_ENDIAN);
     proto_tree_add_item(tree, hf_nas_eps_emm_ue_ra_cap_inf_upd_need_flg, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
     return(len);
@@ -1809,7 +1837,7 @@ de_emm_ue_sec_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint
     proto_tree_add_item(tree, hf_nas_eps_emm_128eia1, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
     /* EPS integrity algorithm 128-EIA2 supported (octet 4, bit 6) */
     proto_tree_add_item(tree, hf_nas_eps_emm_128eia2, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-    /* EPS integrity algorithm EIA3 supported (octet 4, bit 5) */
+    /* EPS integrity algorithm 128-EIA3 supported (octet 4, bit 5) */
     proto_tree_add_item(tree, hf_nas_eps_emm_eia3, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
     /* EPS integrity algorithm EIA4 supported (octet 4, bit 4) */
     proto_tree_add_item(tree, hf_nas_eps_emm_eia4, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
@@ -2222,8 +2250,8 @@ static const range_string nas_eps_qci_vals[] = {
 
 
 
-static guint16
-de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
+guint16
+de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
 {
     guint32 curr_offset;
     guint8  octet;
@@ -2282,7 +2310,7 @@ de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offs
                        "Use the value indicated by the maximum bit rate for uplink in octet 4");
     } else {
         proto_tree_add_uint_format(tree, hf_nas_eps_embr_ul, tvb, curr_offset, 1, octet,
-                       "Maximum bit rate for uplink(extended) : %u %s",
+                       "Maximum bit rate for uplink (extended) : %u %s",
                        calc_bitrate_ext(octet),
                        (octet > 0x4a) ? "Mbps" : "kbps");
     }
@@ -2296,7 +2324,7 @@ de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offs
                        "Use the value indicated by the maximum bit rate for downlink in octet 5");
     } else {
         proto_tree_add_uint_format(tree, hf_nas_eps_embr_dl, tvb, curr_offset, 1, octet,
-                       "Maximum bit rate for downlink(extended) : %u %s",
+                       "Maximum bit rate for downlink (extended) : %u %s",
                        calc_bitrate_ext(octet),
                        (octet > 0x4a) ? "Mbps" : "kbps");
     }
@@ -2310,7 +2338,7 @@ de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offs
                        "Use the value indicated by the guaranteed bit rate for uplink in octet 6");
     } else {
         proto_tree_add_uint_format(tree, hf_nas_eps_egbr_ul, tvb, curr_offset, 1, octet,
-                       "Guaranteed bit rate for uplink(extended) : %u %s",
+                       "Guaranteed bit rate for uplink (extended) : %u %s",
                        calc_bitrate_ext(octet),
                        (octet > 0x4a) ? "Mbps" : "kbps");
     }
@@ -2324,11 +2352,56 @@ de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offs
                        "Use the value indicated by the guaranteed bit rate for downlink in octet 7");
     } else {
         proto_tree_add_uint_format(tree, hf_nas_eps_egbr_dl, tvb, curr_offset, 1, octet,
-                       "Guaranteed bit rate for downlink(extended) : %u %s",
+                       "Guaranteed bit rate for downlink (extended) : %u %s",
                        calc_bitrate_ext(octet),
                        (octet > 0x4a) ? "Mbps" : "kbps");
     }
     curr_offset++;
+    if ((curr_offset - offset) >= len)
+        return(len);
+    /* Maximum bit rate for uplink (extended-2) octet 12 */
+    octet = tvb_get_guint8(tvb,curr_offset);
+    if (octet == 0) {
+        proto_tree_add_uint_format(tree, hf_nas_eps_embr_ul, tvb, curr_offset, 1, octet,
+                       "Use the value indicated by the maximum bit rate for uplink in octet 4 and octet 8");
+    } else {
+        proto_tree_add_uint_format(tree, hf_nas_eps_embr_ul, tvb, curr_offset, 1, octet,
+                       "Maximum bit rate for uplink (extended-2) : %u Mbps",
+                       calc_bitrate_ext2(octet));
+    }
+    curr_offset++;
+    /* Maximum bit rate for downlink (extended-2) octet 13 */
+    octet = tvb_get_guint8(tvb,curr_offset);
+    if (octet == 0) {
+        proto_tree_add_uint_format(tree, hf_nas_eps_embr_dl, tvb, curr_offset, 1, octet,
+                       "Use the value indicated by the maximum bit rate for downlink in octet 5 and octet 9");
+    } else {
+        proto_tree_add_uint_format(tree, hf_nas_eps_embr_dl, tvb, curr_offset, 1, octet,
+                       "Maximum bit rate for downlink (extended-2) : %u Mbps",
+                       calc_bitrate_ext2(octet));
+    }
+    curr_offset++;
+    /* Guaranteed bit rate for uplink (extended-2) octet 14 */
+    octet = tvb_get_guint8(tvb,curr_offset);
+    if (octet == 0) {
+        proto_tree_add_uint_format(tree, hf_nas_eps_egbr_ul, tvb, curr_offset, 1, octet,
+                       "Use the value indicated by the guaranted bit rate for uplink in octet 6 and octet 10");
+    } else {
+        proto_tree_add_uint_format(tree, hf_nas_eps_egbr_ul, tvb, curr_offset, 1, octet,
+                       "Guaranteed bit rate for uplink (extended-2) : %u Mbps",
+                       calc_bitrate_ext2(octet));
+    }
+    curr_offset++;
+    /* Guaranted bit rate for downlink (extended-2) octet 15 */
+    octet = tvb_get_guint8(tvb,curr_offset);
+    if (octet == 0) {
+        proto_tree_add_uint_format(tree, hf_nas_eps_egbr_dl, tvb, curr_offset, 1, octet,
+                       "Use the value indicated by the guaranteed bit rate for downlink in octet 7 and octet 11");
+    } else {
+        proto_tree_add_uint_format(tree, hf_nas_eps_egbr_dl, tvb, curr_offset, 1, octet,
+                       "Guaranteed bit rate for downlink (extended-2) : %u Mbps",
+                       calc_bitrate_ext2(octet));
+    }
 
     return(len);
 }
@@ -2339,7 +2412,7 @@ de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offs
 static const value_string nas_eps_esm_cause_vals[] = {
     { 0x08, "Operator Determined Barring"},
     { 0x1a, "Insufficient resources"},
-    { 0x1b, "Unknown or missing APN"},
+    { 0x1b, "Missing or unknown APN"},
     { 0x1c, "Unknown PDN type"},
     { 0x1d, "User authentication failed"},
     { 0x1e, "Request rejected by Serving GW or PDN GW"},
@@ -2369,6 +2442,8 @@ static const value_string nas_eps_esm_cause_vals[] = {
     { 0x38, "Collision with network initiated request"},
     { 0x3b, "Unsupported QCI value"},
     { 0x3c, "Bearer handling not supported"},
+    { 0x41, "Maximum number of EPS bearers reached"},
+    { 0x42, "Requested APN not supported in current RAT and PLMN combination"},
     { 0x51, "Invalid PTI value"},
     { 0x5f, "Semantically incorrect message"},
     { 0x60, "Invalid mandatory information"},
@@ -2442,20 +2517,6 @@ static const value_string nas_eps_esm_linked_bearer_id_vals[] = {
     { 0xf,  "EPS bearer identity value 15"},
     { 0, NULL }
 };
-
-
-
-static guint16
-de_esm_lnkd_eps_bearer_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
-{
-    guint32 curr_offset;
-
-    curr_offset = offset;
-
-    proto_tree_add_item(tree, hf_nas_eps_esm_lnkd_eps_bearer_id, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-    return(len);
-}
 
 /*
  * 9.9.4.7 LLC service access point identifier
@@ -2712,7 +2773,7 @@ guint16 (*esm_elem_fcn[])(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U
     de_esm_qos,                     /* 9.9.4.3 EPS quality of service */
     de_esm_cause,                   /* 9.9.4.4 ESM cause */
     de_esm_inf_trf_flg,             /* 9.9.4.5 ESM information transfer flag */
-    de_esm_lnkd_eps_bearer_id,      /* 9.9.4.6 Linked EPS bearer identity  */
+    NULL,                           /* 9.9.4.6 Linked EPS bearer identity  */
     NULL,                           /* 9.9.4.7 LLC service access point identifier */
     de_esm_notif_ind,               /* 9.9.4.7a Notification indicator */
     NULL,                           /* 9.9.4.8 Packet flow identifier  */
@@ -2898,6 +2959,8 @@ nas_emm_attach_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guin
     ELEM_OPT_TV_SHORT(0xE0 , NAS_PDU_TYPE_EMM, DE_EMM_GUTI_TYPE, " - Old GUTI type");
     /* C-   MS network feature support  MS network feature support 9.9.3.20A 0  TV 1 */
     ELEM_OPT_TV_SHORT(0xC0 , GSM_A_PDU_TYPE_COMMON, DE_MS_NET_FEAT_SUP, NULL);
+    /* 10   TMSI based NRI container  Network resource identifier container 9.9.3.24A 0  TLV 4 */
+    ELEM_OPT_TLV(0x10, GSM_A_PDU_TYPE_GM, DE_NET_RES_ID_CONT, " - TMSI based NRI container");
  
     EXTRANEOUS_DATA_CHECK(curr_len, 0);
 }
@@ -3638,6 +3701,8 @@ nas_emm_trac_area_upd_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U
     ELEM_OPT_TV_SHORT(0xD0 , GSM_A_PDU_TYPE_GM, DE_DEVICE_PROPERTIES, NULL);
     /* C-   MS network feature support  MS network feature support 9.9.3.20A 0  TV 1 */
     ELEM_OPT_TV_SHORT(0xC0 , GSM_A_PDU_TYPE_COMMON, DE_MS_NET_FEAT_SUP, NULL);
+    /* 10   TMSI based NRI container  Network resource identifier container 9.9.3.24A 0  TLV 4 */
+    ELEM_OPT_TLV(0x10, GSM_A_PDU_TYPE_GM, DE_NET_RES_ID_CONT, " - TMSI based NRI container");
 
     EXTRANEOUS_DATA_CHECK(curr_len, 0);
 }
@@ -4082,6 +4147,8 @@ nas_esm_deact_eps_bearer_ctx_req(tvbuff_t *tvb, proto_tree *tree, packet_info *p
     ELEM_MAND_V(NAS_PDU_TYPE_ESM, DE_ESM_CAUSE, NULL);
     /* 27   Protocol configuration options  Protocol configuration options 9.9.4.11 O   TLV */
     ELEM_OPT_TLV( 0x27 , GSM_A_PDU_TYPE_GM, DE_PRO_CONF_OPT , NULL );
+    /* 37   T3396 value GPRS timer 3 9.9.3.16B O   TLV  3 */
+    ELEM_OPT_TLV(0x37, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_3, " - T3396 value");
 
     EXTRANEOUS_DATA_CHECK(curr_len, 0);
 }
@@ -4474,6 +4541,26 @@ get_nas_emm_msg_params(guint8 oct, const gchar **msg_str, int *ett_tree, int *hf
     return;
 }
 
+static const value_string nas_eps_esm_bearer_id_vals[] = {
+    { 0x0,  "No EPS bearer identity assigned"},
+    { 0x1,  "Reserved"},
+    { 0x2,  "Reserved"},
+    { 0x3,  "Reserved"},
+    { 0x4,  "Reserved"},
+    { 0x5,  "EPS bearer identity value 5"},
+    { 0x6,  "EPS bearer identity value 6"},
+    { 0x7,  "EPS bearer identity value 7"},
+    { 0x8,  "EPS bearer identity value 8"},
+    { 0x9,  "EPS bearer identity value 9"},
+    { 0xa,  "EPS bearer identity value 10"},
+    { 0xb,  "EPS bearer identity value 11"},
+    { 0xc,  "EPS bearer identity value 12"},
+    { 0xd,  "EPS bearer identity value 13"},
+    { 0xe,  "EPS bearer identity value 14"},
+    { 0xf,  "EPS bearer identity value 15"},
+    { 0, NULL }
+};
+
 /*
  * EPS session management messages.
  * A plain NAS message is pased to this function
@@ -4860,7 +4947,7 @@ proto_register_nas_eps(void) {
     },
     { &hf_nas_eps_bearer_id,
         { "EPS bearer identity",    "nas_eps.bearer_id",
-        FT_UINT8, BASE_DEC, NULL, 0xf0,
+        FT_UINT8, BASE_DEC, VALS(nas_eps_esm_bearer_id_vals), 0xf0,
         NULL, HFILL }
     },
     { &hf_nas_eps_spare_bits,
@@ -5159,7 +5246,7 @@ proto_register_nas_eps(void) {
         NULL, HFILL }
     },
     { &hf_nas_eps_emm_eea3,
-        { "EEA3","nas_eps.emm.eea3",
+        { "128-EEA3","nas_eps.emm.eea3",
         FT_BOOLEAN, 8, TFS(&nas_eps_emm_supported_flg_value), 0x10,
         NULL, HFILL }
     },
@@ -5199,7 +5286,7 @@ proto_register_nas_eps(void) {
         NULL, HFILL }
     },
     { &hf_nas_eps_emm_eia3,
-        { "EIA3","nas_eps.emm.eia3",
+        { "128-EIA3","nas_eps.emm.eia3",
         FT_BOOLEAN, 8, TFS(&nas_eps_emm_supported_flg_value), 0x10,
         NULL, HFILL }
     },
@@ -5340,6 +5427,11 @@ proto_register_nas_eps(void) {
         FT_BOOLEAN, 8, TFS(&nas_eps_emm_supported_flg_value), 0x01,
         NULL, HFILL }
     },
+    { &hf_nas_eps_emm_h245_ash_cap,
+        { "H.245-ASH capability","nas_eps.emm.h245_ash_cap",
+        FT_BOOLEAN, 8, TFS(&nas_eps_emm_h245_ash_cap_flg), 0x20,
+        "H.245 after SRVCC handover capability", HFILL }
+    },
     { &hf_nas_eps_emm_acc_csfb_cap,
         { "ACC-CSFB capability","nas_eps.emm.acc_csfb_cap",
         FT_BOOLEAN, 8, TFS(&nas_eps_emm_acc_csfb_cap_flg), 0x10,
@@ -5366,9 +5458,9 @@ proto_register_nas_eps(void) {
         NULL, HFILL }
     },
     { &hf_nas_eps_emm_ue_ra_cap_inf_upd_need_flg,
-        { "1xSRVCC capability","nas_eps.emm.ue_ra_cap_inf_upd_need_flg",
+        { "URC upd","nas_eps.emm.ue_ra_cap_inf_upd_need_flg",
         FT_BOOLEAN, 8, TFS(&nas_eps_emm_ue_ra_cap_inf_upd_need_flg), 0x01,
-        NULL, HFILL }
+        "UE radio capability information update needed flag", HFILL }
     },
     { &hf_nas_eps_emm_ss_code,
         { "SS Code","nas_eps.emm.ss_code",
@@ -5488,11 +5580,6 @@ proto_register_nas_eps(void) {
     { &hf_nas_eps_esm_eit,
         { "EIT (ESM information transfer)", "nas_eps.emm.eit",
         FT_BOOLEAN, 8, TFS(&nas_eps_emm_eit_vals), 0x01,
-        NULL, HFILL }
-    },
-    { &hf_nas_eps_esm_lnkd_eps_bearer_id,
-        { "Linked EPS bearer identity","nas_eps.esm.lnkd_eps_bearer_id",
-        FT_UINT8,BASE_DEC, VALS(nas_eps_esm_linked_bearer_id_vals), 0x0f,
         NULL, HFILL }
     },
     { &hf_nas_eps_esm_notif_ind,

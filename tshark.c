@@ -2543,18 +2543,18 @@ process_packet_first_pass(capture_file *cf,
      run a read filter, or we're going to process taps, set up to
      do a dissection and do so. */
   if (do_dissection) {
-    if (gbl_resolv_flags.mac_name || gbl_resolv_flags.network_name || 
+    if (gbl_resolv_flags.mac_name || gbl_resolv_flags.network_name ||
         gbl_resolv_flags.transport_name || gbl_resolv_flags.concurrent_dns)
       /* Grab any resolved addresses */
-      host_name_lookup_process(NULL);
+      host_name_lookup_process();
 
-      if (cf->rfcode)
-        create_proto_tree = TRUE;
+    /* If we're going to be applying a read filter, we'll need to
+       create a protocol tree against which to apply the filter. */
+    if (cf->rfcode)
+      create_proto_tree = TRUE;
 
-    /* The protocol tree will be "visible", i.e., printed, only if we're
-       printing packet details, which is true if we're printing stuff
-       ("print_packet_info" is true) and we're in verbose mode ("verbose"
-       is true). */
+    /* We're not going to display the protocol tree on this pass,
+       so it's not going to be "visible". */
     epan_dissect_init(&edt, create_proto_tree, FALSE);
 
     /* If we're running a read filter, prime the epan_dissect_t with that
@@ -2608,10 +2608,10 @@ process_packet_second_pass(capture_file *cf, frame_data *fdata,
      run a read filter, or we're going to process taps, set up to
      do a dissection and do so. */
   if (do_dissection) {
-    if (gbl_resolv_flags.mac_name || gbl_resolv_flags.network_name || 
+    if (gbl_resolv_flags.mac_name || gbl_resolv_flags.network_name ||
         gbl_resolv_flags.transport_name || gbl_resolv_flags.concurrent_dns)
       /* Grab any resolved addresses */
-      host_name_lookup_process(NULL);
+      host_name_lookup_process();
 
     if (cf->rfcode || verbose || filtering_tap_listeners ||
         (tap_flags & TL_REQUIRES_PROTO_TREE) || have_custom_cols(&cf->cinfo))
@@ -3063,10 +3063,10 @@ process_packet(capture_file *cf, gint64 offset, const struct wtap_pkthdr *whdr,
      run a read filter, or we're going to process taps, set up to
      do a dissection and do so. */
   if (do_dissection) {
-    if (print_packet_info && (gbl_resolv_flags.mac_name || gbl_resolv_flags.network_name || 
+    if (print_packet_info && (gbl_resolv_flags.mac_name || gbl_resolv_flags.network_name ||
         gbl_resolv_flags.transport_name || gbl_resolv_flags.concurrent_dns))
       /* Grab any resolved addresses */
-      host_name_lookup_process(NULL);
+      host_name_lookup_process();
 
     if (cf->rfcode || verbose || filtering_tap_listeners ||
         (tap_flags & TL_REQUIRES_PROTO_TREE) || have_custom_cols(&cf->cinfo))
@@ -3465,7 +3465,7 @@ print_packet(capture_file *cf, epan_dissect_t *edt)
       print_args.format = print_format;
       print_args.print_summary = !verbose;
       print_args.print_formfeed = FALSE;
-      packet_range_init(&print_args.range);
+      packet_range_init(&print_args.range, &cfile);
       */
       print_args.print_hex = verbose && print_hex;
       print_args.print_dissections = verbose ? print_dissections_expanded : print_dissections_none;

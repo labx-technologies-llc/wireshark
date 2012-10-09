@@ -2414,7 +2414,7 @@ addr_resolve_pref_init(module_t *nameres)
                                    "Use hosts file from profile dir only",
                                    "By default hosts file(s) will be loaded from multiple sources"
                                    " by checking this box only the hostfile for the current profile will be loaded"
-								   " if the default profile is used the hosts file must be in the same dir as preferences",
+                                   " if the default profile is used the hosts file must be in the same dir as preferences",
                                    &gbl_resolv_flags.load_hosts_file_from_profile_only);
 
 }
@@ -2494,7 +2494,7 @@ host_name_lookup_init(void) {
         read_hosts_file(hostspath);
       }
       g_free(hostspath);
-	}
+    }
   }
 #else /* _WIN32 */
   if(!gbl_resolv_flags.load_hosts_file_from_profile_only){
@@ -2525,7 +2525,7 @@ host_name_lookup_init(void) {
 
 #ifdef HAVE_C_ARES
 gboolean
-host_name_lookup_process(gpointer data _U_) {
+host_name_lookup_process(void) {
   async_dns_queue_msg_t *caqm;
   struct timeval tv = { 0, 0 };
   int nfds;
@@ -2594,7 +2594,7 @@ host_name_lookup_cleanup(void) {
  * - Do we need to keep our query structures around?
  */
 gboolean
-host_name_lookup_process(gpointer data _U_) {
+host_name_lookup_process(void) {
   async_dns_queue_msg_t *almsg;
   GList *cur;
   char addr_str[] = "111.222.333.444.in-addr.arpa.";
@@ -2667,7 +2667,7 @@ host_name_lookup_cleanup(void) {
 #else /* HAVE_GNU_ADNS */
 
 gboolean
-host_name_lookup_process(gpointer data _U_) {
+host_name_lookup_process(void) {
   gboolean nro = new_resolved_objects;
 
   new_resolved_objects = FALSE;

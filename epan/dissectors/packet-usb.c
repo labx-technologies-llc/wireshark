@@ -1104,7 +1104,6 @@ dissect_usb_interface_descriptor(packet_info *pinfo, proto_tree *parent_tree, tv
     if (offset != old_offset + len) {
         /* unknown records */
     }
-    offset = old_offset + len;
 
     return offset;
 }
@@ -1229,7 +1228,6 @@ dissect_usb_endpoint_descriptor(packet_info *pinfo, proto_tree *parent_tree, tvb
     if (offset != old_offset + len) {
         /* unknown records */
     }
-    offset = old_offset + len;
 
     return offset;
 }
@@ -1403,7 +1401,7 @@ dissect_usb_configuration_descriptor(packet_info *pinfo _U_, proto_tree *parent_
     usb_trans_info->interface_info = NULL;
 
     /* decode any additional interface and endpoint descriptors */
-    while(len>(old_offset-offset)){
+    while(len>(offset-old_offset)){
         guint8 next_type;
         tvbuff_t *next_tvb = NULL;
 
@@ -1878,7 +1876,8 @@ dissect_linux_usb_pseudo_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
     guint8  transfer_type;
     guint8  endpoint_number;
     guint8  transfer_type_and_direction;
-    guint8  type, flag;
+    guint8  type;
+    guint8  flag[2];
     guint16 val16;
     guint32 val32;
     guint64 val64;
@@ -1911,20 +1910,22 @@ dissect_linux_usb_pseudo_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
      * sizeof(struct usb_device_setup_hdr) bytes. The content of these
      * bytes only have meaning in case setup_flag == 0.
      */
-    flag = tvb_get_guint8(tvb, 14);
-    if (flag == 0) {
+    flag[0] = tvb_get_guint8(tvb, 14);
+    flag[1] = '\0';
+    if (flag[0] == 0) {
         proto_tree_add_string(tree, hf_usb_setup_flag, tvb, 14, 1, "relevant (0)");
     } else {
         proto_tree_add_string_format_value(tree, hf_usb_setup_flag, tvb,
-            14, 1, &flag, "not relevant ('%c')", isprint(flag) ? flag: '.');
+            14, 1, flag, "not relevant ('%c')", isprint(flag[0]) ? flag[0]: '.');
     }
 
-    flag = tvb_get_guint8(tvb, 15);
-    if (flag == 0) {
+    flag[0] = tvb_get_guint8(tvb, 15);
+    flag[1] = '\0';
+    if (flag[0] == 0) {
         proto_tree_add_string(tree, hf_usb_data_flag, tvb, 15, 1, "present (0)");
     } else {
         proto_tree_add_string_format_value(tree, hf_usb_data_flag, tvb,
-            15, 1, &flag, "not present ('%c')", isprint(flag) ? flag : '.');
+            15, 1, flag, "not present ('%c')", isprint(flag[0]) ? flag[0] : '.');
     }
 
     tvb_memcpy(tvb, (guint8 *)&val64, 16, 8);
@@ -2484,26 +2485,32 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
             data_base = offset + iso_numdesc * 16;
             urb_tree = tree;
             for (i = 0; i != iso_numdesc; i++) {
+                /* Fetch ISO descriptor fields stored in host
+                 * endian byte order.
+                 */
+                tvb_memcpy(tvb, (guint8 *)&iso_status, offset, 4);
+                tvb_memcpy(tvb, (guint8 *)&iso_off, offset+4,  4);
+                tvb_memcpy(tvb, (guint8 *)&iso_len, offset+8,  4);
+
                 if (parent) {
                     proto_item *ti = NULL;
-                    ti = proto_tree_add_protocol_format(urb_tree, proto_usb, tvb, offset,
-                         16, "USB isodesc %u", i);
+                    if (iso_len > 0) {
+                        ti = proto_tree_add_protocol_format(urb_tree, proto_usb, tvb, offset,
+                             16, "USB isodesc %u [%s]  (%u bytes)", i,
+                             val_to_str(iso_status, usb_urb_status_vals, "Error %d"), iso_len);
+                    } else {
+                        ti = proto_tree_add_protocol_format(urb_tree, proto_usb, tvb, offset,
+                             16, "USB isodesc %u [%s]", i, val_to_str(iso_status, usb_urb_status_vals, "Error %d"));
+                    }
                     tree = proto_item_add_subtree(ti, usb_isodesc);
                 }
 
-                /* Add ISO descriptor fields which are stored in host
-                 * endian byte order so use tvb_memcopy() and
-                 * proto_tree_add_uint()/proto_tree_add_int() pair.
-                 */
-                tvb_memcpy(tvb, (guint8 *)&iso_status, offset, 4);
                 proto_tree_add_int(tree, hf_usb_iso_status, tvb, offset, 4, iso_status);
                 offset += 4;
 
-                tvb_memcpy(tvb, (guint8 *)&iso_off, offset, 4);
                 proto_tree_add_uint(tree, hf_usb_iso_off, tvb, offset, 4, iso_off);
                 offset += 4;
 
-                tvb_memcpy(tvb, (guint8 *)&iso_len, offset, 4);
                 proto_tree_add_uint(tree, hf_usb_iso_len, tvb, offset, 4, iso_len);
                 offset += 4;
 

@@ -258,6 +258,10 @@ static void reset_elapsed(void)
   computed_elapsed = 0;
 }
 
+/*
+ * GLIB_CHECK_VERSION(2,28,0) adds g_get_real_time which could minimize or
+ * replace this
+ */
 static void compute_elapsed(GTimeVal *start_time)
 {
   gdouble  delta_time;
@@ -2327,7 +2331,7 @@ cf_retap_packets(capture_file *cf)
 
   /* Iterate through the list of packets, dissecting all packets and
      re-running the taps. */
-  packet_range_init(&range);
+  packet_range_init(&range, cf);
   packet_range_process_init(&range);
   switch (process_specified_packets(cf, &range, "Recalculating statistics on",
                                     "all packets", TRUE, retap_packet,
