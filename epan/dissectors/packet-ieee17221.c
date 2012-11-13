@@ -82,8 +82,8 @@
 #define ADP_LEGACY_AVC_BITMASK               0x10
 #define ADP_ASSOC_ID_SUPPORT_BITMASK         0x20
 #define ADP_ASSOC_ID_VALID_BITMASK           0x40
-#define ADP_CLASS_A_SUPPORTED_BITMASK        0x80
-#define ADP_VENDOR_UNIQUE_BITMASK            0x100
+#define ADP_VENDOR_UNIQUE_BITMASK            0x80
+#define ADP_CLASS_A_SUPPORTED_BITMASK        0x100
 #define ADP_CLASS_B_SUPPORTED_BITMASK        0x200
 #define ADP_AS_SUPPORTED_BITMASK             0x400
 
@@ -2153,8 +2153,6 @@ static int hf_aem_control_domain = -1;
 static int hf_aem_control_latency = -1;
 static int hf_aem_control_location_id = -1;
 static int hf_aem_control_location_type = -1;
-static int hf_aem_control_name = -1;
-static int hf_aem_control_name_string = -1;
 static int hf_aem_control_type = -1;
 static int hf_aem_control_value_type = -1;
 static int hf_aem_count = -1;
@@ -2266,7 +2264,7 @@ static int hf_aem_number_of_strings = -1;
 static int hf_aem_number_of_values = -1;
 static int hf_aem_number_signal_selectors = -1;
 static int hf_aem_object_name = -1;
-static int hf_aem_object_name_string = -1;
+static int hf_aem_localized_description = -1;
 static int hf_aem_oui24 = -1;
 static int hf_aem_path_latency = -1;
 static int hf_aem_port_flags = -1;
@@ -2277,6 +2275,7 @@ static int hf_aem_sample_rates_offset = -1;
 static int hf_aem_serial_number = -1;
 static int hf_aem_sf = -1;
 static int hf_aem_sf_version = -1;
+static int hf_aem_sf_subtype = -1;
 static int hf_aem_signal_index = -1;
 static int hf_aem_signal_output = -1;
 static int hf_aem_signal_type = -1;
@@ -2297,8 +2296,6 @@ static int hf_aem_string_ref = -1;
 static int hf_aem_target_descriptor_id = -1;
 static int hf_aem_target_descriptor_type = -1;
 static int hf_aem_unit = -1;
-static int hf_aem_unit_name = -1;
-static int hf_aem_unit_name_string = -1;
 static int hf_aem_unknown_descriptor = -1;
 static int hf_aem_value_offset = -1;
 static int hf_aem_values_offset = -1;
@@ -2472,7 +2469,10 @@ dissect_17221_stream_format(tvbuff_t *tvb, proto_tree *tree)
 
    if (version == 0) {       /* stream format version 0 */
 
-      subtype = tvb_get_guint8(tvb, 0) & AEM_MASK_SF_SUBTYPE;
+      subtype = tvb_get_guint8(tvb, AEM_OFFSET_SF_SUBTYPE) & AEM_MASK_SF_SUBTYPE;
+
+      proto_tree_add_item(stream_tree, hf_aem_sf_subtype, tvb,
+            AEM_OFFSET_SF_SUBTYPE, 1, ENC_BIG_ENDIAN);
 
       switch(subtype) {
          case IEC_61883_IIDC_SUBTYPE:
@@ -2932,9 +2932,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
          }
          break;
       case AEM_DESCRIPTOR_AUDIO_UNIT:
-         proto_tree_add_item(aem_tree, hf_aem_unit_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                AUDIO_UNIT_OFFSET_OBJECT_NAME, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_unit_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                AUDIO_UNIT_OFFSET_LOCALIZED_DESCRIPTION, 2, ENC_BIG_ENDIAN);
 
          /* D20 clock domain */
@@ -3051,9 +3051,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
          break;
       case AEM_DESCRIPTOR_VIDEO_UNIT:
       case AEM_DESCRIPTOR_SENSOR_UNIT:
-         proto_tree_add_item(aem_tree, hf_aem_unit_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                VIDEO_UNIT_OFFSET_OBJECT_NAME, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_unit_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                VIDEO_UNIT_OFFSET_LOCALIZED_DESCRIPTION, 2, ENC_BIG_ENDIAN);
 
          /* D20 clock domain */
@@ -3416,9 +3416,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 
          break;
       case AEM_DESCRIPTOR_CONTROL:
-         proto_tree_add_item(aem_tree, hf_aem_control_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                CONTROL_OFFSET_OBJECT_NAME, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_control_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                CONTROL_OFFSET_LOCALIZED_DESCRIPTION, 2, ENC_BIG_ENDIAN);
 
          proto_tree_add_item(aem_tree, hf_aem_block_latency, tvb,
@@ -3454,9 +3454,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 
          break;
       case AEM_DESCRIPTOR_SIGNAL_SELECTOR:
-         proto_tree_add_item(aem_tree, hf_aem_control_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                SIGNAL_SELECTOR_OFFSET_OBJECT_NAME, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_control_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                SIGNAL_SELECTOR_OFFSET_LOCALIZED_DESCRIPTION, 2, ENC_BIG_ENDIAN);
 
          proto_tree_add_item(aem_tree, hf_aem_block_latency, tvb,
@@ -3473,9 +3473,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
                AEM_OFFSET_CONTROL_LOCATION_ID_SIGS, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_control_domain, tvb,
                AEM_OFFSET_CONTROL_DOMAIN_SIGS, 2, ENC_BIG_ENDIAN);
-         proto_tree_add_item(aem_tree, hf_aem_control_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                AEM_OFFSET_CONTROL_NAME_SIGS, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_control_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                AEM_OFFSET_CONTROL_NAME_STRING_SIGS, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_sources_offset, tvb,
                AEM_OFFSET_SOURCES_OFFSET_SIGS, 2, ENC_BIG_ENDIAN);
@@ -3513,9 +3513,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
          */
          break;
       case AEM_DESCRIPTOR_MIXER:
-         proto_tree_add_item(aem_tree, hf_aem_control_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                MIXER_OFFSET_OBJECT_NAME, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_control_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                MIXER_OFFSET_LOCALIZED_DESCRIPTION, 2, ENC_BIG_ENDIAN);
 
          proto_tree_add_item(aem_tree, hf_aem_block_latency, tvb,
@@ -3535,9 +3535,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
                AEM_OFFSET_CONTROL_VALUE_TYPE_MXR, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_control_domain, tvb,
                AEM_OFFSET_CONTROL_DOMAIN_MXR, 2 ,ENC_BIG_ENDIAN);
-         proto_tree_add_item(aem_tree, hf_aem_control_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                AEM_OFFSET_CONTROL_NAME_MXR, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_control_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                AEM_OFFSET_CONTROL_NAME_STRING_MXR, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_sources_offset, tvb,
                AEM_OFFSET_SOURCES_OFFSET_MXR, 2, ENC_BIG_ENDIAN);
@@ -3577,9 +3577,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 #endif
          break;
       case AEM_DESCRIPTOR_MATRIX:
-         proto_tree_add_item(aem_tree, hf_aem_control_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                MATRIX_OFFSET_OBJECT_NAME, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_control_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                MATRIX_OFFSET_LOCALIZED_DESCRIPTION, 2, ENC_BIG_ENDIAN);
 
          proto_tree_add_item(aem_tree, hf_aem_block_latency, tvb,
@@ -3600,9 +3600,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
                AEM_OFFSET_CONTROL_VALUE_TYPE_MTRX, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_control_domain, tvb,
                AEM_OFFSET_CONTROL_DOMAIN_MTRX, 2 ,ENC_BIG_ENDIAN);
-         proto_tree_add_item(aem_tree, hf_aem_control_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                AEM_OFFSET_CONTROL_NAME_MTRX, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_control_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                AEM_OFFSET_CONTROL_NAME_STRING_MTRX, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_width, tvb,
                AEM_OFFSET_WIDTH_MTRX, 2, ENC_BIG_ENDIAN);
@@ -3680,7 +3680,7 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
                MEMORY_OBJECT_OFFSET_TARGET_DESCRIPTOR_INDEX, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                MEMORY_OBJECT_OFFSET_OBJECT_NAME, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_object_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                MEMORY_OBJECT_OFFSET_LOCALIZED_DESCRIPTION, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_start_address, tvb,
                MEMORY_OBJECT_OFFSET_START_ADDRESS, 8, ENC_BIG_ENDIAN);
@@ -3688,9 +3688,9 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
                MEMORY_OBJECT_OFFSET_LENGTH, 8, ENC_BIG_ENDIAN);
          break;
       case AEM_DESCRIPTOR_CLOCK_DOMAIN:
-         proto_tree_add_item(aem_tree, hf_aem_control_name, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
                CLOCK_DOMAIN_OFFSET_OBJECT_NAME, 64, ENC_ASCII|ENC_NA);
-         proto_tree_add_item(aem_tree, hf_aem_control_name_string, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_localized_description, tvb,
                CLOCK_DOMAIN_OFFSET_LOCALIZED_DESCRIPTION, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_clock_source_index, tvb,
                CLOCK_DOMAIN_OFFSET_CLOCK_SOURCE_INDEX, 2, ENC_BIG_ENDIAN);
@@ -5866,12 +5866,12 @@ proto_register_17221(void)
          {"Base Control Block", "ieee17221.base_control_block",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
-      { &hf_aem_unit_name,
-         {"Unit Name", "ieee17221.unit_name",
+      { &hf_aem_object_name,
+         {"Object Name", "ieee17221.object_name",
             FT_STRING, BASE_NONE, NULL, 0x00, NULL, HFILL }
       },
-      { &hf_aem_unit_name_string,
-         {"Unit Name String", "ieee17221.unit_name_string",
+      { &hf_aem_localized_description,
+         {"Localized Description", "ieee17221.localized_description",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
       { &hf_aem_current_sample_rate,
@@ -6306,14 +6306,6 @@ proto_register_17221(void)
          {"Control Domain", "ieee17221.control_domain",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
-      { &hf_aem_control_name,
-         {"Control Name", "ieee17221.control_name",
-            FT_STRING, BASE_NONE, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_control_name_string,
-         {"Control Name String", "ieee17221.control_name_string",
-            FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
-      },
       { &hf_aem_values_offset,
          {"Values Offset", "ieee17221.values_offset",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
@@ -6442,14 +6434,6 @@ proto_register_17221(void)
       },
       { &hf_aem_target_descriptor_id,
          {"Target Descriptor ID", "ieee17221.target_descriptor_id",
-            FT_UINT16, BASE_HEX, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_object_name,
-         {"Object Name", "ieee17221.object_name",
-            FT_STRING, BASE_NONE, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_object_name_string,
-         {"Object Name String", "ieee17221.object_name_string",
             FT_UINT16, BASE_HEX, NULL, 0x00, NULL, HFILL }
       },
       { &hf_aem_start_address,
@@ -6621,6 +6605,11 @@ proto_register_17221(void)
          {"Version", "ieee17221.sf_version",
             FT_UINT8, BASE_HEX, NULL, AEM_MASK_SF_VERSION, NULL, HFILL }
       },
+      { &hf_aem_sf_subtype,
+         {"Subtype", "ieee17221.sf_subtype",
+            FT_UINT8, BASE_HEX, NULL, AEM_MASK_SF_SUBTYPE, NULL, HFILL }
+      },
+ 
       { &hf_aem_sf,
          {"SF", "ieee17221.sf",
             FT_BOOLEAN, 8, NULL, AEM_MASK_SF, NULL, HFILL }
