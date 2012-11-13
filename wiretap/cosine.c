@@ -171,10 +171,10 @@ static gboolean cosine_check_file_type(wtap *wth, int *err, gchar **err_info);
 static gboolean cosine_read(wtap *wth, int *err, gchar **err_info,
 	gint64 *data_offset);
 static gboolean cosine_seek_read(wtap *wth, gint64 seek_off,
-	union wtap_pseudo_header *pseudo_header, guint8 *pd,
+	struct wtap_pkthdr *phdr, guint8 *pd,
 	int len, int *err, gchar **err_info);
-static int parse_cosine_rec_hdr(wtap *wth, const char *line,
-	union wtap_pseudo_header *pseudo_header, int *err, gchar **err_info);
+static int parse_cosine_rec_hdr(struct wtap_pkthdr *phdr, const char *line,
+	int *err, gchar **err_info);
 static int parse_cosine_hex_dump(FILE_T fh, int pkt_len, guint8* buf,
 	int *err, gchar **err_info);
 static int parse_single_hex_dump_line(char* rec, guint8 *buf,
@@ -317,8 +317,7 @@ static gboolean cosine_read(wtap *wth, int *err, gchar **err_info,
 		return FALSE;
 
 	/* Parse the header */
-	pkt_len = parse_cosine_rec_hdr(wth, line, &wth->pseudo_header, err,
-	    err_info);
+	pkt_len = parse_cosine_rec_hdr(&wth->phdr, line, err, err_info);
 	if (pkt_len == -1)
 		return FALSE;
 
@@ -340,7 +339,7 @@ static gboolean cosine_read(wtap *wth, int *err, gchar **err_info,
 /* Used to read packets in random-access fashion */
 static gboolean
 cosine_seek_read (wtap *wth, gint64 seek_off,
-	union wtap_pseudo_header *pseudo_header, guint8 *pd, int len,
+	struct wtap_pkthdr *phdr, guint8 *pd, int len,
 	int *err, gchar **err_info)
 {
 	char	line[COSINE_LINE_LENGTH];
@@ -356,7 +355,7 @@ cosine_seek_read (wtap *wth, gint64 seek_off,
 		return FALSE;
 	}
 
-	if (parse_cosine_rec_hdr(NULL, line, pseudo_header, err, err_info) == -1)
+	if (parse_cosine_rec_hdr(phdr, line, err, err_info) == -1)
 		return FALSE;
 
 	return parse_cosine_hex_dump(wth->random_fh, len, pd, err, err_info);
@@ -368,9 +367,10 @@ cosine_seek_read (wtap *wth, gint64 seek_off,
     2) output to PE without date and time
         l2-tx (FR:3/7/1:1), Length:18, Pro:0, Off:0, Pri:0, RM:0, Err:0 [0x4000, 0x0] */
 static int
-parse_cosine_rec_hdr(wtap *wth, const char *line,
-    union wtap_pseudo_header *pseudo_header, int *err, gchar **err_info)
+parse_cosine_rec_hdr(struct wtap_pkthdr *phdr, const char *line,
+     int *err, gchar **err_info)
 {
+	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	int	num_items_scanned;
 	int	yy, mm, dd, hr, min, sec, csec, pkt_len;
 	int	pro, off, pri, rm, error;
@@ -409,7 +409,7 @@ parse_cosine_rec_hdr(wtap *wth, const char *line,
 		yy = mm = dd = hr = min = sec = csec = 0;
 	}
 
-	if (wth) {
+	{
 		tm.tm_year = yy - 1900;
 		tm.tm_mon = mm - 1;
 		tm.tm_mday = dd;
@@ -417,9 +417,9 @@ parse_cosine_rec_hdr(wtap *wth, const char *line,
 		tm.tm_min = min;
 		tm.tm_sec = sec;
 		tm.tm_isdst = -1;
-		wth->phdr.ts.secs = mktime(&tm);
-		wth->phdr.ts.nsecs = csec * 10000000;
-		wth->phdr.len = pkt_len;
+		phdr->ts.secs = mktime(&tm);
+		phdr->ts.nsecs = csec * 10000000;
+		phdr->len = pkt_len;
 	}
 	/* XXX need to handle other encapsulations like Cisco HDLC,
 	   Frame Relay and ATM */

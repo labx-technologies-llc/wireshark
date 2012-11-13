@@ -1,6 +1,6 @@
 /* packet_range_group_box.h
  *
- * $Id: capture_file_dialog.h 45164 2012-09-27 02:43:09Z eapache $
+ * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -49,6 +49,7 @@ public:
 
 signals:
     void validityChanged(bool is_valid);
+    void rangeChanged();
 
 private:
     void updateCounts();

@@ -1051,7 +1051,7 @@ dissect_supported_address_types_parameter(tvbuff_t *parameter_tvb, proto_tree *p
 
   offset = PARAMETER_VALUE_OFFSET;
   proto_item_append_text(parameter_item, " (Supported types: ");
-  for(addr_type_number = 1; addr_type_number <= number_of_addr_types; addr_type_number++) {
+  for(addr_type_number = 0; addr_type_number < number_of_addr_types; addr_type_number++) {
     proto_tree_add_item(parameter_tree, hf_supported_address_type, parameter_tvb, offset, SUPPORTED_ADDRESS_TYPE_PARAMETER_ADDRESS_TYPE_LENGTH, ENC_BIG_ENDIAN);
     addr_type = tvb_get_ntohs(parameter_tvb, offset);
     switch (addr_type) {
@@ -1067,7 +1067,7 @@ dissect_supported_address_types_parameter(tvbuff_t *parameter_tvb, proto_tree *p
     default:
       proto_item_append_text(parameter_item, "%u", addr_type);
     }
-    if (addr_type_number < number_of_addr_types)
+    if (addr_type_number < (number_of_addr_types-1))
       proto_item_append_text(parameter_item, ", ");
     offset += SUPPORTED_ADDRESS_TYPE_PARAMETER_ADDRESS_TYPE_LENGTH;
   }
@@ -1095,7 +1095,7 @@ dissect_outgoing_ssn_reset_request_parameter(tvbuff_t *parameter_tvb, proto_tree
   sid_offset = SENDERS_LAST_ASSIGNED_TSN_OFFSET + SENDERS_LAST_ASSIGNED_TSN_LENGTH;
   if (length > PARAMETER_HEADER_LENGTH + STREAM_RESET_SEQ_NR_LENGTH + STREAM_RESET_SEQ_NR_LENGTH + SENDERS_LAST_ASSIGNED_TSN_LENGTH) {
     number_of_sids = (length - (PARAMETER_HEADER_LENGTH + STREAM_RESET_SEQ_NR_LENGTH + STREAM_RESET_SEQ_NR_LENGTH + SENDERS_LAST_ASSIGNED_TSN_LENGTH)) / SID_LENGTH;
-    for(sid_number = 1; sid_number <= number_of_sids; sid_number++) {
+    for(sid_number = 0; sid_number < number_of_sids; sid_number++) {
       proto_tree_add_item(parameter_tree, hf_stream_reset_sid, parameter_tvb, sid_offset, SID_LENGTH, ENC_BIG_ENDIAN);
       sid_offset += SID_LENGTH;
     }
@@ -1113,7 +1113,7 @@ dissect_incoming_ssn_reset_request_parameter(tvbuff_t *parameter_tvb, proto_tree
   sid_offset = STREAM_RESET_REQ_SEQ_NR_OFFSET + STREAM_RESET_SEQ_NR_LENGTH;
   if (length > PARAMETER_HEADER_LENGTH + STREAM_RESET_SEQ_NR_LENGTH) {
     number_of_sids = (length - (PARAMETER_HEADER_LENGTH + STREAM_RESET_SEQ_NR_LENGTH)) / SID_LENGTH;
-    for(sid_number = 1; sid_number <= number_of_sids; sid_number++) {
+    for(sid_number = 0; sid_number < number_of_sids; sid_number++) {
       proto_tree_add_item(parameter_tree, hf_stream_reset_sid, parameter_tvb, sid_offset, SID_LENGTH, ENC_BIG_ENDIAN);
       sid_offset += SID_LENGTH;
     }
@@ -1232,7 +1232,7 @@ dissect_chunks_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree)
   guint16 chunk_number, offset;
 
   number_of_chunks = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH;
-  for(chunk_number = 1, offset = PARAMETER_VALUE_OFFSET; chunk_number <= number_of_chunks; chunk_number++, offset +=  CHUNK_TYPE_LENGTH)
+  for(chunk_number = 0, offset = PARAMETER_VALUE_OFFSET; chunk_number < number_of_chunks; chunk_number++, offset +=  CHUNK_TYPE_LENGTH)
     proto_tree_add_item(parameter_tree, hf_chunks_to_auth, parameter_tvb, offset, CHUNK_TYPE_LENGTH, ENC_BIG_ENDIAN);
 }
 
@@ -1255,7 +1255,7 @@ dissect_hmac_algo_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree)
   guint16 id_number, offset;
 
   number_of_ids = (tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH) / HMAC_ID_LENGTH;
-  for(id_number = 1, offset = PARAMETER_VALUE_OFFSET; id_number <= number_of_ids; id_number++, offset +=  HMAC_ID_LENGTH)
+  for(id_number = 0, offset = PARAMETER_VALUE_OFFSET; id_number < number_of_ids; id_number++, offset +=  HMAC_ID_LENGTH)
     proto_tree_add_item(parameter_tree, hf_hmac_id, parameter_tvb, offset, HMAC_ID_LENGTH, ENC_BIG_ENDIAN);
 }
 
@@ -1267,10 +1267,10 @@ dissect_supported_extensions_parameter(tvbuff_t *parameter_tvb, proto_tree *para
 
   proto_item_append_text(parameter_item, " (Supported types: ");
   number_of_types = (tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH) / CHUNK_TYPE_LENGTH;
-  for(type_number = 1, offset = PARAMETER_VALUE_OFFSET; type_number <= number_of_types; type_number++, offset +=  CHUNK_TYPE_LENGTH) {
+  for(type_number = 0, offset = PARAMETER_VALUE_OFFSET; type_number < number_of_types; type_number++, offset +=  CHUNK_TYPE_LENGTH) {
     proto_tree_add_item(parameter_tree, hf_supported_chunk_type, parameter_tvb, offset, CHUNK_TYPE_LENGTH, ENC_BIG_ENDIAN);
     proto_item_append_text(parameter_item, "%s", val_to_str_const(tvb_get_guint8(parameter_tvb, offset), chunk_type_values, "Unknown"));
-    if (type_number < number_of_types)
+    if (type_number < (number_of_types-1))
       proto_item_append_text(parameter_item, ", ");
 
   }
@@ -1458,23 +1458,25 @@ static const true_false_string sctp_parameter_bit_2_value = {
 static void
 dissect_parameter(tvbuff_t *parameter_tvb, packet_info *pinfo, proto_tree *chunk_tree, proto_item *additional_item, gboolean dissecting_init_init_ack_chunk)
 {
-  guint16 type, length, padding_length;
-  proto_item *parameter_item;
-  proto_tree *parameter_tree;
-  proto_item *type_item;
-  proto_tree *type_tree;
+  guint16 type, length, padding_length, reported_length;
+  proto_item *parameter_item, *type_item;
+  proto_tree *parameter_tree, *type_tree;
 
-  type           = tvb_get_ntohs(parameter_tvb, PARAMETER_TYPE_OFFSET);
-  length         = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET);
-  padding_length = tvb_reported_length(parameter_tvb) - length;
+  type            = tvb_get_ntohs(parameter_tvb, PARAMETER_TYPE_OFFSET);
+  length          = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET);
+  reported_length = tvb_reported_length(parameter_tvb);
+  padding_length  = reported_length - length;
+
+  parameter_item = proto_tree_add_text(chunk_tree, parameter_tvb, PARAMETER_HEADER_OFFSET, tvb_reported_length(parameter_tvb), "%s parameter", val_to_str_const(type, parameter_identifier_values, "Unknown"));
+  parameter_tree = proto_item_add_subtree(parameter_item, ett_sctp_chunk_parameter);
+  if (reported_length % 4)
+    expert_add_info_format(pinfo, parameter_item, PI_MALFORMED, PI_ERROR,
+                           "Parameter length is not padded to a multiple of 4 bytes (length=%d)", reported_length);
 
   if (!(chunk_tree || (dissecting_init_init_ack_chunk && (type == IPV4ADDRESS_PARAMETER_ID || type == IPV6ADDRESS_PARAMETER_ID))))
     return;
 
   if (chunk_tree) {
-    parameter_item = proto_tree_add_text(chunk_tree, parameter_tvb, PARAMETER_HEADER_OFFSET, tvb_reported_length(parameter_tvb), "%s parameter", val_to_str_const(type, parameter_identifier_values, "Unknown"));
-    parameter_tree = proto_item_add_subtree(parameter_item, ett_sctp_chunk_parameter);
-
     type_item = proto_tree_add_item(parameter_tree, hf_parameter_type,   parameter_tvb, PARAMETER_TYPE_OFFSET,   PARAMETER_TYPE_LENGTH,   ENC_BIG_ENDIAN);
     type_tree = proto_item_add_subtree(type_item, ett_sctp_parameter_type);
     proto_tree_add_item(type_tree, hf_parameter_bit_1,  parameter_tvb, PARAMETER_TYPE_OFFSET,  PARAMETER_TYPE_LENGTH,  ENC_BIG_ENDIAN);
@@ -1651,7 +1653,7 @@ dissect_missing_mandatory_parameters_cause(tvbuff_t *cause_tvb, proto_tree *caus
   number_of_missing_parameters = tvb_get_ntohl(cause_tvb, CAUSE_NUMBER_OF_MISSING_PARAMETERS_OFFSET);
   proto_tree_add_item(cause_tree, hf_cause_number_of_missing_parameters, cause_tvb, CAUSE_NUMBER_OF_MISSING_PARAMETERS_OFFSET, CAUSE_NUMBER_OF_MISSING_PARAMETERS_LENGTH, ENC_BIG_ENDIAN);
   offset = CAUSE_FIRST_MISSING_PARAMETER_TYPE_OFFSET;
-  for(missing_parameter_number = 1; missing_parameter_number <= number_of_missing_parameters; missing_parameter_number++) {
+  for(missing_parameter_number = 0; missing_parameter_number < number_of_missing_parameters; missing_parameter_number++) {
     proto_tree_add_item(cause_tree, hf_cause_missing_parameter_type, cause_tvb, offset, CAUSE_MISSING_PARAMETER_TYPE_LENGTH, ENC_BIG_ENDIAN);
     offset +=  CAUSE_MISSING_PARAMETER_TYPE_LENGTH;
   }
@@ -2989,7 +2991,7 @@ dissect_sack_chunk(packet_info* pinfo, tvbuff_t *chunk_tvb, proto_tree *chunk_tr
   sctp_ack_block(pinfo, ha, chunk_tvb, acks_tree, NULL, cum_tsn_ack);
 
   last_end = 0;
-  for(gap_block_number = 1; gap_block_number <= number_of_gap_blocks; gap_block_number++) {
+  for(gap_block_number = 0; gap_block_number < number_of_gap_blocks; gap_block_number++) {
     proto_item *pi;
     proto_tree *pt;
     guint32 tsn_start;
@@ -3125,7 +3127,7 @@ dissect_nr_sack_chunk(packet_info* pinfo, tvbuff_t *chunk_tvb, proto_tree *chunk
   sctp_ack_block(pinfo, ha, chunk_tvb, acks_tree, NULL, cum_tsn_ack);
 
   last_end = 0;
-  for(gap_block_number = 1; gap_block_number <= number_of_gap_blocks; gap_block_number++) {
+  for(gap_block_number = 0; gap_block_number < number_of_gap_blocks; gap_block_number++) {
     proto_item *pi;
     proto_tree *pt;
     guint32 tsn_start;
@@ -3182,7 +3184,7 @@ dissect_nr_sack_chunk(packet_info* pinfo, tvbuff_t *chunk_tvb, proto_tree *chunk
   nr_gap_block_offset     = gap_block_offset;
 
   last_end = 0;
-  for(nr_gap_block_number = 1; nr_gap_block_number <= number_of_nr_gap_blocks; nr_gap_block_number++) {
+  for(nr_gap_block_number = 0; nr_gap_block_number < number_of_nr_gap_blocks; nr_gap_block_number++) {
     proto_item *pi;
     proto_tree *pt;
     /*guint32 tsn_start;*/
@@ -3239,7 +3241,7 @@ dissect_nr_sack_chunk(packet_info* pinfo, tvbuff_t *chunk_tvb, proto_tree *chunk
     + number_of_nr_gap_blocks * NR_SACK_CHUNK_NR_GAP_BLOCK_LENGTH;
 
 
-  for(dup_tsn_number = 1; dup_tsn_number <= number_of_dup_tsns; dup_tsn_number++) {
+  for(dup_tsn_number = 0; dup_tsn_number < number_of_dup_tsns; dup_tsn_number++) {
     proto_tree_add_item(chunk_tree, hf_sack_chunk_duplicate_tsn, chunk_tvb, dup_tsn_offset, NR_SACK_CHUNK_DUP_TSN_LENGTH, ENC_BIG_ENDIAN);
     dup_tsn_offset += NR_SACK_CHUNK_DUP_TSN_LENGTH;
   }
@@ -3621,11 +3623,8 @@ dissect_sctp_chunk(tvbuff_t *chunk_tvb,
   guint8 type;
   guint16 length, padding_length, reported_length;
   gboolean result;
-  proto_item *flags_item;
-  proto_item *chunk_item;
-  proto_tree *chunk_tree;
-  proto_item *type_item;
-  proto_tree *type_tree;
+  proto_item *flags_item, *chunk_item, *type_item, *length_item;
+  proto_tree *chunk_tree, *type_tree;
 
   result = FALSE;
 
@@ -3635,14 +3634,17 @@ dissect_sctp_chunk(tvbuff_t *chunk_tvb,
   reported_length = tvb_reported_length(chunk_tvb);
   padding_length  = reported_length - length;
 
- if (useinfo)
+  if (useinfo)
     col_append_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(type, chunk_type_values, "RESERVED"));
 
-  if (tree) {
-    /* create proto_tree stuff */
-    chunk_item   = proto_tree_add_text(sctp_tree, chunk_tvb, CHUNK_HEADER_OFFSET, reported_length, "%s chunk", val_to_str_const(type, chunk_type_values, "RESERVED"));
-    chunk_tree   = proto_item_add_subtree(chunk_item, ett_sctp_chunk);
+  /* create proto_tree stuff */
+  chunk_item   = proto_tree_add_text(sctp_tree, chunk_tvb, CHUNK_HEADER_OFFSET, reported_length, "%s chunk", val_to_str_const(type, chunk_type_values, "RESERVED"));
+  chunk_tree   = proto_item_add_subtree(chunk_item, ett_sctp_chunk);
+  if (reported_length % 4)
+    expert_add_info_format(pinfo, chunk_item, PI_MALFORMED, PI_ERROR,
+                           "Chunk length is not padded to a multiple of 4 bytes (length=%d)", reported_length);
 
+  if (tree) {
     /* then insert the chunk header components into the protocol tree */
     type_item  = proto_tree_add_item(chunk_tree, hf_chunk_type, chunk_tvb, CHUNK_TYPE_OFFSET, CHUNK_TYPE_LENGTH, ENC_BIG_ENDIAN);
     type_tree  = proto_item_add_subtree(type_item, ett_sctp_chunk_type);
@@ -3654,6 +3656,7 @@ dissect_sctp_chunk(tvbuff_t *chunk_tvb,
     chunk_item = NULL;
     flags_item = NULL;
   }
+
   if (length < CHUNK_HEADER_LENGTH) {
     if (tree) {
       proto_tree_add_uint_format(chunk_tree, hf_chunk_length, chunk_tvb, CHUNK_LENGTH_OFFSET, CHUNK_LENGTH_LENGTH, length,
@@ -3666,16 +3669,14 @@ dissect_sctp_chunk(tvbuff_t *chunk_tvb,
     return result;
   }
 
-  if (tree) {
-    proto_item *pi;
-    pi = proto_tree_add_uint(chunk_tree, hf_chunk_length, chunk_tvb, CHUNK_LENGTH_OFFSET, CHUNK_LENGTH_LENGTH, length);
-    if (length > reported_length) {
-      expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR,
-                             "Chunk length (%d) is longer than remaining data (%d) in the packet",
-                             length, reported_length);
-      /* We'll almost certainly throw an exception shortly... */
-    }
+  length_item = proto_tree_add_uint(chunk_tree, hf_chunk_length, chunk_tvb, CHUNK_LENGTH_OFFSET, CHUNK_LENGTH_LENGTH, length);
+  if (length > reported_length) {
+    expert_add_info_format(pinfo, length_item, PI_MALFORMED, PI_ERROR,
+                           "Chunk length (%d) is longer than remaining data (%d) in the packet",
+                           length, reported_length);
+    /* We'll almost certainly throw an exception shortly... */
   }
+
   /*
   length -= CHUNK_HEADER_LENGTH;
   */

@@ -157,8 +157,8 @@ static const value_string playback_server_message_types[] = {
 #define SPICE_AUDIO_DATA_MODE_RAW 1
 #define SPICE_AUDIO_DATA_MODE_CELT_0_5_1 2
 static const value_string playback_mode_vals[] = {
-    { SPICE_AUDIO_DATA_MODE_INVALID, "INVALID" },
-    { SPICE_AUDIO_DATA_MODE_RAW, "RAW" },
+    { SPICE_AUDIO_DATA_MODE_INVALID,    "INVALID" },
+    { SPICE_AUDIO_DATA_MODE_RAW,        "RAW" },
     { SPICE_AUDIO_DATA_MODE_CELT_0_5_1, "CELT_0_5_1" },
     { 0, NULL }
 };
@@ -167,14 +167,19 @@ static const value_string playback_mode_vals[] = {
 #define SPICE_PLAYBACK_CAP_VOLUME 1
 
 #define SPICE_PLAYBACK_CAP_CELT_0_5_1_MASK (1 << SPICE_PLAYBACK_CAP_CELT_0_5_1)
-#define SPICE_PLAYBACK_CAP_VOLUME_MASK (1 << SPICE_PLAYBACK_CAP_VOLUME) /* 0x2 */
+#define SPICE_PLAYBACK_CAP_VOLUME_MASK     (1 << SPICE_PLAYBACK_CAP_VOLUME) /* 0x2 */
 
 /* main channel */
 
-#define SPICE_MAIN_CAP_SEMI_SEAMLESS_MIGRATE 0
-#define SPICE_MAIN_CAP_VM_NAME_UUID 1
+#define SPICE_MAIN_CAP_SEMI_SEAMLESS_MIGRATE  0
+#define SPICE_MAIN_CAP_VM_NAME_UUID           1
+#define SPICE_MAIN_CAP_AGENT_CONNECTED_TOKENS 2
+#define SPICE_MAIN_CAP_SEAMLESS_MIGRATE       3
+
 #define SPICE_MAIN_CAP_SEMI_SEAMLESS_MIGRATE_MASK (1 << SPICE_MAIN_CAP_SEMI_SEAMLESS_MIGRATE)
 #define SPICE_MAIN_CAP_VM_NAME_UUID_MASK (1 << SPICE_MAIN_CAP_VM_NAME_UUID)
+#define SPICE_MAIN_CAP_AGENT_CONNECTED_TOKENS_MASK (1 << SPICE_MAIN_CAP_AGENT_CONNECTED_TOKENS)
+#define SPICE_MAIN_CAP_SEAMLESS_MIGRATE_MASK (1 << SPICE_MAIN_CAP_SEAMLESS_MIGRATE)
 
 /* main channel server messages */
 #define SPICE_MAIN_MIGRATE_BEGIN        101
@@ -302,12 +307,18 @@ static const value_string record_client_message_types[] = {
 #define SPICE_RECORD_CAP_VOLUME 1
 
 #define SPICE_RECORD_CAP_CELT_0_5_1_MASK (1 << SPICE_RECORD_CAP_CELT_0_5_1)
-#define SPICE_RECORD_CAP_VOLUME_MASK (1 << SPICE_RECORD_CAP_VOLUME)
+#define SPICE_RECORD_CAP_VOLUME_MASK     (1 << SPICE_RECORD_CAP_VOLUME)
 
 /* display channel */
 #define SPICE_DISPLAY_CAP_SIZED_STREAM 0
+#define SPICE_DISPLAY_CAP_MONITORS_CONFIG 1
+#define SPICE_DISPLAY_CAP_COMPOSITE 2
+#define SPICE_DISPLAY_CAP_A8_SURFACE 3
 
-#define SPICE_DISPLAY_CAP_SIZED_STREAM_MASK (1 << SPICE_DISPLAY_CAP_SIZED_STREAM)
+#define SPICE_DISPLAY_CAP_SIZED_STREAM_MASK    (1 << SPICE_DISPLAY_CAP_SIZED_STREAM)
+#define SPICE_DISPLAY_CAP_MONITORS_CONFIG_MASK (1 << SPICE_DISPLAY_CAP_MONITORS_CONFIG)
+#define SPICE_DISPLAY_CAP_COMPOSITE_MASK       (1 << SPICE_DISPLAY_CAP_COMPOSITE)
+#define SPICE_DISPLAY_CAP_A8_SURFACE_MASK      (1 << SPICE_DISPLAY_CAP_A8_SURFACE)
 
 /* display channel server messages */
 #define SPICE_DISPLAY_MODE                  101
@@ -338,6 +349,8 @@ static const value_string record_client_message_types[] = {
 #define SPICE_DISPLAY_DRAW_SURFACE_CREATE   314
 #define SPICE_DISPLAY_DRAW_SURFACE_DESTROY  315
 #define SPICE_DISPLAY_STREAM_DATA_SIZED     316
+#define SPICE_DISPLAY_MONITORS_CONFIG       317
+#define SPICE_DISPLAY_DRAW_COMPOSITE        318
 
 static const value_string display_server_message_types[] = {
     { SPICE_DISPLAY_MODE,                 "MODE" },
@@ -368,6 +381,8 @@ static const value_string display_server_message_types[] = {
     { SPICE_DISPLAY_DRAW_SURFACE_CREATE,  "DRAW_SURFACE_CREATE" },
     { SPICE_DISPLAY_DRAW_SURFACE_DESTROY, "DRAW_SURFACE_DESTROY" },
     { SPICE_DISPLAY_STREAM_DATA_SIZED,    "STREAM_DATA_SIZED" },
+    { SPICE_DISPLAY_MONITORS_CONFIG,      "MONITORS_CONFIG" },
+    { SPICE_DISPLAY_DRAW_COMPOSITE,       "DRAW_COMPOSITE" },
     { 0, NULL }
 };
 
@@ -461,7 +476,7 @@ static const value_string cursor_type_vs[] = {
 
 typedef struct {
     guint64 unique;
-    guint8 type;
+    guint8  type;
     guint16 width;
     guint16 height;
     guint16 hot_spot_x;
@@ -565,16 +580,16 @@ static const value_string input_modifiers_types[] = {
 
 /* This structure will be tied to each conversation. */
 typedef struct {
-    guint32 connection_id;
-    guint32 num_channel_caps;
-    guint32 destport;
-    guint32 client_auth;
-    guint32 server_auth;
-    guint32 auth_selected;
+    guint32  connection_id;
+    guint32  num_channel_caps;
+    guint32  destport;
+    guint32  client_auth;
+    guint32  server_auth;
+    guint32  auth_selected;
     spice_session_state_e next_state;
-    guint16 playback_mode;
-    guint8 channel_type;
-    guint8 channel_id;
+    guint16  playback_mode;
+    guint8   channel_type;
+    guint8   channel_id;
     gboolean client_mini_header;
     gboolean server_mini_header;
 } spice_conversation_t;
@@ -611,9 +626,9 @@ typedef struct {
 
 
 typedef struct {
-    guint32 surface_id;
+    guint32   surface_id;
     SpiceRect bounding_box;
-    Clip clip;
+    Clip      clip;
 } DisplayBase;
 
 #define sizeof_DisplayBase 21 /* size without a rect list in the Clip */
@@ -640,7 +655,7 @@ static const value_string brush_types_vs[] = {
 };
 
 typedef struct {
-    guint64 image;
+    guint64   image;
     point32_t position;
 } Pattern;
 
@@ -662,9 +677,9 @@ static const value_string Mask_flags_vs[] = {
 };
 
 typedef struct {
-    guint8 flags;
+    guint8    flags;
     point32_t position;
-    guint32 bitmap;
+    guint32   bitmap;
 } Mask;
 
 #define sizeof_Mask 13
@@ -677,9 +692,9 @@ static const value_string scale_mode_vs[] = {
 
 typedef struct {
     guint64 id;
-    guint8    type;
-    guint8    flag;
-    guint32    width;
+    guint8  type;
+    guint8  flag;
+    guint32 width;
     guint32 height;
 } ImageDescriptor;
 
@@ -806,6 +821,7 @@ static const value_string Pixmap_types_vs[] = {
     { 0, NULL }
 };
 
+#define sizeof_SpiceHead 28
 
 #define SPICE_COMMON_CAP_PROTOCOL_AUTH_SELECTION 0
 #define SPICE_COMMON_CAP_AUTH_SPICE              1
@@ -873,6 +889,7 @@ static gint ett_RedCursor = -1;
 static gint ett_pattern = -1;
 static gint ett_brush = -1;
 static gint ett_Pixmap = -1;
+static gint ett_SpiceHead = -1;
 static gint ett_inputs_client = -1;
 static gint ett_rectlist = -1;
 static gint ett_inputs_server = -1;
@@ -880,7 +897,6 @@ static gint ett_record_client = -1;
 static gint ett_record_server = -1;
 static gint ett_main_client = -1;
 static gint ett_spice_agent = -1;
-static gint ett_auth_tree = -1;
 static gint ett_cap_tree = -1;
 static int proto_spice = -1;
 static int hf_spice_magic  = -1;
@@ -905,9 +921,10 @@ static int hf_auth_select_client = -1;
 static int hf_ticket_server = -1;
 static int hf_main_cap_semi_migrate = -1;
 static int hf_main_cap_vm_name_uuid = -1;
+static int hf_main_cap_agent_connected_tokens = -1;
+static int hf_main_cap_seamless_migrate = -1;
 static int hf_inputs_cap = -1;
 static int hf_cursor_cap = -1;
-static int hf_common_cap_byte1 = -1;
 static int hf_common_cap_auth_select = -1;
 static int hf_common_cap_auth_spice = -1;
 static int hf_common_cap_auth_sasl = -1;
@@ -1011,10 +1028,48 @@ static int hf_playback_cap_volume = -1;
 static int hf_record_cap_volume = -1;
 static int hf_record_cap_celt = -1;
 static int hf_display_cap_sized_stream = -1;
+static int hf_display_cap_monitors_config = -1;
+static int hf_display_cap_composite = -1;
+static int hf_display_cap_a8_surface = -1;
 static int hf_vm_uuid = -1;
 static int hf_vm_name = -1;
+static int hf_display_monitor_config_count = -1;
+static int hf_display_monitor_config_max_allowed = -1;
+static int hf_display_head_id = -1;
+static int hf_display_head_surface_id = -1;
+static int hf_display_head_width = -1;
+static int hf_display_head_height = -1;
+static int hf_display_head_x = -1;
+static int hf_display_head_y = -1;
+static int hf_display_head_flags = -1;
 
 static dissector_handle_t jpeg_handle;
+
+static guint32
+dissect_SpiceHead(tvbuff_t *tvb, proto_tree *tree, guint32 offset, const guint16 num)
+{
+    proto_item *ti;
+    proto_tree *SpiceHead_tree;
+
+    ti = proto_tree_add_text(tree, tvb, offset, sizeof_SpiceHead, "Display Head #%u", num);
+    SpiceHead_tree = proto_item_add_subtree(ti, ett_SpiceHead);
+    proto_tree_add_item(SpiceHead_tree, hf_display_head_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(SpiceHead_tree, hf_display_head_surface_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(SpiceHead_tree, hf_display_head_width, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(SpiceHead_tree, hf_display_head_height, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(SpiceHead_tree, hf_display_head_x, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(SpiceHead_tree, hf_display_head_y, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(SpiceHead_tree, hf_display_head_flags, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+    offset += 4;
+
+    return offset;
+}
 
 static guint32
 dissect_ID(tvbuff_t *tvb, proto_tree *tree, const guint32 offset)
@@ -1028,7 +1083,7 @@ dissect_ID(tvbuff_t *tvb, proto_tree *tree, const guint32 offset)
 static guint32
 dissect_Pixmap(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 {
-    proto_item *ti = NULL;
+    proto_item *ti;
     proto_tree *Pixmap_tree;
     guint32     PixmapSize;
     guint32     strides, height, pallete_ptr;
@@ -1065,14 +1120,15 @@ dissect_Pixmap(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 static guint8
 dissect_CursorHeader(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint16 *width, guint16 *height)
 {
-    proto_item   *ti   = NULL;
-    proto_tree   *CursorHeader_tree;
-    const guint8  type = tvb_get_guint8(tvb, offset + 8);
+    const guint8 type = tvb_get_guint8(tvb, offset + 8);
 
     *width  = tvb_get_letohs(tvb, offset + 8 + 1);
     *height = tvb_get_letohs(tvb, offset + 8 + 1 + 2);
 
     if (tree) {
+        proto_item *ti;
+        proto_tree *CursorHeader_tree;
+
         ti = proto_tree_add_text(tree, tvb, offset, sizeof_CursorHeader, "Cursor Header");
         CursorHeader_tree = proto_item_add_subtree(ti, ett_cursor_header);
         proto_tree_add_item(CursorHeader_tree, hf_cursor_unique,    tvb, offset, 8, ENC_LITTLE_ENDIAN);
@@ -1095,12 +1151,13 @@ dissect_CursorHeader(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint16 *w
 static guint32
 dissect_RedCursor(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 {
-    proto_item    *ti          = NULL;
+    proto_item    *ti;
     proto_tree    *RedCursor_tree;
     guint8         type;
     guint16        height, width;
-    guint32        init_offset = offset, data_size = 0;
+    guint32        init_offset = offset;
     const guint16  flags       = tvb_get_letohs(tvb, offset);
+    guint32        data_size   = 0;
 
     ti = proto_tree_add_text(tree, tvb, offset, 2, "RedCursor"); /* FIXME - fix size if flag is not NONE */
     RedCursor_tree = proto_item_add_subtree(ti, ett_RedCursor);
@@ -1116,7 +1173,7 @@ dissect_RedCursor(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
     offset += sizeof_CursorHeader;
 
 
-    if ((width == 0 || height == 0) || flags == SPICE_CURSOR_FLAGS_FROM_CACHE) {
+    if (((width == 0) || (height == 0)) || (flags == SPICE_CURSOR_FLAGS_FROM_CACHE)) {
         proto_item_set_len(ti, offset - init_offset);
         return (offset - init_offset);
     }
@@ -1154,11 +1211,12 @@ dissect_RedCursor(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 static guint8
 dissect_ImageDescriptor(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 {
-    proto_item   *ti   = NULL;
-    proto_tree   *ImageDescriptor_tree;
     const guint8  type = tvb_get_guint8(tvb, offset + 8);
 
     if (tree) {
+        proto_item *ti;
+        proto_tree *ImageDescriptor_tree;
+
         ti = proto_tree_add_text(tree, tvb, offset, sizeof_ImageDescriptor, "Image Descriptor");
         ImageDescriptor_tree = proto_item_add_subtree(ti, ett_imagedesc);
 
@@ -1179,11 +1237,12 @@ dissect_ImageDescriptor(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 static guint32
 dissect_ImageQuic(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 {
-    proto_item    *ti       = NULL;
-    proto_tree    *ImageQuic_tree;
     const guint32  QuicSize = tvb_get_letohl(tvb, offset);
 
     if (tree) {
+        proto_item *ti;
+        proto_tree *ImageQuic_tree;
+
         ti = proto_tree_add_text(tree, tvb, offset, QuicSize + 4, "QUIC Image");
         ImageQuic_tree = proto_item_add_subtree(ti, ett_imageQuic);
 
@@ -1281,7 +1340,7 @@ dissect_ImageLZ_common(tvbuff_t *tvb, proto_tree *tree, guint32 offset, const gb
 static guint32
 dissect_ImageLZ_JPEG(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 {
-    proto_item    *ti          = NULL;
+    proto_item    *ti;
     proto_tree    *LZ_JPEG_tree;
     const guint32  LZ_JPEGSize = tvb_get_letohl(tvb, offset);
 
@@ -1322,7 +1381,7 @@ dissect_ImageGLZ_RGB(tvbuff_t *tvb, proto_tree *tree, guint32 offset, const guin
 static guint32
 dissect_ImageLZ_RGB(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 {
-    proto_item    *ti         = NULL;
+    proto_item    *ti;
     proto_tree    *LZ_RGB_tree;
     const guint32  LZ_RGBSize = tvb_get_letohl(tvb, offset);
 
@@ -1339,7 +1398,7 @@ dissect_ImageLZ_RGB(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 static guint32
 dissect_ImageLZ_PLT(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 {
-    proto_item *ti = NULL;
+    proto_item *ti;
     proto_tree *LZ_PLT_tree;
     guint32     LZ_PLTSize, pal_size;
 
@@ -1385,7 +1444,7 @@ dissect_ImageLZ_PLT(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 static guint32
 dissect_ImageJPEG_Alpha(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset)
 {
-    proto_item *ti = NULL;
+    proto_item *ti;
     proto_tree *JPEG_tree;
     tvbuff_t   *jpeg_tvb;
     guint32     JPEG_Size, Data_Size;
@@ -1464,7 +1523,7 @@ dissect_ImageZLIB_GLZ(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint
     guint32     ZLIB_GLZSize, ZLIB_uncompSize;
 
     ZLIB_uncompSize = tvb_get_letohl(tvb, offset);
-    ZLIB_GLZSize = tvb_get_letohl(tvb, offset + 4); /* compressed size */
+    ZLIB_GLZSize    = tvb_get_letohl(tvb, offset + 4); /* compressed size */
     if (tree) {
         ti = proto_tree_add_text(tree, tvb, offset, ZLIB_GLZSize + 8, "ZLIB over GLZ Image");
         ZLIB_GLZ_tree = proto_item_add_subtree(ti, ett_ZLIB_GLZ);
@@ -1488,7 +1547,7 @@ dissect_Image(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offse
 
     offset += sizeof_ImageDescriptor;
 
-    switch(type) {
+    switch (type) {
         case IMAGE_TYPE_QUIC:
             ImageSize = dissect_ImageQuic(tvb, tree, offset);
             break;
@@ -1582,7 +1641,7 @@ dissect_RectList(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 
         proto_tree_add_item(rectlist_tree, hf_rectlist_size, tvb, offset, 4, ENC_LITTLE_ENDIAN);
         offset += 4;
-        for (i = 0; i != rectlist_size; i++ ) {
+        for (i = 0; i < rectlist_size; i++ ) {
             dissect_SpiceRect(tvb, rectlist_tree, offset, i);
             offset += sizeof_SpiceRect;
         }
@@ -1689,7 +1748,7 @@ dissect_Brush(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
     proto_tree   *brush_tree;
     const guint8  type = tvb_get_guint8(tvb, offset);
 
-    switch(type) {
+    switch (type) {
         case SPICE_BRUSH_TYPE_SOLID:
             ti = proto_tree_add_text(tree, tvb, offset, 5, "Brush - SOLID");
             brush_tree = proto_item_add_subtree(ti, ett_brush);
@@ -1841,7 +1900,7 @@ dissect_spice_common_client_messages(tvbuff_t *tvb, proto_tree *tree, const guin
     proto_item *ti=NULL;
     proto_tree *client_message_tree;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICEC_ACK_SYNC:
             ti = proto_tree_add_text(tree, tvb, offset, 4, "Client ACK_SYNC message");
             client_message_tree = proto_item_add_subtree(ti, ett_common_client_message);
@@ -1879,7 +1938,7 @@ dissect_spice_common_server_messages(tvbuff_t *tvb, proto_tree *tree, const guin
     proto_tree *server_message_tree;
     guint32     message_len, severity, visibility;
 
-    switch(message_type) {
+    switch (message_type) {
         /*
         case SPICE_MIGRATE:
         case SPICE_MIGRATE_DATA:
@@ -1944,7 +2003,7 @@ dissect_spice_record_client(tvbuff_t *tvb, proto_tree *tree, const guint16 messa
     proto_item *ti=NULL;
     proto_tree *record_tree;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICEC_RECORD_MODE:
             ti = proto_tree_add_text(tree, tvb, offset, 8, "Client RECORD_MODE message"); /* size is incorrect, fixed later */
             record_tree = proto_item_add_subtree(ti, ett_record_client);
@@ -1968,7 +2027,7 @@ dissect_spice_display_client(tvbuff_t *tvb, proto_tree *tree, const guint16 mess
     proto_item *ti=NULL;
     proto_tree *display_tree;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICEC_DISPLAY_INIT:
             ti = proto_tree_add_text(tree, tvb, offset, sizeof_RedcDisplayInit, "Client INIT message");
             display_tree = proto_item_add_subtree(ti, ett_display_client);
@@ -1994,11 +2053,11 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
 {
     guint32    data_size, displayBaseLen;
     guint8     clip_type;
-    guint16    glyphs;
+    guint16    glyphs, count, i;
     SpiceRect  r;
     tvbuff_t  *jpeg_tvb;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICE_DISPLAY_MODE:
             proto_tree_add_item(tree, hf_spice_display_mode_width, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
@@ -2241,6 +2300,18 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
             proto_tree_add_item(tree, hf_display_surface_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
             break;
+        case SPICE_DISPLAY_MONITORS_CONFIG:
+            proto_tree_add_item(tree, hf_display_monitor_config_count, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+            count = tvb_get_letohs(tvb, offset);
+            offset += 2;
+            proto_tree_add_item(tree, hf_display_monitor_config_max_allowed, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+            offset += 2;
+            for (i = 0; i < count; i++) {
+                offset = dissect_SpiceHead(tvb, tree, offset, i);
+            }
+            break;
+        case SPICE_DISPLAY_DRAW_COMPOSITE:
+            break;
         default:
             proto_tree_add_text(tree, tvb, offset, 0, "Unknown display server message - cannot dissect");
             break;
@@ -2251,9 +2322,9 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
 static guint32
 dissect_spice_playback_server(tvbuff_t *tvb, proto_tree *tree, const guint16 message_type, guint32 message_size, spice_conversation_t *spice_info, guint32 offset)
 {
-    guint8 num_channels, mute;
+    guint8 num_channels, mute, i;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICE_PLAYBACK_DATA:
             proto_tree_add_item(tree, hf_playback_record_mode_timstamp, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
@@ -2290,7 +2361,10 @@ dissect_spice_playback_server(tvbuff_t *tvb, proto_tree *tree, const guint16 mes
             num_channels = tvb_get_guint8(tvb, offset);
             proto_tree_add_text(tree, tvb, offset, 1, "Number of channels: %u", num_channels);
             offset += 1;
-            /* TODO: iterate over all channels and parse volume */
+            for (i = 0; i < num_channels; i++) {
+                proto_tree_add_text(tree, tvb, offset, 2, "Channel %u volume: %u", i, tvb_get_letohs(tvb, offset));
+                offset += 2;
+            }
             break;
         case SPICE_PLAYBACK_MUTE:
             proto_tree_add_text(tree, tvb, offset, 1, "PLAYBACK_MUTE message");
@@ -2310,7 +2384,7 @@ dissect_spice_cursor_server(tvbuff_t *tvb, proto_tree *tree, const guint16 messa
 {
     guint32 RedCursorSize;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICE_CURSOR_INIT:
             dissect_POINT16(tvb, tree, offset);
             offset += sizeof(point16_t);
@@ -2367,7 +2441,7 @@ dissect_spice_record_server(tvbuff_t *tvb, proto_tree *tree, const guint16 messa
     proto_tree *record_tree;
     guint8 num_channels, mute;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICE_RECORD_STOP:
             proto_tree_add_text(tree, tvb, offset, 0, "RECORD_STOP message");
             break;
@@ -2467,7 +2541,7 @@ dissect_spice_main_server(tvbuff_t *tvb, proto_tree *tree, const guint16 message
     guint32 num_channels, i, agent_msg_type, agent_msg_len, name_len;
     guint8  channel_type;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICE_MAIN_INIT:
             proto_tree_add_item(tree, hf_session_id, tvb, offset, 4, ENC_BIG_ENDIAN);
             offset += 4;
@@ -2501,7 +2575,7 @@ dissect_spice_main_server(tvbuff_t *tvb, proto_tree *tree, const guint16 message
             num_channels = tvb_get_letohl(tvb, offset);
             proto_tree_add_text(tree, tvb, offset, 4, "Number of channels: %u", num_channels);
             offset += 4;
-            for (i = 1; i <= num_channels; i++ ) {
+            for (i = 0; i < num_channels; i++ ) {
                 channel_type = tvb_get_guint8(tvb, offset);
                 proto_tree_add_text(tree, tvb, offset, 1,
                                     "Type: %s [%d]", val_to_str_const(channel_type, channel_types_vs, "Unknown"), channel_type);
@@ -2553,7 +2627,7 @@ dissect_spice_main_client(tvbuff_t *tvb, proto_tree *tree, const guint16 message
     proto_tree *main_tree;
     guint32     agent_msg_type, agent_msg_len;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICEC_MAIN_MOUSE_MODE_REQUEST:
             /*ti = */proto_tree_add_text(tree, tvb, offset, 4, "Client MOUSE_MODE_REQUEST message");
             /* TODO: complete dissection - mouse_mode, 2 bytes
@@ -2601,7 +2675,7 @@ dissect_spice_inputs_client(tvbuff_t *tvb, proto_tree *tree, const guint16 messa
     proto_item *ti=NULL;
     proto_tree *inputs_tree;
 
-    switch(message_type) {
+    switch (message_type) {
         case SPICEC_INPUTS_KEY_DOWN:
             ti = proto_tree_add_text(tree, tvb, offset, 4, "Client KEY_DOWN message");
             inputs_tree = proto_item_add_subtree(ti, ett_inputs_client);
@@ -2664,7 +2738,7 @@ dissect_spice_inputs_client(tvbuff_t *tvb, proto_tree *tree, const guint16 messa
 static guint32
 dissect_spice_inputs_server(tvbuff_t *tvb, proto_tree *tree, const guint16 message_type, guint32 offset)
 {
-    switch(message_type) {
+    switch (message_type) {
         case SPICE_INPUTS_INIT:
             proto_tree_add_item(tree, hf_keyboard_bits, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset += 2;
@@ -2693,7 +2767,7 @@ dissect_spice_data_server_pdu(tvbuff_t *tvb, proto_tree *tree, packet_info *pinf
     guint32     header_size;
 
     if (spice_info->client_mini_header && spice_info->server_mini_header) {
-        header_size = sizeof_SpiceMiniDataHeader;
+        header_size  = sizeof_SpiceMiniDataHeader;
         message_type = tvb_get_letohs(tvb, offset);
         message_size = tvb_get_letohl(tvb, offset +2);
         msg_ti = proto_tree_add_text(tree, tvb, offset, 0,
@@ -2706,7 +2780,7 @@ dissect_spice_data_server_pdu(tvbuff_t *tvb, proto_tree *tree, packet_info *pinf
         dissect_spice_mini_data_header(tvb, data_header_tree, spice_info, FALSE, message_type, offset);
         proto_item_set_len(msg_ti, message_size + header_size);
     } else {
-        header_size = sizeof_SpiceDataHeader;
+        header_size  = sizeof_SpiceDataHeader;
         message_type = tvb_get_letohs(tvb, offset + 8);
         message_size = tvb_get_letohl(tvb, offset + 10);
         msg_ti = proto_tree_add_text(tree, tvb, offset, 0,
@@ -2719,7 +2793,7 @@ dissect_spice_data_server_pdu(tvbuff_t *tvb, proto_tree *tree, packet_info *pinf
         dissect_spice_data_header(tvb, data_header_tree, spice_info, FALSE, message_type, &sublist_size, offset);
     }
     proto_item_set_len(msg_ti, message_size + header_size);
-    offset += header_size;
+    offset    += header_size;
     old_offset = offset;
 
     col_append_str(pinfo->cinfo, COL_INFO, get_message_type_string(message_type, spice_info, FALSE));
@@ -2755,7 +2829,7 @@ dissect_spice_data_server_pdu(tvbuff_t *tvb, proto_tree *tree, packet_info *pinf
             proto_tree_add_text(message_tree, tvb, offset, 0, "Unknown server PDU - cannot dissect");
     }
 
-    if((offset - old_offset) != message_size) {
+    if ((offset - old_offset) != message_size) {
         g_warning("dissect_spice_data_server_pdu() - FIXME:message type %s (%u) in packet %d was not fully dissected"
                   " - dissected %d (offset %d [0x%x]), total message size: %d.\r\n",
                   get_message_type_string(message_type, spice_info, FALSE),
@@ -2834,15 +2908,13 @@ dissect_spice_link_common_header(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-dissect_spice_common_capabilities(tvbuff_t *tvb, proto_tree *tree, guint32 offset, const int caps_len, spice_conversation_t *spice_info, gboolean is_client)
+dissect_spice_common_capabilities(tvbuff_t *tvb, proto_tree *tree, guint32 offset, const guint caps_len, spice_conversation_t *spice_info, gboolean is_client)
 {
 /* TODO: save common and per-channel capabilities in spice_info ? */
-    int         i;
-    guint32     val;
-    proto_item *ti = NULL;
-    proto_tree *auth_tree;
+    guint   i;
+    guint32 val;
 
-    for(i = 0; i != caps_len ; i++) {
+    for(i = 0; i < caps_len; i++) {
         val = tvb_get_letohl(tvb, offset);
         switch (i) {
             case 0:
@@ -2851,11 +2923,9 @@ dissect_spice_common_capabilities(tvbuff_t *tvb, proto_tree *tree, guint32 offse
                 } else {
                     spice_info->server_auth = val;
                 }
-                ti = proto_tree_add_item(tree, hf_common_cap_byte1, tvb, offset, 4, ENC_NA);
-                auth_tree = proto_item_add_subtree(ti, ett_auth_tree);
-                proto_tree_add_boolean(auth_tree, hf_common_cap_auth_select, tvb, offset, 4, val);
-                proto_tree_add_boolean(auth_tree, hf_common_cap_auth_spice, tvb, offset, 4, val);
-                proto_tree_add_boolean(auth_tree, hf_common_cap_auth_sasl, tvb, offset, 4, val);
+                proto_tree_add_boolean(tree, hf_common_cap_auth_select, tvb, offset, 4, val);
+                proto_tree_add_boolean(tree, hf_common_cap_auth_spice,  tvb, offset, 4, val);
+                proto_tree_add_boolean(tree, hf_common_cap_auth_sasl,   tvb, offset, 4, val);
 
                 proto_tree_add_boolean(tree, hf_common_cap_mini_header, tvb, offset, 4, val);
                 if (val & SPICE_COMMON_CAP_MINI_HEADER_MASK) {
@@ -2876,24 +2946,20 @@ dissect_spice_common_capabilities(tvbuff_t *tvb, proto_tree *tree, guint32 offse
 }
 
 static void
-dissect_spice_link_capabilities(tvbuff_t *tvb, proto_tree *tree, guint32 offset, const int caps_len, const spice_conversation_t *spice_info)
+dissect_spice_link_capabilities(tvbuff_t *tvb, proto_tree *tree, guint32 offset, const guint caps_len, const spice_conversation_t *spice_info)
 {
 /* TODO: save common and per-channel capabilities in spice_info ? */
-    int         i;
-    guint32     val;
-    proto_item *ti = NULL;
-    proto_tree *cap_tree;
+    guint   i;
+    guint32 val;
 
-    for(i = 0; i != caps_len ; i++) {
+    for(i = 0; i < caps_len; i++) {
         val = tvb_get_letohl(tvb, offset);
         switch (spice_info->channel_type) {
             case SPICE_CHANNEL_PLAYBACK:
                 switch (i) {
                     case 0:
-                        ti = proto_tree_add_item(tree, hf_common_cap_byte1, tvb, offset, 4, ENC_NA);
-                        cap_tree = proto_item_add_subtree(ti, ett_cap_tree);
-                        proto_tree_add_boolean(cap_tree, hf_playback_cap_celt, tvb, offset, 4, val);
-                        proto_tree_add_boolean(cap_tree, hf_playback_cap_volume, tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_playback_cap_celt,   tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_playback_cap_volume, tvb, offset, 4, val);
                         break;
                     default:
                         break;
@@ -2902,10 +2968,10 @@ dissect_spice_link_capabilities(tvbuff_t *tvb, proto_tree *tree, guint32 offset,
             case SPICE_CHANNEL_MAIN:
                 switch (i) {
                     case 0:
-                        ti = proto_tree_add_item(tree, hf_common_cap_byte1, tvb, offset, 4, ENC_NA);
-                        cap_tree = proto_item_add_subtree(ti, ett_cap_tree);
-                        proto_tree_add_boolean(cap_tree, hf_main_cap_semi_migrate, tvb, offset, 4, val);
-                        proto_tree_add_boolean(cap_tree, hf_main_cap_vm_name_uuid, tvb, offset, 4, val); /*Note: only relevant for client. TODO: dissect only for client */
+                        proto_tree_add_boolean(tree, hf_main_cap_semi_migrate, tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_main_cap_vm_name_uuid, tvb, offset, 4, val); /*Note: only relevant for client. TODO: dissect only for client */
+                        proto_tree_add_boolean(tree, hf_main_cap_agent_connected_tokens, tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_main_cap_seamless_migrate,       tvb, offset, 4 ,val);
                         break;
                     default:
                         break;
@@ -2914,9 +2980,10 @@ dissect_spice_link_capabilities(tvbuff_t *tvb, proto_tree *tree, guint32 offset,
             case SPICE_CHANNEL_DISPLAY:
                 switch (i) {
                     case 0:
-                        ti = proto_tree_add_item(tree, hf_common_cap_byte1, tvb, offset, 4, ENC_NA);
-                        cap_tree = proto_item_add_subtree(ti, ett_cap_tree);
-                        proto_tree_add_boolean(cap_tree, hf_display_cap_sized_stream, tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_display_cap_sized_stream,    tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_display_cap_monitors_config, tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_display_cap_composite,       tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_display_cap_a8_surface,      tvb, offset, 4, val);
                         break;
                     default:
                         break;
@@ -2931,10 +2998,8 @@ dissect_spice_link_capabilities(tvbuff_t *tvb, proto_tree *tree, guint32 offset,
             case SPICE_CHANNEL_RECORD:
                 switch (i) {
                     case 0:
-                        ti = proto_tree_add_item(tree, hf_common_cap_byte1, tvb, offset, 4, ENC_NA);
-                        cap_tree = proto_item_add_subtree(ti, ett_cap_tree);
-                        proto_tree_add_boolean(cap_tree, hf_record_cap_celt, tvb, offset, 4, val);
-                        proto_tree_add_boolean(cap_tree, hf_record_cap_volume, tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_record_cap_celt, tvb, offset, 4, val);
+                        proto_tree_add_boolean(tree, hf_record_cap_volume, tvb, offset, 4, val);
                         break;
                     default:
                         break;
@@ -2968,7 +3033,7 @@ dissect_spice_link_client_pdu(tvbuff_t *tvb, proto_tree *tree, spice_conversatio
     if (spice_info->channel_type == SPICE_CHANNEL_NONE) {
         spice_info->channel_type = tvb_get_guint8(tvb, offset + 4);
     }
-    common_caps_len = tvb_get_letohl(tvb, offset + 6);
+    common_caps_len  = tvb_get_letohl(tvb, offset + 6);
     channel_caps_len = tvb_get_letohl(tvb, offset + 10);
     proto_tree_add_item(tree, hf_conn_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
     offset += 4;
@@ -3013,7 +3078,7 @@ dissect_spice_link_server_pdu(tvbuff_t *tvb, proto_tree *tree, spice_conversatio
         ti = proto_tree_add_item(tree, hf_link_server, tvb, 0, sizeof_SpiceLinkHeader, ENC_NA);
         link_tree = proto_item_add_subtree(ti, ett_link_server);
 
-         dissect_spice_link_common_header(tvb, link_tree);
+        dissect_spice_link_common_header(tvb, link_tree);
     }
 
     offset = sizeof_SpiceLinkHeader;
@@ -3027,7 +3092,7 @@ dissect_spice_link_server_pdu(tvbuff_t *tvb, proto_tree *tree, spice_conversatio
         proto_tree_add_item(tree, hf_caps_offset, tvb, offset + 12 + SPICE_TICKET_PUBKEY_BYTES, 4, ENC_LITTLE_ENDIAN);
     }
 
-    common_caps_len = tvb_get_letohl(tvb, offset + 4 + SPICE_TICKET_PUBKEY_BYTES);
+    common_caps_len  = tvb_get_letohl(tvb, offset + 4 + SPICE_TICKET_PUBKEY_BYTES);
     channel_caps_len = tvb_get_letohl(tvb, offset + 8 + SPICE_TICKET_PUBKEY_BYTES);
     offset += sizeof_SpiceLinkHeader + SPICE_TICKET_PUBKEY_BYTES;
 
@@ -3068,14 +3133,14 @@ dissect_spice(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
     conversation = find_or_create_conversation(pinfo);
 
     spice_info = (spice_conversation_t*)conversation_get_proto_data(conversation, proto_spice);
-    if(!spice_info) {
+    if (!spice_info) {
         spice_info = se_alloc0(sizeof(spice_conversation_t));
-        spice_info->destport = pinfo->destport;
-        spice_info->channel_type = SPICE_CHANNEL_NONE;
-        spice_info->next_state = SPICE_LINK_CLIENT;
-        spice_info->client_auth = 0;
-        spice_info->server_auth = 0;
-        spice_info->playback_mode = SPICE_AUDIO_DATA_MODE_INVALID;
+        spice_info->destport           = pinfo->destport;
+        spice_info->channel_type       = SPICE_CHANNEL_NONE;
+        spice_info->next_state         = SPICE_LINK_CLIENT;
+        spice_info->client_auth        = 0;
+        spice_info->server_auth        = 0;
+        spice_info->playback_mode      = SPICE_AUDIO_DATA_MODE_INVALID;
         spice_info->client_mini_header = FALSE;
         spice_info->server_mini_header = FALSE;
         conversation_add_proto_data(conversation, proto_spice, spice_info);
@@ -3083,18 +3148,19 @@ dissect_spice(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
     }
 
     per_packet_info = p_get_proto_data(pinfo->fd, proto_spice);
-    if(!per_packet_info) {
+    if (!per_packet_info) {
         per_packet_info = se_alloc(sizeof(spice_packet_t));
         per_packet_info->state = spice_info->next_state;
         p_add_proto_data(pinfo->fd, proto_spice, per_packet_info);
     }
 
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "Spice");
     col_clear(pinfo->cinfo, COL_INFO);
     first_record_in_frame = TRUE;
 
     switch (per_packet_info->state) {
         case SPICE_LINK_CLIENT:
-            avail = tvb_reported_length(tvb);
+            avail   = tvb_reported_length(tvb);
             pdu_len = sizeof_SpiceLinkHeader;
             GET_PDU_FROM_OFFSET(0)
             pdu_len = tvb_get_letohl(tvb, 12) + sizeof_SpiceLinkHeader;
@@ -3150,7 +3216,7 @@ dissect_spice(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
                 proto_tree_add_item(spice_tree, hf_auth_select_client, tvb, 0, 4, ENC_LITTLE_ENDIAN);
             }
             spice_info->auth_selected = tvb_get_letohl(tvb, 0);
-            switch(spice_info->auth_selected) {
+            switch (spice_info->auth_selected) {
                 case SPICE_COMMON_CAP_AUTH_SPICE:
                     spice_info->next_state = SPICE_TICKET_CLIENT;
                     break;
@@ -3169,7 +3235,7 @@ dissect_spice(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
             pdu_len = 4;
             GET_PDU_FROM_OFFSET(offset)
             pdu_len = tvb_get_letohl(tvb, offset); /* the length of the following messages */
-            if (tree && spice_tree == NULL) {
+            if (tree && (spice_tree == NULL)) {
                 ti = proto_tree_add_item(tree, proto_spice, tvb, offset, 4, ENC_NA);
                 spice_tree = proto_item_add_subtree(ti, ett_spice);
             }
@@ -3454,7 +3520,7 @@ static gboolean
 test_spice_protocol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
 
-    if (tvb_reported_length(tvb) >= 4 && tvb_get_ntohl(tvb, 0) == SPICE_MAGIC) {
+    if ((tvb_reported_length(tvb) >= 4) && (tvb_get_ntohl(tvb, 0) == SPICE_MAGIC)) {
         dissect_spice(tvb, pinfo, tree, NULL);
         return TRUE;
     }
@@ -3567,24 +3633,19 @@ proto_register_spice(void)
             FT_UINT32, BASE_DEC, VALS(spice_auth_select_vs), 0x0,
             NULL, HFILL }
         },
-        { &hf_common_cap_byte1,
-          { "Capabilitities", "spice.common_cap_byte1",
-            FT_NONE, BASE_NONE, 0, 0,
-            NULL, HFILL }
-        },
         { &hf_common_cap_auth_select,
           { "Auth Selection", "spice.common_cap_auth_select",
-            FT_BOOLEAN, 3, TFS(&tfs_set_notset), SPICE_COMMON_CAP_PROTOCOL_AUTH_SELECTION_MASK,
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_COMMON_CAP_PROTOCOL_AUTH_SELECTION_MASK,
             NULL, HFILL }
         },
         { &hf_common_cap_auth_spice,
           { "Auth Spice", "spice.common_cap_auth_spice",
-            FT_BOOLEAN, 3, TFS(&tfs_set_notset), SPICE_COMMON_CAP_AUTH_SPICE_MASK,
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_COMMON_CAP_AUTH_SPICE_MASK,
             NULL, HFILL }
         },
         { &hf_common_cap_auth_sasl,
           { "Auth SASL", "spice.common_cap_auth_sasl",
-            FT_BOOLEAN, 3, TFS(&tfs_set_notset), SPICE_COMMON_CAP_AUTH_SASL_MASK,
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_COMMON_CAP_AUTH_SASL_MASK,
             NULL, HFILL }
         },
         { &hf_common_cap_mini_header,
@@ -3614,7 +3675,22 @@ proto_register_spice(void)
         },
         { &hf_display_cap_sized_stream,
           { "Sized stream display channel support", "spice.display_cap_sized_stream",
-            FT_BOOLEAN, 3, TFS(&tfs_set_notset), SPICE_DISPLAY_CAP_SIZED_STREAM_MASK,
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_DISPLAY_CAP_SIZED_STREAM_MASK,
+            NULL, HFILL }
+        },
+        { &hf_display_cap_monitors_config,
+          { "Monitors configuration display channel support", "spice.display_cap_monitors_config",
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_DISPLAY_CAP_MONITORS_CONFIG_MASK,
+            NULL, HFILL }
+        },
+        { &hf_display_cap_composite,
+          { "Composite capability display channel support", "spice.display_cap_composite",
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_DISPLAY_CAP_COMPOSITE_MASK,
+            NULL, HFILL }
+        },
+        { &hf_display_cap_a8_surface,
+          { "A8 bitmap display channel support", "spice.display_cap_a8_surface",
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_DISPLAY_CAP_A8_SURFACE_MASK,
             NULL, HFILL }
         },
         { &hf_cursor_cap,
@@ -3629,12 +3705,22 @@ proto_register_spice(void)
         },
         { &hf_main_cap_semi_migrate,
           { "Semi-seamless migratation capability", "spice.main_cap_semi_migrate",
-            FT_BOOLEAN, 3, TFS(&tfs_set_notset), SPICE_MAIN_CAP_SEMI_SEAMLESS_MIGRATE_MASK,
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_MAIN_CAP_SEMI_SEAMLESS_MIGRATE_MASK,
             NULL, HFILL }
         },
         { &hf_main_cap_vm_name_uuid,
           { "VM name and UUID messages capability", "spice.main_cap_vm_name_uuid",
-            FT_BOOLEAN, 3, TFS(&tfs_set_notset), SPICE_MAIN_CAP_VM_NAME_UUID_MASK,
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_MAIN_CAP_VM_NAME_UUID_MASK,
+            NULL, HFILL }
+        },
+        { &hf_main_cap_agent_connected_tokens,
+          { "Agent connected tokens capability", "spice.main_cap_agent_connected_tokens",
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_MAIN_CAP_AGENT_CONNECTED_TOKENS_MASK,
+            NULL, HFILL }
+        },
+        { &hf_main_cap_seamless_migrate,
+          { "Seamless migration capability", "spice.main_cap_seamless_migrate",
+            FT_BOOLEAN, 4, TFS(&tfs_set_notset), SPICE_MAIN_CAP_SEAMLESS_MIGRATE_MASK,
             NULL, HFILL }
         },
         { &hf_playback_record_mode_timstamp,
@@ -3982,6 +4068,16 @@ proto_register_spice(void)
             FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL }
         },
+        { &hf_display_monitor_config_count,
+          { "Monitor count", "spice.monitor_config_count",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_display_monitor_config_max_allowed,
+          { "Max.allowed monitors", "spice.monitor_config_max_allowed",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
         { &hf_display_stream_id,
           { "Stream ID", "spice.display_stream_id",
             FT_UINT32, BASE_DEC, NULL, 0x0,
@@ -4116,6 +4212,41 @@ proto_register_spice(void)
           { "VM Name", "spice.vm_name",
             FT_STRINGZ, BASE_NONE, NULL, 0x0,
             NULL, HFILL }
+        },
+        { &hf_display_head_id,
+          { "Head ID", "spice.display_head_id",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_display_head_surface_id,
+          { "Head surface ID", "spice.display_head_surface_id",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_display_head_width,
+          { "Head width", "spice.display_head_width",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_display_head_height,
+          { "Head height", "spice.display_head_height",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_display_head_x,
+          { "Head X coordinate", "spice.display_head_x",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_display_head_y,
+          { "Head Y coordinate", "spice.display_head_y",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_display_head_flags,
+          { "Head flags", "spice.display_head_flags",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
         }
     };
 
@@ -4157,6 +4288,7 @@ proto_register_spice(void)
         &ett_brush,
         &ett_pattern,
         &ett_Pixmap,
+        &ett_SpiceHead,
         &ett_inputs_client,
         &ett_rectlist,
         &ett_inputs_server,
@@ -4164,7 +4296,6 @@ proto_register_spice(void)
         &ett_record_server,
         &ett_main_client,
         &ett_spice_agent,
-        &ett_auth_tree,
         &ett_cap_tree
     };
 
@@ -4184,7 +4315,7 @@ proto_reg_handoff_spice(void)
     spice_handle = new_create_dissector_handle(dissect_spice, proto_spice);
     dissector_add_handle("tcp.port", spice_handle);   /* for "decode as" */
     heur_dissector_add("tcp", test_spice_protocol, proto_spice);
-    jpeg_handle = find_dissector("image-jfif");
+    jpeg_handle  = find_dissector("image-jfif");
 }
 
 /*

@@ -27,14 +27,7 @@
 #include <QFrame>
 #include <QListWidget>
 
-//class MWOverlay : public QWidget
-//{
-//public:
-//    MWOverlay(QWidget *parent);
-
-//protected:
-//    void paintEvent(QPaintEvent *event);
-//};
+#include "splash_overlay.h"
 
 namespace Ui {
     class MainWelcome;
@@ -47,12 +40,14 @@ public:
     explicit MainWelcome(QWidget *parent = 0);
 
 protected:
-//    void resizeEvent(QResizeEvent *event);
+    void resizeEvent(QResizeEvent *event);
 
 private:
+    Ui::MainWelcome *welcome_ui_;
+
+    SplashOverlay *splash_overlay_;
     // QListWidget doesn't activate items when the return or enter keys are pressed on OS X.
     // We may want to subclass it at some point.
-    Ui::MainWelcome *welcome_ui_;
     QListWidget *task_list_;
     QListWidget *recent_files_;
 //    MWOverlay *overlay;
@@ -62,6 +57,7 @@ signals:
     void recentFileActivated(QString& cfile);
 
 private slots:
+    void destroySplashOverlay();
     void showTask();
     void updateRecentFiles();
     void openRecentItem(QListWidgetItem *item);

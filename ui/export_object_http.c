@@ -4,7 +4,7 @@
  * Copyright 2007, Stephen Fisher (see AUTHORS file)
  *
  * $Id$
- * 
+ *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,46 +28,51 @@
 #include "config.h"
 
 #include <glib.h>
-#include <gtk/gtk.h>
 
 #include <epan/dissectors/packet-http.h>
 #include <epan/tap.h>
 
-#include "ui/gtk/export_object.h"
+#include "export_object.h"
 
 
-static int
+gboolean
 eo_http_packet(void *tapdata, packet_info *pinfo, epan_dissect_t *edt _U_,
-	       const void *data)
+           const void *data)
 {
-	export_object_list_t *object_list = tapdata;
-	const http_eo_t *eo_info = data;
-	export_object_entry_t *entry;
+    export_object_list_t *object_list = tapdata;
+    const http_eo_t *eo_info = data;
+    export_object_entry_t *entry;
 
-	if(eo_info) { /* We have data waiting for us */
-		/* These values will be freed when the Export Object window
-		 * is closed. */
-		entry = g_malloc(sizeof(export_object_entry_t));
+    if(eo_info) { /* We have data waiting for us */
+        /* These values will be freed when the Export Object window
+         * is closed. */
+        entry = g_malloc(sizeof(export_object_entry_t));
 
-		entry->pkt_num = pinfo->fd->num;
-		entry->hostname = g_strdup(eo_info->hostname);
-		entry->content_type = g_strdup(eo_info->content_type);
-		entry->filename = g_strdup(g_path_get_basename(eo_info->filename));
-		entry->payload_len = eo_info->payload_len;
-		entry->payload_data = g_memdup(eo_info->payload_data,
-					       eo_info->payload_len);
+        entry->pkt_num = pinfo->fd->num;
+        entry->hostname = g_strdup(eo_info->hostname);
+        entry->content_type = g_strdup(eo_info->content_type);
+        entry->filename = g_strdup(g_path_get_basename(eo_info->filename));
+        entry->payload_len = eo_info->payload_len;
+        entry->payload_data = g_memdup(eo_info->payload_data,
+                           eo_info->payload_len);
 
-		object_list->entries =
-			g_slist_append(object_list->entries, entry);
+        object_list_add_entry(object_list, entry);
 
-		return 1; /* State changed - window should be redrawn */
-	} else {
-		return 0; /* State unchanged - no window updates needed */
-	}
+        return TRUE; /* State changed - window should be redrawn */
+    } else {
+        return FALSE; /* State unchanged - no window updates needed */
+    }
 }
 
-void
-eo_http_cb(GtkWidget *widget _U_, gpointer data _U_)
-{
-	export_object_window("http_eo", "HTTP", eo_http_packet, NULL);
-}
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

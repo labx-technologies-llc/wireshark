@@ -36,6 +36,8 @@ extern "C" {
  */
 
 typedef enum {
+    TOPIC_ACTION_NONE,
+
     /* pages online at www.wireshark.org */
     ONLINEPAGE_HOME,
     ONLINEPAGE_WIKI,
@@ -146,8 +148,27 @@ gchar *user_guide_url(const gchar *page);
  */
 gchar *topic_action_url(topic_action_e action);
 
+/** Open a specific topic (create a "Help" dialog box or open a webpage).
+ *
+ * @param topic the topic to display
+ */
+void topic_action(topic_action_e topic);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif /* __HELP_URL_H__ */
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

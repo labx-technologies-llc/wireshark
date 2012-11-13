@@ -45,12 +45,12 @@
 
 #include <epan/filesystem.h>
 
-#include "../cfile.h"
-#include "../globals.h"
-#include "../print.h"
-#include "../color_filters.h"
-#include "../stat_menu.h"
-#include "../u3.h"
+#include "cfile.h"
+#include "globals.h"
+#include "print.h"
+#include "color_filters.h"
+#include "stat_menu.h"
+#include "u3.h"
 
 #include "ui/iface_lists.h"
 #include "ui/main_statusbar.h"
@@ -63,6 +63,7 @@
 #include "ui/gtk/capture_dlg.h"
 #include "ui/gtk/capture_if_dlg.h"
 #include "ui/gtk/color_dlg.h"
+#include "ui/gtk/export_object_dlg.h"
 #include "ui/gtk/filter_dlg.h"
 #include "ui/gtk/profile_dlg.h"
 #include "ui/gtk/dlg_utils.h"
@@ -92,7 +93,6 @@
 #include "ui/gtk/sctp_stat.h"
 #include "ui/gtk/firewall_dlg.h"
 #include "ui/gtk/macros_dlg.h"
-#include "ui/gtk/export_object.h"
 #include "epan/dissectors/packet-ssl-utils.h"
 #include "ui/gtk/export_sslkeys.h"
 #include "ui/gtk/gui_stat_menu.h"
@@ -121,7 +121,7 @@
 #endif
 
 #ifdef HAVE_GTKOSXAPPLICATION
-#include <igemacintegration/gtkosxapplication.h>
+#include <gtkmacintegration/gtkosxapplication.h>
 #endif
 
 static int initialize = TRUE;
@@ -155,6 +155,8 @@ static void set_menu_visible(GtkUIManager *ui_manager, const gchar *path, gint v
 static void menu_name_resolution_update_cb(GtkAction *action, gpointer data);
 static void name_resolution_cb(GtkWidget *w, gpointer d, gboolean* res_flag);
 static void colorize_cb(GtkWidget *w, gpointer d);
+static void rebuild_protocol_prefs_menu (module_t *prefs_module_p, gboolean preferences,
+        GtkUIManager *ui_menu, char *path);
 
 
 /*  As a general GUI guideline, we try to follow the Gnome Human Interface Guidelines, which can be found at:
@@ -491,7 +493,7 @@ copy_value_cb(GtkAction *action _U_, gpointer user_data)
 static void
 copy_as_filter_cb(GtkAction *action _U_, gpointer user_data _U_)
 {
-	/* match_selected_ptree_cb needs the popup_menu_object to get the right object E_DFILTER_TE_KEY */
+    /* match_selected_ptree_cb needs the popup_menu_object to get the right object E_DFILTER_TE_KEY */
     match_selected_ptree_cb( popup_menu_object, MATCH_SELECTED_REPLACE|MATCH_SELECTED_COPY_ONLY);
 }
 
@@ -543,12 +545,12 @@ wireless_toolbar_show_hide_cb(GtkAction *action _U_, gpointer user_data _U_)
 {
     GtkWidget *widget = gtk_ui_manager_get_widget(ui_manager_main_menubar, "/Menubar/ViewMenu/WirelessToolbar");
 
-	if(widget){
-		recent.wireless_toolbar_show = gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(widget));
-	}else{
-		recent.wireless_toolbar_show = FALSE;
-	}
-	main_widgets_show_or_hide();
+    if(widget) {
+        recent.wireless_toolbar_show = gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(widget));
+    } else {
+        recent.wireless_toolbar_show = FALSE;
+    }
+    main_widgets_show_or_hide();
 }
 
 static void
@@ -1903,171 +1905,171 @@ packet_list_menu_set_ref_time_cb(GtkAction *action _U_, gpointer user_data)
 static void
 apply_selected_filter_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
-	/*g_warning("Accelerator path %s",path+9);*/
+    const gchar *path = gtk_action_get_accel_path(action);
+    /*g_warning("Accelerator path %s",path+9);*/
 
-	/* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
+    /* path starts with "<Actions>" */
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
         match_selected_plist_cb(user_data, MATCH_SELECTED_REPLACE|MATCH_SELECTED_APPLY_NOW);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_REPLACE|MATCH_SELECTED_APPLY_NOW);
-	}
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_REPLACE|MATCH_SELECTED_APPLY_NOW);
+    }
 }
 
 static void
 apply_not_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
         match_selected_plist_cb(user_data, MATCH_SELECTED_NOT|MATCH_SELECTED_APPLY_NOW);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_OR_NOT|MATCH_SELECTED_APPLY_NOW);
-	}
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_OR_NOT|MATCH_SELECTED_APPLY_NOW);
+    }
 }
 
 static void
 apply_and_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
         match_selected_plist_cb(user_data, MATCH_SELECTED_AND|MATCH_SELECTED_APPLY_NOW);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_AND|MATCH_SELECTED_APPLY_NOW);
-	}
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_AND|MATCH_SELECTED_APPLY_NOW);
+    }
 }
 
 static void
 apply_or_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
         match_selected_plist_cb(user_data, MATCH_SELECTED_OR|MATCH_SELECTED_APPLY_NOW);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_OR|MATCH_SELECTED_APPLY_NOW);
-	}
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_OR|MATCH_SELECTED_APPLY_NOW);
+    }
 }
 
 static void
 apply_and_not_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
         match_selected_plist_cb(user_data, MATCH_SELECTED_AND_NOT|MATCH_SELECTED_APPLY_NOW);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_AND_NOT|MATCH_SELECTED_APPLY_NOW);
-	}
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_AND_NOT|MATCH_SELECTED_APPLY_NOW);
+    }
 }
 
 static void
 apply_or_not_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
         match_selected_plist_cb(user_data,MATCH_SELECTED_OR_NOT|MATCH_SELECTED_APPLY_NOW);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_OR_NOT|MATCH_SELECTED_APPLY_NOW);
-	}
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_OR_NOT|MATCH_SELECTED_APPLY_NOW);
+    }
 }
 
 /* Prepare a filter */
 static void
 prepare_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
-         match_selected_plist_cb(user_data, MATCH_SELECTED_REPLACE);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_REPLACE);
-	}
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
+        match_selected_plist_cb(user_data, MATCH_SELECTED_REPLACE);
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_REPLACE);
+    }
 }
 
 static void
 prepare_not_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
-         match_selected_plist_cb(user_data, MATCH_SELECTED_NOT);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_NOT);
-	}
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
+        match_selected_plist_cb(user_data, MATCH_SELECTED_NOT);
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_NOT);
+    }
 }
 
 static void
 prepare_and_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
-         match_selected_plist_cb(user_data, MATCH_SELECTED_AND);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_AND);
-	}
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
+        match_selected_plist_cb(user_data, MATCH_SELECTED_AND);
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_AND);
+    }
 }
 
 static void
 prepare_or_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
-         match_selected_plist_cb(user_data, MATCH_SELECTED_OR);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_OR);
-	}
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
+        match_selected_plist_cb(user_data, MATCH_SELECTED_OR);
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_OR);
+    }
 }
 
 static void
 prepare_and_not_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
-         match_selected_plist_cb(user_data, MATCH_SELECTED_AND_NOT);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_AND_NOT);
-	}
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
+        match_selected_plist_cb(user_data, MATCH_SELECTED_AND_NOT);
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_AND_NOT);
+    }
 }
 
 static void
 prepare_or_not_selected_cb(GtkAction *action, gpointer user_data)
 {
-	const gchar *path = gtk_action_get_accel_path(action);
+    const gchar *path = gtk_action_get_accel_path(action);
 
     /* path starts with "<Actions>" */
-	if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
-		/* Use different callbacks depending action path */
-         match_selected_plist_cb(user_data, MATCH_SELECTED_OR_NOT);
-	} else {
-		match_selected_ptree_cb(user_data, MATCH_SELECTED_OR_NOT);
-	}
+    if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
+        /* Use different callbacks depending action path */
+        match_selected_plist_cb(user_data, MATCH_SELECTED_OR_NOT);
+    } else {
+        match_selected_ptree_cb(user_data, MATCH_SELECTED_OR_NOT);
+    }
 }
 
 static void
@@ -2578,7 +2580,7 @@ tree_view_menu_copy_value(GtkAction *action _U_, gpointer user_data)
 static void
 tree_view_menu_copy_as_flt(GtkAction *action _U_, gpointer user_data _U_)
 {
-	/* match_selected_ptree_cb needs the popup_menu_object to get the right object E_DFILTER_TE_KEY */
+    /* match_selected_ptree_cb needs the popup_menu_object to get the right object E_DFILTER_TE_KEY */
     match_selected_ptree_cb( popup_menu_object, MATCH_SELECTED_REPLACE|MATCH_SELECTED_COPY_ONLY);
 }
 
@@ -2753,6 +2755,7 @@ static const char *ui_desc_packet_list_menu_popup =
 "        </menu>\n"
 "     </menu>\n"
 "     <separator/>\n"
+"     <menuitem name='ProtocolPreferences' action='/ProtocolPreferences'/>\n"
 "     <menuitem name='DecodeAs' action='/DecodeAs'/>\n"
 "     <menuitem name='Print' action='/Print'/>\n"
 "     <menuitem name='ShowPacketinNewWindow' action='/ShowPacketinNewWindow'/>\n"
@@ -2889,6 +2892,7 @@ static const GtkActionEntry packet_list_menu_popup_action_entries[] = {
   { "/Copy/Bytes/HexStream",                        NULL,       "Hex Stream",                           NULL, NULL, G_CALLBACK(packet_list_menu_copy_bytes_hex_strm_cb) },
   { "/Copy/Bytes/BinaryStream",                     NULL,       "Binary Stream",                        NULL, NULL, G_CALLBACK(packet_list_menu_copy_bytes_bin_strm_cb) },
 
+  { "/ProtocolPreferences",                         NULL,       "Protocol Preferences",                 NULL, NULL, NULL },
   { "/DecodeAs",                                    WIRESHARK_STOCK_DECODE_AS,  "Decode As...",         NULL, NULL, G_CALLBACK(decode_as_cb) },
   { "/Print",                                       GTK_STOCK_PRINT,            "Print...",             NULL, NULL, G_CALLBACK(file_print_selected_cmd_cb) },
   { "/ShowPacketinNewWindow",                       NULL,           "Show Packet in New Window",        NULL, NULL, G_CALLBACK(new_window_cb) },
@@ -3064,7 +3068,7 @@ main_menu_new(GtkAccelGroup ** table) {
     IgeMacMenuGroup *group;
 #endif
 #ifdef HAVE_GTKOSXAPPLICATION
-    GtkOSXApplication *theApp;
+    GtkosxApplication *theApp;
     GtkWidget * item;
     GtkWidget * dock_menu;
 #endif
@@ -3106,25 +3110,33 @@ main_menu_new(GtkAccelGroup ** table) {
 #endif
 
 #ifdef HAVE_GTKOSXAPPLICATION
-    theApp = g_object_new(GTK_TYPE_OSX_APPLICATION, NULL);
+    theApp = g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
 
     if(prefs.gui_macosx_style) {
-        gtk_osxapplication_set_menu_bar(theApp, GTK_MENU_SHELL(menubar));
-        gtk_osxapplication_set_use_quartz_accelerators(theApp, TRUE);
+        gtk_widget_hide(menubar);
 
+        gtkosx_application_set_menu_bar(theApp, GTK_MENU_SHELL(menubar));
+        gtkosx_application_set_use_quartz_accelerators(theApp, TRUE);
+
+        /* Construct a conventional looking OSX App menu */
 
         item = gtk_ui_manager_get_widget(ui_manager_main_menubar, "/Menubar/HelpMenu/AboutWireshark");
-        gtk_osxapplication_insert_app_menu_item(theApp, item, 0);
+        gtkosx_application_insert_app_menu_item(theApp, item, 0);
+
+        gtkosx_application_insert_app_menu_item(theApp, gtk_separator_menu_item_new(), 1);
 
         item = gtk_ui_manager_get_widget(ui_manager_main_menubar, "/Menubar/EditMenu/Preferences");
-        gtk_osxapplication_insert_app_menu_item(theApp, item, 0);
+        gtkosx_application_insert_app_menu_item(theApp, item, 2);
+
+        /* Set OSX help menu */
 
         item = gtk_ui_manager_get_widget(ui_manager_main_menubar, "/Menubar/HelpMenu");
-        gtk_osxapplication_set_help_menu(theApp,GTK_MENU_ITEM(item));
+        gtkosx_application_set_help_menu(theApp,GTK_MENU_ITEM(item));
 
-        /* Quit item is not needed */
-        /* XXXX FIX ME */
-        /*gtk_item_factory_delete_item(main_menu_factory,"/File/Quit");*/
+        /* Hide the File menu Quit item (a Quit item is automagically placed within the OSX App menu) */
+
+        item = gtk_ui_manager_get_widget(ui_manager_main_menubar, "/Menubar/FileMenu/Quit");
+        gtk_widget_hide(item);
     }
 
     /* generate dock menu */
@@ -3142,7 +3154,7 @@ main_menu_new(GtkAccelGroup ** table) {
     g_signal_connect(item, "activate", G_CALLBACK (capture_restart_cb), NULL);
     gtk_menu_shell_append(GTK_MENU_SHELL(dock_menu), item);
 
-    gtk_osxapplication_set_dock_menu(theApp, GTK_MENU_SHELL(dock_menu));
+    gtkosx_application_set_dock_menu(theApp, GTK_MENU_SHELL(dock_menu));
 #endif
 
     if (table)
@@ -3265,7 +3277,7 @@ menus_init(void) {
     GtkActionGroup *packet_list_heading_action_group, *packet_list_action_group,
         *packet_list_details_action_group, *packet_list_byte_menu_action_group,
         *statusbar_profiles_action_group;
-	GtkAction *name_res_action;
+    GtkAction *name_res_action;
     GError *error = NULL;
     guint merge_id;
 
@@ -4428,7 +4440,7 @@ menu_name_resolution_changed(void)
 static void
 menu_name_resolution_update_cb(GtkAction *action _U_, gpointer data _U_)
 {
-	menu_name_resolution_changed();
+    menu_name_resolution_changed();
 }
 
 static void
@@ -4440,8 +4452,8 @@ name_resolution_cb(GtkWidget *w, gpointer d _U_, gboolean* res_flag)
         *res_flag = FALSE;
     }
 
-	packet_list_recreate();
-	redraw_packet_bytes_all();
+    packet_list_recreate();
+    redraw_packet_bytes_all();
 }
 
 #ifdef HAVE_LIBPCAP
@@ -4870,8 +4882,12 @@ packet_is_ssl(epan_dissect_t* edt)
 void
 set_menus_for_selected_packet(capture_file *cf)
 {
-    GList *list_entry = dissector_filter_list;
-    guint i = 0;
+    GList              *list_entry = dissector_filter_list;
+    guint              i = 0;
+    gboolean           properties = FALSE;
+    const char         *abbrev = NULL;
+    char               *prev_abbrev;
+
     /* Making the menu context-sensitive allows for easier selection of the
        desired item and has the added benefit, with large captures, of
        avoiding needless looping through huge lists for marked, ignored,
@@ -4893,6 +4909,34 @@ set_menus_for_selected_packet(capture_file *cf)
            we have at least one time reference frame, and either there's more
            than one time reference frame or the current frame isn't a
            time reference frame). (XXX - why check frame_selected?) */
+
+    if (cfile.edt && cfile.edt->tree) {
+        GPtrArray          *ga;
+        header_field_info  *hfinfo;
+        field_info         *v;
+        guint              i;
+
+        ga = proto_all_finfos(cfile.edt->tree);
+
+        for (i = ga->len - 1; i > 0 ; i -= 1) {
+
+            v = g_ptr_array_index (ga, i);
+            hfinfo =  v->hfinfo;
+
+            if (!g_str_has_prefix(hfinfo->abbrev, "text") &&
+                !g_str_has_prefix(hfinfo->abbrev, "expert") &&
+                !g_str_has_prefix(hfinfo->abbrev, "malformed")) {
+
+                if (hfinfo->parent == -1) {
+                    abbrev = hfinfo->abbrev;
+                } else {
+                    abbrev = proto_registrar_get_abbrev(hfinfo->parent);
+                }
+                properties = prefs_is_registered_protocol(abbrev);
+                break;
+            }
+        }
+    }
 
     set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/MarkPacket",
                          frame_selected);
@@ -4997,6 +5041,21 @@ set_menus_for_selected_packet(capture_file *cf)
                          frame_selected ? (cf->edt->pi.profinet_type != 0 && cf->edt->pi.profinet_type < 10) : FALSE);
     set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/DecodeAs",
                          frame_selected && decode_as_ok());
+
+    if (properties) {
+        prev_abbrev = g_object_get_data(G_OBJECT(ui_manager_packet_list_menu), "menu_abbrev");
+        if (!prev_abbrev || (strcmp(prev_abbrev, abbrev) != 0)) {
+          /*No previous protocol or protocol changed - update Protocol Preferences menu*/
+            module_t *prefs_module_p = prefs_find_module(abbrev);
+            rebuild_protocol_prefs_menu(prefs_module_p, properties, ui_manager_packet_list_menu, "/PacketListMenuPopup/ProtocolPreferences");
+
+            g_object_set_data(G_OBJECT(ui_manager_packet_list_menu), "menu_abbrev", g_strdup(abbrev));
+            g_free (prev_abbrev);
+        }
+    }
+
+    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ProtocolPreferences",
+                             properties);
     set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/DecodeAs",
                          frame_selected && decode_as_ok());
     set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/Copy",
@@ -5240,7 +5299,7 @@ menu_prefs_edit_dlg (GtkWidget *w, gpointer data)
 }
 
 static guint
-add_protocol_prefs_menu (pref_t *pref, gpointer data)
+add_protocol_prefs_generic_menu(pref_t *pref, gpointer data, GtkUIManager *ui_menu, char *path)
 {
     GtkWidget *menu_preferences;
     GtkWidget *menu_item, *menu_sub_item, *sub_menu;
@@ -5316,7 +5375,7 @@ add_protocol_prefs_menu (pref_t *pref, gpointer data)
         g_free (label);
         break;
 
-    case PREF_COLOR: 
+    case PREF_COLOR:
     case PREF_CUSTOM:
         /* currently not supported */
 
@@ -5327,9 +5386,9 @@ add_protocol_prefs_menu (pref_t *pref, gpointer data)
         return 0;
     }
 
-    menu_preferences = gtk_ui_manager_get_widget(ui_manager_tree_view_menu, "/TreeViewPopup/ProtocolPreferences");
+    menu_preferences = gtk_ui_manager_get_widget(ui_menu, path);
     if(!menu_preferences)
-        g_warning("menu_preferences Not found path:TreeViewPopup/ProtocolPreferences");
+        g_warning("menu_preferences Not found path");
     sub_menu = gtk_menu_item_get_submenu (GTK_MENU_ITEM(menu_preferences));
     gtk_menu_shell_append (GTK_MENU_SHELL(sub_menu), menu_item);
     gtk_widget_show (menu_item);
@@ -5337,33 +5396,49 @@ add_protocol_prefs_menu (pref_t *pref, gpointer data)
     return 0;
 }
 
+static guint
+add_protocol_prefs_menu(pref_t *pref, gpointer data) {
+    return add_protocol_prefs_generic_menu(pref, data, ui_manager_tree_view_menu, "/TreeViewPopup/ProtocolPreferences");
+}
+
+static guint
+add_protocol_prefs_packet_list_menu(pref_t *pref, gpointer data) {
+    return add_protocol_prefs_generic_menu(pref, data, ui_manager_packet_list_menu, "/PacketListMenuPopup/ProtocolPreferences");
+}
+
+
 static void
-rebuild_protocol_prefs_menu (module_t *prefs_module_p, gboolean preferences)
+rebuild_protocol_prefs_menu(module_t *prefs_module_p, gboolean preferences,
+        GtkUIManager *ui_menu, char *path)
 {
     GtkWidget *menu_preferences, *menu_item;
     GtkWidget *sub_menu;
     gchar *label;
 
-    menu_preferences = gtk_ui_manager_get_widget(ui_manager_tree_view_menu, "/TreeViewPopup/ProtocolPreferences");
+    menu_preferences = gtk_ui_manager_get_widget(ui_menu, path);
     if (prefs_module_p && preferences) {
         sub_menu = gtk_menu_new();
         gtk_menu_item_set_submenu (GTK_MENU_ITEM(menu_preferences), sub_menu);
 
         label = g_strdup_printf ("%s Preferences...", prefs_module_p->description);
-        menu_item = gtk_image_menu_item_new_with_label (label);
+        menu_item = gtk_image_menu_item_new_with_label(label);
         gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM(menu_item),
                                        gtk_image_new_from_stock(GTK_STOCK_PREFERENCES, GTK_ICON_SIZE_MENU));
-        gtk_menu_shell_append (GTK_MENU_SHELL(sub_menu), menu_item);
+        gtk_menu_shell_append(GTK_MENU_SHELL(sub_menu), menu_item);
         g_signal_connect_swapped(G_OBJECT(menu_item), "activate",
                                  G_CALLBACK(properties_cb), (GObject *) menu_item);
-        gtk_widget_show (menu_item);
-        g_free (label);
+        gtk_widget_show(menu_item);
+        g_free(label);
 
         menu_item = gtk_menu_item_new();
-        gtk_menu_shell_append (GTK_MENU_SHELL(sub_menu), menu_item);
-        gtk_widget_show (menu_item);
+        gtk_menu_shell_append(GTK_MENU_SHELL(sub_menu), menu_item);
+        gtk_widget_show(menu_item);
 
-        prefs_pref_foreach(prefs_module_p, add_protocol_prefs_menu, prefs_module_p);
+        if (ui_menu == ui_manager_tree_view_menu) {
+            prefs_pref_foreach(prefs_module_p, add_protocol_prefs_menu, prefs_module_p);
+        } else {
+            prefs_pref_foreach(prefs_module_p, add_protocol_prefs_packet_list_menu, prefs_module_p);
+        }
     } else {
         /* No preferences, remove sub menu */
         gtk_menu_item_set_submenu (GTK_MENU_ITEM(menu_preferences), NULL);
@@ -5427,7 +5502,7 @@ rebuild_visible_columns_menu (void)
             col_id++;
         }
 
-        menu_item = gtk_menu_item_new();
+        menu_item = gtk_separator_menu_item_new();
         gtk_menu_shell_append (GTK_MENU_SHELL(sub_menu), menu_item);
         gtk_widget_show (menu_item);
 
@@ -5561,7 +5636,7 @@ set_menus_for_selected_tree_row(capture_file *cf)
         if (!prev_abbrev || (strcmp (prev_abbrev, abbrev) != 0)) {
             /* No previous protocol or protocol changed - update Protocol Preferences menu */
             module_t *prefs_module_p = prefs_find_module(abbrev);
-            rebuild_protocol_prefs_menu (prefs_module_p, properties);
+            rebuild_protocol_prefs_menu(prefs_module_p, properties, ui_manager_tree_view_menu, "/TreeViewPopup/ProtocolPreferences");
 
             g_object_set_data(G_OBJECT(ui_manager_tree_view_menu), "menu_abbrev", g_strdup(abbrev));
             g_free (prev_abbrev);
@@ -5642,4 +5717,3 @@ void set_menus_for_profiles(gboolean default_profile)
  * ex: set shiftwidth=4 tabstop=8 expandtab:
  * :indentSize=4:tabSize=8:noTabs=true:
  */
-

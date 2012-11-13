@@ -142,7 +142,7 @@ static gboolean want_pcap_pkthdr;
 cf_status_t raw_cf_open(capture_file *cf, const char *fname);
 static int load_cap_file(capture_file *cf);
 static gboolean process_packet(capture_file *cf, gint64 offset,
-                               const struct wtap_pkthdr *whdr, const guchar *pd);
+                               struct wtap_pkthdr *whdr, const guchar *pd);
 static void show_print_file_io_error(int err);
 
 static void open_failure_message(const char *filename, int err,
@@ -1010,14 +1010,13 @@ load_cap_file(capture_file *cf)
 }
 
 static gboolean
-process_packet(capture_file *cf, gint64 offset, const struct wtap_pkthdr *whdr,
+process_packet(capture_file *cf, gint64 offset, struct wtap_pkthdr *whdr,
                const guchar *pd)
 {
     frame_data fdata;
     gboolean create_proto_tree;
     epan_dissect_t edt;
     gboolean passed;
-    union wtap_pseudo_header pseudo_header;
     int i;
 
     if(whdr->len == 0)
@@ -1033,8 +1032,6 @@ process_packet(capture_file *cf, gint64 offset, const struct wtap_pkthdr *whdr,
 
         return FALSE;
     }
-
-    memset(&pseudo_header, 0, sizeof(pseudo_header));
 
     /* Count this packet. */
     cf->count++;
@@ -1060,8 +1057,6 @@ process_packet(capture_file *cf, gint64 offset, const struct wtap_pkthdr *whdr,
         }
     }
 
-    tap_queue_init(&edt);
-
     printf("%lu", (unsigned long int) cf->count);
 
     frame_data_set_before_dissect(&fdata, &cf->elapsed_time,
@@ -1070,9 +1065,7 @@ process_packet(capture_file *cf, gint64 offset, const struct wtap_pkthdr *whdr,
     /* We only need the columns if we're printing packet info but we're
      *not* verbose; in verbose mode, we print the protocol tree, not
      the protocol summary. */
-    epan_dissect_run(&edt, &pseudo_header, pd, &fdata, &cf->cinfo);
-
-    tap_push_tapped_queue(&edt);
+    epan_dissect_run_with_taps(&edt, whdr, pd, &fdata, &cf->cinfo);
 
     frame_data_set_after_dissect(&fdata, &cum_bytes);
     prev_dis_frame = fdata;

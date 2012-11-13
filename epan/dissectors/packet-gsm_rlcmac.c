@@ -6734,7 +6734,7 @@ static guint8 construct_gprs_data_segment_li_array(tvbuff_t *tvb, proto_tree *tr
 	proto_item 	*item;
 
     *li_count = 0;
-    while((*e == 0))
+    while(*e == 0)
     {
        item = proto_tree_add_bits_item(tree, hf_li, tvb, offset * 8, 6, ENC_BIG_ENDIAN);
         if(*li_count < li_array_size)
@@ -6802,9 +6802,9 @@ static guint8 dissect_gprs_data_segments(tvbuff_t *tvb, packet_info *pinfo, prot
         switch(li)
         {
             case 0:
-                ti = proto_tree_add_text(tree, tvb, li_array[i].offset, 1,
-                                    "LI[%d]=%d indicates: The previous segment of LLC Frame precisely filled the previous RLC Block",
-                                    i, li);
+                proto_tree_add_text(tree, tvb, li_array[i].offset, 1,
+                               "LI[%d]=%d indicates: The previous segment of LLC Frame precisely filled the previous RLC Block",
+                               i, li);
                 break;
 
             case 63:
@@ -7263,9 +7263,9 @@ dissect_dl_gprs_block(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, RlcMa
        if (e)
        {
           /* dissect the data segments */
-          bit_offset += (8 * dissect_gprs_data_segments(tvb, pinfo, rlcmac_tree, bit_offset / 8, bit_length / 8,
+          /*bit_offset += 8 * */ dissect_gprs_data_segments(tvb, pinfo, rlcmac_tree, bit_offset / 8, bit_length / 8,
                                                    li_count,
-                                                   li_array));
+                                                   li_array);
        }
        else
        {
@@ -7513,9 +7513,9 @@ dissect_ul_gprs_block(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, RlcMa
       if (e)
       {
          /* dissect the data segments */
-         bit_offset += (8 * dissect_gprs_data_segments(tvb, pinfo, rlcmac_tree, bit_offset / 8, bit_length / 8,
+         /*bit_offset += 8 * */ dissect_gprs_data_segments(tvb, pinfo, rlcmac_tree, bit_offset / 8, bit_length / 8,
                                               li_count,
-                                              li_array));
+                                              li_array);
       }
       else
       {
@@ -7590,7 +7590,7 @@ dissect_egprs_ul_header_block(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
              proto_tree_add_text(tree, tvb, 0, -1, "EGPRS Header Type not handled (yet)");
              break;
        }
-       bit_offset = ar.bit_offset;
+       /*bit_offset = ar.bit_offset;*/
 
        ((RlcMacPrivateData_t *)(pinfo->private_data))->u.egprs_ul_header_info.pi = data->u.UL_Data_Block_EGPRS_Header.PI;
        ((RlcMacPrivateData_t *)(pinfo->private_data))->u.egprs_ul_header_info.bsn1 = data->u.UL_Data_Block_EGPRS_Header.BSN1;

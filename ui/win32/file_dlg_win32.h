@@ -31,15 +31,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-typedef enum {
-    export_type_text = 1,
-    export_type_ps,
-    export_type_csv,
-    export_type_psml,
-    export_type_pdml,
-    export_type_carrays
-} export_type_e;
-
 /** Open the "Open" dialog box.
  *
  * @param h_wnd HWND of the parent window.
@@ -102,7 +93,7 @@ gboolean win32_merge_file (HWND h_wnd, GString *file_name, GString *display_filt
  * @param h_wnd HWND of the parent window.
  * @param export_type The export type.
  */
-void win32_export_file (HWND h_wnd, export_type_e export_type);
+void win32_export_file (HWND h_wnd, capture_file *cf, export_type_e export_type);
 
 /** Open the "Export raw bytes" dialog box.
  *

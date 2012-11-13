@@ -52,6 +52,7 @@
 #include "display_filter_combo.h"
 #include "progress_bar.h"
 #include "file_set_dialog.h"
+#include "capture_file_dialog.h"
 
 class QAction;
 
@@ -101,6 +102,7 @@ private:
     void saveCaptureFile(capture_file *cf, bool stay_closed);
     void saveAsCaptureFile(capture_file *cf, bool must_support_comments, bool stay_closed);
     void exportSelectedPackets();
+    void exportDissections(export_type_e export_type);
 
     void fileAddExtension(QString &file_name, int file_type, bool compressed);
     bool testCaptureFileClose(bool from_quit = false, QString& before_what = *new QString());
@@ -109,18 +111,18 @@ private:
     void setMenusForCaptureFile(bool force_disable = false);
     void setMenusForCaptureInProgress(bool capture_in_progress = false);
     void setMenusForCaptureStopping();
-    // xxx set_menus_for_captured_packets
-    // xxx set_menus_for_selected_packet
+    void setForCapturedPackets(bool have_captured_packets);
     void setMenusForFileSet(bool enable_list_files);
     void updateForUnsavedChanges();
     void setForCaptureInProgress(gboolean capture_in_progress = false);
 
 signals:
     void showProgress(progdlg_t **dlg_p, bool animate, const QString message, bool terminate_is_stop, bool *stop_flag, float pct);
+    void setCaptureFile(capture_file *cf);
 
 public slots:
     // in main_window_slots.cpp
-    void openCaptureFile(QString& cf_path = *new QString());
+    void openCaptureFile(QString& cf_path = *new QString(), QString &display_filter = *new QString());
 
 #ifdef HAVE_LIBPCAP
     void captureCapturePrepared(capture_options *capture_opts);
@@ -148,6 +150,7 @@ private slots:
 
     void updateRecentFiles();
     void recentActionTriggered();
+    void setMenusForSelectedTreeRow(field_info *fi = NULL);
 
     void on_actionFileOpen_triggered();
     void on_actionFileMerge_triggered();
@@ -159,6 +162,17 @@ private slots:
     void on_actionFileSetNextFile_triggered();
     void on_actionFileSetPreviousFile_triggered();
     void on_actionFileExportPackets_triggered();
+    void on_actionFileExportAsPlainText_triggered();
+    // We're dropping PostScript exports
+    void on_actionFileExportAsCSV_triggered();
+    void on_actionFileExportAsCArrays_triggered();
+    void on_actionFileExportAsPSML_triggered();
+    void on_actionFileExportAsPDML_triggered();
+    void on_actionFileExportPacketBytes_triggered();
+    void on_actionFileExportObjectsDICOM_triggered();
+    void on_actionFileExportObjectsHTTP_triggered();
+    void on_actionFileExportObjectsSMB_triggered();
+    void on_actionFilePrint_triggered();
 
     void on_actionGoGoToPacket_triggered();
     void resetPreviousFocus();
@@ -183,6 +197,7 @@ private slots:
     void on_goToLineEdit_returnPressed();
     void on_actionStartCapture_triggered();
     void on_actionStopCapture_triggered();
+    void on_actionFileExportSSLSessionKeys_triggered();
 };
 
 

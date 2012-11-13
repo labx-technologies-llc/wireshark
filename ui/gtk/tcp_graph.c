@@ -94,6 +94,10 @@ struct segment {
 	guint16 th_dport;
 	address ip_src;
 	address ip_dst;
+
+	guint8  num_sack_ranges;
+	guint32 sack_left_edge[MAX_TCP_SACK_RANGES];
+	guint32 sack_right_edge[MAX_TCP_SACK_RANGES];
 };
 
 struct rect {
@@ -176,6 +180,7 @@ struct axis {
 struct style_tseq_tcptrace {
 	GdkColor seq_color;
 	GdkColor ack_color[2];
+	GdkColor sack_color[2];
 	int flags;
 };
 
@@ -333,7 +338,13 @@ struct graph {
 	struct magnify magnify;
 	struct axis *x_axis, *y_axis;
 	struct segment *segments;
-	struct segment *current;
+
+	/* The stream this graph will show */
+	address src_address;
+	guint16 src_port;
+	address dst_address;
+	guint16 dst_port;
+
 	struct element_list *elists;		/* element lists */
 	union {
 		struct style_tseq_stevens tseq_stevens;
@@ -410,7 +421,7 @@ static void update_zoom_spins (struct graph * );
 static struct tcpheader *select_tcpip_session (capture_file *, struct segment * );
 static int compare_headers (address *saddr1, address *daddr1, guint16 sport1, guint16 dport1, address *saddr2, address *daddr2, guint16 sport2, guint16 dport2, int dir);
 static int get_num_dsegs (struct graph * );
-static int get_num_acks (struct graph * );
+static int get_num_acks (struct graph *, int * );
 static void graph_type_dependent_initialize (struct graph * );
 static struct graph *graph_new (void);
 static void graph_destroy (struct graph * );
@@ -429,7 +440,7 @@ static void graph_element_lists_initialize (struct graph * );
 static void graph_title_pixmap_create (struct graph * );
 static void graph_title_pixmap_draw (struct graph * );
 static void graph_title_pixmap_display (struct graph * );
-static void graph_segment_list_get (struct graph * );
+static void graph_segment_list_get (struct graph *, gboolean stream_known );
 static void graph_segment_list_free (struct graph * );
 static void graph_select_segment (struct graph * , int , int );
 static int line_detect_collision (struct element * , int , int );
@@ -612,6 +623,7 @@ static void unset_busy_cursor(GdkWindow *w, gboolean cross)
 		gdk_flush();
 	}
 }
+
 void tcp_graph_cb (GtkAction *action, gpointer user_data _U_)
 {
 	struct segment current;
@@ -648,12 +660,42 @@ void tcp_graph_cb (GtkAction *action, gpointer user_data _U_)
 
 	g->type = graph_type;
 
-	graph_segment_list_get(g);
+	graph_segment_list_get(g, FALSE);
 	create_gui(g);
 	/* display_text(g); */
 	graph_init_sequence(g);
 
 }
+
+void tcp_graph_known_stream_launch(address *src_address, guint16 src_port,
+                                   address *dst_address, guint16 dst_port)
+{
+	struct graph *g;
+
+	if (!(g = graph_new())) {
+		return;
+	}
+
+	refnum++;
+	graph_initialize_values(g);
+
+	/* Can set stream info for graph now */
+	COPY_ADDRESS(&g->src_address, src_address);
+	g->src_port = src_port;
+	COPY_ADDRESS(&g->dst_address, dst_address);
+	g->dst_port = dst_port;
+
+	/* This graph type is arguably the most useful, so start there */
+	g->type = GRAPH_TSEQ_TCPTRACE;
+
+	/* Get our list of segments from the packet list */
+	graph_segment_list_get(g, TRUE);
+
+	create_gui(g);
+	graph_init_sequence(g);
+}
+
+
 static void create_gui (struct graph *g)
 {
 	debug(DBS_FENTRY) puts ("create_gui()");
@@ -674,8 +716,6 @@ static void create_drawing_area (struct graph *g)
 #endif
 	char *display_name;
 	char window_title[WINDOW_TITLE_LENGTH];
-	struct segment current;
-	struct tcpheader *thdr;
 	GtkAllocation widget_alloc;
 #if 0
 	/* Prep. to include the controls in the graph window */
@@ -684,15 +724,14 @@ static void create_drawing_area (struct graph *g)
 	GtkWidget *hbox;
 #endif
 	debug(DBS_FENTRY) puts ("create_drawing_area()");
-	thdr=select_tcpip_session (&cfile, &current);
 	display_name = cf_get_display_name(&cfile);
 	g_snprintf (window_title, WINDOW_TITLE_LENGTH, "TCP Graph %d: %s %s:%d -> %s:%d",
 			refnum,
 			display_name,
-			ep_address_to_str(&(thdr->ip_src)),
-			thdr->th_sport,
-			ep_address_to_str(&(thdr->ip_dst)),
-			thdr->th_dport
+			ep_address_to_str(&g->src_address),
+			g->src_port,
+			ep_address_to_str(&g->dst_address),
+			g->dst_port
 	);
 	g_free(display_name);
 	g->toplevel = dlg_window_new ("Tcp Graph");
@@ -1161,7 +1200,7 @@ static GtkWidget *control_panel_create_zoom_group (struct graph *g)
 
 	g_signal_connect(zoom_in, "toggled", G_CALLBACK(callback_zoom_inout), g);
 	g_signal_connect(zoom_h_step, "changed", G_CALLBACK(callback_zoom_step), g);
-        g_signal_connect(zoom_v_step, "changed", G_CALLBACK(callback_zoom_step), g);
+	g_signal_connect(zoom_v_step, "changed", G_CALLBACK(callback_zoom_step), g);
 
 	g->zoom.widget.in_toggle = (GtkToggleButton * )zoom_in;
 	g->zoom.widget.out_toggle = (GtkToggleButton * )zoom_out;
@@ -1623,7 +1662,7 @@ static void callback_graph_type (GtkWidget *toggle, gpointer data)
 		/* throughput graph uses differently constructed segment list so we
 		 * need to recreate it */
 		graph_segment_list_free (g);
-		graph_segment_list_get (g);
+		graph_segment_list_get (g, TRUE);
 	}
 
 	if (g->flags & GRAPH_INIT_ON_TYPE_CHANGE) {
@@ -1781,10 +1820,11 @@ static int
 tapall_tcpip_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
 	tcp_scan_t *ts=(tcp_scan_t *)pct;
+	struct graph *g = ts->g;
 	struct tcpheader *tcphdr=(struct tcpheader *)vip;
 
-	if (compare_headers(&ts->current->ip_src, &ts->current->ip_dst,
-			    ts->current->th_sport, ts->current->th_dport,
+	if (compare_headers(&g->src_address, &g->dst_address,
+			    g->src_port, g->dst_port,
 			    &tcphdr->ip_src, &tcphdr->ip_dst,
 			    tcphdr->th_sport, tcphdr->th_dport,
 			    ts->direction)) {
@@ -1805,15 +1845,20 @@ tapall_tcpip_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, cons
 		segment->th_seglen=tcphdr->th_seglen;
 		COPY_ADDRESS(&segment->ip_src, &tcphdr->ip_src);
 		COPY_ADDRESS(&segment->ip_dst, &tcphdr->ip_dst);
+
+		segment->num_sack_ranges = MIN(MAX_TCP_SACK_RANGES, tcphdr->num_sack_ranges);
+		if (segment->num_sack_ranges > 0) {
+			/* Copy entries in the order they happen */
+			memcpy(&segment->sack_left_edge, &tcphdr->sack_left_edge, sizeof(segment->sack_left_edge));
+			memcpy(&segment->sack_right_edge, &tcphdr->sack_right_edge, sizeof(segment->sack_right_edge));
+		}
+
 		if (ts->g->segments) {
 			ts->last->next = segment;
 		} else {
 			ts->g->segments = segment;
 		}
 		ts->last = segment;
-		if(pinfo->fd->num==ts->current->num){
-			ts->g->current = segment;
-		}
 	}
 
 	return 0;
@@ -1822,19 +1867,27 @@ tapall_tcpip_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, cons
 
 
 /* here we collect all the external data we will ever need */
-static void graph_segment_list_get (struct graph *g)
+static void graph_segment_list_get (struct graph *g, gboolean stream_known)
 {
 	struct segment current;
 	GString *error_string;
 	tcp_scan_t ts;
 
-
 	debug(DBS_FENTRY) puts ("graph_segment_list_get()");
-	select_tcpip_session (&cfile, &current);
-	if (g->type == GRAPH_THROUGHPUT)
-		ts.direction = COMPARE_CURR_DIR;
-	else
-		ts.direction = COMPARE_ANY_DIR;
+
+	if (!stream_known) {
+		select_tcpip_session (&cfile, &current);
+		if (g->type == GRAPH_THROUGHPUT)
+			ts.direction = COMPARE_CURR_DIR;
+		else
+			ts.direction = COMPARE_ANY_DIR;
+
+		/* Remember stream info in graph */
+		COPY_ADDRESS(&g->src_address, &current.ip_src);
+		g->src_port = current.th_sport;
+		COPY_ADDRESS(&g->dst_address, &current.ip_dst);
+		g->dst_port = current.th_dport;
+	}
 
 	/* rescan all the packets and pick up all interesting tcp headers.
 	 * we only filter for TCP here for speed and do the actual compare
@@ -1885,7 +1938,14 @@ tap_tcpip_packet(void *pct, packet_info *pinfo _U_, epan_dissect_t *edt _U_, con
 
 	/* Add address if unique and have space for it */
 	if (is_unique && (th->num_hdrs < MAX_SUPPORTED_TCP_HEADERS)) {
-		th->tcphdrs[th->num_hdrs++] = header;
+		/* Need to take a deep copy of the tap struct, it may not be valid
+		   to read after this function returns? */
+		th->tcphdrs[th->num_hdrs] = g_malloc(sizeof(struct tcpheader));
+		*(th->tcphdrs[th->num_hdrs]) = *header;
+		COPY_ADDRESS(&th->tcphdrs[th->num_hdrs]->ip_src, &header->ip_src);
+		COPY_ADDRESS(&th->tcphdrs[th->num_hdrs]->ip_dst, &header->ip_dst);
+
+		th->num_hdrs++;
 	}
 
 	return 0;
@@ -1928,9 +1988,7 @@ static struct tcpheader *select_tcpip_session (capture_file *cf, struct segment 
 
 	epan_dissect_init(&edt, TRUE, FALSE);
 	epan_dissect_prime_dfilter(&edt, sfcode);
-	tap_queue_init(&edt);
-	epan_dissect_run(&edt, &cf->pseudo_header, cf->pd, fdata, NULL);
-	tap_push_tapped_queue(&edt);
+	epan_dissect_run_with_taps(&edt, &cf->phdr, cf->pd, fdata, NULL);
 	epan_dissect_cleanup(&edt);
 	remove_tap_listener(&th);
 
@@ -3694,8 +3752,8 @@ static int get_num_dsegs (struct graph *g)
 	struct segment *tmp;
 
 	for (tmp=g->segments, count=0; tmp; tmp=tmp->next) {
-		if(compare_headers(&g->current->ip_src, &g->current->ip_dst,
-				   g->current->th_sport, g->current->th_dport,
+		if(compare_headers(&g->src_address, &g->dst_address,
+				   g->src_port, g->dst_port,
 				   &tmp->ip_src, &tmp->ip_dst,
 				   tmp->th_sport, tmp->th_dport,
 				   COMPARE_CURR_DIR)) {
@@ -3705,18 +3763,19 @@ static int get_num_dsegs (struct graph *g)
 	return count;
 }
 
-static int get_num_acks (struct graph *g)
+static int get_num_acks (struct graph *g, int *num_sack_ranges)
 {
 	int count;
 	struct segment *tmp;
 
 	for (tmp=g->segments, count=0; tmp; tmp=tmp->next) {
-		if(!compare_headers(&g->current->ip_src, &g->current->ip_dst,
-				   g->current->th_sport, g->current->th_dport,
+		if(!compare_headers(&g->src_address, &g->dst_address,
+				   g->src_port, g->dst_port,
 				   &tmp->ip_src, &tmp->ip_dst,
 				   tmp->th_sport, tmp->th_dport,
 				   COMPARE_CURR_DIR)) {
 			count++;
+			*num_sack_ranges += tmp->num_sack_ranges;
 		}
 	}
 	return count;
@@ -3797,8 +3856,8 @@ static void tseq_get_bounds (struct graph *g)
 
 	/* go thru all segments to determine "bounds" */
 	for (tmp=g->segments; tmp; tmp=tmp->next) {
-		if(compare_headers(&g->current->ip_src, &g->current->ip_dst,
-				   g->current->th_sport, g->current->th_dport,
+		if(compare_headers(&g->src_address, &g->dst_address,
+				   g->src_port, g->dst_port,
 				   &tmp->ip_src, &tmp->ip_dst,
 				   tmp->th_sport, tmp->th_dport,
 				   COMPARE_CURR_DIR)) {
@@ -3882,8 +3941,8 @@ static void tseq_stevens_make_elmtlist (struct graph *g)
 	for (tmp=g->segments; tmp; tmp=tmp->next) {
 		double secs, seqno;
 
-		if(!compare_headers(&g->current->ip_src, &g->current->ip_dst,
-				   g->current->th_sport, g->current->th_dport,
+		if(!compare_headers(&g->src_address, &g->dst_address,
+				   g->src_port, g->dst_port,
 				   &tmp->ip_src, &tmp->ip_dst,
 				   tmp->th_sport, tmp->th_dport,
 				   COMPARE_CURR_DIR)) {
@@ -3951,6 +4010,18 @@ static void tseq_tcptrace_read_config (struct graph *g)
 	g->s.tseq_tcptrace.ack_color[1].green=0xd3d3;
 	g->s.tseq_tcptrace.ack_color[1].blue=0xd3d3;
 
+	/* Light blue */
+	g->s.tseq_tcptrace.sack_color[0].pixel=0;
+	g->s.tseq_tcptrace.sack_color[0].red=0x0;
+	g->s.tseq_tcptrace.sack_color[0].green=0x0;
+	g->s.tseq_tcptrace.sack_color[0].blue=0xffff;
+
+	/* Darker blue */
+	g->s.tseq_tcptrace.sack_color[1].pixel=0;
+	g->s.tseq_tcptrace.sack_color[1].red=0x0;
+	g->s.tseq_tcptrace.sack_color[1].green=0x0;
+	g->s.tseq_tcptrace.sack_color[1].blue=0x9888;
+
 	g->s.tseq_tcptrace.flags = 0;
 
 	g->elists->next = (struct element_list * )
@@ -3982,11 +4053,14 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 	int toggle=0;
 	guint32 seq_base;
 	guint32 seq_cur;
+	int     num_sack_ranges = 0;
 
 	debug(DBS_FENTRY) puts ("tseq_tcptrace_make_elmtlist()");
 
 	if (g->elists->elements == NULL) {
-		int n = 1 + 4*get_num_acks(g);
+		/* 4 elements per ACK, but only one for each SACK range */
+		int n = 1 + 4*get_num_acks(g, &num_sack_ranges);
+		n += num_sack_ranges;
 		e0 = elements0 = (struct element * )g_malloc (n*sizeof (struct element));
 	} else
 		e0 = elements0 = g->elists->elements;
@@ -4008,8 +4082,8 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 		secs = tmp->rel_secs + tmp->rel_usecs / 1000000.0;
 		x = secs - xx0;
 		x *= g->zoom.x;
-		if(compare_headers(&g->current->ip_src, &g->current->ip_dst,
-				   g->current->th_sport, g->current->th_dport,
+		if(compare_headers(&g->src_address, &g->dst_address,
+				   g->src_port, g->dst_port,
 				   &tmp->ip_src, &tmp->ip_dst,
 				   tmp->th_sport, tmp->th_dport,
 				   COMPARE_CURR_DIR)) {
@@ -4060,6 +4134,8 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 
 			/* ack line */
 			if (ack_seen == TRUE) { /* don't plot the first ack */
+
+				/* Horizonal: time of previous ACK to now (at new ACK) */
 				e0->type = ELMT_LINE;
 				e0->parent = tmp;
 				/* Set the drawing color */
@@ -4069,6 +4145,8 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 				e0->p.line.dim.x2 = x;
 				e0->p.line.dim.y2 = p_ackno;
 				e0++;
+
+				/* Vertical: from previous ACKNO to current one (at current time) */
 				e0->type = ELMT_LINE;
 				e0->parent = tmp;
 				/* Set the drawing color */
@@ -4078,7 +4156,8 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 				e0->p.line.dim.x2 = x;
 				e0->p.line.dim.y2 = ackno!=p_ackno || ackno<4 ? ackno : ackno-4;
 				e0++;
-				/* window line */
+
+				/* Horizontal: window line */
 				e0->type = ELMT_LINE;
 				e0->parent = tmp;
 				/* Set the drawing color */
@@ -4088,6 +4167,8 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 				e0->p.line.dim.x2 = x;
 				e0->p.line.dim.y2 = p_win + p_ackno;
 				e0++;
+
+				/* Vertical: old window to new window */
 				e0->type = ELMT_LINE;
 				e0->parent = tmp;
 				/* Set the drawing color */
@@ -4097,12 +4178,41 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 				e0->p.line.dim.x2 = x;
 				e0->p.line.dim.y2 = win + ackno;
 				e0++;
+
+				/* Toggle color to use for ACKs... */
 				toggle = 1^toggle;
 			}
 			ack_seen = TRUE;
 			p_ackno = ackno;
 			p_win = win;
 			p_t = x;
+
+			/* Now any SACK entries */
+			if (tmp->num_sack_ranges) {
+				int n;
+
+				for (n=0; n < tmp->num_sack_ranges; n++) {
+					double left_edge =  (tmp->sack_left_edge[n]  - seq_base) * g->zoom.y;
+					double right_edge = (tmp->sack_right_edge[n] - seq_base) * g->zoom.y;
+
+					/* Vertical: just show range of SACK.
+					   Have experimented with sorting ranges and showing in red regions
+					   between SACKs, but when TCP is limited by option bytes and needs to
+					   miss out ranges, this can be pretty confusing as we end up apparently
+					   NACKing what has been received... */
+					e0->type = ELMT_LINE;
+					e0->parent = tmp;
+					/* Set the drawing color.  First range is significant, so use
+					   separate colour */
+					e0->elment_color_p = (n==0) ? &g->s.tseq_tcptrace.sack_color[0] :
+					                              &g->s.tseq_tcptrace.sack_color[1];
+					e0->p.line.dim.x1 = x;
+					e0->p.line.dim.y1 = right_edge;
+					e0->p.line.dim.x2 = x;
+					e0->p.line.dim.y2 = left_edge;
+					e0++;
+				}
+			}
 		}
 	}
 	e0->type = ELMT_NONE;
@@ -4281,8 +4391,8 @@ static void rtt_initialize (struct graph *g)
 	rtt_read_config (g);
 
 	for (tmp=g->segments; tmp; tmp=tmp->next) {
-		if(compare_headers(&g->current->ip_src, &g->current->ip_dst,
-				   g->current->th_sport, g->current->th_dport,
+		if(compare_headers(&g->src_address, &g->dst_address,
+				   g->src_port, g->dst_port,
 				   &tmp->ip_src, &tmp->ip_dst,
 				   tmp->th_sport, tmp->th_dport,
 				   COMPARE_CURR_DIR)) {
@@ -4405,8 +4515,8 @@ static void rtt_make_elmtlist (struct graph *g)
 	}
 
 	for (tmp=g->segments; tmp; tmp=tmp->next) {
-		if(compare_headers(&g->current->ip_src, &g->current->ip_dst,
-				   g->current->th_sport, g->current->th_dport,
+		if(compare_headers(&g->src_address, &g->dst_address,
+				   g->src_port, g->dst_port,
 				   &tmp->ip_src, &tmp->ip_dst,
 				   tmp->th_sport, tmp->th_dport,
 				   COMPARE_CURR_DIR)) {
@@ -4496,8 +4606,8 @@ static void wscale_initialize(struct graph* g)
 
 	for (segm = g->segments; segm; segm = segm->next)
 	{
-		if (compare_headers(&g->current->ip_src, &g->current->ip_dst,
-					g->current->th_sport, g->current->th_dport,
+		if (compare_headers(&g->src_address, &g->dst_address,
+					g->src_port, g->dst_port,
 					&segm->ip_src, &segm->ip_dst,
 					segm->th_sport, segm->th_dport,
 					COMPARE_CURR_DIR))
@@ -4555,8 +4665,8 @@ static void wscale_make_elmtlist(struct graph* g)
 
 	for ( segm = g->segments; segm; segm = segm->next )
 	{
-		if (compare_headers(&g->current->ip_src, &g->current->ip_dst,
-					g->current->th_sport, g->current->th_dport,
+		if (compare_headers(&g->src_address, &g->dst_address,
+					g->src_port, g->src_port,
 					&segm->ip_src, &segm->ip_dst,
 					segm->th_sport, segm->th_dport,
 					COMPARE_CURR_DIR))

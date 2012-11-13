@@ -25,7 +25,7 @@
 #include "main_window.h"
 
 #include "config.h"
-
+#include <ctype.h>
 #include "globals.h"
 
 #include <glib.h>
@@ -105,6 +105,8 @@
 #  include <wsutil/unicode-utils.h>
 #  include <commctrl.h>
 #  include <shellapi.h>
+#  include <conio.h>
+#  include "ui/win32/console_win32.h"
 #endif /* _WIN32 */
 
 #ifdef HAVE_AIRPCAP
@@ -137,17 +139,9 @@ GString *comp_info_str, *runtime_info_str;
 
 //static guint  tap_update_timer_id;
 
-#ifdef _WIN32
-static gboolean has_console;	/* TRUE if app has console */
-static gboolean console_wait;	/* "Press any key..." */
-//static void destroy_console(void);
-static gboolean stdin_capture = FALSE; /* Don't grab stdin & stdout if TRUE */
-#endif
-
 static void console_log_handler(const char *log_domain,
     GLogLevelFlags log_level, const char *message, gpointer user_data);
 
-void create_console(void);
 
 #ifdef HAVE_LIBPCAP
 extern capture_options global_capture_opts;
@@ -394,7 +388,7 @@ print_usage(gboolean print_ver) {
 #endif
 
 #ifdef _WIN32
-//    destroy_console();
+    destroy_console();
 #endif
 }
 
@@ -417,7 +411,7 @@ show_version(void)
            runtime_info_str->str);
 
 #ifdef _WIN32
-//    destroy_console();
+    destroy_console();
 #endif
 }
 
@@ -629,14 +623,12 @@ int main(int argc, char *argv[])
 //    gboolean             rfilter_parse_failed = FALSE;
     e_prefs             *prefs_p;
 //    char                 badopt;
-    //GtkWidget           *splash_win = NULL;
     GLogLevelFlags       log_flags;
 //    guint                go_to_packet = 0;
 //    gboolean             jump_backwards = FALSE;
 //    dfilter_t           *jump_to_filter = NULL;
 //    int                  optind_initial;
     int                  status;
-
 
     //initialize language !
 
@@ -656,6 +648,15 @@ int main(int argc, char *argv[])
     QTextCodec::setCodecForCStrings(utf8codec);
     QTextCodec::setCodecForTr(utf8codec);
 
+    w = new(MainWindow);
+//    w->setEnabled(false);
+    w->show();
+    // We may not need a queued connection here but it would seem to make sense
+    // to force the issue.
+    w->connect(&a, SIGNAL(openCaptureFile(QString&)),
+            w, SLOT(openCaptureFile(QString&)));
+
+    // XXX Should the remaining code be in WiresharkApplcation::WiresharkApplication?
 #ifdef HAVE_LIBPCAP
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
 #define OPTSTRING_B "B:"
@@ -826,7 +827,7 @@ int main(int argc, char *argv[])
 #ifdef _WIN32
         case 'i':
             if (strcmp(optarg, "-") == 0)
-                stdin_capture = TRUE;
+                set_stdin_capture(TRUE);
             break;
 #endif
         case 'P':        /* Path settings - change these before the Preferences and alike are processed */
@@ -922,13 +923,12 @@ int main(int argc, char *argv[])
        dissectors, and we must do it before we read the preferences, in
        case any dissectors register preferences. */
     epan_init(register_all_protocols,register_all_protocol_handoffs,
-              NULL, NULL,
-//              splash_update, (gpointer) splash_win,
+              splash_update, NULL,
               failure_alert_box,open_failure_alert_box,read_failure_alert_box,
               write_failure_alert_box
               );
 
-//    splash_update(RA_LISTENERS, NULL, (gpointer)splash_win);
+    splash_update(RA_LISTENERS, NULL, NULL);
 
     /* Register all tap listeners; we do this before we parse the arguments,
        as the "-z" argument can specify a registered tap. */
@@ -944,7 +944,7 @@ int main(int argc, char *argv[])
 
 //    register_all_tap_listeners();
 
-//    splash_update(RA_PREFERENCES, NULL, (gpointer)splash_win);
+    splash_update(RA_PREFERENCES, NULL, NULL);
 
     prefs_p = read_configuration_files (&gdp_path, &dp_path);
     /* Removed thread code:
@@ -1140,16 +1140,13 @@ int main(int argc, char *argv[])
     color_filters_init();
 
 ////////
-    w = new(MainWindow);
-    w->show();
+
+//    w->setEnabled(true);
+    wsApp->allSystemsGo();
+    g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_INFO, "Wireshark is up and ready to go");
 
     g_main_loop_new(NULL, FALSE);
-    return a.exec();
-}
-
-void
-create_console(void) {
-
+    return wsApp->exec();
 }
 
 /*

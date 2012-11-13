@@ -21,6 +21,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <config.h>
+
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
 #include "main_window.h"
 #include "ui_main_window.h"
 
@@ -40,36 +50,26 @@
 #include "capture_ui_utils.h"
 #endif
 
-#include "ui/main_statusbar.h"
+#include "wsutil/file_util.h"
+
+#include "ui/alert_box.h"
 #include "ui/capture_globals.h"
 #include "ui/help_url.h"
+#include "ui/main_statusbar.h"
+#include "ui/ssl_key_export.h"
 
 #include "wireshark_application.h"
 #include "capture_file_dialog.h"
-
-// Copied from gtk/help_dlg.[ch]. Need to move to qt/help_dlg.[ch].
-// Required for on_actionHelp* below.
-static void
-topic_action(topic_action_e action)
-{
-    char *url;
-
-    url = topic_action_url(action);
-
-    if(url != NULL) {
-        QDesktopServices::openUrl(QUrl(url));
-        g_free(url);
-    }
-}
+#include "export_object_dialog.h"
+#include "print_dialog.h"
 
 //
 // Public slots
 //
 
-void MainWindow::openCaptureFile(QString &cf_path)
+void MainWindow::openCaptureFile(QString &cf_path, QString &display_filter)
 {
     QString file_name = "";
-    QString display_filter = "";
     dfilter_t *rfcode = NULL;
     int err;
 
@@ -186,8 +186,8 @@ void MainWindow::captureCapturePrepared(capture_options *capture_opts) {
 void MainWindow::captureCaptureUpdateStarted(capture_options *capture_opts) {
     Q_UNUSED(capture_opts);
 
-    qDebug() << "captureCaptureUpdateStarted";
     setForCaptureInProgress(true);
+    setForCapturedPackets(true);
 }
 void MainWindow::captureCaptureUpdateFinished(capture_options *capture_opts) {
     Q_UNUSED(capture_opts);
@@ -244,6 +244,7 @@ void MainWindow::captureFileOpened(const capture_file *cf) {
 
     file_set_dialog_.fileOpened(cf);
     setMenusForFileSet(true);
+    emit setCaptureFile(cap_file_);
 }
 
 void MainWindow::captureFileReadStarted(const capture_file *cf) {
@@ -280,7 +281,7 @@ void MainWindow::captureFileReadFinished(const capture_file *cf) {
     updateForUnsavedChanges();
 
 //    /* Enable menu items that make sense if you have some captured packets. */
-//    set_menus_for_captured_packets(TRUE);
+    setForCapturedPackets(true);
 
     main_ui_->statusBar->popFileStatus();
     QString msg = QString().sprintf("%s", get_basename(cf->filename));
@@ -291,11 +292,13 @@ void MainWindow::captureFileClosing(const capture_file *cf) {
     if (cf != cap_file_) return;
 
     setMenusForCaptureFile(true);
+    setForCapturedPackets(false);
     setForCaptureInProgress(false);
 
     // Reset expert info indicator
     main_ui_->statusBar->hideExpert();
 //    gtk_widget_show(expert_info_none);
+    emit setCaptureFile(NULL);
 }
 
 void MainWindow::captureFileClosed(const capture_file *cf) {
@@ -310,6 +313,8 @@ void MainWindow::captureFileClosed(const capture_file *cf) {
 
     main_ui_->statusBar->popFileStatus();
     cap_file_ = NULL;
+
+    setMenusForSelectedTreeRow();
 }
 
 //
@@ -460,7 +465,7 @@ void MainWindow::updateRecentFiles() {
     /* Iterate through the actions in menuOpenRecentCaptureFile,
      * removing special items, a maybe duplicate entry and every item above count_max */
     int shortcut = Qt::Key_0;
-    foreach (recent_item_status *ri, wsApp->recent_item_list()) {
+    foreach (recent_item_status *ri, wsApp->recentItems()) {
         // Add the new item
         ra = new QAction(recentMenu);
         ra->setData(ri->filename);
@@ -503,6 +508,114 @@ void MainWindow::recentActionTriggered() {
     }
 }
 
+void MainWindow::setMenusForSelectedTreeRow(field_info *fi) {
+    //gboolean properties;
+    //gint id;
+
+    // XXX Add commented items below
+
+    if (cap_file_) {
+        cap_file_->finfo_selected = fi;
+    }
+
+    if (cap_file_ != NULL && fi != NULL) {
+        /*
+        header_field_info *hfinfo = fi->hfinfo;
+        const char *abbrev;
+        char *prev_abbrev;
+
+        if (hfinfo->parent == -1) {
+            abbrev = hfinfo->abbrev;
+            id = (hfinfo->type == FT_PROTOCOL) ? proto_get_id((protocol_t *)hfinfo->strings) : -1;
+        } else {
+            abbrev = proto_registrar_get_abbrev(hfinfo->parent);
+            id = hfinfo->parent;
+        }
+        properties = prefs_is_registered_protocol(abbrev);
+        */
+
+//        set_menu_sensitivity(ui_manager_tree_view_menu,
+//                             "/TreeViewPopup/GotoCorrespondingPacket", hfinfo->type == FT_FRAMENUM);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/Copy",
+//                             TRUE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/Copy/AsFilter",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ApplyasColumn",
+//                             hfinfo->type != FT_NONE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ApplyAsFilter",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/PrepareaFilter",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ColorizewithFilter",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ProtocolPreferences",
+//                             properties);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/DisableProtocol",
+//                             (id == -1) ? FALSE : proto_can_toggle_protocol(id));
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ExpandSubtrees",
+//                             cf->finfo_selected->tree_type != -1);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/WikiProtocolPage",
+//                             (id == -1) ? FALSE : TRUE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/FilterFieldReference",
+//                             (id == -1) ? FALSE : TRUE);
+//        set_menu_sensitivity(ui_manager_main_menubar,
+        main_ui_->actionFileExportPacketBytes->setEnabled(true);
+
+//        set_menu_sensitivity(ui_manager_main_menubar,
+//                             "/Menubar/GoMenu/GotoCorrespondingPacket", hfinfo->type == FT_FRAMENUM);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/Copy/Description",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/Copy/Fieldname",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/Copy/Value",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/Copy/AsFilter",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/ApplyasColumn",
+//                             hfinfo->type != FT_NONE);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/ApplyAsFilter",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/PrepareaFilter",
+//                             proto_can_match_selected(cf->finfo_selected, cf->edt));
+        main_ui_->actionViewExpandSubtrees->setEnabled(cap_file_->finfo_selected->tree_type != -1);
+//        prev_abbrev = g_object_get_data(G_OBJECT(ui_manager_tree_view_menu), "menu_abbrev");
+//        if (!prev_abbrev || (strcmp (prev_abbrev, abbrev) != 0)) {
+//            /* No previous protocol or protocol changed - update Protocol Preferences menu */
+//            module_t *prefs_module_p = prefs_find_module(abbrev);
+//            rebuild_protocol_prefs_menu (prefs_module_p, properties);
+
+//            g_object_set_data(G_OBJECT(ui_manager_tree_view_menu), "menu_abbrev", g_strdup(abbrev));
+//            g_free (prev_abbrev);
+//        }
+    } else {
+//        set_menu_sensitivity(ui_manager_tree_view_menu,
+//                             "/TreeViewPopup/GotoCorrespondingPacket", FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/Copy", FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ApplyasColumn", FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ApplyAsFilter", FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/PrepareaFilter", FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ColorizewithFilter", FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ProtocolPreferences",
+//                             FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/DisableProtocol", FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ExpandSubtrees", FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/WikiProtocolPage",
+//                             FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/FilterFieldReference",
+//                             FALSE);
+        main_ui_->actionFileExportPacketBytes->setEnabled(false);
+//        set_menu_sensitivity(ui_manager_main_menubar,
+//                             "/Menubar/GoMenu/GotoCorrespondingPacket", FALSE);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/Copy/Description", FALSE);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/Copy/Fieldname", FALSE);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/Copy/Value", FALSE);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/Copy/AsFilter", FALSE);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/ApplyasColumn", FALSE);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/ApplyAsFilter", FALSE);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/PrepareaFilter", FALSE);
+        main_ui_->actionViewExpandSubtrees->setEnabled(false);
+    }
+}
 
 
 // File Menu
@@ -537,11 +650,6 @@ void MainWindow::on_actionFileSaveAs_triggered()
     saveAsCaptureFile(cap_file_, FALSE, TRUE);
 }
 
-void MainWindow::on_actionFileExportPackets_triggered()
-{
-    exportSelectedPackets();
-}
-
 void MainWindow::on_actionFileSetListFiles_triggered()
 {
     file_set_dialog_.exec();
@@ -567,6 +675,155 @@ void MainWindow::on_actionFileSetPreviousFile_triggered()
     }
 }
 
+void MainWindow::on_actionFileExportPackets_triggered()
+{
+    exportSelectedPackets();
+}
+
+void MainWindow::on_actionFileExportAsPlainText_triggered()
+{
+    exportDissections(export_type_text);
+}
+
+void MainWindow::on_actionFileExportAsCSV_triggered()
+{
+    exportDissections(export_type_csv);
+}
+
+void MainWindow::on_actionFileExportAsCArrays_triggered()
+{
+    exportDissections(export_type_carrays);
+}
+
+void MainWindow::on_actionFileExportAsPSML_triggered()
+{
+    exportDissections(export_type_psml);
+}
+
+void MainWindow::on_actionFileExportAsPDML_triggered()
+{
+    exportDissections(export_type_pdml);
+}
+
+void MainWindow::on_actionFileExportPacketBytes_triggered()
+{
+    QString file_name;
+
+    if (!cap_file_ || !cap_file_->finfo_selected) return;
+
+    file_name = QFileDialog::getSaveFileName(this,
+                                             tr("Wireshark: Export Selected Packet Bytes"),
+                                             wsApp->lastOpenDir().canonicalPath(),
+                                             tr("Raw data (*.bin *.dat *.raw);;Any File (*.*)")
+                                             );
+
+    if (file_name.length() > 0) {
+        const guint8 *data_p;
+        int fd;
+
+        data_p = tvb_get_ptr(cap_file_->finfo_selected->ds_tvb, 0, -1) +
+                cap_file_->finfo_selected->start;
+        fd = ws_open(file_name.toUtf8().constData(), O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, 0666);
+        if (fd == -1) {
+            open_failure_alert_box(file_name.toUtf8().constData(), errno, TRUE);
+            return;
+        }
+        if (write(fd, data_p, cfile.finfo_selected->length) < 0) {
+            write_failure_alert_box(file_name.toUtf8().constData(), errno);
+            ::close(fd);
+            return;
+        }
+        if (::close(fd) < 0) {
+            write_failure_alert_box(file_name.toUtf8().constData(), errno);
+            return;
+        }
+
+        /* Save the directory name for future file dialogs. */
+        wsApp->setLastOpenDir(&file_name);
+    }
+}
+
+void MainWindow::on_actionFileExportSSLSessionKeys_triggered()
+{
+    QString file_name;
+    QString save_title;
+    int keylist_len;
+
+    keylist_len = ssl_session_key_count();
+    /* don't show up the dialog, if no data has to be saved */
+    if (keylist_len < 1) {
+        /* shouldn't happen as the menu item should have been greyed out */
+        QMessageBox::warning(
+                    this,
+                    tr("No Keys"),
+                    tr("There are no SSL Session Keys to save."),
+                    QMessageBox::Ok
+                    );
+        return;
+    }
+
+    save_title.append("Wireshark: Export SSL Session Keys (%1 key%2").
+            arg(keylist_len).arg(plurality(keylist_len, "", "s"));
+    file_name = QFileDialog::getSaveFileName(this,
+                                             save_title,
+                                             wsApp->lastOpenDir().canonicalPath(),
+                                             tr("SSL Session Keys (*.keys *.txt);;Any File (*.*)")
+                                             );
+    if (file_name.length() > 0) {
+        gchar *keylist;
+        int fd;
+
+        keylist = ssl_export_sessions();
+        fd = ws_open(file_name.toUtf8().constData(), O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, 0666);
+        if (fd == -1) {
+            open_failure_alert_box(file_name.toUtf8().constData(), errno, TRUE);
+            g_free(keylist);
+            return;
+        }
+        /*
+         * Thanks, Microsoft, for not using size_t for the third argument to
+         * _write().  Presumably this string will be <= 4GiB long....
+         */
+        if (ws_write(fd, keylist, (unsigned int)strlen(keylist)) < 0) {
+            write_failure_alert_box(file_name.toUtf8().constData(), errno);
+            ::close(fd);
+            g_free(keylist);
+            return;
+        }
+        if (::close(fd) < 0) {
+            write_failure_alert_box(file_name.toUtf8().constData(), errno);
+            g_free(keylist);
+            return;
+        }
+
+        /* Save the directory name for future file dialogs. */
+        wsApp->setLastOpenDir(&file_name);
+        g_free(keylist);
+    }
+}
+
+void MainWindow::on_actionFileExportObjectsDICOM_triggered()
+{
+    new ExportObjectDialog(this, cap_file_, ExportObjectDialog::Dicom);
+}
+
+void MainWindow::on_actionFileExportObjectsHTTP_triggered()
+{
+    new ExportObjectDialog(this, cap_file_, ExportObjectDialog::Http);
+}
+
+void MainWindow::on_actionFileExportObjectsSMB_triggered()
+{
+    new ExportObjectDialog(this, cap_file_, ExportObjectDialog::Smb);
+}
+
+void MainWindow::on_actionFilePrint_triggered()
+{
+    PrintDialog pdlg(this, cap_file_);
+
+    pdlg.exec();
+}
+
 // View Menu
 
 // Expand / collapse slots in proto_tree
@@ -578,70 +835,70 @@ void MainWindow::on_actionFileSetPreviousFile_triggered()
 // Help Menu
 void MainWindow::on_actionHelpContents_triggered() {
 
-    topic_action(HELP_CONTENT);
+    wsApp->helpTopicAction(HELP_CONTENT);
 }
 
 void MainWindow::on_actionHelpMPWireshark_triggered() {
 
-    topic_action(LOCALPAGE_MAN_WIRESHARK);
+    wsApp->helpTopicAction(LOCALPAGE_MAN_WIRESHARK);
 }
 void MainWindow::on_actionHelpMPWireshark_Filter_triggered() {
 
-    topic_action(LOCALPAGE_MAN_WIRESHARK_FILTER);
+    wsApp->helpTopicAction(LOCALPAGE_MAN_WIRESHARK_FILTER);
 }
 void MainWindow::on_actionHelpMPTShark_triggered() {
 
-    topic_action(LOCALPAGE_MAN_TSHARK);
+    wsApp->helpTopicAction(LOCALPAGE_MAN_TSHARK);
 }
 void MainWindow::on_actionHelpMPRawShark_triggered() {
 
-    topic_action(LOCALPAGE_MAN_RAWSHARK);
+    wsApp->helpTopicAction(LOCALPAGE_MAN_RAWSHARK);
 }
 void MainWindow::on_actionHelpMPDumpcap_triggered() {
 
-    topic_action(LOCALPAGE_MAN_DUMPCAP);
+    wsApp->helpTopicAction(LOCALPAGE_MAN_DUMPCAP);
 }
 void MainWindow::on_actionHelpMPMergecap_triggered() {
 
-    topic_action(LOCALPAGE_MAN_MERGECAP);
+    wsApp->helpTopicAction(LOCALPAGE_MAN_MERGECAP);
 }
 void MainWindow::on_actionHelpMPEditcap_triggered() {
 
-    topic_action(LOCALPAGE_MAN_EDITCAP);
+    wsApp->helpTopicAction(LOCALPAGE_MAN_EDITCAP);
 }
 void MainWindow::on_actionHelpMPText2cap_triggered() {
 
-    topic_action(LOCALPAGE_MAN_TEXT2PCAP);
+    wsApp->helpTopicAction(LOCALPAGE_MAN_TEXT2PCAP);
 }
 
 void MainWindow::on_actionHelpWebsite_triggered() {
 
-    topic_action(ONLINEPAGE_HOME);
+    wsApp->helpTopicAction(ONLINEPAGE_HOME);
 }
 
 void MainWindow::on_actionHelpFAQ_triggered() {
 
-    topic_action(ONLINEPAGE_FAQ);
+    wsApp->helpTopicAction(ONLINEPAGE_FAQ);
 }
 
 void MainWindow::on_actionHelpAsk_triggered() {
 
-    topic_action(ONLINEPAGE_ASK);
+    wsApp->helpTopicAction(ONLINEPAGE_ASK);
 }
 
 void MainWindow::on_actionHelpDownloads_triggered() {
 
-    topic_action(ONLINEPAGE_DOWNLOAD);
+    wsApp->helpTopicAction(ONLINEPAGE_DOWNLOAD);
 }
 
 void MainWindow::on_actionHelpWiki_triggered() {
 
-    topic_action(ONLINEPAGE_WIKI);
+    wsApp->helpTopicAction(ONLINEPAGE_WIKI);
 }
 
 void MainWindow::on_actionHelpSampleCaptures_triggered() {
 
-    topic_action(ONLINEPAGE_SAMPLE_FILES);
+    wsApp->helpTopicAction(ONLINEPAGE_SAMPLE_FILES);
 }
 
 void MainWindow::on_actionGoGoToPacket_triggered() {

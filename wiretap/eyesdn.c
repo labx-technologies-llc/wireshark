@@ -95,12 +95,12 @@ static const unsigned char eyesdn_hdr_magic[]  =
 static gboolean eyesdn_read(wtap *wth, int *err, gchar **err_info,
 	gint64 *data_offset);
 static gboolean eyesdn_seek_read(wtap *wth, gint64 seek_off,
-	union wtap_pseudo_header *pseudo_header, guint8 *pd, int len,
+	struct wtap_pkthdr *phdr, guint8 *pd, int len,
 	int *err, gchar **err_info);
 static gboolean parse_eyesdn_packet_data(FILE_T fh, int pkt_len, guint8* buf,
 	int *err, gchar **err_info);
-static int parse_eyesdn_rec_hdr(wtap *wth, FILE_T fh,
-	union wtap_pseudo_header *pseudo_header, int *err, gchar **err_info);
+static int parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
+	int *err, gchar **err_info);
 
 /* Seeks to the beginning of the next packet, and returns the
    byte offset.  Returns -1 on failure, and sets "*err" to the error
@@ -172,8 +172,7 @@ static gboolean eyesdn_read(wtap *wth, int *err, gchar **err_info,
 		return FALSE;
 
 	/* Parse the header */
-	pkt_len = parse_eyesdn_rec_hdr(wth, wth->fh, &wth->pseudo_header, err,
-	    err_info);
+	pkt_len = parse_eyesdn_rec_hdr(wth->fh, &wth->phdr, err, err_info);
 	if (pkt_len == -1)
 		return FALSE;
 
@@ -191,17 +190,15 @@ static gboolean eyesdn_read(wtap *wth, int *err, gchar **err_info,
 
 /* Used to read packets in random-access fashion */
 static gboolean
-eyesdn_seek_read (wtap *wth, gint64 seek_off,
-	union wtap_pseudo_header *pseudo_header, guint8 *pd, int len,
-	int *err, gchar **err_info)
+eyesdn_seek_read (wtap *wth, gint64 seek_off,struct wtap_pkthdr *phdr,
+	guint8 *pd, int len, int *err, gchar **err_info)
 {
 	int	pkt_len;
 
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
 
-	pkt_len = parse_eyesdn_rec_hdr(NULL, wth->random_fh, pseudo_header,
-	    err, err_info);
+	pkt_len = parse_eyesdn_rec_hdr(wth->random_fh, phdr, err, err_info);
 
 	if (pkt_len != len) {
 		if (pkt_len != -1) {
@@ -218,9 +215,10 @@ eyesdn_seek_read (wtap *wth, gint64 seek_off,
 
 /* Parses a packet record header. */
 static int
-parse_eyesdn_rec_hdr(wtap *wth, FILE_T fh,
-    union wtap_pseudo_header *pseudo_header, int *err, gchar **err_info)
+parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
+    int *err, gchar **err_info)
 {
+	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	guint8		hdr[EYESDN_HDR_LENGTH];
 	time_t		secs;
 	int		usecs;
@@ -261,28 +259,20 @@ parse_eyesdn_rec_hdr(wtap *wth, FILE_T fh,
 		pseudo_header->isdn.uton = direction & 1;
 		pseudo_header->isdn.channel = channel;
 		if(channel) { /* bearer channels */
-			if(wth) {
-				wth->phdr.pkt_encap = WTAP_ENCAP_ISDN; /* recognises PPP */
-				pseudo_header->isdn.uton=!pseudo_header->isdn.uton; /* bug */
-			}
+			phdr->pkt_encap = WTAP_ENCAP_ISDN; /* recognises PPP */
+			pseudo_header->isdn.uton=!pseudo_header->isdn.uton; /* bug */
 		} else { /* D channel */
-			if(wth) {
-				wth->phdr.pkt_encap = WTAP_ENCAP_ISDN;
-			}
+			phdr->pkt_encap = WTAP_ENCAP_ISDN;
 		}
 		break;
 
 	case EYESDN_ENCAP_MSG: /* Layer 1 message */
-		if(wth) {
-			wth->phdr.pkt_encap = WTAP_ENCAP_LAYER1_EVENT;
-		}
+		phdr->pkt_encap = WTAP_ENCAP_LAYER1_EVENT;
 		pseudo_header->l1event.uton = (direction & 1);
 		break;
 
 	case EYESDN_ENCAP_LAPB: /* X.25 via LAPB */ 
-		if(wth) {
-			wth->phdr.pkt_encap = WTAP_ENCAP_LAPB;
-		}
+		phdr->pkt_encap = WTAP_ENCAP_LAPB;
 		pseudo_header->x25.flags = (direction & 1) ? 0 : 0x80;
 		break;
 
@@ -308,9 +298,7 @@ parse_eyesdn_rec_hdr(wtap *wth, FILE_T fh,
 		}
 		if (file_seek(fh, cur_off, SEEK_SET, err) == -1)
 			return -1;
-		if(wth) {
-			wth->phdr.pkt_encap = WTAP_ENCAP_ATM_PDUS_UNTRUNCATED;
-		}
+		phdr->pkt_encap = WTAP_ENCAP_ATM_PDUS_UNTRUNCATED;
 		pseudo_header->atm.flags=ATM_RAW_CELL;
 		pseudo_header->atm.aal=AAL_UNKNOWN;
 		pseudo_header->atm.type=TRAF_UMTS_FP;
@@ -325,58 +313,46 @@ parse_eyesdn_rec_hdr(wtap *wth, FILE_T fh,
 		pseudo_header->mtp2.sent = direction & 1;
 		pseudo_header->mtp2.annex_a_used = MTP2_ANNEX_A_USED_UNKNOWN;
 		pseudo_header->mtp2.link_number = channel;		
-		if(wth) {
-			wth->phdr.pkt_encap = WTAP_ENCAP_MTP2_WITH_PHDR;
-		}
+		phdr->pkt_encap = WTAP_ENCAP_MTP2_WITH_PHDR;
 		break;
 
 	case EYESDN_ENCAP_DPNSS: /* DPNSS */
 		pseudo_header->isdn.uton = direction & 1;
 		pseudo_header->isdn.channel = channel;
-		if(wth) {
-			wth->phdr.pkt_encap = WTAP_ENCAP_DPNSS;
-		}
+		phdr->pkt_encap = WTAP_ENCAP_DPNSS;
 		break;
 
 	case EYESDN_ENCAP_DASS2: /* DASS2 frames */
 		pseudo_header->isdn.uton = direction & 1;
 		pseudo_header->isdn.channel = channel;
-		if(wth) {
-			wth->phdr.pkt_encap = WTAP_ENCAP_DPNSS;
-		}
+		phdr->pkt_encap = WTAP_ENCAP_DPNSS;
 		break;
 
 	case EYESDN_ENCAP_BACNET: /* BACNET async over HDLC frames */
 	        pseudo_header->isdn.uton = direction & 1;
 		pseudo_header->isdn.channel = channel;
-		if(wth) {
-			wth->phdr.pkt_encap = WTAP_ENCAP_BACNET_MS_TP_WITH_PHDR;
-		}
+		phdr->pkt_encap = WTAP_ENCAP_BACNET_MS_TP_WITH_PHDR;
 		break;
 
 	case EYESDN_ENCAP_V5_EF: /* V5EF */
 		pseudo_header->isdn.uton = direction & 1;
 		pseudo_header->isdn.channel = channel;
-		if(wth) {
-			wth->phdr.pkt_encap = WTAP_ENCAP_V5_EF;
-		}
+		phdr->pkt_encap = WTAP_ENCAP_V5_EF;
 		break;
 	}
 
 	if(pkt_len > EYESDN_MAX_PACKET_LEN) {
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup_printf("eyesdn: File has %u-byte packet, bigger than maximum of %u",
-		pkt_len, EYESDN_MAX_PACKET_LEN);
+		    pkt_len, EYESDN_MAX_PACKET_LEN);
 		return -1;
 	}
 
-	if (wth) {
-		wth->phdr.presence_flags = WTAP_HAS_TS;
-		wth->phdr.ts.secs = secs;
-		wth->phdr.ts.nsecs = usecs * 1000;
-		wth->phdr.caplen = pkt_len;
-		wth->phdr.len = pkt_len;
-	}
+	phdr->presence_flags = WTAP_HAS_TS;
+	phdr->ts.secs = secs;
+	phdr->ts.nsecs = usecs * 1000;
+	phdr->caplen = pkt_len;
+	phdr->len = pkt_len;
 
 	return pkt_len;
 }
@@ -431,7 +407,6 @@ esc_write(wtap_dumper *wdh, const guint8 *buf, int len, int *err)
 
 static gboolean eyesdn_dump(wtap_dumper *wdh,
 			    const struct wtap_pkthdr *phdr,
-			    const union wtap_pseudo_header *pseudo_header _U_,
 			    const guint8 *pd, int *err);
 
 gboolean eyesdn_dump_open(wtap_dumper *wdh, int *err)
@@ -469,10 +444,10 @@ int eyesdn_dump_can_write_encap(int encap)
  *    Returns TRUE on success, FALSE on failure. */
 static gboolean eyesdn_dump(wtap_dumper *wdh,
 			    const struct wtap_pkthdr *phdr,
-			    const union wtap_pseudo_header *pseudo_header _U_,
 			    const guint8 *pd, int *err)
 {
 	static const guint8 start_flag = 0xff;
+	const union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	guint8 buf[EYESDN_HDR_LENGTH];
 	int usecs;
 	time_t secs;

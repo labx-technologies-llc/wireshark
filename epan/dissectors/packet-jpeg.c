@@ -35,6 +35,7 @@
 
 #include <epan/rtp_pt.h>
 
+#include "packet-ber.h"
 
 /* JPEG header fields             */
 static int hf_rtp_jpeg_main_hdr = -1;
@@ -268,6 +269,9 @@ proto_register_jpeg(void)
 	proto_jpeg = proto_register_protocol("RFC 2435 JPEG","JPEG","jpeg");
 	proto_register_field_array(proto_jpeg, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+
+	/* RFC 2798 */
+	register_ber_oid_dissector("0.9.2342.19200300.100.1.60", dissect_jpeg, proto_jpeg, "jpegPhoto");
 }
 
 void

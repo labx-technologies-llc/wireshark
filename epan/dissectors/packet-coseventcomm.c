@@ -15,9 +15,6 @@
  * Copyright 1999 - 2012 Gerald Combs
  */
 
-static int hf_operationrequest = -1;/* Request_Operation field */
-
-
 /*
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -52,55 +49,25 @@ static int hf_operationrequest = -1;/* Request_Operation field */
 #endif
 
 
-static proto_tree *start_dissecting(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, int *offset);
-
-
-
-/* Struct prototype declaration Start */
-
-
-/* Struct prototype declaration End */
-
-
-/* Union prototype declaration Start */
-
-
-/* Union prototype declaration End */
-
-
 /* Initialise the protocol and subtree pointers */
-
 static int proto_coseventcomm = -1;
-
 static gint ett_coseventcomm = -1;
 
 
 /* Initialise the initial Alignment */
-
 static guint32  boundary = GIOP_HEADER_SIZE;  /* initial value */
 
+static int hf_operationrequest = -1;/* Request_Operation field */
 
+        /* Operation filters */
+static int hf_CosEventComm_PushConsumer_push_data = -1;
+static int hf_CosEventComm_PullSupplier_pull_return = -1;
+static int hf_CosEventComm_PullSupplier_try_pull_return = -1;
+static int hf_CosEventComm_PullSupplier_try_pull_has_event = -1;
+        /* User exception filters */
 
-/* Initialise the Registered fields */
+static proto_tree *start_dissecting(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, int *offset);
 
-/* TODO - Use registered fields */
-
-/*
- * IDL Attributes Start
- */
-
-
-/*
- * IDL Attributes End
- */
-
-/*
- * IDL Enums Start
- */
-
-/*
- * IDL Enums End
- */
 
 /*  Begin Exception Helper Functions  */
 
@@ -115,490 +82,234 @@ static guint32  boundary = GIOP_HEADER_SIZE;  /* initial value */
 static gboolean
 decode_user_exception(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *ptree _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
-
-    /*gboolean stream_is_big_endian _U_;*/                        /* big endianess */
     proto_tree *tree _U_;
 
     if (!header->exception_id)
         return FALSE;
 
 
-
     return FALSE;    /* user exception not found */
-
 }
-
-/*  Begin Attribute Helper Functions  */
-
-
-/*  End Attribute Helper Functions  */
 
 /*
  * IDL:omg.org/CosEventComm/PushConsumer/push:1.0
  */
-
 static void
-decode_CosEventComm_PushConsumer_push(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_CosEventComm_PushConsumer_push(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
-
-    
-    /* Operation specific Variable declarations Begin */
-
-    
-    /* Operation specific Variable declarations End */
-
-    
     switch(header->message_type) {
-
     case Request:
-
-        get_CDR_any(tvb,tree,offset,stream_is_big_endian, boundary, header);
+        get_CDR_any(tvb, pinfo, tree, item, offset, stream_is_big_endian, boundary, header);
 
         break;
-
     case Reply:
-
         switch(header->rep_status) {
-
         case NO_EXCEPTION:
-
             /* Function returns void */
 
             break;
-
         case USER_EXCEPTION:
-
             break;
-
         default:
-            {
-        	proto_item *pi;
-
-        	/* Unknown Exception */
-        	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown exception %d", header->rep_status);
-        	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
-            }
-
+            /* Unknown Exception */
+            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
             break;
-
-        
-        }   /* switch(header->message_type) */
+        }   /* switch(header->rep_status) */
 
         break;
-
     default:
-        {
-    	proto_item *pi;
-
-    	/* Unknown GIOP Message */
-    	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown GIOP message %d", header->message_type);
-    	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
-        }
-
+        /* Unknown GIOP Message */
+        expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
         break;
-
     } /* switch(header->message_type) */
-
 }
 
 /*
  * IDL:omg.org/CosEventComm/PushConsumer/disconnect_push_consumer:1.0
  */
-
 static void
-decode_CosEventComm_PushConsumer_disconnect_push_consumer(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_CosEventComm_PushConsumer_disconnect_push_consumer(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
-
-    
-    /* Operation specific Variable declarations Begin */
-
-    
-    /* Operation specific Variable declarations End */
-
-    
     switch(header->message_type) {
-
     case Request:
-
         break;
-
     case Reply:
-
         switch(header->rep_status) {
-
         case NO_EXCEPTION:
-
             /* Function returns void */
 
             break;
-
         case USER_EXCEPTION:
-
             break;
-
         default:
-            {
-        	proto_item *pi;
-
-        	/* Unknown Exception */
-        	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown exception %d", header->rep_status);
-        	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
-            }
-
+            /* Unknown Exception */
+            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
             break;
-
-        
-        }   /* switch(header->message_type) */
+        }   /* switch(header->rep_status) */
 
         break;
-
     default:
-        {
-    	proto_item *pi;
-
-    	/* Unknown GIOP Message */
-    	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown GIOP message %d", header->message_type);
-    	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
-        }
-
+        /* Unknown GIOP Message */
+        expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
         break;
-
     } /* switch(header->message_type) */
-
 }
 
 /*
  * IDL:omg.org/CosEventComm/PushSupplier/disconnect_push_supplier:1.0
  */
-
 static void
-decode_CosEventComm_PushSupplier_disconnect_push_supplier(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_CosEventComm_PushSupplier_disconnect_push_supplier(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
-
-    
-    /* Operation specific Variable declarations Begin */
-
-    
-    /* Operation specific Variable declarations End */
-
-    
     switch(header->message_type) {
-
     case Request:
-
         break;
-
     case Reply:
-
         switch(header->rep_status) {
-
         case NO_EXCEPTION:
-
             /* Function returns void */
 
             break;
-
         case USER_EXCEPTION:
-
             break;
-
         default:
-            {
-        	proto_item *pi;
-
-        	/* Unknown Exception */
-        	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown exception %d", header->rep_status);
-        	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
-            }
-
+            /* Unknown Exception */
+            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
             break;
-
-        
-        }   /* switch(header->message_type) */
+        }   /* switch(header->rep_status) */
 
         break;
-
     default:
-        {
-    	proto_item *pi;
-
-    	/* Unknown GIOP Message */
-    	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown GIOP message %d", header->message_type);
-    	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
-        }
-
+        /* Unknown GIOP Message */
+        expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
         break;
-
     } /* switch(header->message_type) */
-
 }
 
 /*
  * IDL:omg.org/CosEventComm/PullSupplier/pull:1.0
  */
-
 static void
-decode_CosEventComm_PullSupplier_pull(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_CosEventComm_PullSupplier_pull(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
-
-    
-    /* Operation specific Variable declarations Begin */
-
-    
-    /* Operation specific Variable declarations End */
-
-    
     switch(header->message_type) {
-
     case Request:
-
         break;
-
     case Reply:
-
         switch(header->rep_status) {
-
         case NO_EXCEPTION:
-
-            get_CDR_any(tvb,tree,offset,stream_is_big_endian, boundary, header);
+            get_CDR_any(tvb, pinfo, tree, item, offset, stream_is_big_endian, boundary, header);
 
             break;
-
         case USER_EXCEPTION:
-
             break;
-
         default:
-            {
-        	proto_item *pi;
-
-        	/* Unknown Exception */
-        	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown exception %d", header->rep_status);
-        	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
-            }
-
+            /* Unknown Exception */
+            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
             break;
-
-        
-        }   /* switch(header->message_type) */
+        }   /* switch(header->rep_status) */
 
         break;
-
     default:
-        {
-    	proto_item *pi;
-
-    	/* Unknown GIOP Message */
-    	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown GIOP message %d", header->message_type);
-    	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
-        }
-
+        /* Unknown GIOP Message */
+        expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
         break;
-
     } /* switch(header->message_type) */
-
 }
 
 /*
  * IDL:omg.org/CosEventComm/PullSupplier/try_pull:1.0
  */
-
 static void
-decode_CosEventComm_PullSupplier_try_pull(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_CosEventComm_PullSupplier_try_pull(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
-
-    
-    /* Operation specific Variable declarations Begin */
-
-    
-    /* Operation specific Variable declarations End */
-
-    
     switch(header->message_type) {
-
     case Request:
-
         break;
-
     case Reply:
-
         switch(header->rep_status) {
-
         case NO_EXCEPTION:
+            get_CDR_any(tvb, pinfo, tree, item, offset, stream_is_big_endian, boundary, header);
 
-            get_CDR_any(tvb,tree,offset,stream_is_big_endian, boundary, header);
-
-            if (tree) {
-               proto_tree_add_text(tree,tvb,*offset-1,1,"has_event = %u",get_CDR_boolean(tvb,offset));
-            }
+            proto_tree_add_boolean(tree, hf_CosEventComm_PullSupplier_try_pull_has_event, tvb, *offset-1, 1, get_CDR_boolean(tvb,offset));
 
             break;
-
         case USER_EXCEPTION:
-
             break;
-
         default:
-            {
-        	proto_item *pi;
-
-        	/* Unknown Exception */
-        	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown exception %d", header->rep_status);
-        	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
-            }
-
+            /* Unknown Exception */
+            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
             break;
-
-        
-        }   /* switch(header->message_type) */
+        }   /* switch(header->rep_status) */
 
         break;
-
     default:
-        {
-    	proto_item *pi;
-
-    	/* Unknown GIOP Message */
-    	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown GIOP message %d", header->message_type);
-    	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
-        }
-
+        /* Unknown GIOP Message */
+        expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
         break;
-
     } /* switch(header->message_type) */
-
 }
 
 /*
  * IDL:omg.org/CosEventComm/PullSupplier/disconnect_pull_supplier:1.0
  */
-
 static void
-decode_CosEventComm_PullSupplier_disconnect_pull_supplier(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_CosEventComm_PullSupplier_disconnect_pull_supplier(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
-
-    
-    /* Operation specific Variable declarations Begin */
-
-    
-    /* Operation specific Variable declarations End */
-
-    
     switch(header->message_type) {
-
     case Request:
-
         break;
-
     case Reply:
-
         switch(header->rep_status) {
-
         case NO_EXCEPTION:
-
             /* Function returns void */
 
             break;
-
         case USER_EXCEPTION:
-
             break;
-
         default:
-            {
-        	proto_item *pi;
-
-        	/* Unknown Exception */
-        	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown exception %d", header->rep_status);
-        	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
-            }
-
+            /* Unknown Exception */
+            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
             break;
-
-        
-        }   /* switch(header->message_type) */
+        }   /* switch(header->rep_status) */
 
         break;
-
     default:
-        {
-    	proto_item *pi;
-
-    	/* Unknown GIOP Message */
-    	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown GIOP message %d", header->message_type);
-    	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
-        }
-
+        /* Unknown GIOP Message */
+        expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
         break;
-
     } /* switch(header->message_type) */
-
 }
 
 /*
  * IDL:omg.org/CosEventComm/PullConsumer/disconnect_pull_consumer:1.0
  */
-
 static void
-decode_CosEventComm_PullConsumer_disconnect_pull_consumer(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_CosEventComm_PullConsumer_disconnect_pull_consumer(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
-
-    
-    /* Operation specific Variable declarations Begin */
-
-    
-    /* Operation specific Variable declarations End */
-
-    
     switch(header->message_type) {
-
     case Request:
-
         break;
-
     case Reply:
-
         switch(header->rep_status) {
-
         case NO_EXCEPTION:
-
             /* Function returns void */
 
             break;
-
         case USER_EXCEPTION:
-
             break;
-
         default:
-            {
-        	proto_item *pi;
-
-        	/* Unknown Exception */
-        	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown exception %d", header->rep_status);
-        	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
-            }
-
+            /* Unknown Exception */
+            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);
             break;
-
-        
-        }   /* switch(header->message_type) */
+        }   /* switch(header->rep_status) */
 
         break;
-
     default:
-        {
-    	proto_item *pi;
-
-    	/* Unknown GIOP Message */
-    	pi = proto_tree_add_text(tree, tvb, 0, 0, "Unknown GIOP message %d", header->message_type);
-    	expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
-        }
-
+        /* Unknown GIOP Message */
+        expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);
         break;
-
     } /* switch(header->message_type) */
-
 }
 
 /*
@@ -629,34 +340,30 @@ start_dissecting(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, int *offs
     return tree;
 }
 
-static void
+static proto_item*
 process_RequestOperation(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, MessageHeader *header, gchar *operation)
 {
     proto_item *pi;
     if(header->message_type == Reply) {
         /* fill-up info column */
         col_append_fstr(pinfo->cinfo, COL_INFO, " op = %s",operation);
-    };
+    }
     /* fill-up the field */
-    pi=proto_tree_add_string_format_value(ptree,hf_operationrequest,tvb,0,0,operation," %s",operation);
+    pi=proto_tree_add_string(ptree, hf_operationrequest, tvb, 0, 0, operation);
     PROTO_ITEM_SET_GENERATED(pi);
+    return pi;
 }
 
 static gboolean
 dissect_coseventcomm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, int *offset, MessageHeader *header, gchar *operation, gchar *idlname)
 {
-
-    gboolean stream_is_big_endian;                        /* big endianess */
+    proto_item *item _U_;
     proto_tree *tree _U_;
-
-    stream_is_big_endian = is_big_endian(header);         /* get endianess  */
+    gboolean stream_is_big_endian = is_big_endian(header); /* get endianess */
 
     /* If we have a USER Exception, then decode it and return */
-
     if ((header->message_type == Reply) && (header->rep_status == USER_EXCEPTION)) {
-
        return decode_user_exception(tvb, pinfo, ptree, offset, header, operation, stream_is_big_endian);
-
     }
 
     switch(header->message_type) {
@@ -666,61 +373,60 @@ dissect_coseventcomm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, int *
 
         if (strcmp(operation, "push") == 0
             && (!idlname || strcmp(idlname, "CosEventComm/PushConsumer") == 0)) {
-           process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
+           item = process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
            tree = start_dissecting(tvb, pinfo, ptree, offset);
-           decode_CosEventComm_PushConsumer_push(tvb, pinfo, tree, offset, header, operation, stream_is_big_endian);
+           decode_CosEventComm_PushConsumer_push(tvb, pinfo, tree, item, offset, header, operation, stream_is_big_endian);
            return TRUE;
         }
 
         if (strcmp(operation, "disconnect_push_consumer") == 0
             && (!idlname || strcmp(idlname, "CosEventComm/PushConsumer") == 0)) {
-           process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
+           item = process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
            tree = start_dissecting(tvb, pinfo, ptree, offset);
-           decode_CosEventComm_PushConsumer_disconnect_push_consumer(tvb, pinfo, tree, offset, header, operation, stream_is_big_endian);
+           decode_CosEventComm_PushConsumer_disconnect_push_consumer(tvb, pinfo, tree, item, offset, header, operation, stream_is_big_endian);
            return TRUE;
         }
 
         if (strcmp(operation, "disconnect_push_supplier") == 0
             && (!idlname || strcmp(idlname, "CosEventComm/PushSupplier") == 0)) {
-           process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
+           item = process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
            tree = start_dissecting(tvb, pinfo, ptree, offset);
-           decode_CosEventComm_PushSupplier_disconnect_push_supplier(tvb, pinfo, tree, offset, header, operation, stream_is_big_endian);
+           decode_CosEventComm_PushSupplier_disconnect_push_supplier(tvb, pinfo, tree, item, offset, header, operation, stream_is_big_endian);
            return TRUE;
         }
 
         if (strcmp(operation, "pull") == 0
             && (!idlname || strcmp(idlname, "CosEventComm/PullSupplier") == 0)) {
-           process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
+           item = process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
            tree = start_dissecting(tvb, pinfo, ptree, offset);
-           decode_CosEventComm_PullSupplier_pull(tvb, pinfo, tree, offset, header, operation, stream_is_big_endian);
+           decode_CosEventComm_PullSupplier_pull(tvb, pinfo, tree, item, offset, header, operation, stream_is_big_endian);
            return TRUE;
         }
 
         if (strcmp(operation, "try_pull") == 0
             && (!idlname || strcmp(idlname, "CosEventComm/PullSupplier") == 0)) {
-           process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
+           item = process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
            tree = start_dissecting(tvb, pinfo, ptree, offset);
-           decode_CosEventComm_PullSupplier_try_pull(tvb, pinfo, tree, offset, header, operation, stream_is_big_endian);
+           decode_CosEventComm_PullSupplier_try_pull(tvb, pinfo, tree, item, offset, header, operation, stream_is_big_endian);
            return TRUE;
         }
 
         if (strcmp(operation, "disconnect_pull_supplier") == 0
             && (!idlname || strcmp(idlname, "CosEventComm/PullSupplier") == 0)) {
-           process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
+           item = process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
            tree = start_dissecting(tvb, pinfo, ptree, offset);
-           decode_CosEventComm_PullSupplier_disconnect_pull_supplier(tvb, pinfo, tree, offset, header, operation, stream_is_big_endian);
+           decode_CosEventComm_PullSupplier_disconnect_pull_supplier(tvb, pinfo, tree, item, offset, header, operation, stream_is_big_endian);
            return TRUE;
         }
 
         if (strcmp(operation, "disconnect_pull_consumer") == 0
             && (!idlname || strcmp(idlname, "CosEventComm/PullConsumer") == 0)) {
-           process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
+           item = process_RequestOperation(tvb, pinfo, ptree, header, operation);  /* fill-up Request_Operation field & info column */
            tree = start_dissecting(tvb, pinfo, ptree, offset);
-           decode_CosEventComm_PullConsumer_disconnect_pull_consumer(tvb, pinfo, tree, offset, header, operation, stream_is_big_endian);
+           decode_CosEventComm_PullConsumer_disconnect_pull_consumer(tvb, pinfo, tree, item, offset, header, operation, stream_is_big_endian);
            return TRUE;
         }
 
-        
         break;
 
     case CancelRequest:
@@ -742,18 +448,19 @@ dissect_coseventcomm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, int *
 }  /* End of main dissector  */
 
 
-
 /* Register the protocol with Wireshark */
-
-void proto_register_giop_coseventcomm(void) {
-
+void proto_register_giop_coseventcomm(void)
+{
    /* setup list of header fields */
-
    static hf_register_info hf[] = {
         /* field that indicates the currently ongoing request/reply exchange */
 		{&hf_operationrequest, {"Request_Operation","giop-coseventcomm.Request_Operation",FT_STRING,BASE_NONE,NULL,0x0,NULL,HFILL}},
-
-      /* no fields yet */
+        /* Operation filters */
+        {&hf_CosEventComm_PullSupplier_try_pull_has_event, {"has_event","giop-coseventcomm.PullSupplier.try_pull.has_event",FT_BOOLEAN,8,NULL,0x01,NULL,HFILL}},
+        /* Attribute filters */
+        /* Struct filters */
+        /* User exception filters */
+        /* Union filters */
 
    };
 
@@ -764,46 +471,28 @@ void proto_register_giop_coseventcomm(void) {
    };
 
    /* Register the protocol name and description */
-
    proto_coseventcomm = proto_register_protocol("Coseventcomm Dissector Using GIOP API" , "COSEVENTCOMM", "giop-coseventcomm" );
-
    proto_register_field_array(proto_coseventcomm, hf, array_length(hf));
-
    proto_register_subtree_array(ett,array_length(ett));
-
 }
 
-
 /* register me as handler for these interfaces */
-
-void proto_reg_handoff_giop_coseventcomm(void) {
-
-
+void proto_reg_handoff_giop_coseventcomm(void)
+{
     
     /* Register for Explicit Dissection */
-
     register_giop_user_module(dissect_coseventcomm, "COSEVENTCOMM", "CosEventComm/PullConsumer", proto_coseventcomm );     /* explicit dissector */
-
     
     /* Register for Explicit Dissection */
-
     register_giop_user_module(dissect_coseventcomm, "COSEVENTCOMM", "CosEventComm/PullSupplier", proto_coseventcomm );     /* explicit dissector */
-
     
     /* Register for Explicit Dissection */
-
     register_giop_user_module(dissect_coseventcomm, "COSEVENTCOMM", "CosEventComm/PushConsumer", proto_coseventcomm );     /* explicit dissector */
-
     
     /* Register for Explicit Dissection */
-
     register_giop_user_module(dissect_coseventcomm, "COSEVENTCOMM", "CosEventComm/PushSupplier", proto_coseventcomm );     /* explicit dissector */
-
     
     /* Register for Heuristic Dissection */
-
     register_giop_user(dissect_coseventcomm, "COSEVENTCOMM" ,proto_coseventcomm);     /* heuristic dissector */
-
-
 }
 

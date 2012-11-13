@@ -30,7 +30,7 @@
 #include <windows.h>
 #include "packet-range.h"
 #include "ui/win32/file_dlg_win32.h"
-#endif
+#else // Q_WS_WIN
 
 #include <errno.h>
 #include "file.h"
@@ -38,6 +38,9 @@
 #include "../../epan/prefs.h"
 #include "../../epan/filesystem.h"
 #include "../../epan/nstime.h"
+
+#include <wireshark_application.h>
+
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -47,6 +50,7 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QSpacerItem>
+#endif // Q_WS_WIN
 
 #include <QDebug>
 
@@ -83,48 +87,18 @@ extern void menu_name_resolution_changed(void) {
 
 }
 
-// From gtk/export_sslkeys.[ch]
-/** Callback for "Export SSL Session Keys" operation.
- *
- * @param w unused
- * @param data unused
- */
-extern void savesslkeys_cb(gpointer * w, gpointer data) {
-    Q_UNUSED(w);
-    Q_UNUSED(data);
-}
-
-/** Dump the SSL Session Keys to a StringInfo string
- *
- * @param session_hash contains all the SSL Session Keys
- */
-extern gpointer ssl_export_sessions(GHashTable *session_hash) {
-    Q_UNUSED(session_hash);
-    return NULL;
-}
-
-// From gtk/help_dlg.[ch]
-/** Open a specific topic (create a "Help" dialog box or open a webpage).
- *
- * @param widget parent widget (unused)
- * @param topic the topic to display
- */
-extern void topic_cb(gpointer *widget, int topic) {
-    Q_UNUSED(widget);
-    Q_UNUSED(topic);
-}
-
-}
+} // extern "C"
 // End stub routines
 #endif // Q_WS_WIN
 
 CaptureFileDialog::CaptureFileDialog(QWidget *parent, capture_file *cf, QString &display_filter) :
     QFileDialog(parent),
-    display_filter_(display_filter),
     cap_file_(cf),
+    display_filter_(display_filter),
 #if !defined(Q_WS_WIN)
     default_ft_(-1),
-    save_bt_(NULL)
+    save_bt_(NULL),
+    help_topic_(TOPIC_ACTION_NONE)
 #else
     file_type_(-1)
 #endif
@@ -145,6 +119,7 @@ CaptureFileDialog::CaptureFileDialog(QWidget *parent, capture_file *cf, QString 
     // Left and right boxes for controls and preview
     h_box->addLayout(&left_v_box_);
     h_box->addLayout(&right_v_box_);
+
 #else // Q_WS_WIN
     merge_type_ = 0;
 #endif // Q_WS_WIN
@@ -158,7 +133,7 @@ check_savability_t CaptureFileDialog::checkSaveAsWithComments(QWidget *
 #if defined(Q_WS_WIN)
     if (!parent || !cf)
         return CANCELLED;
-    return win32_check_save_as_with_comments(parent->effectiveWinId(), cap_file_, file_type);
+    return win32_check_save_as_with_comments(parent->effectiveWinId(), cf, file_type);
 #else // Q_WS_WIN
     QMessageBox msg_dialog;
     int response;
@@ -187,24 +162,24 @@ check_savability_t CaptureFileDialog::checkSaveAsWithComments(QWidget *
            format you selected", or "Cancel", meaning "don't bother
            saving the file at all". */
         msg_dialog.setIcon(QMessageBox::Question);
-        msg_dialog.setText("This capture file contains comments.");
-        msg_dialog.setInformativeText("The file format you chose doesn't support comments. "
+        msg_dialog.setText(tr("This capture file contains comments."));
+        msg_dialog.setInformativeText(tr("The file format you chose doesn't support comments. "
                                       "Do you want to save the capture in a format that supports comments "
-                                      "or discard the comments and save in the format you chose?");
+                                      "or discard the comments and save in the format you chose?"));
         msg_dialog.setStandardButtons(QMessageBox::Cancel);
         // The predefined roles don't really match the tasks at hand...
-        msg_dialog.addButton("Discard comments and save", QMessageBox::DestructiveRole);
-        default_button = msg_dialog.addButton("Save in another format", QMessageBox::AcceptRole);
+        msg_dialog.addButton(tr("Discard comments and save"), QMessageBox::DestructiveRole);
+        default_button = msg_dialog.addButton(tr("Save in another format"), QMessageBox::AcceptRole);
         msg_dialog.setDefaultButton(default_button);
     } else {
         /* No.  Offer the user a choice of "Discard comments and
            save in the format you selected" or "Cancel". */
         msg_dialog.setIcon(QMessageBox::Question);
-        msg_dialog.setText("This capture file contains comments.");
-        msg_dialog.setInformativeText("No file format in which it can be saved supports comments. "
-                                      "Do you want to discard the comments and save in the format you chose?");
+        msg_dialog.setText(tr("This capture file contains comments."));
+        msg_dialog.setInformativeText(tr("No file format in which it can be saved supports comments. "
+                                      "Do you want to discard the comments and save in the format you chose?"));
         msg_dialog.setStandardButtons(QMessageBox::Cancel);
-        msg_dialog.addButton("Discard comments and save", QMessageBox::DestructiveRole);
+        msg_dialog.addButton(tr("Discard comments and save"), QMessageBox::DestructiveRole);
         msg_dialog.setDefaultButton(QMessageBox::Cancel);
     }
 
@@ -239,6 +214,150 @@ check_savability_t CaptureFileDialog::checkSaveAsWithComments(QWidget *
     }
     return CANCELLED;
 #endif // Q_WS_WIN
+}
+
+
+// You have to use open, merge, saveAs, or exportPackets. We should
+// probably just make each type a subclass.
+int CaptureFileDialog::exec() {
+    return QDialog::Rejected;
+}
+
+
+
+// Windows
+#ifdef Q_WS_WIN
+int CaptureFileDialog::selectedFileType() {
+    return file_type_;
+}
+
+bool CaptureFileDialog::isCompressed() {
+    return compressed_;
+}
+
+int CaptureFileDialog::open(QString &file_name) {
+    GString *fname = g_string_new(file_name.toUtf8().constData());
+    GString *dfilter = g_string_new(display_filter_.toUtf8().constData());
+    gboolean wof_status;
+
+    wof_status = win32_open_file(parentWidget()->effectiveWinId(), fname, dfilter);
+    file_name = fname->str;
+    display_filter_ = dfilter->str;
+
+    g_string_free(fname, TRUE);
+    g_string_free(dfilter, TRUE);
+
+    return (int) wof_status;
+}
+
+check_savability_t CaptureFileDialog::saveAs(QString &file_name, bool must_support_comments) {
+    GString *fname = g_string_new(file_name.toUtf8().constData());
+    gboolean wsf_status;
+
+    wsf_status = win32_save_as_file(parentWidget()->effectiveWinId(), cap_file_, fname, &file_type_, &compressed_, must_support_comments);
+    file_name = fname->str;
+
+    g_string_free(fname, TRUE);
+
+    if (wsf_status) {
+        return win32_check_save_as_with_comments(parentWidget()->effectiveWinId(), cap_file_, file_type_);
+    }
+
+    return CANCELLED;
+}
+
+check_savability_t CaptureFileDialog::exportSelectedPackets(QString &file_name, packet_range_t *range) {
+    GString *fname = g_string_new(file_name.toUtf8().constData());
+    gboolean wespf_status;
+
+    wespf_status = win32_export_specified_packets_file(parentWidget()->effectiveWinId(), fname, &file_type_, &compressed_, range);
+    file_name = fname->str;
+
+    g_string_free(fname, TRUE);
+
+    if (wespf_status) {
+        return win32_check_save_as_with_comments(parentWidget()->effectiveWinId(), cap_file_, file_type_);
+    }
+
+    return CANCELLED;
+}
+
+int CaptureFileDialog::merge(QString &file_name) {
+    GString *fname = g_string_new(file_name.toUtf8().constData());
+    GString *dfilter = g_string_new(display_filter_.toUtf8().constData());
+    gboolean wmf_status;
+
+    wmf_status = win32_merge_file(parentWidget()->effectiveWinId(), fname, dfilter, &merge_type_);
+    file_name = fname->str;
+    display_filter_ = dfilter->str;
+
+    g_string_free(fname, TRUE);
+    g_string_free(dfilter, TRUE);
+
+    return (int) wmf_status;
+}
+
+int CaptureFileDialog::mergeType() {
+    return merge_type_;
+}
+
+#else // not Q_WS_WINDOWS
+QString CaptureFileDialog::fileType(int ft, bool extension_globs)
+{
+    QString filter;
+    GSList *extensions_list;
+
+    filter = wtap_file_type_string(ft);
+
+    if (!extension_globs) {
+        return filter;
+    }
+
+    filter += " (";
+
+    extensions_list = wtap_get_file_extensions_list(ft, TRUE);
+    if (extensions_list == NULL) {
+        /* This file type doesn't have any particular extension
+           conventionally used for it, so we'll just use "*.*"
+           as the pattern; on Windows, that matches all file names
+           - even those with no extension -  so we don't need to
+           worry about compressed file extensions.  (It does not
+           do so on UN*X; the right pattern on UN*X would just
+           be "*".) */
+           filter += "*.*";
+    } else {
+        GSList *extension;
+        /* Construct the list of patterns. */
+        for (extension = extensions_list; extension != NULL;
+             extension = g_slist_next(extension)) {
+            if (!filter.endsWith('('))
+                filter += ' ';
+            filter += "*.";
+            filter += (char *)extension->data;
+        }
+        wtap_free_file_extensions_list(extensions_list);
+    }
+    filter += ')';
+    return filter;
+    /* XXX - does QStringList's destructor destroy the strings in the list? */
+}
+
+QStringList CaptureFileDialog::buildFileOpenTypeList() {
+    QStringList filters;
+    int   ft;
+
+    /* Add the "All Files" entry. */
+    filters << QString(tr("All Files (*.*)"));
+
+    /* Include all the file types Wireshark supports. */
+    for (ft = 0; ft < WTAP_NUM_FILE_TYPES; ft++) {
+        if (ft == WTAP_FILE_UNKNOWN)
+            continue;  /* not a real file type */
+
+        filters << fileType(ft);
+    }
+
+    return filters;
 }
 
 void CaptureFileDialog::addPreview(QVBoxLayout &v_box) {
@@ -283,161 +402,20 @@ void CaptureFileDialog::addPreview(QVBoxLayout &v_box) {
 
 void CaptureFileDialog::addMergeControls(QVBoxLayout &v_box) {
 
-    merge_prepend_.setText("Prepend packets");
-    merge_prepend_.setToolTip("Insert packets from the selected file before the current file. Packet timestamps will be ignored.");
-    v_box.addWidget(&merge_prepend_);
+    merge_prepend_.setText(tr("Prepend packets"));
+    merge_prepend_.setToolTip(tr("Insert packets from the selected file before the current file. Packet timestamps will be ignored."));
+    v_box.addWidget(&merge_prepend_, 0, Qt::AlignTop);
 
-    merge_chrono_.setText("Merge chronologically");
-    merge_chrono_.setToolTip("Insert packets in chronological order.");
+    merge_chrono_.setText(tr("Merge chronologically"));
+    merge_chrono_.setToolTip(tr("Insert packets in chronological order."));
     merge_chrono_.setChecked(true);
-    v_box.addWidget(&merge_chrono_);
+    v_box.addWidget(&merge_chrono_, 0, Qt::AlignTop);
 
-    merge_append_.setText("Append packets");
-    merge_append_.setToolTip("Insert packets from the selected file after the current file. Packet timestamps will be ignored.");
-    v_box.addWidget(&merge_append_);
+    merge_append_.setText(tr("Append packets"));
+    merge_append_.setToolTip(tr("Insert packets from the selected file after the current file. Packet timestamps will be ignored."));
+    v_box.addWidget(&merge_append_, 0, Qt::AlignTop);
 }
 
-// You have to use open, merge, saveAs, or exportPackets. We should
-// probably just make each type a subclass.
-int CaptureFileDialog::exec() {
-    return QDialog::Rejected;
-}
-
-QString CaptureFileDialog::fileType(int ft, bool extension_globs)
-{
-    QString filter;
-    GSList *extensions_list, *extension;
-
-    filter = wtap_file_type_string(ft);
-
-    if (!extension_globs) {
-        return filter;
-    }
-
-    filter += " (";
-
-    extensions_list = wtap_get_file_extensions_list(ft, TRUE);
-    if (extensions_list == NULL) {
-        /* This file type doesn't have any particular extension
-           conventionally used for it, so we'll just use "*.*"
-           as the pattern; on Windows, that matches all file names
-           - even those with no extension -  so we don't need to
-           worry about compressed file extensions.  (It does not
-           do so on UN*X; the right pattern on UN*X would just
-           be "*".) */
-           filter += "*.*";
-    } else {
-        /* Construct the list of patterns. */
-        for (extension = extensions_list; extension != NULL;
-             extension = g_slist_next(extension)) {
-            if (!filter.endsWith('('))
-                filter += ' ';
-            filter += "*.";
-            filter += (char *)extension->data;
-        }
-        wtap_free_file_extensions_list(extensions_list);
-    }
-    filter += ')';
-    return filter;
-    /* XXX - does QStringList's destructor destroy the strings in the list? */
-}
-
-QStringList CaptureFileDialog::buildFileOpenTypeList() {
-    QStringList filters;
-    int   ft;
-
-    /* Add the "All Files" entry. */
-    filters << QString(tr("All Files (*.*)"));
-
-    /* Include all the file types Wireshark supports. */
-    for (ft = 0; ft < WTAP_NUM_FILE_TYPES; ft++) {
-        if (ft == WTAP_FILE_UNKNOWN)
-            continue;  /* not a real file type */
-
-        filters << fileType(ft);
-    }
-
-    return filters;
-}
-
-
-// Windows
-#ifdef Q_WS_WIN
-int CaptureFileDialog::selectedFileType() {
-    return file_type_;
-}
-
-bool CaptureFileDialog::isCompressed() {
-    return compressed_;
-}
-
-int CaptureFileDialog::open(QString &file_name) {
-    GString *fname = g_string_new(file_name.toUtf8().constData());
-    GString *dfilter = g_string_new(display_filter_.toUtf8().constData());
-    gboolean wof_status;
-
-    wof_status = win32_open_file(parentWidget()->effectiveWinId(), fname, dfilter);
-    file_name = fname->str;
-    display_filter_ = dfilter->str;
-
-    g_string_free(fname, TRUE);
-    g_string_free(dfilter, TRUE);
-
-    return (int) wof_status;
-}
-
-check_savability_t CaptureFileDialog::saveAs(QString &file_name, bool must_support_comments) {
-    GString *fname = g_string_new(file_name.toUtf8().constData());
-    gboolean wsf_status;
-
-    wsf_status = win32_save_as_file(parentWidget()->effectiveWinId(), cap_file_, fname, &file_type_, &compressed_, must_support_comments);
-    file_name = fname->str;
-
-    g_string_free(fname, TRUE);
-
-    if (wsf_status) {
-        return win32_check_save_as_with_comments(parentWidget()->effectiveWinId(), cap_file_, file_type_);
-    }
-
-    return CANCELLED;
-}
-
-check_savability_t CaptureFileDialog::exportSelectedPackets(QString &file_name) {
-    GString *fname = g_string_new(file_name.toUtf8().constData());
-    gboolean wespf_status;
-
-    wespf_status = win32_export_specified_packets_file(parentWidget()->effectiveWinId(), fname, &file_type_, &compressed_, &range_);
-    file_name = fname->str;
-
-    g_string_free(fname, TRUE);
-
-    if (wespf_status) {
-        return win32_check_save_as_with_comments(parentWidget()->effectiveWinId(), cap_file_, file_type_);
-    }
-
-    return CANCELLED;
-}
-
-int CaptureFileDialog::merge(QString &file_name) {
-    GString *fname = g_string_new(file_name.toUtf8().constData());
-    GString *dfilter = g_string_new(display_filter_.toUtf8().constData());
-    gboolean wmf_status;
-
-    wmf_status = win32_merge_file(parentWidget()->effectiveWinId(), fname, dfilter, &merge_type_);
-    file_name = fname->str;
-    display_filter_ = dfilter->str;
-
-    g_string_free(fname, TRUE);
-    g_string_free(dfilter, TRUE);
-
-    return (int) wmf_status;
-}
-
-int CaptureFileDialog::mergeType() {
-    return merge_type_;
-}
-
-#else // not Q_WS_WINDOWS
 int CaptureFileDialog::selectedFileType() {
     return type_hash_.value(selectedNameFilter(), -1);
 }
@@ -460,19 +438,19 @@ void CaptureFileDialog::addDisplayFilterEdit() {
 void CaptureFileDialog::addResolutionControls(QVBoxLayout &v_box) {
     mac_res_.setText(tr("&MAC name resolution"));
     mac_res_.setChecked(gbl_resolv_flags.mac_name);
-    v_box.addWidget(&mac_res_);
+    v_box.addWidget(&mac_res_, 0, Qt::AlignTop);
 
     transport_res_.setText(tr("&Transport name resolution"));
     transport_res_.setChecked(gbl_resolv_flags.transport_name);
-    v_box.addWidget(&transport_res_);
+    v_box.addWidget(&transport_res_, 0, Qt::AlignTop);
 
     network_res_.setText(tr("&Network name resolution"));
     network_res_.setChecked(gbl_resolv_flags.network_name);
-    v_box.addWidget(&network_res_);
+    v_box.addWidget(&network_res_, 0, Qt::AlignTop);
 
     external_res_.setText(tr("&External name resolver"));
     external_res_.setChecked(gbl_resolv_flags.use_external_net_name_resolver);
-    v_box.addWidget(&external_res_);
+    v_box.addWidget(&external_res_, 0, Qt::AlignTop);
 }
 
 void CaptureFileDialog::addGzipControls(QVBoxLayout &v_box) {
@@ -482,17 +460,28 @@ void CaptureFileDialog::addGzipControls(QVBoxLayout &v_box) {
     } else {
         compress_.setChecked(false);
     }
-    v_box.addWidget(&compress_);
+    v_box.addWidget(&compress_, 0, Qt::AlignTop);
 
 }
 
-void CaptureFileDialog::addRangeControls(packet_range_t *range) {
-    QGridLayout *fd_grid = qobject_cast<QGridLayout*>(layout());
-
+void CaptureFileDialog::addRangeControls(QVBoxLayout &v_box, packet_range_t *range) {
     packet_range_group_box_.initRange(range);
+    v_box.addWidget(&packet_range_group_box_, 0, Qt::AlignTop);
+}
 
-    fd_grid->addWidget(&packet_range_group_box_, last_row_, 1, 1, -1);
-    last_row_++;
+QDialogButtonBox *CaptureFileDialog::addHelpButton(topic_action_e help_topic)
+{
+    // This doesn't appear to be documented anywhere but it seems pretty obvious
+    // and it works.
+    QDialogButtonBox *button_box = findChild<QDialogButtonBox *>();
+
+    help_topic_ = help_topic;
+
+    if (button_box) {
+        button_box->addButton(QDialogButtonBox::Help);
+        connect(button_box, SIGNAL(helpRequested()), this, SLOT(on_buttonBox_helpRequested()));
+    }
+    return button_box;
 }
 
 int CaptureFileDialog::open(QString &file_name) {
@@ -503,6 +492,7 @@ int CaptureFileDialog::open(QString &file_name) {
     addDisplayFilterEdit();
     addResolutionControls(left_v_box_);
     addPreview(right_v_box_);
+    addHelpButton(HELP_OPEN_DIALOG);
 
     // Grow the dialog to account for the extra widgets.
     resize(width(), height() + left_v_box_.minimumSize().height() + display_filter_edit_->minimumSize().height());
@@ -535,9 +525,10 @@ check_savability_t CaptureFileDialog::saveAs(QString &file_name, bool must_suppo
     // let the user select anything.
     setNameFilters(buildFileSaveAsTypeList(must_support_comments));
     setAcceptMode(QFileDialog::AcceptSave);
-    setLabelText(FileType, "Save as:");
+    setLabelText(FileType, tr("Save as:"));
 
     addGzipControls(left_v_box_);
+    addHelpButton(HELP_SAVE_DIALOG);
 
     // Grow the dialog to account for the extra widgets.
     resize(width(), height() + left_v_box_.minimumSize().height());
@@ -554,26 +545,28 @@ check_savability_t CaptureFileDialog::saveAs(QString &file_name, bool must_suppo
 }
 
 check_savability_t CaptureFileDialog::exportSelectedPackets(QString &file_name, packet_range_t *range) {
-    QDialogButtonBox *button_box = findChild<QDialogButtonBox *>();
+    QDialogButtonBox *button_box;
 
     setWindowTitle(tr("Wireshark: Export Specified Packets"));
     // XXX See comment in ::saveAs regarding setNameFilters
     setNameFilters(buildFileSaveAsTypeList(false));
     setAcceptMode(QFileDialog::AcceptSave);
-    setLabelText(FileType, "Export as:");
+    setLabelText(FileType, tr("Export as:"));
 
-    addGzipControls(left_v_box_);
-    addRangeControls(range);
+    addRangeControls(left_v_box_, range);
+    addGzipControls(right_v_box_);
+    button_box = addHelpButton(HELP_EXPORT_FILE_DIALOG);
 
     if (button_box) {
         save_bt_ = button_box->button(QDialogButtonBox::Save);
+        if (save_bt_) {
+            connect(&packet_range_group_box_, SIGNAL(validityChanged(bool)),
+                    save_bt_, SLOT(setEnabled(bool)));
+        }
     }
 
-    connect(&packet_range_group_box_, SIGNAL(validityChanged(bool)),
-            this, SLOT(rangeValidityChanged(bool)));
-
     // Grow the dialog to account for the extra widgets.
-    resize(width(), height() + (packet_range_group_box_.height() * 2 / 3) + left_v_box_.minimumSize().height());
+    resize(width(), height() + (packet_range_group_box_.height() * 2 / 3));
 
     if (!file_name.isEmpty()) {
         selectFile(file_name);
@@ -594,6 +587,7 @@ int CaptureFileDialog::merge(QString &file_name) {
     addDisplayFilterEdit();
     addMergeControls(left_v_box_);
     addPreview(right_v_box_);
+    addHelpButton(HELP_MERGE_DIALOG);
 
     file_name.clear();
     display_filter_.clear();
@@ -615,13 +609,13 @@ QStringList CaptureFileDialog::buildFileSaveAsTypeList(bool must_support_comment
     QStringList filters;
     GArray *savable_file_types;
     guint i;
-    int ft;
 
     type_hash_.clear();
     savable_file_types = wtap_get_savable_file_types(cap_file_->cd_t, cap_file_->linktypes);
 
     if (savable_file_types != NULL) {
         QString file_type;
+        int ft;
         /* OK, we have at least one file type we can save this file as.
            (If we didn't, we shouldn't have gotten here in the first
            place.)  Add them all to the combo box.  */
@@ -651,13 +645,9 @@ int CaptureFileDialog::mergeType() {
 
     return 0;
 }
-#endif // Q_WS_WINDOWS
 
 // Slots
 
-void CaptureFileDialog::rangeValidityChanged(bool is_valid) {
-    if (save_bt_) save_bt_->setEnabled(is_valid);
-}
 
 
 /* do a preview run on the currently selected capture file */
@@ -719,7 +709,7 @@ void CaptureFileDialog::preview(const QString & path)
     preview_format_.setText(QString::fromUtf8(wtap_file_type_string(wtap_file_type(wth))));
 
     // Size
-    preview_size_.setText(QString("%1 bytes").arg(wtap_file_size(wth, &err)));
+    preview_size_.setText(QString(tr("%1 bytes")).arg(wtap_file_size(wth, &err)));
 
     time(&time_preview);
     while ( (wtap_read(wth, &err, &err_info, &data_offset)) ) {
@@ -748,13 +738,13 @@ void CaptureFileDialog::preview(const QString & path)
     }
 
     if(err != 0) {
-        preview_packets_.setText(QString("error after reading %1 packets").arg(packets));
+        preview_packets_.setText(QString(tr("error after reading %1 packets")).arg(packets));
         return;
     }
 
     // Packet count
     if(timed_out) {
-        preview_packets_.setText(QString("more than %1 (preview timeout)").arg(packets));
+        preview_packets_.setText(QString(tr("more than %1 (preview timeout)")).arg(packets));
     } else {
         preview_packets_.setText(QString("%1").arg(packets));
     }
@@ -790,6 +780,13 @@ void CaptureFileDialog::preview(const QString & path)
 
     wtap_close(wth);
 }
+
+void CaptureFileDialog::on_buttonBox_helpRequested()
+{
+    if (help_topic_ != TOPIC_ACTION_NONE) wsApp->helpTopicAction(help_topic_);
+}
+
+#endif // Q_WS_WINDOWS
 
 /*
  * Editor modelines

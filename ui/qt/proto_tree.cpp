@@ -24,17 +24,17 @@
 #include <stdio.h>
 
 #include "proto_tree.h"
-#include "monospace_font.h"
 
 #include <epan/ftypes/ftypes.h>
 #include <epan/prefs.h>
 
-#include <QApplication>
+#include "wireshark_application.h"
 #include <QHeaderView>
 #include <QTreeWidgetItemIterator>
 #include <QDesktopServices>
 #include <QUrl>
 
+QColor        expert_color_comment    ( 0x00, 0xff, 0x00 );        /* Green */
 QColor        expert_color_chat       ( 0x80, 0xb7, 0xf7 );        /* light blue */
 QColor        expert_color_note       ( 0xa0, 0xff, 0xff );        /* bright turquoise */
 QColor        expert_color_warn       ( 0xf7, 0xf2, 0x53 );        /* yellow */
@@ -49,7 +49,7 @@ proto_tree_draw_node(proto_node *node, gpointer data)
     field_info   *fi = PNODE_FINFO(node);
     gchar         label_str[ITEM_LABEL_LENGTH];
     gchar        *label_ptr;
-    gboolean      is_leaf;
+    gboolean      is_branch;
 
     /* dissection with an invisible proto tree? */
     g_assert(fi);
@@ -68,11 +68,11 @@ proto_tree_draw_node(proto_node *node, gpointer data)
     }
 
     if (node->first_child != NULL) {
-        is_leaf = FALSE;
+        is_branch = TRUE;
         g_assert(fi->tree_type >= 0 && fi->tree_type < num_tree_types);
     }
     else {
-        is_leaf = TRUE;
+        is_branch = FALSE;
     }
 
     if (PROTO_ITEM_IS_GENERATED(node)) {
@@ -109,6 +109,9 @@ proto_tree_draw_node(proto_node *node, gpointer data)
     // XXX - Add routines to get our severity colors.
     if(FI_GET_FLAG(fi, PI_SEVERITY_MASK)) {
         switch(FI_GET_FLAG(fi, PI_SEVERITY_MASK)) {
+        case(PI_COMMENT):
+            item->setData(0, Qt::BackgroundRole, expert_color_comment);
+            break;
         case(PI_CHAT):
             item->setData(0, Qt::BackgroundRole, expert_color_chat);
             break;
@@ -134,13 +137,13 @@ proto_tree_draw_node(proto_node *node, gpointer data)
         g_free(label_ptr);
     }
 
-    if (tree_is_expanded[fi->tree_type]) {
-        item->setExpanded(true);
-    } else {
-        item->setExpanded(false);
-    }
+    if (is_branch) {
+        if (tree_is_expanded[fi->tree_type]) {
+            item->setExpanded(true);
+        } else {
+            item->setExpanded(false);
+        }
 
-    if (!is_leaf) {
         proto_tree_children_foreach(node, proto_tree_draw_node, item);
     }
 }
@@ -149,7 +152,6 @@ ProtoTree::ProtoTree(QWidget *parent) :
     QTreeWidget(parent)
 {
     setAccessibleName(tr("Packet details"));
-    setFont(get_monospace_font());
     setUniformRowHeights(true);
 
     connect(this, SIGNAL(currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)),
@@ -166,8 +168,8 @@ void ProtoTree::clear() {
 }
 
 void ProtoTree::fillProtocolTree(proto_tree *protocol_tree) {
-    // Clear out previous tree
     clear();
+    setFont(wsApp->monospaceFont());
 
     proto_tree_children_foreach(protocol_tree, proto_tree_draw_node, invisibleRootItem());
 }
@@ -176,32 +178,32 @@ void ProtoTree::updateSelectionStatus(QTreeWidgetItem* item) {
 
     if (item) {
         field_info *fi;
-        QString itemInfo;
-        int finfo_length;
+        QString item_info;
 
         fi = item->data(0, Qt::UserRole).value<field_info *>();
         if (!fi || !fi->hfinfo) return;
 
         if (fi->hfinfo->blurb != NULL && fi->hfinfo->blurb[0] != '\0') {
-            itemInfo.append(QString().fromUtf8(fi->hfinfo->blurb));
+            item_info.append(QString().fromUtf8(fi->hfinfo->blurb));
         } else {
-            itemInfo.append(QString().fromUtf8(fi->hfinfo->name));
+            item_info.append(QString().fromUtf8(fi->hfinfo->name));
         }
 
-        if (!itemInfo.isEmpty()) {
-            itemInfo.append(" (" + QString().fromUtf8(fi->hfinfo->abbrev) + ")");
+        if (!item_info.isEmpty()) {
+            int finfo_length;
+            item_info.append(" (" + QString().fromUtf8(fi->hfinfo->abbrev) + ")");
 
             finfo_length = fi->length + fi->appendix_length;
             if (finfo_length == 1) {
-                itemInfo.append(tr(", 1 byte"));
+                item_info.append(tr(", 1 byte"));
             } else if (finfo_length > 1) {
-                itemInfo.append(QString(tr(", %1 bytes")).arg(finfo_length));
+                item_info.append(QString(tr(", %1 bytes")).arg(finfo_length));
             }
 
-            emit protoItemSelected(new QString());
-            emit protoItemSelected(false);
-            emit protoItemSelected(itemInfo);
-            emit protoItemSelected(true);
+            emit protoItemSelected(*new QString());
+            emit protoItemSelected(NULL);
+            emit protoItemSelected(item_info);
+            emit protoItemSelected(fi);
         } // else the GTK+ version pushes an empty string as described below.
         /*
          * Don't show anything if the field name is zero-length;
@@ -224,8 +226,8 @@ void ProtoTree::updateSelectionStatus(QTreeWidgetItem* item) {
          */
 
     } else {
-        emit protoItemSelected(new QString());
-        emit protoItemSelected(false);
+        emit protoItemSelected(*new QString());
+        emit protoItemSelected(NULL);
     }
 }
 
@@ -275,25 +277,25 @@ void ProtoTree::collapse(const QModelIndex & index) {
 
 void ProtoTree::expandSubtrees()
 {
-    QTreeWidgetItem *topSel;
+    QTreeWidgetItem *top_sel;
 
     if (selectedItems().length() < 1) {
         return;
     }
 
-    topSel = selectedItems()[0];
+    top_sel = selectedItems()[0];
 
-    if (!topSel) {
+    if (!top_sel) {
         return;
     }
 
-    while (topSel->parent()) {
-        topSel = topSel->parent();
+    while (top_sel->parent()) {
+        top_sel = top_sel->parent();
     }
 
-    QTreeWidgetItemIterator iter(topSel);
+    QTreeWidgetItemIterator iter(top_sel);
     while (*iter) {
-        if ((*iter) != topSel && (*iter)->parent() == NULL) {
+        if ((*iter) != top_sel && (*iter)->parent() == NULL) {
             // We found the next top-level item
             break;
         }
@@ -323,7 +325,6 @@ void ProtoTree::collapseAll()
 void ProtoTree::itemDoubleClick(QTreeWidgetItem *item, int column) {
     Q_UNUSED(column);
 
-    gchar *url;
     field_info *fi;
 
     fi = item->data(0, Qt::UserRole).value<field_info *>();
@@ -333,6 +334,7 @@ void ProtoTree::itemDoubleClick(QTreeWidgetItem *item, int column) {
     }
 
     if(FI_GET_FLAG(fi, FI_URL) && IS_FT_STRING(fi->hfinfo->type)) {
+        gchar *url;
         url = fvalue_to_string_repr(&fi->value, FTREPR_DISPLAY, NULL);
         if(url){
 //            browser_open_url(url);

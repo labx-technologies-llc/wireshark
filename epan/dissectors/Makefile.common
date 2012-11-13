@@ -171,6 +171,7 @@ ASN1_DISSECTOR_SRC = \
 	packet-smrse.c \
 	packet-spnego.c \
 	packet-sv.c \
+	packet-sysex.c \
 	packet-t38.c		\
 	packet-ulp.c \
 	packet-wlancertextn.c \
@@ -186,6 +187,8 @@ ASN1_DISSECTOR_SRC = \
 # and idl2wrs-generated dissectors
 DIRTY_ASN1_DISSECTOR_SRC = \
 	packet-ansi_map.c \
+	packet-coseventcomm.c	\
+	packet-cosnaming.c	\
 	packet-gnm.c \
 	packet-gprscdr.c \
 	packet-gsm_map.c \
@@ -259,6 +262,7 @@ DISSECTOR_SRC = \
 	packet-ansi_a.c		\
 	packet-aodv.c		\
 	packet-aoe.c		\
+	packet-aol.c		\
 	packet-ap1394.c		\
 	packet-app-pkix-cert.c	\
 	packet-applemidi.c	\
@@ -311,8 +315,10 @@ DISSECTOR_SRC = \
 	packet-bt-dht.c		\
 	packet-bt-utp.c		\
 	packet-btamp.c		\
+	packet-btatt.c		\
 	packet-btbnep.c		\
 	packet-btavctp.c	\
+	packet-btavdtp.c	\
 	packet-btavrcp.c	\
 	packet-bthci_acl.c	\
 	packet-bthci_cmd.c	\
@@ -325,6 +331,8 @@ DISSECTOR_SRC = \
 	packet-btrfcomm.c	\
 	packet-btsap.c		\
 	packet-btsdp.c		\
+	packet-btsmp.c		\
+	packet-bt-oui.c		\
 	packet-bvlc.c		\
 	packet-bzr.c		\
 	packet-calcappprotocol.c  \
@@ -359,9 +367,7 @@ DISSECTOR_SRC = \
 	packet-collectd.c	\
 	packet-componentstatus.c \
 	packet-cops.c		\
-	packet-coseventcomm.c	\
 	packet-cosine.c		\
-	packet-cosnaming.c	\
 	packet-cpfi.c		\
 	packet-cpha.c		\
 	packet-csm-encaps.c	\
@@ -991,6 +997,7 @@ DISSECTOR_SRC = \
 	packet-sap.c		\
 	packet-sasp.c		\
 	packet-sbus.c		\
+	packet-sbc.c		\
 	packet-sccp.c		\
 	packet-sccpmg.c		\
 	packet-scop.c		\
@@ -1102,6 +1109,7 @@ DISSECTOR_SRC = \
 	packet-uma.c		\
 	packet-umts_fp.c	\
 	packet-umts_mac.c	\
+	packet-usb-audio.c	\
 	packet-usb-ccid.c	\
 	packet-usb-hid.c	\
 	packet-usb-hub.c	\
@@ -1224,6 +1232,7 @@ DISSECTOR_INCLUDES =	\
 	packet-bssap.h	\
 	packet-bssgp.h	\
 	packet-btavctp.h	\
+	packet-btavdtp.h	\
 	packet-bthci_acl.h	\
 	packet-btl2cap.h	\
 	packet-btrfcomm.h	\

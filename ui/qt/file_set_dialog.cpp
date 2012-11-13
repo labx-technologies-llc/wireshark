@@ -1,6 +1,6 @@
 /* fileset_dialog.cpp
  *
- * $Id: fileset_dialog.cpp 45017 2012-09-20 02:03:38Z morriss $
+ * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -30,17 +30,18 @@
 
 #include "ui/help_url.h"
 
+#include <wsutil/str_util.h>
+
 #include "file_set_dialog.h"
 #include "ui_file_set_dialog.h"
+#include "wireshark_application.h"
 
 #include <QDialogButtonBox>
 #include <QPushButton>
 #include <QDateTime>
 #include <QFontMetrics>
-#include <QDesktopServices>
-#include <QUrl>
 #include <QFont>
-
+#include <QUrl>
 
 Q_DECLARE_METATYPE(fileset_entry *)
 
@@ -57,15 +58,9 @@ FileSetDialog::FileSetDialog(QWidget *parent) :
     fs_ui_(new Ui::FileSetDialog),
     close_button_(NULL)
 {
-    QTreeWidgetItem *header;
-
     fs_ui_->setupUi(this);
 
-    header = fs_ui_->fileSetTree->headerItem();
-    header->setText(0, tr("Filename"));
-    header->setText(1, tr("Created"));
-    header->setText(2, tr("Modified"));
-    header->setText(3, tr("Size"));
+    fs_ui_->fileSetTree->headerItem();
 
     close_button_ = fs_ui_->buttonBox->button(QDialogButtonBox::Close);
     addFile();
@@ -93,10 +88,10 @@ void FileSetDialog::fileClosed() {
 void FileSetDialog::addFile(fileset_entry *entry) {
     QString created;
     QString modified;
-    QString size;
     QString dir_name;
     QString elided_dir_name;
     QTreeWidgetItem *entry_item;
+    gchar *size_str;
 
     if (!entry) {
         setWindowTitle(tr("Wireshark: No files in Set"));
@@ -115,7 +110,7 @@ void FileSetDialog::addFile(fileset_entry *entry) {
 
     modified = QDateTime::fromTime_t(entry->mtime).toLocalTime().toString("yyyy-MM-dd HH:mm:ss");
 
-    size = QString(tr("%1 Bytes")).arg(entry->size);
+    size_str = format_size(entry->size, format_size_unit_bytes|format_size_prefix_si);
 
     entry_item = new QTreeWidgetItem(fs_ui_->fileSetTree);
     entry_item->setToolTip(0, QString(tr("Open this capture file")));
@@ -124,7 +119,10 @@ void FileSetDialog::addFile(fileset_entry *entry) {
     entry_item->setText(0, entry->name);
     entry_item->setText(1, created);
     entry_item->setText(2, modified);
-    entry_item->setText(3, size);
+    entry_item->setText(3, size_str);
+    g_free(size_str);
+    // Not perfect but better than nothing.
+    entry_item->setTextAlignment(3, Qt::AlignRight);
 
     setWindowTitle(QString(tr("Wireshark: %1 File%2 in Set"))
                    .arg(fs_ui_->fileSetTree->topLevelItemCount())
@@ -169,12 +167,7 @@ QString FileSetDialog::nameToDate(const char *name) {
 
 void FileSetDialog::on_buttonBox_helpRequested()
 {
-    gchar *url = topic_action_url(HELP_FILESET_DIALOG);
-
-    if(url != NULL) {
-        QDesktopServices::openUrl(QUrl(url));
-        g_free(url);
-    }
+    wsApp->helpTopicAction(HELP_FILESET_DIALOG);
 }
 
 void FileSetDialog::on_fileSetTree_currentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous)

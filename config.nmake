@@ -3,6 +3,16 @@
 # Some more information about the settings in this file can be found in
 # the file README.windows and the Developer's Guide (available online).
 
+##### Program name #####
+# Changing the name is experimental and may break the installer/unistaller and possibly other stuff.
+# Application data will still be under the same dir as Wireshark so perference files profiles etc
+# will be shared with a "normal" Wireshark installation.
+# Note that suport libararies needs to be in PROGRAM_NAME-libs...
+
+!IFNDEF PROGRAM_NAME
+PROGRAM_NAME=Wireshark
+!ENDIF
+
 ##### Target platform #####
 # Only "win32" and "win64" are valid (for now).
 # This can be defined in the system environment.
@@ -40,7 +50,7 @@ WTAP_VERSION_MICRO=0
 # This can be defined in the system environment.
 #
 !IFNDEF WIRESHARK_LIB_DIR
-WIRESHARK_LIB_DIR=C:\wireshark-$(WIRESHARK_TARGET_PLATFORM)-libs
+WIRESHARK_LIB_DIR=C:\$(PROGRAM_NAME)-$(WIRESHARK_TARGET_PLATFORM)-libs
 !ENDIF
 
 #
@@ -232,9 +242,10 @@ GLIB_VERSION=2.0
 # If you want building with GTK+, set GTK_DIR to the pathname of the
 # directory in which the "include" and "lib" directories reside.
 #
-# Set the name to gtk3 if you want to use gtk3 - Not yet working
+# Set the name to gtk3 if you want to use gtk3 - experimental
 GTK_NAME=gtk2
 GTK_DIR=$(WIRESHARK_LIB_DIR)\$(GTK_NAME)
+
 
 # These macros are used by the nsis installer script and by the install target.
 #EXPAT_DLL=libexpat-1.dll
@@ -252,11 +263,15 @@ XML_DLL=libxml2-2.dll
 
 # This macro is used by the setup target.
 !IF "$(GTK_NAME)" == "gtk2"
+GDK_DLL=libgdk-win32-2.0-0.dll
+GTK_DLL=libgtk-win32-2.0-0.dll
 #GTK_PKG=2.16.6-20100912
 #GTK_PKG=2.22.1-20101227
 GTK_PKG=2.24.10-2.7
 PKG_SUFIX=ws
 !ELSE
+GDK_DLL=libgdk-3-0.dll
+GTK_DLL=libgtk-3-0.dll
 PKG_SUFIX=ws
 GTK_PKG=3.4.4-2.1
 !ENDIF
@@ -443,7 +458,7 @@ GLIB_VERSION=2.0
 # directory in which the "include" and "lib" directories reside.
 #
 #
-# Set the name to gtk3 if you want to use gtk3 - Not yet working
+# Set the name to gtk3 if you want to use gtk3 - experimental
 GTK_NAME=gtk2
 GTK_DIR=$(WIRESHARK_LIB_DIR)\$(GTK_NAME)
 
@@ -463,10 +478,14 @@ XML_DLL=libxml2-2.dll
 
 # These macros are used by the setup target.
 !IF "$(GTK_NAME)" == "gtk2"
+GDK_DLL=libgdk-win32-2.0-0.dll
+GTK_DLL=libgtk-win32-2.0-0.dll
 #GTK_PKG=2.16.6-20100912
 GTK_PKG=2.24.10-2.7
 PKG_SUFIX=ws
 !ELSE
+GDK_DLL=libgdk-3-0.dll
+GTK_DLL=libgtk-3-0.dll
 PKG_SUFIX=ws
 GTK_PKG=3.4.4-2.1
 !ENDIF
@@ -635,6 +654,18 @@ SMI_PKG=svn-40773
 GEOIP_PKG=1.4.8-2
 
 !endif
+# win32 / win64
+
+!IF "$(GTK_NAME)" == "gtk2"
+GTK_ETC_DIR=etc\gtk-2.0
+GTK_ENGINES_DIR=lib\gtk-2.0\$(GTK_LIB_DIR)\engines
+GTK_MODULES_DIR=lib\gtk-2.0\modules
+GTK_THEMES_DIR=share\themes\MS-Windows\gtk-2.0
+!ELSE
+GTK_ETC_DIR=etc\gtk-3.0
+GTK_SCHEMAS_DIR=\share\glib-2.0\schemas
+!ENDIF
+
 
 ##### Tools #####
 
@@ -1011,10 +1042,12 @@ MSVCR_DLL=$(PROGRAM_FILES)\Microsoft Visual Studio 11.0\VC\redist\$(TARGET_MACHI
 !ERROR MSVC_VARIANT unknown
 !ENDIF
 
-!IF DEFINED(VCREDIST_EXE) && ! EXIST("$(VCREDIST_EXE)")
-!ERROR Can't find $(VCREDIST_EXE). Have you downloaded it from Microsoft? \
-See the developer's guide section "C-Runtime "Redistributable" files" for details how to get it
-!ENDIF
+# This is still optional yet we define it above for all users.
+# So, don't check if it exists...
+#!IF DEFINED(VCREDIST_EXE) && ! EXIST("$(VCREDIST_EXE)")
+#!ERROR Can't find $(VCREDIST_EXE). Have you downloaded it from Microsoft? \
+#See the developer's guide section "C-Runtime "Redistributable" files" for details how to get it
+#!ENDIF
 
 ##### Advanced: Docbook/XML documentation generation #####
 # If you want to generate the Docbook/XML based docs (User's and Developer's
@@ -1153,15 +1186,10 @@ NEED_JPEG_DLL=USE
 NEED_TIFF_DLL=USE
 NEED_LZMA_DLL=USE
 
-GTK_WIMP_DLLSRC_DIR=$(GTK_DIR)\lib\gtk-2.0\$(GTK_LIB_DIR)\engines
-GTK_WIMP_DLLDST_DIR=lib\gtk-2.0\$(GTK_LIB_DIR)\engines
-GTK_WIMP_RCSRC_DIR=$(GTK_DIR)\share\themes\MS-Windows\gtk-2.0
-GTK_WIMP_RCDST_DIR=etc\gtk-2.0
 #
 # Use of GTK3+ is experimental/not working
 #
 !ELSEIF "$(GTK_INST_VERSION)" == "3.4"
-GTK_SCHEMAS_INST_DIR=\share\glib-2.0\schemas
 
 # GTK+
 GTK_CFLAGS=$(GLIB_CFLAGS) /I$(GTK_DIR)\include\gtk-3.0 \
@@ -1185,6 +1213,7 @@ GTK_LIB_DIR=3.4
 !IFDEF _DLL
 !ENDIF
 
+NEED_CAIRO_GOBJECT_DLL=USE
 NEED_CAIRO_DLL=USE
 
 !IFDEF EXPAT_DLL

@@ -19,8 +19,11 @@ SetCompressor /SOLID lzma
 ; ============================================================================
 
 ; The file to write
+!if ${GTK_NAME} == "gtk3"
+OutFile "${PROGRAM_NAME}-${WIRESHARK_TARGET_PLATFORM}-gtk3-${VERSION}.exe"
+!else
 OutFile "${PROGRAM_NAME}-${WIRESHARK_TARGET_PLATFORM}-${VERSION}.exe"
-
+!endif
 ; Installer icon
 Icon "..\..\image\wiresharkinst.ico"
 
@@ -40,7 +43,7 @@ Icon "..\..\image\wiresharkinst.ico"
 
 !define MUI_COMPONENTSPAGE_SMALLDESC
 !define MUI_FINISHPAGE_NOAUTOCLOSE
-!define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of Wireshark.\r\n\r\nBefore starting the installation, make sure Wireshark is not running.\r\n\r\nClick 'Next' to continue."
+!define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of ${PROGRAM_NAME}.\r\n\r\nBefore starting the installation, make sure ${PROGRAM_NAME} is not running.\r\n\r\nClick 'Next' to continue."
 ;!define MUI_FINISHPAGE_LINK "Install WinPcap to be able to capture packets from a network!"
 ;!define MUI_FINISHPAGE_LINK_LOCATION "http://www.winpcap.org"
 
@@ -51,7 +54,7 @@ Icon "..\..\image\wiresharkinst.ico"
 !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\NEWS.txt"
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "Show News"
 !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
-!define MUI_FINISHPAGE_RUN "$INSTDIR\wireshark.exe"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${PROGRAM_NAME}.exe"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
 
 
@@ -141,17 +144,17 @@ ComponentText "The following components are available for installation."
 ; Directory selection page configuration
 ; ============================================================================
 ; The text to prompt the user to enter a directory
-DirText "Choose a directory in which to install Wireshark."
+DirText "Choose a directory in which to install ${PROGRAM_NAME}."
 
 ; The default installation directory
 !if ${WIRESHARK_TARGET_PLATFORM} == "win64"
-  InstallDir $PROGRAMFILES64\Wireshark
+  InstallDir $PROGRAMFILES64\${PROGRAM_NAME}
 !else
-  InstallDir $PROGRAMFILES\Wireshark
+  InstallDir $PROGRAMFILES\${PROGRAM_NAME}
 !endif
 
 ; See if this is an upgrade; if so, use the old InstallDir as default
-InstallDirRegKey HKEY_LOCAL_MACHINE SOFTWARE\Wireshark "InstallDir"
+InstallDirRegKey HKEY_LOCAL_MACHINE SOFTWARE\${PROGRAM_NAME} "InstallDir"
 
 
 ; ============================================================================
@@ -209,17 +212,17 @@ Function .onInit
 
   ; Copied from http://nsis.sourceforge.net/Auto-uninstall_old_before_installing_new
   ReadRegStr $OLD_UNINSTALLER HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Wireshark" \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PROGRAM_NAME}" \
     "UninstallString"
   StrCmp $OLD_UNINSTALLER "" done
 
   ReadRegStr $OLD_INSTDIR HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\App Paths\wireshark.exe" \
+    "Software\Microsoft\Windows\CurrentVersion\App Paths\${PROGRAM_NAME}.exe" \
     "Path"
   StrCmp $OLD_INSTDIR "" done
 
   ReadRegStr $OLD_DISPLAYNAME HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Wireshark" \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PROGRAM_NAME}" \
     "DisplayName"
   StrCmp $OLD_DISPLAYNAME "" done
 
@@ -236,10 +239,10 @@ Function .onInit
 ; for the executable to finish, which means ExecWait won't work correctly.
 prep_uninstaller:
   ClearErrors
-  StrCpy $TMP_UNINSTALLER "$TEMP\wireshark_uninstaller.exe"
+  StrCpy $TMP_UNINSTALLER "$TEMP\${PROGRAM_NAME}_uninstaller.exe"
   ; ...because we surround UninstallString in quotes.
   StrCpy $0 $OLD_UNINSTALLER -1 1
-  StrCpy $1 "$TEMP\wireshark_uninstaller.exe"
+  StrCpy $1 "$TEMP\${PROGRAM_NAME}_uninstaller.exe"
   StrCpy $2 1
   System::Call 'kernel32::CopyFile(t r0, t r1, b r2) 1'
   IfSilent silent_uninstall
@@ -275,7 +278,9 @@ FunctionEnd
 Var WINPCAP_UNINSTALL ;declare variable for holding the value of a registry key
 ;Var WIRESHARK_UNINSTALL ;declare variable for holding the value of a registry key
 
+!ifdef VCREDIST_EXE
 Var VCREDIST_FLAGS ; silent vs passive, norestart
+!endif
 
 Section "-Required"
 ;-------------------------------------------
@@ -629,7 +634,7 @@ File "${STAGING_DIR}\help\faq.txt"
 !define UNINSTALL_PATH "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PROGRAM_NAME}"
 
 WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "Comments" "${DISPLAY_NAME}"
-WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "DisplayIcon" "$INSTDIR\wireshark.exe,0"
+WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "DisplayIcon" "$INSTDIR\${PROGRAM_NAME}.exe,0"
 WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "DisplayName" "${DISPLAY_NAME}"
 WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "DisplayVersion" "${VERSION}"
 WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "HelpLink" "http://ask.wireshark.org/"
@@ -647,22 +652,22 @@ WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "UninstallString" '"$INSTDIR\
 WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "QuietUninstallString" '"$INSTDIR\${UNINSTALLER_NAME}" /S'
 
 ; Write an entry for ShellExecute
-WriteRegStr HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\App Paths\wireshark.exe" "" '$INSTDIR\wireshark.exe'
-WriteRegStr HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\App Paths\wireshark.exe" "Path" '$INSTDIR'
+WriteRegStr HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\App Paths\${PROGRAM_NAME}.exe" "" '$INSTDIR\${PROGRAM_NAME}.exe'
+WriteRegStr HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\App Paths\${PROGRAM_NAME}.exe" "Path" '$INSTDIR'
 
 ; Create start menu entries (depending on additional tasks page)
 ReadINIStr $0 "$PLUGINSDIR\AdditionalTasksPage.ini" "Field 2" "State"
 StrCmp $0 "0" SecRequired_skip_StartMenu
 SetOutPath $PROFILE
-;CreateDirectory "$SMPROGRAMS\Wireshark"
+;CreateDirectory "$SMPROGRAMS\${PROGRAM_NAME}"
 ; To qoute "http://msdn.microsoft.com/library/default.asp?url=/library/en-us/dnwue/html/ch11d.asp":
 ; "Do not include Readme, Help, or Uninstall entries on the Programs menu."
-Delete "$SMPROGRAMS\Wireshark\Wireshark Web Site.lnk"
-;WriteINIStr "$SMPROGRAMS\Wireshark\Wireshark Web Site.url" "InternetShortcut" "URL" "http://www.wireshark.org/"
-CreateShortCut "$SMPROGRAMS\Wireshark.lnk" "$INSTDIR\wireshark.exe" "" "$INSTDIR\wireshark.exe" 0 "" "" "The Wireshark Network Protocol Analyzer"
-;CreateShortCut "$SMPROGRAMS\Wireshark\Wireshark Manual.lnk" "$INSTDIR\wireshark.html"
-;CreateShortCut "$SMPROGRAMS\Wireshark\Display Filters Manual.lnk" "$INSTDIR\wireshark-filter.html"
-;CreateShortCut "$SMPROGRAMS\Wireshark\Wireshark Program Directory.lnk" "$INSTDIR"
+Delete "$SMPROGRAMS\${PROGRAM_NAME}\Wireshark Web Site.lnk"
+;WriteINIStr "$SMPROGRAMS\${PROGRAM_NAME}\Wireshark Web Site.url" "InternetShortcut" "URL" "http://www.wireshark.org/"
+CreateShortCut "$SMPROGRAMS\${PROGRAM_NAME}.lnk" "$INSTDIR\${PROGRAM_NAME}.exe" "" "$INSTDIR\${PROGRAM_NAME}.exe" 0 "" "" "The ${PROGRAM_NAME} Network Protocol Analyzer"
+;CreateShortCut "$SMPROGRAMS\${PROGRAM_NAME}\Wireshark Manual.lnk" "$INSTDIR\wireshark.html"
+;CreateShortCut "$SMPROGRAMS\${PROGRAM_NAME}\Display Filters Manual.lnk" "$INSTDIR\wireshark-filter.html"
+;CreateShortCut "$SMPROGRAMS\${PROGRAM_NAME}\Wireshark Program Directory.lnk" "$INSTDIR"
 SecRequired_skip_StartMenu:
 
 ; is command line option "/desktopicon" set?
@@ -675,7 +680,7 @@ StrCmp $R1 "yes" SecRequired_install_DesktopIcon
 ReadINIStr $0 "$PLUGINSDIR\AdditionalTasksPage.ini" "Field 3" "State"
 StrCmp $0 "0" SecRequired_skip_DesktopIcon
 SecRequired_install_DesktopIcon:
-CreateShortCut "$DESKTOP\Wireshark.lnk" "$INSTDIR\wireshark.exe" "" "$INSTDIR\wireshark.exe" 0 "" "" "The Wireshark Network Protocol Analyzer"
+CreateShortCut "$DESKTOP\${PROGRAM_NAME}.lnk" "$INSTDIR\${PROGRAM_NAME}.exe" "" "$INSTDIR\${PROGRAM_NAME}.exe" 0 "" "" "The ${PROGRAM_NAME} Network Protocol Analyzer"
 SecRequired_skip_DesktopIcon:
 
 ; is command line option "/quicklaunchicon" set?
@@ -688,15 +693,15 @@ StrCmp $R1 "yes" SecRequired_install_QuickLaunchIcon
 ReadINIStr $0 "$PLUGINSDIR\AdditionalTasksPage.ini" "Field 4" "State"
 StrCmp $0 "0" SecRequired_skip_QuickLaunchIcon
 SecRequired_install_QuickLaunchIcon:
-CreateShortCut "$QUICKLAUNCH\Wireshark.lnk" "$INSTDIR\wireshark.exe" "" "$INSTDIR\wireshark.exe" 0 "" "" "The Wireshark Network Protocol Analyzer"
+CreateShortCut "$QUICKLAUNCH\${PROGRAM_NAME}.lnk" "$INSTDIR\${PROGRAM_NAME}.exe" "" "$INSTDIR\${PROGRAM_NAME}.exe" 0 "" "" "The ${PROGRAM_NAME} Network Protocol Analyzer"
 SecRequired_skip_QuickLaunchIcon:
 
 ; Create File Extensions (depending on additional tasks page)
 ReadINIStr $0 "$PLUGINSDIR\AdditionalTasksPage.ini" "Field 6" "State"
 StrCmp $0 "0" SecRequired_skip_FileExtensions
 WriteRegStr HKCR ${WIRESHARK_ASSOC} "" "Wireshark capture file"
-WriteRegStr HKCR "${WIRESHARK_ASSOC}\Shell\open\command" "" '"$INSTDIR\wireshark.exe" "%1"'
-WriteRegStr HKCR "${WIRESHARK_ASSOC}\DefaultIcon" "" '"$INSTDIR\wireshark.exe",1'
+WriteRegStr HKCR "${WIRESHARK_ASSOC}\Shell\open\command" "" '"$INSTDIR\${PROGRAM_NAME}.exe" "%1"'
+WriteRegStr HKCR "${WIRESHARK_ASSOC}\DefaultIcon" "" '"$INSTDIR\${PROGRAM_NAME}.exe",1'
 
 
 Call Associate
@@ -740,13 +745,16 @@ SectionEnd ; "Required"
 Section "Wireshark" SecWireshark
 ;-------------------------------------------
 SetOutPath $INSTDIR
-File "${STAGING_DIR}\wireshark.exe"
-File "${STAGING_DIR}\libgdk-win32-2.0-0.dll"
+File "${STAGING_DIR}\${PROGRAM_NAME}.exe"
+File "${STAGING_DIR}\${GDK_DLL}"
 File "${STAGING_DIR}\libgdk_pixbuf-2.0-0.dll"
-File "${STAGING_DIR}\libgtk-win32-2.0-0.dll"
+File "${STAGING_DIR}\${GTK_DLL}"
 File "${STAGING_DIR}\libatk-1.0-0.dll"
 File "${STAGING_DIR}\libpango-1.0-0.dll"
 File "${STAGING_DIR}\libpangowin32-1.0-0.dll"
+!ifdef NEED_CAIRO_GOBJECT_DLL
+File "${STAGING_DIR}\libcairo-gobject-2.dll"
+!endif
 !ifdef NEED_CAIRO_DLL
 File "${STAGING_DIR}\libcairo-2.dll"
 File "${STAGING_DIR}\libpangocairo-1.0-0.dll"
@@ -786,24 +794,24 @@ File "${STAGING_DIR}\${TIFF_DLL}"
 File "${STAGING_DIR}\${XML_DLL}"
 !endif
 
-SetOutPath $INSTDIR\etc\gtk-2.0
-File "${GTK_DIR}\etc\gtk-2.0\*.*"
+SetOutPath $INSTDIR\${GTK_ETC_DIR}
+File "${GTK_DIR}\${GTK_ETC_DIR}\*.*"
 
-#!if ${WIRESHARK_TARGET_PLATFORM} == "win32"
-#SetOutPath $INSTDIR\etc\pango
-#File "${GTK_DIR}\etc\pango\pango.*"
-#!endif
+!ifdef GTK_ENGINES_DIR
+SetOutPath $INSTDIR\${GTK_ENGINES_DIR}
+File "${STAGING_DIR}\${GTK_ENGINES_DIR}\libpixmap.dll"
+File "${STAGING_DIR}\${GTK_ENGINES_DIR}\libwimp.dll"
+!endif
 
-SetOutPath $INSTDIR\lib\gtk-2.0\${GTK_LIB_DIR}\engines
-File "${STAGING_DIR}\lib\gtk-2.0\${GTK_LIB_DIR}\engines\libpixmap.dll"
-SetOutPath $INSTDIR\lib\gtk-2.0\modules
-File "${STAGING_DIR}\lib\gtk-2.0\modules\libgail.dll"
+!ifdef GTK_MODULES_DIR
+SetOutPath $INSTDIR\${GTK_MODULES_DIR}
+File "${STAGING_DIR}\${GTK_MODULES_DIR}\libgail.dll"
+!endif
 
-; GTK MS-Windows Engine (GTK-Wimp)
-SetOutPath $INSTDIR\${GTK_WIMP_DLLDST_DIR}
-File "${STAGING_DIR}\lib\gtk-2.0\${GTK_LIB_DIR}\engines\libwimp.dll"
-SetOutPath $INSTDIR\${GTK_WIMP_RCDST_DIR}
-File "${GTK_WIMP_RCSRC_DIR}\gtkrc"
+!ifdef GTK_SCHEMAS_DIR
+SetOutPath $INSTDIR\${GTK_SCHEMAS_DIR}
+File "${STAGING_DIR}\${GTK_SCHEMAS_DIR}\*.*"
+!endif
 
 SectionEnd ; "Wireshark"
 !endif
@@ -815,6 +823,23 @@ SetOutPath $INSTDIR
 File "${STAGING_DIR}\tshark.exe"
 File "..\..\doc\tshark.html"
 SectionEnd
+
+!ifdef QT_DIR
+Section /o "QtShark (Experimental)" SecQtshark
+;-------------------------------------------
+; by default, QtShark is not installed  
+SetOutPath $INSTDIR
+File "${QT_DIR}\qtshark.exe"
+File "${QT_DIR}\QtCore4.dll"
+File "${QT_DIR}\QtGui4.dll"
+; Disable Qtshark shortcut if Qtshark isn't selected
+Push $0
+SectionGetFlags ${SecQtshark} $0
+IntOp  $0 $0 & 1
+CreateShortCut "$SMPROGRAMS\Qtshark.lnk" "$INSTDIR\qtshark.exe" "" "$INSTDIR\qtshark.exe" 0 "" "" "The new QtShark Network Protocol Analyzer"
+Pop $0
+SectionEnd
+!endif
 
 SectionGroup "Plugins / Extensions" SecPluginsGroup
 
@@ -937,7 +962,10 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SecWireshark} "${PROGRAM_NAME} is a GUI network protocol analyzer."
 !endif
   !insertmacro MUI_DESCRIPTION_TEXT ${SecTShark} "TShark is a text based network protocol analyzer."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecPluginsGroup} "Some plugins and extensions for both Wireshark and TShark."
+!ifdef QT_DIR
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecQtshark} "Qtshark is a new GUI network protocol analyzer. (Experimental)"
+!endif
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecPluginsGroup} "Some plugins and extensions for both ${PROGRAM_NAME} and TShark."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecPlugins} "Plugins with some extended dissections."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecStatsTree} "Plugin for some extended statistics."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecMate} "Plugin - Meta Analysis and Tracing Engine (Experimental)."
@@ -1068,18 +1096,18 @@ lbl_winpcap_done:
 	; only select Start Menu Group, if previously installed
 	; (we use the "all users" start menu, so select it first)
 	SetShellVarContext all
-	IfFileExists "$SMPROGRAMS\Wireshark\Wireshark.lnk" lbl_have_startmenu
-	IfFileExists "$SMPROGRAMS\Wireshark.lnk" lbl_have_startmenu
+	IfFileExists "$SMPROGRAMS\${PROGRAM_NAME}\${PROGRAM_NAME}.lnk" lbl_have_startmenu
+	IfFileExists "$SMPROGRAMS\${PROGRAM_NAME}.lnk" lbl_have_startmenu
 	WriteINIStr "$PLUGINSDIR\AdditionalTasksPage.ini" "Field 2" "State" "0"
 lbl_have_startmenu:
 
 	; only select Desktop Icon, if previously installed
-	IfFileExists "$DESKTOP\Wireshark.lnk" lbl_have_desktopicon
+	IfFileExists "$DESKTOP\${PROGRAM_NAME}.lnk" lbl_have_desktopicon
 	WriteINIStr "$PLUGINSDIR\AdditionalTasksPage.ini" "Field 3" "State" "0"
 lbl_have_desktopicon:
 
 	; only select Quick Launch Icon, if previously installed
-	IfFileExists "$QUICKLAUNCH\Wireshark.lnk" lbl_have_quicklaunchicon
+	IfFileExists "$QUICKLAUNCH\${PROGRAM_NAME}.lnk" lbl_have_quicklaunchicon
 	WriteINIStr "$PLUGINSDIR\AdditionalTasksPage.ini" "Field 4" "State" "0"
 lbl_have_quicklaunchicon:
 

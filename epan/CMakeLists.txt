@@ -257,6 +257,7 @@ set(ASN1_DISSECTOR_SRC
 	dissectors/packet-smrse.c
 	dissectors/packet-spnego.c
 	dissectors/packet-sv.c
+	dissectors/packet-sysex.c
 	dissectors/packet-t38.c
 	dissectors/packet-ulp.c
 	dissectors/packet-wlancertextn.c
@@ -270,6 +271,8 @@ set(ASN1_DISSECTOR_SRC
 
 set(DIRTY_ASN1_DISSECTOR_SRC
 	dissectors/packet-ansi_map.c
+	dissectors/packet-coseventcomm.c
+	dissectors/packet-cosnaming.c
 	dissectors/packet-gnm.c
 	dissectors/packet-gprscdr.c
 	dissectors/packet-gsm_map.c
@@ -339,6 +342,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-ansi_a.c
 	dissectors/packet-aodv.c
 	dissectors/packet-aoe.c
+	dissectors/packet-aol.c
 	dissectors/packet-ap1394.c
 	dissectors/packet-app-pkix-cert.c
 	dissectors/packet-applemidi.c
@@ -391,8 +395,10 @@ set(DISSECTOR_SRC
 	dissectors/packet-bt-dht.c
 	dissectors/packet-bt-utp.c
 	dissectors/packet-btamp.c
+	dissectors/packet-btatt.c
 	dissectors/packet-btbnep.c
 	dissectors/packet-btavctp.c
+	dissectors/packet-btavdtp.c
 	dissectors/packet-btavrcp.c
 	dissectors/packet-bthci_acl.c
 	dissectors/packet-bthci_cmd.c
@@ -405,6 +411,8 @@ set(DISSECTOR_SRC
 	dissectors/packet-btrfcomm.c
 	dissectors/packet-btsap.c
 	dissectors/packet-btsdp.c
+	dissectors/packet-btsmp.c
+	dissectors/packet-bt-oui.c
 	dissectors/packet-bvlc.c
 	dissectors/packet-bzr.c
 	dissectors/packet-calcappprotocol.c
@@ -439,9 +447,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-collectd.c
 	dissectors/packet-componentstatus.c
 	dissectors/packet-cops.c
-	dissectors/packet-coseventcomm.c
 	dissectors/packet-cosine.c
-	dissectors/packet-cosnaming.c
 	dissectors/packet-cpfi.c
 	dissectors/packet-cpha.c
 	dissectors/packet-csm-encaps.c
@@ -1071,6 +1077,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-sap.c
 	dissectors/packet-sasp.c
 	dissectors/packet-sbus.c
+	dissectors/packet-sbc.c
 	dissectors/packet-sccp.c
 	dissectors/packet-sccpmg.c
 	dissectors/packet-scop.c
@@ -1182,6 +1189,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-uma.c
 	dissectors/packet-umts_fp.c
 	dissectors/packet-umts_mac.c
+	dissectors/packet-usb-audio.c
 	dissectors/packet-usb-ccid.c
 	dissectors/packet-usb-hid.c
 	dissectors/packet-usb-hub.c
@@ -1337,6 +1345,15 @@ set(FTYPE_FILES
 	ftypes/ftype-tvbuff.c
 )
 
+set(WMEM_FILES
+	wmem/wmem_core.c
+	wmem/wmem_allocator_glib.c
+	wmem/wmem_scopes.c
+	wmem/wmem_slab.c
+	wmem/wmem_stack.c
+	wmem/wmem_strutl.c
+)
+
 ADD_CUSTOM_COMMAND(
     OUTPUT
       sminmpec.c
@@ -1475,6 +1492,7 @@ set(CLEAN_FILES
 	# ${DISSECTOR_FILES } end
 	${DISSECTOR_SUPPORT_SRC}
 	${LIBWIRESHARK_ASM_FILES}
+	${WMEM_FILES}
 	${WSLUA_FILES}
 	${WSPYTHON_FILES}
 )
@@ -1495,6 +1513,7 @@ add_library(epan ${LINK_MODE_LIB}
 	${CRYPT_FILES}
 	${DFILTER_FILES}
 	${FTYPE_FILES}
+	${WMEM_FILES}
 	${WSLUA_FILES}
 	${WSPYTHON_FILES}
 	${DISSECTOR_FILES}
@@ -1519,3 +1538,15 @@ if(NOT ${ENABLE_STATIC})
 	)
 endif()
 
+#
+# Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+#
+# Local variables:
+# c-basic-offset: 8
+# tab-width: 8
+# indent-tabs-mode: t
+# End:
+#
+# vi: set shiftwidth=8 tabstop=8 noexpandtab:
+# :indentSize=8:tabSize=8:noTabs=false:
+#

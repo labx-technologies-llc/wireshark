@@ -1,6 +1,6 @@
 /* fileset_dialog.h
  *
- * $Id: fileset_dialog.h 44766 2012-09-04 08:18:31Z alagoutte $
+ * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -55,7 +55,6 @@ signals:
 
 private slots:
     void on_buttonBox_helpRequested();
-
     void on_fileSetTree_currentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
 
 private:

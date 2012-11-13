@@ -61,9 +61,11 @@ ERR_PROB=0.02
 #  (There'll just be a core-dump).
 ###export WIRESHARK_ABORT_ON_DISSECTOR_BUG="True"
 
+# Sanity check to make sure we can find our plugins. Zero or less disables.
+MIN_PLUGINS=0
 
 # To do: add options for file names and limits
-while getopts ":2b:d:e:gC:p:" OPTCHAR ; do
+while getopts ":2b:C:d:e:gp:P:" OPTCHAR ; do
     case $OPTCHAR in
         2) TWO_PASS="-2 " ;;
         b) BIN_DIR=$OPTARG ;;
@@ -72,6 +74,7 @@ while getopts ":2b:d:e:gC:p:" OPTCHAR ; do
         e) ERR_PROB=$OPTARG ;;
         g) VALGRIND=1 ;;
         p) MAX_PASSES=$OPTARG ;;
+        P) MIN_PLUGINS=$OPTARG ;;
     esac
 done
 shift $(($OPTIND - 1))
@@ -137,10 +140,9 @@ FIN
     exit 1
 fi
 
-DISSECTOR_PLUGINS=`$TSHARK -G plugins | grep dissector | wc -l`
-# 10 is an arbritary value.
-if [ $DISSECTOR_PLUGINS -lt 10 ] ; then
-    echo "Error: Found fewer plugins than expected."
+PLUGIN_COUNT=`$TSHARK -G plugins | grep dissector | wc -l`
+if [ $MIN_PLUGINS -gt 0 -a $PLUGIN_COUNT -lt $MIN_PLUGINS ] ; then
+    echo "Warning: Found fewer plugins than expected ($PLUGIN_COUNT vs $MIN_PLUGINS)."
     exit 1
 fi
 
@@ -197,6 +199,15 @@ function exit_error() {
     echo -e "\n ERROR"
     echo -e "Processing failed. Capture info follows:\n"
     echo "  Input file: $CF"
+
+    ERR_SIZE=$(du -sk $TMP_DIR/$ERR_FILE | awk '{ print $1 }')
+    if [ $ERR_SIZE -ge 5000 ] ; then
+        mv $TMP_DIR/$ERR_FILE $TMP_DIR/${ERR_FILE}.full
+        head -n 2000 $TMP_DIR/${ERR_FILE}.full > $TMP_DIR/$ERR_FILE
+        echo -e "\n\n[ Output removed ]\n\n" >> $TMP_DIR/$ERR_FILE
+        tail -n 2000 $TMP_DIR/${ERR_FILE}.full >> $TMP_DIR/$ERR_FILE
+        rm -f $TMP_DIR/${ERR_FILE}.full
+    fi
 
     if [ -d .svn ] ; then
         echo -e "\nSubversion revision" >> $TMP_DIR/$ERR_FILE

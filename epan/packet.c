@@ -51,6 +51,7 @@
 #include "epan_dissect.h"
 
 #include "emem.h"
+#include "wmem/wmem.h"
 
 #include <epan/reassemble.h>
 #include <epan/stream.h>
@@ -59,6 +60,15 @@
 static gint proto_malformed = -1;
 static dissector_handle_t frame_handle = NULL;
 static dissector_handle_t data_handle = NULL;
+
+/**
+ * A data source.
+ * Has a tvbuff and a name.
+ */
+struct data_source {
+  tvbuff_t *tvb;
+  char *name;
+};
 
 void
 packet_init(void)
@@ -128,6 +138,15 @@ init_dissection(void)
 	/* Reclaim and reinitialize all memory of seasonal scope */
 	se_free_all();
 
+	wmem_enter_file_scope();
+
+	/*
+	 * Reinitialize resolution information. We do initialization here in
+	 * case we need to resolve between captures.
+	 */
+	host_name_lookup_cleanup();
+	host_name_lookup_init();
+
 	/* Initialize the table of conversations. */
 	epan_conversation_init();
 
@@ -167,6 +186,15 @@ cleanup_dissection(void)
 
 	/* Initialize the expert infos */
 	expert_cleanup();
+	
+	wmem_leave_file_scope();
+
+	/*
+	 * Reinitialize resolution information. We do initialization here in
+	 * case we need to resolve between captures.
+	 */
+	host_name_lookup_cleanup();
+	host_name_lookup_init();
 }
 
 /* Allow protocols to register a "cleanup" routine to be
@@ -204,24 +232,24 @@ postseq_cleanup_all_protocols(void)
 void
 add_new_data_source(packet_info *pinfo, tvbuff_t *tvb, const char *name)
 {
-	data_source *src;
+	struct data_source *src;
 
-	src = ep_alloc(sizeof (data_source));
+	src = g_malloc(sizeof(struct data_source));
 	src->tvb = tvb;
-	src->name_initialized = FALSE;
-	src->name = name;
+	src->name = g_strdup(name);
 	pinfo->data_src = g_slist_append(pinfo->data_src, src);
 }
 
 const char*
-get_data_source_name(data_source *src)
+get_data_source_name(const struct data_source *src)
 {
-	if (!src->name_initialized) {
-		src->name = ep_strdup_printf("%s (%u bytes)", src->name, tvb_length(src->tvb));
-		src->name_initialized = TRUE;
-	}
+	return ep_strdup_printf("%s (%u bytes)", src->name, tvb_length(src->tvb));
+}
 
-	return src->name;
+tvbuff_t *
+get_data_source_tvb(const struct data_source *src)
+{
+	return src->tvb;
 }
 
 /*
@@ -231,6 +259,14 @@ void
 free_data_sources(packet_info *pinfo)
 {
 	if (pinfo->data_src) {
+		GSList *l;
+
+		for (l = pinfo->data_src; l; l = l->next) {
+			struct data_source *src = l->data;
+
+			g_free(src->name);
+			g_free(src);
+		}
 		g_slist_free(pinfo->data_src);
 		pinfo->data_src = NULL;
 	}
@@ -280,7 +316,7 @@ final_registration_all_protocols(void)
 
 /* Creates the top-most tvbuff and calls dissect_frame() */
 void
-dissect_packet(epan_dissect_t *edt, union wtap_pseudo_header *pseudo_header,
+dissect_packet(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
 	       const guchar *pd, frame_data *fd, column_info *cinfo)
 {
 	if (cinfo != NULL)
@@ -289,7 +325,8 @@ dissect_packet(epan_dissect_t *edt, union wtap_pseudo_header *pseudo_header,
 	edt->pi.current_proto = "<Missing Protocol Name>";
 	edt->pi.cinfo = cinfo;
 	edt->pi.fd = fd;
-	edt->pi.pseudo_header = pseudo_header;
+	edt->pi.phdr = phdr;
+	edt->pi.pseudo_header = &phdr->pseudo_header;
 	edt->pi.dl_src.type = AT_NONE;
 	edt->pi.dl_dst.type = AT_NONE;
 	edt->pi.net_src.type = AT_NONE;
@@ -895,7 +932,7 @@ dissector_reset_uint(const char *name, const guint32 pattern)
 
 gboolean
 dissector_try_uint_new(dissector_table_t sub_dissectors, const guint32 uint_val,
-		       tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
+		       tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		       const gboolean add_proto_name, void *data)
 {
 	dtbl_entry_t            *dtbl_entry;
@@ -1244,7 +1281,7 @@ dissector_compare_filter_name(gconstpointer dissector_a, gconstpointer dissector
 	else
 		b_name = proto_get_protocol_filter_name(proto_get_id(b->protocol));
 
-	ret = strcmp(a_name, b_name); 
+	ret = strcmp(a_name, b_name);
 	return ret;
 }
 

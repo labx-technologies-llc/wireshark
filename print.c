@@ -97,7 +97,7 @@ static const guint8 *get_field_data(GSList *src_list, field_info *fi);
 static void write_pdml_field_hex_value(write_pdml_data *pdata, field_info *fi);
 static gboolean print_hex_data_buffer(print_stream_t *stream, const guchar *cp,
     guint length, packet_char_enc encoding);
-static void ps_clean_string(unsigned char *out, const unsigned char *in,
+static void ps_clean_string(char *out, const char *in,
 			int outbuf_size);
 static void print_escaped_xml(FILE *fh, const char *unescaped_string);
 
@@ -106,7 +106,7 @@ static void print_pdml_geninfo(proto_tree *tree, FILE *fh);
 static void proto_tree_get_node_field_values(proto_node *node, gpointer data);
 
 static FILE *
-open_print_dest(int to_file, const char *dest)
+open_print_dest(gboolean to_file, const char *dest)
 {
 	FILE	*fh;
 
@@ -120,7 +120,7 @@ open_print_dest(int to_file, const char *dest)
 }
 
 static gboolean
-close_print_dest(int to_file, FILE *fh)
+close_print_dest(gboolean to_file, FILE *fh)
 {
 	/* Close the file or command */
 	if (to_file)
@@ -219,6 +219,10 @@ void proto_tree_print_node(proto_node *node, gpointer data)
 		 */
 		pd = get_field_data(pdata->src_list, fi);
 		if (pd) {
+			if (!print_line(pdata->stream, 0, "")) {
+				pdata->success = FALSE;
+				return;
+			}
 			if (!print_hex_data_buffer(pdata->stream, pd,
 			    fi->length, pdata->encoding)) {
 				pdata->success = FALSE;
@@ -709,7 +713,7 @@ proto_tree_write_carrays(guint32 num, FILE *fh, epan_dissect_t *edt)
 {
 	guint32 i = 0, src_num = 0;
 	GSList *src_le;
-	data_source *src;
+	struct data_source *src;
 	tvbuff_t *tvb;
 	const char *name;
 	const guchar *cp;
@@ -718,8 +722,8 @@ proto_tree_write_carrays(guint32 num, FILE *fh, epan_dissect_t *edt)
 
 	for (src_le = edt->pi.data_src; src_le != NULL; src_le = src_le->next) {
 		memset(ascii, 0, sizeof(ascii));
-		src = (data_source *)src_le->data;
-		tvb = src->tvb;
+		src = (struct data_source *)src_le->data;
+		tvb = get_data_source_tvb(src);
 		length = tvb_length(tvb);
 		if (length == 0)
 			continue;
@@ -779,13 +783,13 @@ static const guint8 *
 get_field_data(GSList *src_list, field_info *fi)
 {
 	GSList *src_le;
-	data_source *src;
+	struct data_source *src;
 	tvbuff_t *src_tvb;
 	gint length, tvbuff_length;
 
 	for (src_le = src_list; src_le != NULL; src_le = src_le->next) {
-		src = (data_source *)src_le->data;
-		src_tvb = src->tvb;
+		src = (struct data_source *)src_le->data;
+		src_tvb = get_data_source_tvb(src);
 		if (fi->ds_tvb == src_tvb) {
 			/*
 			 * Found it.
@@ -878,7 +882,7 @@ print_hex_data(print_stream_t *stream, epan_dissect_t *edt)
 {
 	gboolean multiple_sources;
 	GSList *src_le;
-	data_source *src;
+	struct data_source *src;
 	tvbuff_t *tvb;
 	const char *name;
 	char *line;
@@ -895,11 +899,10 @@ print_hex_data(print_stream_t *stream, epan_dissect_t *edt)
 
 	for (src_le = edt->pi.data_src; src_le != NULL;
 	    src_le = src_le->next) {
-		src = (data_source *)src_le->data;
-		tvb = src->tvb;
+		src = (struct data_source *)src_le->data;
+		tvb = get_data_source_tvb(src);
 		if (multiple_sources) {
 			name = get_data_source_name(src);
-			print_line(stream, 0, "");
 			line = g_strdup_printf("%s:", name);
 			print_line(stream, 0, line);
 			g_free(line);
@@ -942,15 +945,12 @@ print_hex_data_buffer(print_stream_t *stream, const guchar *cp,
     guint length, packet_char_enc encoding)
 {
 	register unsigned int ad, i, j, k, l;
-	guchar c;
-	guchar line[MAX_LINE_LEN + 1];
+	gchar c;
+	gchar line[MAX_LINE_LEN + 1];
 	unsigned int use_digits;
-	static guchar binhex[16] = {
+	static gchar binhex[16] = {
 		'0', '1', '2', '3', '4', '5', '6', '7',
 		'8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-
-	if (!print_line(stream, 0, ""))
-		return FALSE;
 
 	/*
 	 * How many of the leading digits of the offset will we supply?
@@ -982,7 +982,7 @@ print_hex_data_buffer(print_stream_t *stream, const guchar *cp,
 			do {
 				l--;
 				c = (ad >> (l*4)) & 0xF;
-				line[j++] = binhex[c];
+				line[j++] = binhex[(unsigned int) c];
 			} while (l != 0);
 			line[j++] = ' ';
 			line[j++] = ' ';
@@ -1019,8 +1019,7 @@ print_hex_data_buffer(print_stream_t *stream, const guchar *cp,
 }
 
 static
-void ps_clean_string(unsigned char *out, const unsigned char *in,
-			int outbuf_size)
+void ps_clean_string(char *out, const char *in, int outbuf_size)
 {
 	int rd, wr;
 	char c;
@@ -1055,7 +1054,7 @@ void ps_clean_string(unsigned char *out, const unsigned char *in,
 gboolean
 print_preamble(print_stream_t *self, gchar *filename)
 {
-	return (self->ops->print_preamble)(self, filename);
+	return self->ops->print_preamble ? (self->ops->print_preamble)(self, filename) : TRUE;
 }
 
 gboolean
@@ -1068,39 +1067,32 @@ print_line(print_stream_t *self, int indent, const char *line)
 gboolean
 print_bookmark(print_stream_t *self, const gchar *name, const gchar *title)
 {
-	return (self->ops->print_bookmark)(self, name, title);
+	return self->ops->print_bookmark ? (self->ops->print_bookmark)(self, name, title) : TRUE;
 }
 
 gboolean
 new_page(print_stream_t *self)
 {
-	return (self->ops->new_page)(self);
+	return self->ops->new_page ? (self->ops->new_page)(self) : TRUE;
 }
 
 /* Some formats need stuff at the end of the output */
 gboolean
 print_finale(print_stream_t *self)
 {
-	return (self->ops->print_finale)(self);
+	return self->ops->print_finale ? (self->ops->print_finale)(self) : TRUE;
 }
 
 gboolean
 destroy_print_stream(print_stream_t *self)
 {
-	return (self->ops->destroy)(self);
+	return self->ops->destroy ? (self->ops->destroy)(self) : TRUE;
 }
 
 typedef struct {
-	int to_file;
+	gboolean to_file;
 	FILE *fh;
 } output_text;
-
-static gboolean
-print_preamble_text(print_stream_t *self _U_, gchar *filename _U_)
-{
-	/* do nothing */
-	return TRUE;	/* always succeeds */
-}
 
 static gboolean
 print_line_text(print_stream_t *self, int indent, const char *line)
@@ -1128,27 +1120,12 @@ print_line_text(print_stream_t *self, int indent, const char *line)
 }
 
 static gboolean
-print_bookmark_text(print_stream_t *self _U_, const gchar *name _U_,
-    const gchar *title _U_)
-{
-	/* do nothing */
-	return TRUE;
-}
-
-static gboolean
 new_page_text(print_stream_t *self)
 {
 	output_text *output = (output_text *)self->data;
 
 	fputs("\f", output->fh);
 	return !ferror(output->fh);
-}
-
-static gboolean
-print_finale_text(print_stream_t *self _U_)
-{
-	/* do nothing */
-	return TRUE;	/* always succeeds */
 }
 
 static gboolean
@@ -1164,16 +1141,16 @@ destroy_text(print_stream_t *self)
 }
 
 static const print_stream_ops_t print_text_ops = {
-	print_preamble_text,
+	NULL, /* preamble */
 	print_line_text,
-	print_bookmark_text,
+	NULL, /* bookmark */
 	new_page_text,
-	print_finale_text,
+	NULL, /* finale */
 	destroy_text
 };
 
 static print_stream_t *
-print_stream_text_alloc(int to_file, FILE *fh)
+print_stream_text_alloc(gboolean to_file, FILE *fh)
 {
 	print_stream_t *stream;
 	output_text *output;
@@ -1189,7 +1166,7 @@ print_stream_text_alloc(int to_file, FILE *fh)
 }
 
 print_stream_t *
-print_stream_text_new(int to_file, const char *dest)
+print_stream_text_new(gboolean to_file, const char *dest)
 {
 	FILE *fh;
 
@@ -1207,7 +1184,7 @@ print_stream_text_stdio_new(FILE *fh)
 }
 
 typedef struct {
-	int to_file;
+	gboolean to_file;
 	FILE *fh;
 } output_ps;
 
@@ -1215,7 +1192,7 @@ static gboolean
 print_preamble_ps(print_stream_t *self, gchar *filename)
 {
 	output_ps *output = (output_ps *)self->data;
-	unsigned char psbuffer[MAX_PS_LINE_LENGTH]; /* static sized buffer! */
+    char psbuffer[MAX_PS_LINE_LENGTH]; /* static sized buffer! */
 
 	print_ps_preamble(output->fh);
 
@@ -1230,7 +1207,7 @@ static gboolean
 print_line_ps(print_stream_t *self, int indent, const char *line)
 {
 	output_ps *output = (output_ps *)self->data;
-	unsigned char psbuffer[MAX_PS_LINE_LENGTH]; /* static sized buffer! */
+	char psbuffer[MAX_PS_LINE_LENGTH]; /* static sized buffer! */
 
 	ps_clean_string(psbuffer, line, MAX_PS_LINE_LENGTH);
 	fprintf(output->fh, "%d (%s) putline\n", indent, psbuffer);
@@ -1241,7 +1218,7 @@ static gboolean
 print_bookmark_ps(print_stream_t *self, const gchar *name, const gchar *title)
 {
 	output_ps *output = (output_ps *)self->data;
-	unsigned char psbuffer[MAX_PS_LINE_LENGTH]; /* static sized buffer! */
+	char psbuffer[MAX_PS_LINE_LENGTH]; /* static sized buffer! */
 
 	/*
 	 * See the Adobe "pdfmark reference":
@@ -1307,7 +1284,7 @@ static const print_stream_ops_t print_ps_ops = {
 };
 
 static print_stream_t *
-print_stream_ps_alloc(int to_file, FILE *fh)
+print_stream_ps_alloc(gboolean to_file, FILE *fh)
 {
 	print_stream_t *stream;
 	output_ps *output;
@@ -1323,7 +1300,7 @@ print_stream_ps_alloc(int to_file, FILE *fh)
 }
 
 print_stream_t *
-print_stream_ps_new(int to_file, const char *dest)
+print_stream_ps_new(gboolean to_file, const char *dest)
 {
 	FILE *fh;
 

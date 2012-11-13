@@ -943,13 +943,9 @@ dissect_6lowpan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* Compressed IPv6 packets. */
     else if (tvb_get_bits8(next, 0, LOWPAN_PATTERN_HC1_BITS) == LOWPAN_PATTERN_HC1) {
         next = dissect_6lowpan_hc1(next, pinfo, lowpan_tree, -1, src_iid, dst_iid);
-        /* Add a new data source. */
-        if (next) add_new_data_source(pinfo, next, "6LoWPAN");
     }
     else if (tvb_get_bits8(next, 0, LOWPAN_PATTERN_IPHC_BITS) == LOWPAN_PATTERN_IPHC) {
         next = dissect_6lowpan_iphc(next, pinfo, lowpan_tree, -1, src_iid, dst_iid);
-        /* Add a new data source. */
-        if (next) add_new_data_source(pinfo, next, "6LoWPAN");
     }
     /* Unknown 6LoWPAN dispatch type */
     else {
@@ -1316,6 +1312,10 @@ dissect_6lowpan_hc1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint dg
 
     /* Link the reassembled tvbuff together.  */
     ipv6_tvb = lowpan_reassemble_ipv6(tvb, &ipv6, nhdr_list);
+
+    /* Add a new data source for it. */
+    add_new_data_source(pinfo, ipv6_tvb, "Decompressed 6LoWPAN HC1");
+
     return ipv6_tvb;
 } /* dissect_6lowpan_hc1 */
 
@@ -1733,6 +1733,10 @@ dissect_6lowpan_iphc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint d
      */
     /* Reassemble the IPv6 packet. */
     ipv6_tvb = lowpan_reassemble_ipv6(tvb, &ipv6, nhdr_list);
+
+    /* Add a new data source for it. */
+    add_new_data_source(pinfo, ipv6_tvb, "Decompressed 6LoWPAN IPHC");
+
     return ipv6_tvb;
 } /* dissect_6lowpan_iphc */
 
@@ -2326,24 +2330,18 @@ dissect_6lowpan_frag_first(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
 
     /* Attempt reassembly. */
     new_tvb = process_reassembled_data(frag_tvb, 0, pinfo,
-                    "6LowPAN", frag_data, &lowpan_frag_items,
+                    "Reassembled 6LoWPAN", frag_data, &lowpan_frag_items,
                     NULL, tree);
 
     pinfo->fragmented = save_fragmented;
 
-    /* If reassembly was successful, then return the completed datagram. */
     if (new_tvb) {
+        /* Reassembly was successful; return the completed datagram. */
         return new_tvb;
-    }
-    /* If reassembly failed, display the payload fragment using the data dissector. */
-    else {
-        /*
-         * BUG?: We could actually continue dissecting, since frag_tvb should contain
-         * a truncated IPv6 packet, and we know the reported length from dgram_size.
-         *
-         * But this seems to cause problems with the TCP dissector if we resubmit the
-         * datagram for reassembly again once we have the entire IPv6 packet.
-         */
+    } else {
+        /* Reassembly was unsuccessful; show this fragment.  This may
+           just mean that we don't yet have all the fragments, so
+           we should not just continue dissecting. */
         call_dissector(data_handle, frag_tvb, pinfo, proto_tree_get_root(tree));
         return NULL;
     }
@@ -2424,7 +2422,7 @@ dissect_6lowpan_frag_middle(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* Attempt reassembly. */
     new_tvb = process_reassembled_data(tvb, offset, pinfo,
-                    "6LowPAN", frag_data, &lowpan_frag_items,
+                    "Reassembled 6LoWPAN", frag_data, &lowpan_frag_items,
                     NULL, tree);
 
     pinfo->fragmented = save_fragmented;
@@ -2713,7 +2711,7 @@ proto_register_6lowpan(void)
           { "Reassembled in",                 "6lowpan.reassembled.in",
             FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL }},
         { &hf_6lowpan_reassembled_length,
-          { "Reassembled 6LowPAN length",     "6lowpan.reassembled.length",
+          { "Reassembled 6LoWPAN length",     "6lowpan.reassembled.length",
             FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL }}
     };
 

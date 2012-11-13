@@ -50,6 +50,7 @@
 #include "addr_resolv.h"
 #include "oids.h"
 #include "emem.h"
+#include "wmem/wmem.h"
 #include "expert.h"
 
 #ifdef HAVE_LUA
@@ -83,17 +84,22 @@ epan_init(void (*register_all_protocols_func)(register_cb cb, gpointer client_da
 	init_report_err(report_failure_fcn_p, report_open_failure_fcn_p,
 	    report_read_failure_fcn_p, report_write_failure_fcn_p);
 
-	/* initialize memory allocation subsystem */
+	/* initialize memory allocation subsystems */
 	emem_init();
+	wmem_init();
 
 	/* initialize the GUID to name mapping table */
 	guids_init();
 
 	except_init();
+#ifdef HAVE_LIBGCRYPT
+	/* initialize libgcrypt (beware, it won't be thread-safe) */
+	gcry_check_version(NULL);
+	gcry_control (GCRYCTL_DISABLE_SECMEM, 0);
+	gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
+#endif
 #ifdef HAVE_LIBGNUTLS
 	gnutls_global_init();
-#elif defined(HAVE_LIBGCRYPT)
-	gcry_check_version(NULL);
 #endif
 	tap_init();
 	prefs_init();
@@ -123,6 +129,7 @@ epan_cleanup(void)
 #endif
 	except_deinit();
 	host_name_lookup_cleanup();
+	wmem_cleanup();
 }
 
 void
@@ -164,8 +171,6 @@ epan_dissect_init(epan_dissect_t *edt, const gboolean create_proto_tree, const g
 
 	edt->pi.dependent_frames = NULL;
 
-	edt->mem = ep_create_pool();
-
 	return edt;
 }
 
@@ -187,10 +192,29 @@ epan_dissect_fake_protocols(epan_dissect_t *edt, const gboolean fake_protocols)
 }
 
 void
-epan_dissect_run(epan_dissect_t *edt, void* pseudo_header,
+epan_dissect_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
         const guint8* data, frame_data *fd, column_info *cinfo)
 {
-	dissect_packet(edt, pseudo_header, data, fd, cinfo);
+	wmem_enter_packet_scope();
+	dissect_packet(edt, phdr, data, fd, cinfo);
+
+	/* free all memory allocated */
+	ep_free_all();
+	wmem_leave_packet_scope();
+}
+
+void
+epan_dissect_run_with_taps(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
+        const guint8* data, frame_data *fd, column_info *cinfo)
+{
+	wmem_enter_packet_scope();
+	tap_queue_init(edt);
+	dissect_packet(edt, phdr, data, fd, cinfo);
+	tap_push_tapped_queue(edt);
+
+	/* free all memory allocated */
+	ep_free_all();
+	wmem_leave_packet_scope();
 }
 
 void
@@ -209,8 +233,6 @@ epan_dissect_cleanup(epan_dissect_t* edt)
 	if (edt->tree) {
 		proto_tree_free(edt->tree);
 	}
-
-	ep_free_pool(edt->mem);
 }
 
 void

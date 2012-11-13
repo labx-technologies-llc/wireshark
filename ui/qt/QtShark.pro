@@ -127,6 +127,7 @@ win32 {
 INCLUDEPATH += ../.. ../../wiretap
 win32:INCLUDEPATH += \
     $${WIRESHARK_LIB_DIR}/gtk2/include/glib-2.0 $${WIRESHARK_LIB_DIR}/gtk2/lib/glib-2.0/include \
+    $${WIRESHARK_LIB_DIR}/gtk3/include/glib-2.0 $${WIRESHARK_LIB_DIR}/gtk3/lib/glib-2.0/include \
     $${WIRESHARK_LIB_DIR}/WpdPack/Include \
     $${WIRESHARK_LIB_DIR}/AirPcap_Devpack_4_1_0_1622/Airpcap_Devpack/include \
     $${WIRESHARK_LIB_DIR}/zlib125/include
@@ -170,6 +171,7 @@ unix:SOURCES_WS_C += ../../capture-pcap-util-unix.c
 win32:SOURCES_WS_C += \
     ../../capture-wpcap.c \
     ../../capture_wpcap_packet.c \
+    ../../ui/win32/console_win32.c \
     ../../ui/win32/file_dlg_win32.c
 
 HEADERS_WS_C  = \
@@ -179,7 +181,11 @@ FORMS += main_window.ui \
     main_welcome.ui \
     import_text_dialog.ui \
     file_set_dialog.ui \
-    packet_range_group_box.ui
+    packet_range_group_box.ui \
+    packet_format_group_box.ui \
+    export_object_dialog.ui \
+    print_dialog.ui \
+    splash_overlay.ui
 
 win32 { ## These should be in config.pri ??
     !isEmpty(PORTAUDIO_DIR) {
@@ -202,7 +208,12 @@ win32 { ## These should be in config.pri ??
     }
 }
 
-HEADERS += $$HEADERS_WS_C
+HEADERS += $$HEADERS_WS_C \
+    export_dissection_dialog.h \
+    packet_format_group_box.h \
+    export_object_dialog.h \
+    print_dialog.h \
+    splash_overlay.h
 
 win32 {
     OBJECTS_WS_C = $$SOURCES_WS_C
@@ -295,7 +306,7 @@ win32 {
     }
     PLUGINS_DIR = $(DESTDIR)\\plugins\\$${VERSION_FULL}
     QMAKE_POST_LINK +=$$quote($(CHK_DIR_EXISTS) $${PLUGINS_DIR} $(MKDIR) $${PLUGINS_DIR}$$escape_expand(\\n\\t))
-    QMAKE_POST_LINK +=$$quote($(COPY_FILE) ..\\..\\wireshark-gtk2\\plugins\\$${VERSION_FULL}\\*.dll $(DESTDIR)\\plugins\\$${VERSION_FULL}$$escape_expand(\\n\\t))
+    QMAKE_POST_LINK +=$$quote($(COPY_FILE) ..\\..\\$${INSTALL_DIR}\\plugins\\$${VERSION_FULL}\\*.dll $(DESTDIR)\\plugins\\$${VERSION_FULL}$$escape_expand(\\n\\t))
 
     # This doesn't depend on wireshark-gtk2. It also doesn't work.
     #PLUGINS_IN_PWD=$${IN_PWD}
@@ -325,7 +336,7 @@ RC_FILE = qtshark.rc
 !isEmpty(TRANSLATIONS) {
 
     isEmpty(QMAKE_LRELEASE) {
-        win32:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]\lrelease.exe
+        win32:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]\\lrelease.exe
         else:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]/lrelease
     }
 
@@ -336,8 +347,8 @@ RC_FILE = qtshark.rc
     TSQM.output = $$TS_DIR/${QMAKE_FILE_BASE}.qm
     TSQM.commands = $$QMAKE_LRELEASE ${QMAKE_FILE_IN}
     TSQM.CONFIG = no_link
-    QMAKE_EXTRA_COMPILERS += TSQM
-    PRE_TARGETDEPS += compiler_TSQM_make_all
+#    QMAKE_EXTRA_COMPILERS += TSQM
+#    PRE_TARGETDEPS += compiler_TSQM_make_all
 } else {
     message(No translation files in project)
 }
@@ -407,4 +418,9 @@ SOURCES += \
     simple_dialog_qt.cpp \
     sparkline_delegate.cpp \
     syntax_line_edit.cpp \
-    wireshark_application.cpp
+    wireshark_application.cpp \
+    export_dissection_dialog.cpp \
+    packet_format_group_box.cpp \
+    export_object_dialog.cpp \
+    print_dialog.cpp \
+    splash_overlay.cpp

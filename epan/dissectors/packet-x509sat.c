@@ -1504,7 +1504,7 @@ dissect_x509sat_SyntaxIA5String(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_x509sat_SyntaxBMPString(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 351 "../../asn1/x509sat/x509sat.cnf"
+#line 380 "../../asn1/x509sat/x509sat.cnf"
 	tvbuff_t	*wide_tvb = NULL;
 	char		*string;
 
@@ -1512,7 +1512,7 @@ dissect_x509sat_SyntaxBMPString(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
                                             actx, tree, tvb, offset, hf_index,
                                             &wide_tvb);
 
-#line 356 "../../asn1/x509sat/x509sat.cnf"
+#line 385 "../../asn1/x509sat/x509sat.cnf"
 	if (! wide_tvb) {
 		return offset;
 	}
@@ -1626,7 +1626,7 @@ dissect_x509sat_SyntaxGeneralString(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_x509sat_GUID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 365 "../../asn1/x509sat/x509sat.cnf"
+#line 394 "../../asn1/x509sat/x509sat.cnf"
   gint8 class;
   gboolean pc;
   gint32 tag;
@@ -2758,6 +2758,25 @@ void proto_reg_handoff_x509sat(void) {
   register_ber_oid_dissector("2.16.840.1.101.2.2.1.143", dissect_DirectoryString_PDU, proto_x509sat, "id-at-adminConversion");
   register_ber_oid_dissector("2.16.840.1.101.2.2.1.144", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-tCCG");
   register_ber_oid_dissector("2.16.840.1.101.2.2.1.145", dissect_DirectoryString_PDU, proto_x509sat, "id-at-usdConversion");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.158", dissect_DirectoryString_PDU, proto_x509sat, "id-at-aCPRoleInformation");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.159", dissect_DirectoryString_PDU, proto_x509sat, "id-at-coalitionGrade");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.160", dissect_TelephoneNumber_PDU, proto_x509sat, "id-at-militaryIPPhoneNumber");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.161", dissect_ObjectIdentifier_PDU, proto_x509sat, "id-at-fileTypeInfoCapability");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.172", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPFunctionalDescription");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.173", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-alternatePLAName");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.174", dissect_SyntaxGeneralizedTime_PDU, proto_x509sat, "id-at-aCPEntryCreationDate");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.175", dissect_SyntaxGeneralizedTime_PDU, proto_x509sat, "id-at-aCPEntryModificationDate");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.176", dissect_ObjectIdentifier_PDU, proto_x509sat, "id-at-aCPEntryType");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.177", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPEntryUniqueId");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.178", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPCitizenship");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.179", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPEID");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.180", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPCOI");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.181", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPPublishTo");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.182", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPSvcApps");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.183", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPDirectionsTo");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.185", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPLatitude");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.186", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPLocationMap");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.187", dissect_SyntaxPrintableString_PDU, proto_x509sat, "id-at-aCPLongitude");
   register_ber_oid_dissector("1.2.840.113549.1.9.1", dissect_SyntaxIA5String_PDU, proto_x509sat, "pkcs-9-at-emailAddress");
   register_ber_oid_dissector("1.2.840.113549.1.9.7", dissect_DirectoryString_PDU, proto_x509sat, "pkcs-9-at-challengePassword");
   register_ber_oid_dissector("1.2.840.113549.1.9.8", dissect_DirectoryString_PDU, proto_x509sat, "pkcs-9-at-unstructuredAddress");
@@ -2772,6 +2791,12 @@ void proto_reg_handoff_x509sat(void) {
   register_ber_oid_dissector("1.3.6.1.5.5.7.9.4", dissect_SyntaxPrintableString_PDU, proto_x509sat, "pkcs-9-at-countryOfCitizenship");
   register_ber_oid_dissector("1.3.6.1.5.5.7.9.5", dissect_SyntaxPrintableString_PDU, proto_x509sat, "pkcs-9-at-countryOfResidence");
   register_ber_oid_dissector("0.9.2342.19200300.100.1.25", dissect_SyntaxIA5String_PDU, proto_x509sat, "dc");
+  register_ber_oid_dissector("2.16.840.1.113730.3.1.1", dissect_DirectoryString_PDU, proto_x509sat, "carLicense");
+  register_ber_oid_dissector("2.16.840.1.113730.3.1.2", dissect_DirectoryString_PDU, proto_x509sat, "departmentNumber");
+  register_ber_oid_dissector("2.16.840.1.113730.3.1.3", dissect_DirectoryString_PDU, proto_x509sat, "employeeNumber");
+  register_ber_oid_dissector("2.16.840.1.113730.3.1.4", dissect_DirectoryString_PDU, proto_x509sat, "employeeType");
+  register_ber_oid_dissector("2.16.840.1.113730.3.1.39", dissect_DirectoryString_PDU, proto_x509sat, "preferredLanguage");
+  register_ber_oid_dissector("2.16.840.1.113730.3.1.241", dissect_DirectoryString_PDU, proto_x509sat, "displayName");
   register_ber_oid_dissector("1.3.6.1.4.1.311.20.2", dissect_SyntaxBMPString_PDU, proto_x509sat, "id-ms-certificate-template-name");
   register_ber_oid_dissector("1.3.6.1.4.1.311.20.2.3", dissect_SyntaxUTF8String_PDU, proto_x509sat, "id-ms-user-principal-name");
   register_ber_oid_dissector("1.3.6.1.4.1.311.17.1", dissect_SyntaxBMPString_PDU, proto_x509sat, "id-ms-local-machine-keyset");
@@ -2825,6 +2850,8 @@ void proto_reg_handoff_x509sat(void) {
   oid_add_from_string("dcObject","1.3.6.1.4.1.1446.344");
   oid_add_from_string("domain","0.9.2342.19200300.100.4.13");
 
+  /* RFC 2798 */
+  oid_add_from_string("inetOrgPerson","2.16.840.1.113730.3.2.2");
 }
 
 

@@ -25,6 +25,10 @@
 #ifndef __STR_UTIL_H__
 #define __STR_UTIL_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /** Convert all upper-case ASCII letters to their ASCII lower-case
  *  equivalents, in place, with a simple non-locale-dependent
  *  ASCII mapping (A-Z -> a-z).
@@ -36,7 +40,7 @@
  *  bytes in the range 0x00 through 0x7F are ASCII characters and
  *  non-ASCII characters are constructed from one or more bytes in
  *  the range 0x80 through 0xFF.
- *  
+ *
  * @param str The string to be lower-cased.
  * @return    ptr to the string
  */
@@ -53,24 +57,56 @@ gchar *ascii_strdown_inplace(gchar *str);
  *  bytes in the range 0x00 through 0x7F are ASCII characters and
  *  non-ASCII characters are constructed from one or more bytes in
  *  the range 0x80 through 0xFF.
- *  
+ *
  * @param str The string to be upper-cased.
  * @return    ptr to the string
  */
 gchar *ascii_strup_inplace(gchar *str);
 
 /** Check if an entire string consists of printable characters
- *  
+ *
  * @param str The string to be checked
  * @return    TRUE if the entire string is printable, otherwise FALSE
  */
 gboolean isprint_string(guchar *string);
 
 /** Check if an entire string consists of digits
- *  
+ *
  * @param str The string to be checked
  * @return    TRUE if the entire string is digits, otherwise FALSE
  */
 gboolean isdigit_string(guchar *string);
+
+typedef enum {
+    format_size_unit_none    = 0,       /**< No unit will be appended. You must supply your own. */
+    format_size_unit_bytes   = 1,       /**< "bytes" for un-prefixed sizes, "B" otherwise. */
+    /* XXX Do we use bytes/s anywhere? */
+    format_size_unit_bits    = 2,       /**< "bits" for un-prefixed sizes, "b" otherwise. */
+    format_size_unit_bits_s  = 3,       /**< "bits/s" for un-prefixed sizes, "bps" otherwise. */
+    format_size_prefix_si    = 0 << 8,  /**< SI (power of 1000) prefixes will be used. */
+    format_size_prefix_iec   = 1 << 8   /**< IEC (power of 1024) prefixes will be used. */
+    /* XXX format_size_prefix_default_for_this_particular_os ? */
+} format_size_flags_e;
+
+#ifdef __cplusplus
+/* Should we just have separate unit and prefix enums instead? */
+extern format_size_flags_e operator|(format_size_flags_e lhs, format_size_flags_e rhs);
+#endif /* __cplusplus */
+
+/** Given a size, return its value in a human-readable format
+ *
+ * Prefixes up to "T/Ti" (tera, tebi) are currently supported.
+ *
+ * @param size The size value
+ * @param flags Flags to control the output (unit of measurement,
+ * SI vs IEC, etc). Unit and prefix flags may be ORed together.
+ * @return A newly-allocated string representing the value.
+ */
+gchar *format_size(gint64 size, format_size_flags_e flags);
+
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* __STR_UTIL_H__ */

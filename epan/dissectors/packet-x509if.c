@@ -582,7 +582,7 @@ dissect_x509if_T_ca_contextType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_x509if_T_ca_contextValues_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 184 "../../asn1/x509if/x509if.cnf"
+#line 186 "../../asn1/x509if/x509if.cnf"
   offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
 
 
@@ -721,7 +721,7 @@ dissect_x509if_AttributeTypeAssertion(gboolean implicit_tag _U_, tvbuff_t *tvb _
 
 static int
 dissect_x509if_T_type_02(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 190 "../../asn1/x509if/x509if.cnf"
+#line 192 "../../asn1/x509if/x509if.cnf"
   const char *fmt; 
   const char *name;
 
@@ -739,9 +739,7 @@ dissect_x509if_T_type_02(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
      /* append it to the tree */
      proto_item_append_text(tree, " (%s=", name);
-    }
-
-    if(doing_attr) {
+    } else if(doing_attr) {
       /* append it to the parent item */
       proto_item_append_text(tree, " (%s)", name);
     }
@@ -2902,6 +2900,8 @@ void proto_reg_handoff_x509if(void) {
   register_ber_oid_dissector("2.16.840.1.101.2.2.1.138", dissect_DistinguishedName_PDU, proto_x509if, "id-at-plasServed");
   register_ber_oid_dissector("2.16.840.1.101.2.2.1.139", dissect_DistinguishedName_PDU, proto_x509if, "id-at-deployed");
   register_ber_oid_dissector("2.16.840.1.101.2.2.1.140", dissect_DistinguishedName_PDU, proto_x509if, "id-at-garrison");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.184", dissect_DistinguishedName_PDU, proto_x509if, "id-at-aCPDutyOfficer");
+  register_ber_oid_dissector("2.16.840.1.101.2.2.1.188", dissect_DistinguishedName_PDU, proto_x509if, "id-at-primaryMember");
 
 
 /*--- End of included file: packet-x509if-dis-tab.c ---*/

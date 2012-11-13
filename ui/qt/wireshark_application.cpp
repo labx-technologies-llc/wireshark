@@ -33,6 +33,10 @@
 
 #include <QDir>
 #include <QTimer>
+#include <QEvent>
+#include <QFileOpenEvent>
+#include <QDesktopServices>
+#include <QUrl>
 
 #ifdef Q_WS_WIN
 #include <QLibrary>
@@ -47,6 +51,12 @@ WiresharkApplication *wsApp = NULL;
 static char *last_open_dir = NULL;
 static bool updated_last_open_dir = FALSE;
 static QList<recent_item_status *> recent_items;
+
+void
+topic_action(topic_action_e action)
+{
+    if (wsApp) wsApp->helpTopicAction(action);
+}
 
 extern "C" char *
 get_last_open_dir(void)
@@ -84,7 +94,7 @@ add_menu_recent_capture_file(gchar *cf_name) {
      * item above count_max
      */
     unsigned int cnt = 1;
-    foreach (ri, wsApp->recent_item_list()) {
+    foreach (ri, wsApp->recentItems()) {
         /* if this element string is one of our special items (separator, ...) or
          * already in the list or
          * this element is above maximum count (too old), remove it
@@ -98,7 +108,7 @@ add_menu_recent_capture_file(gchar *cf_name) {
             ri->filename.compare(normalized_cf_name) == 0 ||
 #endif
             cnt >= prefs.gui_recent_files_count_max) {
-            wsApp->recent_item_list().removeOne(ri);
+            wsApp->recentItems().removeOne(ri);
             delete(ri);
             cnt--;
         }
@@ -270,6 +280,18 @@ void WiresharkApplication::setLastOpenDir(QString *dir_str) {
     setLastOpenDir(dir_str->toUtf8().constData());
 }
 
+void WiresharkApplication::helpTopicAction(topic_action_e action)
+{
+    char *url;
+
+    url = topic_action_url(action);
+
+    if(url != NULL) {
+        QDesktopServices::openUrl(QUrl(url));
+        g_free(url);
+    }
+}
+
 void WiresharkApplication::setLastOpenDir(const char *dir_name)
 {
     qint64 len;
@@ -297,6 +319,23 @@ void WiresharkApplication::setLastOpenDir(const char *dir_name)
 
     g_free(last_open_dir);
     last_open_dir = new_last_open_dir;
+}
+
+bool WiresharkApplication::event(QEvent *event)
+{
+    if (event->type() == QEvent::FileOpen) {
+        QFileOpenEvent *foe = static_cast<QFileOpenEvent *>(event);
+        if (foe && foe->file().length() > 0) {
+            QString cf_path(foe->file());
+            if (initialized_) {
+                emit openCaptureFile(cf_path);
+            } else {
+                pending_open_files_.append(cf_path);
+            }
+        }
+        return true;
+    }
+    return QApplication::event(event);
 }
 
 void WiresharkApplication::clearRecentItems() {
@@ -331,7 +370,8 @@ void WiresharkApplication::itemStatusFinished(const QString &filename, qint64 si
 }
 
 WiresharkApplication::WiresharkApplication(int &argc,  char **argv) :
-    QApplication(argc, argv)
+    QApplication(argc, argv),
+    initialized_(false)
 {
     wsApp = this;
 
@@ -357,7 +397,22 @@ WiresharkApplication::WiresharkApplication(int &argc,  char **argv) :
     recent_timer_->start(2000);
 }
 
-QList<recent_item_status *> WiresharkApplication::recent_item_list() const {
+void WiresharkApplication::registerUpdate(register_action_e action, const char *message)
+{
+    emit splashUpdate(action, message);
+}
+
+void WiresharkApplication::allSystemsGo()
+{
+    initialized_ = true;
+    emit appInitialized();
+    while (pending_open_files_.length() > 0) {
+        emit openCaptureFile(pending_open_files_.front());
+        pending_open_files_.pop_front();
+    }
+}
+
+QList<recent_item_status *> WiresharkApplication::recentItems() const {
     return recent_items;
 }
 

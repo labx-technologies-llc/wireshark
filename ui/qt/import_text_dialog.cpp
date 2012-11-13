@@ -1,6 +1,6 @@
 /* import_text_dialog.cpp
  *
- * $Id: capture_file_dialog.cpp 44864 2012-09-10 23:03:22Z gerald $
+ * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -47,8 +47,6 @@
 #include <QFileDialog>
 #include <QDebug>
 #include <QFile>
-#include <QDesktopServices>
-#include <QUrl>
 
 ImportTextDialog::ImportTextDialog(QWidget *parent) :
     QDialog(parent),
@@ -425,12 +423,7 @@ void ImportTextDialog::on_maxLengthLineEdit_textChanged(const QString &max_frame
 
 void ImportTextDialog::on_buttonBox_helpRequested()
 {
-    gchar *url = topic_action_url(HELP_IMPORT_DIALOG);
-
-    if(url != NULL) {
-        QDesktopServices::openUrl(QUrl(url));
-        g_free(url);
-    }
+    wsApp->helpTopicAction(HELP_IMPORT_DIALOG);
 }
 
 /*

@@ -271,6 +271,25 @@ DirectoryString B "2.16.840.1.101.2.2.1.133" "id-at-rank"
 DirectoryString B "2.16.840.1.101.2.2.1.143" "id-at-adminConversion"
 SyntaxPrintableString B "2.16.840.1.101.2.2.1.144" "id-at-tCCG"
 DirectoryString B "2.16.840.1.101.2.2.1.145" "id-at-usdConversion"
+DirectoryString B "2.16.840.1.101.2.2.1.158" "id-at-aCPRoleInformation"
+DirectoryString B "2.16.840.1.101.2.2.1.159" "id-at-coalitionGrade"
+TelephoneNumber B "2.16.840.1.101.2.2.1.160" "id-at-militaryIPPhoneNumber"
+ObjectIdentifier B "2.16.840.1.101.2.2.1.161" "id-at-fileTypeInfoCapability"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.172" "id-at-aCPFunctionalDescription"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.173" "id-at-alternatePLAName"
+SyntaxGeneralizedTime B "2.16.840.1.101.2.2.1.174" "id-at-aCPEntryCreationDate"
+SyntaxGeneralizedTime B "2.16.840.1.101.2.2.1.175" "id-at-aCPEntryModificationDate"
+ObjectIdentifier B "2.16.840.1.101.2.2.1.176" "id-at-aCPEntryType"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.177" "id-at-aCPEntryUniqueId"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.178" "id-at-aCPCitizenship"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.179" "id-at-aCPEID"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.180" "id-at-aCPCOI"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.181" "id-at-aCPPublishTo"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.182" "id-at-aCPSvcApps"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.183" "id-at-aCPDirectionsTo"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.185" "id-at-aCPLatitude"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.186" "id-at-aCPLocationMap"
+SyntaxPrintableString B "2.16.840.1.101.2.2.1.187" "id-at-aCPLongitude"
 
 # PKCS#9
 
@@ -288,7 +307,6 @@ DirectoryString	B "1.2.840.113549.1.9.13"	"pkcs-9-at-signingDescription"
 #SMIMECapabiliaties	B "1.2.840.113549.1.9.15"	"pkcs-9-at-smimeCapabilities" - TBD
 SyntaxBMPString	B "1.2.840.113549.1.9.20"	"pkcs-9-at-friendlyName"
 OctetString	B "1.2.840.113549.1.9.21"	"pkcs-9-at-localKeyId"
-#PFX		B "2.16.840.1.113730.3.1.216"   "pkcs-9-at-PKCS12" - see pkcs12.cnf
 #PKCS15Token	B "1.2.840.113549.1.9.25.1"	"pkcs-9-at-pkcs15Token" - TBD
 #EncryptedPrivateKeyInfo	B "1.2.840.113549.1.9.25.2"	"pkcs-9-at-encryptedPrivateKeyInfo" - see pkcs12.cnf
 OctetString	B "1.2.840.113549.1.9.25.3"	"pkcs-9-at-randomNonce" # move to PKCS#9 when defined
@@ -303,6 +321,17 @@ SyntaxPrintableString	B "1.3.6.1.5.5.7.9.5"		"pkcs-9-at-countryOfResidence"
 
 # RFC 2247
 SyntaxIA5String B "0.9.2342.19200300.100.1.25" "dc"
+
+# RFC 2798 - The LDAP inetOrgPerson Object Class
+DirectoryString B "2.16.840.1.113730.3.1.1" "carLicense"
+DirectoryString B "2.16.840.1.113730.3.1.2" "departmentNumber"
+DirectoryString B "2.16.840.1.113730.3.1.3" "employeeNumber"
+DirectoryString B "2.16.840.1.113730.3.1.4" "employeeType"
+#JPEG		B "0.9.2342.19200300.100.1.60" "jpegPhoto" - see packet-jpeg.c
+DirectoryString B "2.16.840.1.113730.3.1.39" "preferredLanguage"
+#SignedData	B "2.16.840.1.113730.3.1.40" "userSMIMECertificate" - see cms.cnf
+#PFX		B "2.16.840.1.113730.3.1.216"   "pkcs-9-at-PKCS12" - see pkcs12.cnf
+DirectoryString B "2.16.840.1.113730.3.1.241" "displayName"
 
 # Microsoft-specific
 # GeneralName other-name

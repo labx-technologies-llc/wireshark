@@ -116,6 +116,7 @@ copy_file_binary_mode
 copy_persconffile_profile
 crc16_ccitt_tvb
 crc16_plain_tvb_offset
+crc16_plain_tvb_offset_seed
 crc16_ccitt_tvb_offset
 crc16_ccitt_tvb_offset_seed
 crc16_ccitt_tvb_seed
@@ -411,6 +412,7 @@ epan_dissect_init
 epan_dissect_new
 epan_dissect_prime_dfilter
 epan_dissect_run
+epan_dissect_run_with_taps
 epan_get_compiled_version_info
 epan_get_runtime_version_info
 epan_get_version
@@ -566,6 +568,7 @@ get_column_width_string
 get_datafile_dir
 get_datafile_path
 get_data_source_name
+get_data_source_tvb
 get_dirname
 get_dissector_table_selector_type
 get_dissector_table_ui_name
@@ -1049,9 +1052,7 @@ t38_T30_data_vals               DATA
 t38_T30_indicator_vals          DATA
 t38_add_address
 T_h323_message_body_vals        DATA
-tap_push_tapped_queue
 tap_build_interesting
-tap_queue_init
 tap_queue_packet
 tcp_dissect_pdus
 tap_listeners_require_dissection

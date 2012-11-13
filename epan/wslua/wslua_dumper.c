@@ -297,11 +297,12 @@ WSLUA_METHOD Dumper_dump(lua_State* L) {
     pkthdr.len       = ba->len;
     pkthdr.caplen    = ba->len;
     pkthdr.pkt_encap = DUMPER_ENCAP(d);
+    pkthdr.pseudo_header = *ph->wph;
 
     /* TODO: Can we get access to pinfo->fd->opt_comment here somehow? We
      * should be copying it to pkthdr.opt_comment if we can. */
 
-    if (! wtap_dump(d, &pkthdr, ph->wph, ba->data, &err)) {
+    if (! wtap_dump(d, &pkthdr, ba->data, &err)) {
         luaL_error(L,"error while dumping: %s",
                    wtap_strerror(err));
     }
@@ -360,18 +361,18 @@ WSLUA_METHOD Dumper_dump_current(lua_State* L) {
     struct wtap_pkthdr pkthdr;
     const guchar* data;
     tvbuff_t* tvb;
-    data_source *data_src;
+    struct data_source *data_src;
     int err = 0;
 
     if (!d) return 0;
 
     if (! lua_pinfo ) WSLUA_ERROR(Dumper_new_for_current,"Cannot be used outside a tap or a dissector");
 
-    data_src = (data_source*) (lua_pinfo->data_src->data);
+    data_src = (struct data_source*) (lua_pinfo->data_src->data);
     if (!data_src)
         return 0;
 
-    tvb = data_src->tvb;
+    tvb = get_data_source_tvb(data_src);
 
     memset(&pkthdr, 0, sizeof(pkthdr));
 
@@ -380,13 +381,14 @@ WSLUA_METHOD Dumper_dump_current(lua_State* L) {
     pkthdr.len       = tvb_reported_length(tvb);
     pkthdr.caplen    = tvb_length(tvb);
     pkthdr.pkt_encap = lua_pinfo->fd->lnk_t;
+    pkthdr.pseudo_header = *lua_pinfo->pseudo_header;
 
     if (lua_pinfo->fd->opt_comment)
         pkthdr.opt_comment = ep_strdup(lua_pinfo->fd->opt_comment);
 
     data = ep_tvb_memdup(tvb,0,pkthdr.caplen);
 
-    if (! wtap_dump(d, &pkthdr, lua_pinfo->pseudo_header, data, &err)) {
+    if (! wtap_dump(d, &pkthdr, data, &err)) {
         luaL_error(L,"error while dumping: %s",
                    wtap_strerror(err));
     }

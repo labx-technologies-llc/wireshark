@@ -77,12 +77,6 @@ typedef struct _packet_counts {
 /** Number of packet counts. */
 #define PACKET_COUNTS_SIZE sizeof(packet_counts) / sizeof (gint)
 
-/* Types of character encodings */
-typedef enum {
-	PACKET_CHAR_ENC_CHAR_ASCII	 = 0,	/* ASCII */
-	PACKET_CHAR_ENC_CHAR_EBCDIC	 = 1	/* EBCDIC */
-} packet_char_enc;
-
 extern void packet_init(void);
 extern void packet_cleanup(void);
 
@@ -414,10 +408,13 @@ final_registration_all_protocols(void);
 extern void add_new_data_source(packet_info *pinfo, tvbuff_t *tvb,
     const char *name);
 
+
 /*
- * Return the data source name.
+ * Return the data source name, tvb.
  */
-extern const char* get_data_source_name(data_source *src);
+struct data_source;
+extern const char *get_data_source_name(const struct data_source *src);
+extern tvbuff_t *get_data_source_tvb(const struct data_source *src);
 
 /*
  * Free up a frame's list of data sources.
@@ -436,7 +433,7 @@ extern void mark_frame_as_depended_upon(packet_info *pinfo, guint32 frame_num);
  * Dissectors should never modify the packet data.
  */
 extern void dissect_packet(epan_dissect_t *edt,
-    union wtap_pseudo_header *pseudo_header, const guchar *pd,
+    struct wtap_pkthdr *phdr, const guchar *pd,
     frame_data *fd, column_info *cinfo);
 
 /* These functions are in packet-ethertype.c */

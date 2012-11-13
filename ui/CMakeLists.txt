@@ -24,8 +24,13 @@
 
 set(COMMON_UI_SRC
 	alert_box.c
+	export_object.c
+	export_object_dicom.c
+	export_object_http.c
+	export_object_smb.c
 	help_url.c
 	iface_lists.c
+	ssl_key_export.c
 	text_import.c
 	util.c
 )

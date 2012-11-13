@@ -1275,6 +1275,7 @@ Jouni Malinen           <jkmaline[AT]cc.hut.fi> {
 
 Paul E. Erkkila         <pee[AT]erkkila.org> {
 	Skinny Client Control Protocol enhancements
+	Hazelcast Dissector
 }
 
 Jakob Schlyter          <jakob[AT]openbsd.org> {
@@ -3115,8 +3116,11 @@ Levi Pearson		<levi.pearson[AT]harman.com> {
 	IEEE 1722(AVB Transport Protocol) dissector
 }
 
-Allan M. Madsen		<allan.m[AT]madsen.mail.dk> {
+Allan M. Madsen		<allan.m[AT]madsen.dk> {
+	Bluetooth HCI cmd/evt dissectors ver. 2.1-4.0 support
+	Bluetooth ATT dissector
 	Bluetooth OBEX dissector
+	Bluetooth SMP dissector
 }
 
 Slava			<slavak[AT]gmail.com> {
@@ -3201,6 +3205,7 @@ Giuliano Fabris		<giuliano.fabris[AT]appeartv.com> {
 
 Alexander Koeppe	<format_c[AT]online.de> {
 	TCP Graph - Window Scaling
+	FTP Extensions for IPv6 and NATs (RFC2428)
 }
 
 Holger Grandy 		<Holger.Grandy[AT]bmw-carit.de> {
@@ -3405,10 +3410,6 @@ Per Liedberg		<per.liedberg[AT]ericsson.com> {
 Gaurav Tungatkar	<gauravstt[AT]gmail.com> {
 	Extended ICMP - Multipart Message Support (RFC 4884)
 	and Extension for Interface and Next-Hop
-}
-
-Paul Erkkila		<pee[AT]erkkila.org> {
-	Hazelcast Dissector
 }
 
 Bill Schiller		<bill.schiller[AT]emerson.com> {
@@ -3679,6 +3680,7 @@ Niels Widger		<niels[AT]qacafe.com>
 Pontus Fuchs		<pontus.fuchs[AT]gmail.com>
 Bill Parker		<wp02855[AT]gmail.com>
 Tomofumi Hayashi	<s1061123[AT]gmail.com>
+Tim Hentenaar		<tim.hentenaar[AT]gmail.com>
 
 Dan Lasley <dlasley[AT]promus.com> gave permission for his
 dumpit() hex-dump routine to be used.

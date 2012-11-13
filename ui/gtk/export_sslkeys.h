@@ -34,10 +34,4 @@
  */
 extern void savesslkeys_cb(GtkWidget * w, gpointer data);
 
-/** Dump the SSL Session Keys to a StringInfo string 
- *
- * @param session_hash contains all the SSL Session Keys
- */
-extern StringInfo* ssl_export_sessions(GHashTable *session_hash);
-
-#endif /* __MAIN_PROTO_DRAW_H__ */
+#endif /* __EXPORT_SSLKEYS_H__ */

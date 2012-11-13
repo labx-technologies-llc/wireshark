@@ -1,6 +1,6 @@
 /* packet_range_group_box.cpp
  *
- * $Id: capture_file_dialog.h 45164 2012-09-27 02:43:09Z eapache $
+ * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -24,7 +24,6 @@
 #include "packet_range_group_box.h"
 #include "ui_packet_range_group_box.h"
 
-#include <QDebug>
 PacketRangeGroupBox::PacketRangeGroupBox(QWidget *parent) :
     QGroupBox(parent),
     pr_ui_(new Ui::PacketRangeGroupBox),
@@ -274,6 +273,7 @@ void PacketRangeGroupBox::updateCounts() {
         pr_ui_->rangeLineEdit->setSyntaxState(syntax_state_);
         emit validityChanged(isValid());
     }
+    emit rangeChanged();
 }
 
 // Slots

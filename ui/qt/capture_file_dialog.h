@@ -24,8 +24,11 @@
 #ifndef CAPTURE_FILE_DIALOG_H
 #define CAPTURE_FILE_DIALOG_H
 
+#ifndef Q_QS_WIN
 #include "display_filter_edit.h"
 #include "packet_range_group_box.h"
+#include "ui/help_url.h"
+#endif // Q_WS_WIN
 
 #include "packet_list_record.h"
 #include "cfile.h"
@@ -74,6 +77,10 @@ public:
     bool isCompressed();
 
 private:
+    capture_file *cap_file_;
+    QString &display_filter_;
+
+#if !defined(Q_WS_WIN)
     void addMergeControls(QVBoxLayout &v_box);
     void addDisplayFilterEdit();
     void addPreview(QVBoxLayout &v_box);
@@ -83,8 +90,6 @@ private:
     QVBoxLayout left_v_box_;
     QVBoxLayout right_v_box_;
 
-    QString &display_filter_;
-    capture_file *cap_file_;
     DisplayFilterEdit* display_filter_edit_;
     int last_row_;
 
@@ -101,10 +106,10 @@ private:
 
     QHash<QString, int>type_hash_;
 
-#if !defined(Q_WS_WIN)
     void addResolutionControls(QVBoxLayout &v_box);
     void addGzipControls(QVBoxLayout &v_box);
-    void addRangeControls(packet_range_t *range);
+    void addRangeControls(QVBoxLayout &v_box, packet_range_t *range);
+    QDialogButtonBox *addHelpButton(topic_action_e help_topic);
 
     QStringList buildFileSaveAsTypeList(bool must_support_comments);
 
@@ -119,6 +124,7 @@ private:
 
     PacketRangeGroupBox packet_range_group_box_;
     QPushButton *save_bt_;
+    topic_action_e help_topic_;
 
 #else // Q_WS_WIN
     int file_type_;
@@ -135,12 +141,12 @@ public slots:
     check_savability_t saveAs(QString &file_name, bool must_support_comments);
     check_savability_t exportSelectedPackets(QString &file_name, packet_range_t *range);
     int merge(QString &file_name);
-#if !defined(Q_WS_WIN)
-    void rangeValidityChanged(bool is_valid);
-#endif // Q_WS_WIN
 
 private slots:
+#if !defined(Q_WS_WIN)
     void preview(const QString & path);
+    void on_buttonBox_helpRequested();
+#endif // Q_WS_WIN
 };
 
 #endif // CAPTURE_FILE_DIALOG_H

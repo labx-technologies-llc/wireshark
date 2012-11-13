@@ -303,6 +303,7 @@ static int hf_gsm_a_gm_nsapi_13_ul_stat = -1;
 static int hf_gsm_a_gm_nsapi_14_ul_stat = -1;
 static int hf_gsm_a_gm_nsapi_15_ul_stat = -1;
 static int hf_gsm_a_gm_device_prop_low_prio = -1;
+static int hf_gsm_a_gm_apn = -1;
 static int hf_gsm_a_gm_pco_pid = -1;
 static int hf_gsm_a_gm_pco_app_spec_info = -1;
 static int hf_gsm_a_gm_type_of_identity = -1;
@@ -3848,7 +3849,7 @@ de_gc_device_properties(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_,
 #define MAX_APN_LENGTH		100
 
 guint16
-de_sm_apn(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len _U_)
+de_sm_apn(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
 {
 	guint32	curr_offset;
 	guint	curr_len;
@@ -3868,10 +3869,8 @@ de_sm_apn(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 		curr_len     += step+1;
 	}
 
-	proto_tree_add_text(tree,
-		tvb, curr_offset, len,
-		"APN: %s %s", str+1, add_string ? add_string : "");
-
+	/* High light bytes including the first lenght byte */
+	proto_tree_add_string(tree, hf_gsm_a_gm_apn, tvb, curr_offset, len, str+1);
 	curr_offset +=  len;
 
 	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
@@ -7502,6 +7501,11 @@ proto_register_gsm_a_gm(void)
 		{ &hf_gsm_a_gm_device_prop_low_prio,
 		  { "Low priority", "gsm_a.gm.gmm.device_prop_low_prio",
 		    FT_BOOLEAN, BASE_NONE, TFS(&gsm_a_gm_device_prop_low_prio_value), 0x0,
+		    NULL, HFILL }
+		},
+		{ &hf_gsm_a_gm_apn,
+		  { "APN", "gsm_a.gm.sm.apn",
+		    FT_STRING,BASE_NONE, NULL,0x0,
 		    NULL, HFILL }
 		},
 		{ &hf_gsm_a_gm_pco_pid,

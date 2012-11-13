@@ -38,51 +38,48 @@ extern "C" {
 /* also be included in address_to_str_buf defined in to_str.c, for presentation purposes */
 
 typedef enum {
-  AT_NONE,		/* no link-layer address */
-  AT_ETHER,		/* MAC (Ethernet, 802.x, FDDI) address */
-  AT_IPv4,		/* IPv4 */
-  AT_IPv6,		/* IPv6 */
-  AT_IPX,		/* IPX */
-  AT_SNA,		/* SNA */
-  AT_ATALK,		/* Appletalk DDP */
-  AT_VINES,		/* Banyan Vines */
-  AT_OSI,		/* OSI NSAP */
-  AT_ARCNET,		/* ARCNET */
-  AT_FC,		/* Fibre Channel */
-  AT_SS7PC,		/* SS7 Point Code */
-  AT_STRINGZ,		/* null-terminated string */
-  AT_EUI64,		/* IEEE EUI-64 */
-  AT_URI,		/* URI/URL/URN */
-  AT_TIPC,		/* TIPC Address Zone,Subnetwork,Processor */
-  AT_IB,		/* Infiniband GID/LID */
-  AT_USB,		/* USB Device address
-			 * (0xffffffff represents the host) */
-  AT_AX25		/* AX.25 */
+  AT_NONE,               /* no link-layer address */
+  AT_ETHER,              /* MAC (Ethernet, 802.x, FDDI) address */
+  AT_IPv4,               /* IPv4 */
+  AT_IPv6,               /* IPv6 */
+  AT_IPX,                /* IPX */
+  AT_SNA,                /* SNA */
+  AT_ATALK,              /* Appletalk DDP */
+  AT_VINES,              /* Banyan Vines */
+  AT_OSI,                /* OSI NSAP */
+  AT_ARCNET,             /* ARCNET */
+  AT_FC,                 /* Fibre Channel */
+  AT_SS7PC,              /* SS7 Point Code */
+  AT_STRINGZ,            /* null-terminated string */
+  AT_EUI64,              /* IEEE EUI-64 */
+  AT_URI,                /* URI/URL/URN */
+  AT_TIPC,               /* TIPC Address Zone,Subnetwork,Processor */
+  AT_IB,                 /* Infiniband GID/LID */
+  AT_USB,                /* USB Device address
+                          * (0xffffffff represents the host) */
+  AT_AX25,               /* AX.25 */
+  AT_IEEE_802_15_4_SHORT /* IEEE 802.15.4 16-bit short address */
+                         /* (the long addresses are EUI-64's */
 } address_type;
-
-typedef enum {
-  AT_SUB_NONE,		/* no sub type */
-  AT_SUB_IEEE80211	/* 802.11 */
-} address_stype;
 
 typedef struct _address {
   address_type  type;		/* type of address */
-  address_stype subtype;
+  int           hf;		/* the specific field that this addr is */
   int           len;		/* length of address, in bytes */
   const void	*data;		/* pointer to address data */
 } address;
 
 #define	SET_ADDRESS(addr, addr_type, addr_len, addr_data) { \
 	(addr)->type = (addr_type); \
-	(addr)->subtype = AT_SUB_NONE; \
-	(addr)->len = (addr_len); \
+	(addr)->hf   = -1;          \
+	(addr)->len  = (addr_len);  \
 	(addr)->data = (addr_data); \
 	}
 
-#define SET_ADDRESS_SUB(addr, addr_type, addr_subtype, addr_len, addr_data) { \
+#define	SET_ADDRESS_HF(addr, addr_type, addr_len, addr_data, addr_hf) { \
 	(addr)->type = (addr_type); \
-	(addr)->subtype = addr_subtype; \
-	(addr)->len = (addr_len); \
+	(addr)->hf   = (addr_hf);   \
+	(addr)->len  = (addr_len);  \
 	(addr)->data = (addr_data); \
 	}
 

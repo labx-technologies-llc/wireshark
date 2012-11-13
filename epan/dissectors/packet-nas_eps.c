@@ -4812,11 +4812,6 @@ dissect_nas_eps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         return;
     }
 
-    if (g_nas_eps_dissect_plain) {
-        dissect_nas_eps_plain(tvb, pinfo, tree);
-        return;
-    }
-
     /* Save pinfo */
     gpinfo = pinfo;
 
@@ -4861,12 +4856,15 @@ dissect_nas_eps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 proto_tree_add_item(nas_eps_tree, hf_nas_eps_seq_no, tvb, offset, 1, ENC_BIG_ENDIAN);
                 offset++;
                 /* Integrity protected and ciphered = 2, Integrity protected and ciphered with new EPS security context = 4 */
-                /* Read security_header_type AND pd */
+                /* Read security_header_type / EPS bearer id AND pd */
                 pd = tvb_get_guint8(tvb,offset);
                 /* If pd is in plaintext this message probably isn't ciphered */
-                if ((pd != 7) && (pd != 2) && (pd != 15)) {
-                    proto_tree_add_text(nas_eps_tree, tvb, offset, len-6,"Ciphered message");
-                    return;
+                if ((pd != 7) && (pd != 15) &&
+                    (((pd&0x0f) != 2) || (((pd&0x0f) == 2) && ((pd&0xf0) > 0) && ((pd&0xf0) < 0x50)))) {
+                    if(g_nas_eps_dissect_plain == TRUE) {
+                        proto_tree_add_text(nas_eps_tree, tvb, offset, len-6,"Ciphered message");
+                        return;
+                    }
                 }
             } else {
                 /* msg_auth_code == 0, probably not ciphered */

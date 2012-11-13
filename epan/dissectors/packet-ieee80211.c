@@ -635,6 +635,8 @@ enum fixed_field {
 #define TAG_CISCO_UNKNOWN_95         149  /* Cisco Compatible eXtensions */
 #define TAG_CISCO_UNKNOWN_96         150  /* Cisco Compatible eXtensions */
 #define TAG_SYMBOL_PROPRIETARY       173
+#define TAG_VHT_CAPABILITY           191  /* IEEE Stc 802.11ac/D3.1 */
+#define TAG_VHT_OPERATION            192  /* IEEE Stc 802.11ac/D3.1 */
 #define TAG_VENDOR_SPECIFIC_IE       221
 
 static const value_string tag_num_vals[] = {
@@ -716,6 +718,8 @@ static const value_string tag_num_vals[] = {
   { TAG_CISCO_UNKNOWN_95, "Cisco Unknown 95" },
   { TAG_CISCO_UNKNOWN_96, "Cisco Unknown 96" },
   { TAG_SYMBOL_PROPRIETARY, "Symbol Proprietary" },
+  { TAG_VHT_CAPABILITY, "VHT Capabilities (IEEE Stc 802.11ac/D3.1)" },
+  { TAG_VHT_OPERATION, "VHT Operation (IEEE Stc 802.11ac/D3.1)" },
   { TAG_VENDOR_SPECIFIC_IE, "Vendor Specific" },
   { 0, NULL }
 };
@@ -1380,6 +1384,1089 @@ static const value_string ieee80211_tclas_process_flag[] = {
   {0x01, "Incoming MSDU's higher layer parameters have to match to at least one of the associated TCLAS elements."},
   {0x02, "Incoming MSDU's that do not belong to any other TS are classified to the TS for which this TCLAS Processing element is used. In this case, there will not be any associated TCLAS elements."},
   {0, NULL}
+};
+
+static const value_string frame_type[] = {
+  {MGT_FRAME,   "Management frame"},
+  {CONTROL_FRAME, "Control frame"},
+  {DATA_FRAME,  "Data frame"},
+  {0,             NULL}
+};
+
+static const value_string tofrom_ds[] = {
+  {0,                     "Not leaving DS or network is operating "
+    "in AD-HOC mode (To DS: 0 From DS: 0)"},
+  {FLAG_TO_DS,            "Frame from STA to DS via an AP (To DS: 1 "
+    "From DS: 0)"},
+  {FLAG_FROM_DS,          "Frame from DS to a STA via AP(To DS: 0 "
+    "From DS: 1)"},
+  {FLAG_TO_DS|FLAG_FROM_DS, "WDS (AP to AP) or Mesh (MP to MP) Frame "
+    "(To DS: 1 From DS: 1)"},
+  {0, NULL}
+};
+
+static const true_false_string tods_flag = {
+  "Frame is entering DS",
+  "Frame is not entering DS"
+};
+
+static const true_false_string fromds_flag = {
+  "Frame is exiting DS",
+  "Frame is not exiting DS"
+};
+
+static const true_false_string more_frags = {
+  "More fragments follow",
+  "This is the last fragment"
+};
+
+static const true_false_string retry_flags = {
+  "Frame is being retransmitted",
+  "Frame is not being retransmitted"
+};
+
+static const true_false_string pm_flags = {
+  "STA will go to sleep",
+  "STA will stay up"
+};
+
+static const true_false_string md_flags = {
+  "Data is buffered for STA at AP",
+  "No data buffered"
+};
+
+static const true_false_string protected_flags = {
+  "Data is protected",
+  "Data is not protected"
+};
+
+static const true_false_string order_flags = {
+  "Strictly ordered",
+  "Not strictly ordered"
+};
+
+static const true_false_string cf_ess_flags = {
+  "Transmitter is an AP",
+  "Transmitter is a STA"
+};
+
+
+static const true_false_string cf_privacy_flags = {
+  "AP/STA can support WEP",
+  "AP/STA cannot support WEP"
+};
+
+static const true_false_string cf_preamble_flags = {
+  "Short preamble allowed",
+  "Short preamble not allowed"
+};
+
+static const true_false_string cf_pbcc_flags = {
+  "PBCC modulation allowed",
+  "PBCC modulation not allowed"
+};
+
+static const true_false_string cf_agility_flags = {
+  "Channel agility in use",
+  "Channel agility not in use"
+};
+
+static const true_false_string short_slot_time_flags = {
+  "Short slot time in use",
+  "Short slot time not in use"
+};
+
+static const true_false_string dsss_ofdm_flags = {
+  "DSSS-OFDM modulation allowed",
+  "DSSS-OFDM modulation not allowed"
+};
+
+static const true_false_string cf_spec_man_flags = {
+  "dot11SpectrumManagementRequired TRUE",
+  "dot11SpectrumManagementRequired FALSE"
+};
+
+static const true_false_string cf_apsd_flags = {
+  "apsd implemented",
+  "apsd not implemented"
+};
+
+static const true_false_string cf_del_blk_ack_flags = {
+  "delayed block ack implemented",
+  "delayed block ack not implemented"
+};
+
+static const true_false_string cf_imm_blk_ack_flags = {
+  "immediate block ack implemented",
+  "immediate block ack not implemented"
+};
+static const true_false_string cf_ibss_flags = {
+  "Transmitter belongs to an IBSS",
+  "Transmitter belongs to a BSS"
+};
+
+static const true_false_string eosp_flag = {
+  "End of service period",
+  "Service period"
+};
+
+static const true_false_string bit4_flag = {
+  "Bits 8-15 of QoS Control field are Queue Size",
+  "Bits 8-15 of QoS Control field are TXOP Duration Requested"
+};
+
+static const true_false_string ieee80211_qos_amsdu_present_flag = {
+  "A-MSDU",
+  "MSDU"
+};
+
+static const value_string sta_cf_pollable[] = {
+  {0x00, "Station is not CF-Pollable"},
+  {0x02, "Station is CF-Pollable, "
+   "not requesting to be placed on the  CF-polling list"},
+  {0x01, "Station is CF-Pollable, "
+   "requesting to be placed on the CF-polling list"},
+  {0x03, "Station is CF-Pollable, requesting never to be polled"},
+  {0x0200, "QSTA requesting association in QBSS"},
+  {0, NULL}
+};
+
+static const value_string ap_cf_pollable[] = {
+  {0x00, "No point coordinator at AP"},
+  {0x02, "Point coordinator at AP for delivery only (no polling)"},
+  {0x01, "Point coordinator at AP for delivery and polling"},
+  {0x03, "Reserved"},
+  {0x0200, "QAP (HC) does not use CFP for delivery of unicast data type frames"},
+  {0x0202, "QAP (HC) uses CFP for delivery, but does not send CF-Polls to non-QoS STAs"},
+  {0x0201, "QAP (HC) uses CFP for delivery, and sends CF-Polls to non-QoS STAs"},
+  {0x0203, "Reserved"},
+  {0, NULL}
+};
+
+
+static const value_string auth_alg[] = {
+  {0x00, "Open System"},
+  {0x01, "Shared key"},
+  {0x02, "Fast BSS Transition"},
+  {0x80, "Network EAP"},  /* Cisco proprietary? */
+  {0, NULL}
+};
+
+static const true_false_string ff_block_ack_params_amsdu_permitted_flag = {
+  "Permitted in QoS Data MPDUs",
+  "Not Permitted"
+};
+
+static const true_false_string ff_block_ack_params_policy_flag = {
+  "Immediate Block Ack",
+  "Delayed Block Ack"
+};
+
+static const value_string  ff_channel_width_vals[] = {
+  {0x00, "20 MHz channel width only"},
+  {0x01, "Any channel width in the STA's Supported Channel Width Set"},
+  {0, NULL}
+};
+
+static const true_false_string ff_qos_info_ap_q_ack_flag = {
+  "Implemented",
+  "Not Implemented"
+};
+
+static const true_false_string ff_qos_info_ap_queue_req_flag = {
+  "Can process a nonzero Queue Size subfield in the QoS Control field in QoS data frames",
+  "Can NOT process a nonzero Queue Size subfield in the QoS Control field in QoS data frames"
+};
+
+static const true_false_string ff_qos_info_ap_txop_request_flag = {
+  "Can process a nonzero TXOP Duration Requested subfield in the QoS Control field in QoS data frames",
+  "Can NOT process a nonzero TXOP Duration Requested subfield in the QoS Control field in QoS data frames"
+};
+
+static const true_false_string ff_qos_info_sta_ac_flag = {
+  "Trigger-enabled and Delivery-enabled",
+  "Neither Trigger-enabled nor Delivery-enabled"
+};
+
+static const true_false_string ff_qos_info_sta_q_ack_flag = {
+  "Implemented",
+  "Not Implemented"
+};
+
+static const value_string ff_qos_info_sta_max_sp_len_flags[] = {
+  {0x00, "AP may deliver all buffered MSDUs, A-MSDUs and MMPDUs"},
+  {0x01, "AP may deliver a maximum of two MSDUs and MMPDUs per SP"},
+  {0x02, "AP may deliver a maximum of four MSDUs and MMPDUs per SP"},
+  {0x03, "AP may deliver a maximum of six MSDUs and MMPDUs per SP"},
+  {0, NULL}
+};
+
+static const true_false_string ff_qos_info_sta_more_data_ack_flag = {
+  "Can process ACK frames with the More Data bit in the Frame Control field set to 1",
+  "Can NOT process ACK frames with the More Data bit in the Frame Control field set to 1"
+};
+
+static const true_false_string ff_sm_pwr_save_sm_mode_flag = {
+  "Dynamic SM Power Save mode",
+  "Static SM Power Save mode"
+};
+
+static const true_false_string ff_pco_phase_cntrl_flag = {
+  "40 MHz Phase",
+  "20 MHz Phase"
+};
+
+static const true_false_string ff_psmp_param_set_more_psmp_flag = {
+  "More PSMP Sequences Follow",
+  "No PSMP Sequences Follow"
+};
+
+static const value_string ff_mimo_cntrl_nc_index_flags[] = {
+  {0x00, "1 Column"},
+  {0x01, "2 Columns"},
+  {0x02, "3 Columns"},
+  {0x03, "4 Columns"},
+  {0, NULL}
+};
+
+static const value_string ff_mimo_cntrl_nr_index_flags[] = {
+  {0x00, "1 Row"},
+  {0x01, "2 Rows"},
+  {0x02, "3 Rows"},
+  {0x03, "4 Rows"},
+  {0, NULL}
+};
+
+static const true_false_string ff_mimo_cntrl_channel_width_flag = {
+  "40 MHz",
+  "20 MHz"
+};
+
+static const true_false_string ff_ht_info_information_request_flag = {
+  "Requesting HT Information Exchange management action frame",
+  "Should not send an HT Information Exchange management action frame"
+};
+
+static const true_false_string ff_ht_info_40_mhz_intolerant_flag = {
+  "Transmitting station is intolerant of 40 MHz operation",
+  "Transmitting station permits 40 MHz operation"
+};
+
+static const true_false_string ff_ht_info_sta_chan_width_flag = {
+  "40 MHz",
+  "20 MHz"
+};
+
+static const value_string ff_ht_action_flags[] = {
+  {HT_ACTION_NOTIFY_CHAN_WIDTH, "Notify Channel Width"},
+  {HT_ACTION_SM_PWR_SAVE, "Spatial Multiplexing (SM) Power Save"},
+  {HT_ACTION_PSMP_ACTION, "Power Save Multi-Poll (PSMP) action frame"},
+  {HT_ACTION_SET_PCO_PHASE, "Set PCO Phase"},
+  {HT_ACTION_MIMO_CSI, "MIMO CSI Matrices"},
+  {HT_ACTION_MIMO_BEAMFORMING, "MIMO Non-compressed Beamforming"},
+  {HT_ACTION_MIMO_COMPRESSED_BEAMFORMING, "MIMO Compressed Beamforming"},
+  {HT_ACTION_ANT_SEL_FEEDBACK, "Antenna Selection Indices Feedback"},
+  {HT_ACTION_HT_INFO_EXCHANGE, "HT Information Exchange"},
+  {0x00, NULL}
+};
+
+static const value_string ff_mimo_cntrl_grouping_flags[] = {
+  {0x00, "No Grouping"},
+  {0x01, "Carrier Groups of 2"},
+  {0x02, "Carrier Groups of 4"},
+  {0x03, "Reserved"},
+  {0, NULL}
+};
+
+static const value_string ff_mimo_cntrl_coefficient_size_flags[] = {
+  {0x00, "4 Bits"},
+  {0x01, "5 Bits"},
+  {0x02, "6 Bits"},
+  {0x03, "8 Bits"},
+  {0, NULL}
+};
+
+static const value_string ff_mimo_cntrl_codebook_info_flags[] = {
+  {0x00, "1 bit for 'Capital Psi', 3 bits for 'Small Psi'"},
+  {0x01, "2 bit for 'Capital Psi', 4 bits for 'Small Psi'"},
+  {0x02, "3 bit for 'Capital Psi', 5 bits for 'Small Psi'"},
+  {0x03, "4 bit for 'Capital Psi', 6 bits for 'Small Psi'"},
+  {0, NULL}
+};
+
+
+
+static const value_string ff_pa_action_codes[] = {
+  {PA_DSE_ENABLEMENT, "DSE enablement"},
+  {PA_DSE_DEENABLEMENT, "DSE deenablement"},
+  {PA_DSE_REG_LOC_ANNOUNCEMENT, "DSE Registered Location Announcement"},
+  {PA_EXT_CHANNEL_SWITCH_ANNOUNCEMENT, "Extended Channel Switch Announcement"},
+  {PA_DSE_MEASUREMENT_REQUEST, "DSE measurement request"},
+  {PA_DSE_MEASUREMENT_REPORT, "DSE measurement report"},
+  {PA_MEASUREMENT_PILOT, "Measurement Pilot"},
+  {PA_DSE_POWER_CONSTRAINT, "DSE power constraint"},
+  {PA_VENDOR_SPECIFIC, "Vendor Specific"},
+  {PA_GAS_INITIAL_REQUEST, "GAS Initial Request"},
+  {PA_GAS_INITIAL_RESPONSE, "GAS Initial Response"},
+  {PA_GAS_COMEBACK_REQUEST, "GAS Comeback Request"},
+  {PA_GAS_COMEBACK_RESPONSE, "GAS Comeback Response"},
+  {PA_TDLS_DISCOVERY_RESPONSE, "TDLS Discovery Response"},
+  {0x00, NULL}
+};
+
+static const value_string category_codes[] = {
+  {CAT_SPECTRUM_MGMT, "Spectrum Management (SM)"},
+  {0x80 | CAT_SPECTRUM_MGMT, "Spectrum Management (SM) (error)"},
+  {CAT_QOS, "Quality of Service (QoS)"},
+  {0x80 | CAT_QOS, "Quality of Service (QoS (error))"},
+  {CAT_DLS, "Direct-Link Setup (DLS)"},
+  {0x80 | CAT_DLS, "Direct-Link Setup (DLS) (error)"},
+  {CAT_BLOCK_ACK, "Block Ack"},
+  {0x80 | CAT_BLOCK_ACK, "Block Ack (error)"},
+  {CAT_PUBLIC, "Public Action"},
+  {0x80 | CAT_PUBLIC, "Public Action (error)"},
+  {CAT_RADIO_MEASUREMENT, "Radio Measurement"},
+  {0x80 | CAT_RADIO_MEASUREMENT, "Radio Measurement (error)"},
+  {CAT_FAST_BSS_TRANSITION, "Fast BSS Transition"},
+  {0x80 | CAT_FAST_BSS_TRANSITION, "Fast BSS Transition (error)"},
+  {CAT_HT, "High Throughput"},
+  {0x80 | CAT_HT, "High Throughput (error)"},
+  {CAT_SA_QUERY, "SA Query"},
+  {0x80 | CAT_SA_QUERY, "SA Query (error)"},
+  {CAT_PUBLIC_PROTECTED, "Protected Dual of Public Action"},
+  {0x80 | CAT_PUBLIC_PROTECTED, "Protected Dual of Public Action (error)"},
+  {CAT_WNM, "WNM"},
+  {0x80 | CAT_WNM, "WNM (error)"},
+  {CAT_UNPROTECTED_WNM, "Unprotected WNM"},
+  {0x80 | CAT_UNPROTECTED_WNM, "Unprotected WNM (error)"},
+  {CAT_TDLS, "TDLS"},
+  {0x80 | CAT_TDLS, "TDLS (error)"},
+  {CAT_MESH, "MESH"},
+  {0x80 | CAT_MESH, "Mesh (error)"},
+  {CAT_MULTIHOP, "Multihop"},
+  {0x80 | CAT_MULTIHOP, "Multihop (error)"},
+  {CAT_SELF_PROTECTED, "Self-protected"},
+  {0x80 | CAT_SELF_PROTECTED, "Self-protected (error)"},
+  {CAT_MGMT_NOTIFICATION, "Management Notification"},
+  {0x80 | CAT_MGMT_NOTIFICATION, "Management Notification (error)"},
+  {CAT_VENDOR_SPECIFIC_PROTECTED, "Vendor-specific Protected"},
+  {0x80 | CAT_VENDOR_SPECIFIC_PROTECTED, "Vendor-specific Protected (error)"},
+  {CAT_VENDOR_SPECIFIC, "Vendor Specific"},
+  {0x80 | CAT_VENDOR_SPECIFIC, "Vendor Specific (error)"},
+  {0, NULL}
+};
+
+static const value_string action_codes[] ={
+  {SM_ACTION_MEASUREMENT_REQUEST, "Measurement Request"},
+  {SM_ACTION_MEASUREMENT_REPORT, "Measurement Report"},
+  {SM_ACTION_TPC_REQUEST, "TPC Request"},
+  {SM_ACTION_TPC_REPORT, "TPC Report"},
+  {SM_ACTION_CHAN_SWITCH_ANNC, "Channel Switch Announcement"},
+  {0, NULL}
+};
+
+static const value_string vendor_action_types_mrvl[] ={
+  {MRVL_ACTION_MESH_MANAGEMENT, "Mesh Management"},
+  {0, NULL}
+};
+
+static const value_string mesh_mgt_action_codes_mrvl[] ={
+  {MRVL_MESH_MGMT_ACTION_RREQ, "Route Request"},
+  {MRVL_MESH_MGMT_ACTION_RREP, "Route Response"},
+  {MRVL_MESH_MGMT_ACTION_RERR, "Route Error"},
+  {MRVL_MESH_MGMT_ACTION_PLDM, "Peer Link Down"},
+  {0, NULL}
+};
+
+static const value_string mesh_path_selection_codes[] ={
+  {0x0, "Hybrid Wireless Mesh Protocol"},
+  {0, NULL}
+};
+
+static const value_string mesh_metric_codes[] ={
+  {0x0, "Airtime Link Metric"},
+  {0, NULL}
+};
+
+static const value_string wme_action_codes[] = {
+  {0x00, "Setup request"},
+  {0x01, "Setup response"},
+  {0x02, "Teardown"},
+  {0x00, NULL}
+};
+
+static const value_string wme_status_codes[] = {
+  {0x00, "Admission accepted"},
+  {0x01, "Invalid parameters"},
+  {0x03, "Refused"},
+  {0x00, NULL}
+};
+
+static const value_string mesh_action[] ={
+  {MESH_ACTION_LINK_METRIC_REPORT, "Mesh Link Metric Report"},
+  {MESH_ACTION_HWMP, "HWMP Mesh Path Selection"},
+  {MESH_ACTION_GATE_ANNOUNCE, "Gate Announcement"},
+  {MESH_ACTION_CONGESTION_CTL, "Congestion Control Notification"},
+  {MESH_ACTION_MCCA_SETUP_REQUEST, "MCCA Setup Request"},
+  {MESH_ACTION_MCCA_SETUP_REPLY, "MCCA Setup Reply"},
+  {MESH_ACTION_MCCA_ADV_REQUEST, "MCCA Advertisement Request"},
+  {MESH_ACTION_MCCA_ADV, "MCCA Advertisement"},
+  {MESH_ACTION_MCCA_TEARDOWN, "MCCA Teardown"},
+  {MESH_ACTION_TBTT_ADJ_REQUEST, "TBTT Adjustment Request"},
+  {MESH_ACTION_TBTT_ADJ_RESPONSE, "TBTT Adjustment Response"},
+  {0, NULL}
+};
+
+static const value_string multihop_action[] ={
+  {MULTIHOP_ACTION_PROXY_UPDATE, "Proxy Update"},
+  {MULTIHOP_ACTION_PROXY_UPDATE_CONF, "Proxy Update Confirmation"},
+  {0, NULL}
+};
+
+static const value_string selfprot_action[] = {
+  {SELFPROT_ACTION_MESH_PEERING_OPEN, "Mesh Peering Open"},
+  {SELFPROT_ACTION_MESH_PEERING_CONFIRM, "Mesh Peering Confirm"},
+  {SELFPROT_ACTION_MESH_PEERING_CLOSE, "Mesh Peering Close"},
+  {SELFPROT_ACTION_MESH_GROUP_KEY_INFORM, "Mesh Group Key Inform"},
+  {SELFPROT_ACTION_MESH_GROUP_KEY_ACK, "Mesh Group Key Ack"},
+  {0, NULL}
+};
+
+static const value_string mesh_peering_proto_ids[] = {
+  {MESH_PEERING_PROTO_MGMT, "Mesh peering management protocol"},
+  {MESH_PEERING_PROTO_AMPE, "Authenticated mesh peering exchange protocol"},
+  {MESH_PEERING_PROTO_VENDOR, "Vendor specific"},
+  {0, NULL}
+};
+
+static const true_false_string hwmp_targ_usn_flags = {
+  "[USN = 1] Target Sequence Number Unknown at Originator",
+  "[USN = 0] Target Sequence Number Known at Originator"
+};
+
+static const true_false_string hwmp_targ_to_flags = {
+  "[TO = 1] Only Target Will Respond",
+  "[TO = 0] Intermediate Nodes May Respond"
+};
+
+static const value_string ack_policy[] = {
+  {0x00, "Normal Ack"},
+  {0x01, "No Ack"},
+  {0x02, "No explicit acknowledgment"},
+  {0x03, "Block Ack"},
+  {0x00, NULL}
+};
+
+static const value_string qos_action_codes[] = {
+  {SM_ACTION_ADDTS_REQUEST, "ADDTS Request"},
+  {SM_ACTION_ADDTS_RESPONSE, "ADDTS Response"},
+  {SM_ACTION_DELTS, "DELTS"},
+  {SM_ACTION_QOS_SCHEDULE, "Schedule"},
+  {0, NULL}
+};
+
+static const value_string ba_action_codes[] = {
+  {BA_ADD_BLOCK_ACK_REQUEST, "Add Block Ack Request"},
+  {BA_ADD_BLOCK_ACK_RESPONSE, "Add Block Ack Response"},
+  {BA_DELETE_BLOCK_ACK, "Delete Block Ack"},
+  {0x00, NULL}
+};
+
+static const value_string dls_action_codes[] = {
+  {SM_ACTION_DLS_REQUEST, "DLS Request"},
+  {SM_ACTION_DLS_RESPONSE, "DLS Response"},
+  {SM_ACTION_DLS_TEARDOWN, "DLS Teardown"},
+  {0, NULL}
+};
+
+static const value_string tsinfo_type[] = {
+  {0x0, "Aperiodic or unspecified Traffic"},
+  {0x1, "Periodic Traffic"},
+  {0, NULL}
+};
+
+static const value_string tsinfo_direction[] = {
+  {0x00, "Uplink"},
+  {0x01, "Downlink"},
+  {0x02, "Direct link"},
+  {0x03, "Bidirectional link"},
+  {0, NULL}
+};
+
+static const value_string tsinfo_access[] = {
+  {0x00, "Reserved"},
+  {0x01, "EDCA"},
+  {0x02, "HCCA"},
+  {0x03, "HEMM"},
+  {0, NULL}
+};
+
+static const value_string qos_up[] = {
+  {0x00, "Best Effort"},
+  {0x01, "Background"},
+  {0x02, "Spare"},
+  {0x03, "Excellent Effort"},
+  {0x04, "Controlled Load"},
+  {0x05, "Video"},
+  {0x06, "Voice"},
+  {0x07, "Network Control"},
+  {0, NULL}
+};
+
+static const value_string classifier_type[] = {
+  {0x00, "Ethernet parameters"},
+  {0x01, "TCP/UDP IP parameters"},
+  {0x02, "IEEE 802.1D/Q parameters"},
+  {0, NULL}
+};
+
+static const true_false_string ieee80211_block_ack_control_ack_policy_flag = {
+    "Immediate Acknowledgement Required",
+    "Sender Does Not Require Immediate Acknowledgement"
+};
+
+static const value_string ieee80211_block_ack_request_type_flags[] = {
+  {0x00, "Basic Block Ack Request"},
+  {0x01, "Reserved"},
+  {0x02, "Compressed Block Ack Request"},
+  {0x03, "Multi-TID Block Ack Request"},
+  {0x00, NULL}
+};
+
+static const value_string ieee80211_block_ack_type_flags[] = {
+  {0x00, "Basic Block Ack"},
+  {0x01, "Reserved"},
+  {0x02, "Compressed Block"},
+  {0x03, "Multi-TID Block"},
+  {0x00, NULL}
+};
+
+static const value_string ft_action_codes[] ={
+  {FT_ACTION_REQUEST, "FT Request"},
+  {FT_ACTION_RESPONSE, "FT Response"},
+  {FT_ACTION_CONFIRM, "FT Confirm"},
+  {FT_ACTION_ACK, "FT Ack"},
+  {0, NULL}
+};
+
+static const value_string sa_query_action_codes[] ={
+  {SA_QUERY_REQUEST, "SA Query Request"},
+  {SA_QUERY_RESPONSE, "SA Query Response"},
+  {0, NULL}
+};
+
+static const value_string ieee80211_data_encap_payload_types[] = {
+  {1, "Remote Request/Response"},
+  {2, "TDLS"},
+  {0, NULL}
+};
+
+static const true_false_string qos_info_field_qack_flags = {
+  "STAs/APs MIB attribute dot11QAckOptionImplemented is true",
+  "STAs/APs MIB attribute dot11QAckOptionImplemented is false"
+};
+
+static const true_false_string qos_info_field_more_data_ack_flags = {
+  "STA can process Ack frames with More Data bit and will remain in the awake state.",
+  "STA cannot process Ack frames with More Data bit in Frame Control field."
+};
+
+static const true_false_string qos_info_field_queue_req_flags = {
+  "AP can process a nonzero Queue Size subfield in the QoS Control field in QoS data frames",
+  "AP cannot process Queue Size subfield in QoS data frames."
+};
+
+  /* 7.3.1.17 Table 19b-Settings of the Max SP Length subfield */
+static const value_string qos_info_field_max_sp_length_flags[] =
+{
+  { 0x0, "QAP may deliver all buffered MSDUs and MMPDUs." },
+  { 0x2, "QAP may deliver a maximum of two MSDUs and MMPDUs per SP." },
+  { 0x1, "QAP may deliver a maximum of four MSDUs and MMPDUs per SP." },
+  { 0x3, "QAP may deliver a maximum of six MSDUs and MMPDUs per SP." },
+  { 0, NULL}
+};
+
+static const true_false_string rsn_preauth_flags = {
+  "Transmitter supports pre-authentication",
+  "Transmitter does not support pre-authentication"
+};
+
+static const true_false_string rsn_no_pairwise_flags = {
+  "Transmitter cannot support WEP default key 0 simultaneously with "
+  "Pairwise key",
+  "Transmitter can support WEP default key 0 simultaneously with "
+  "Pairwise key"
+};
+
+static const value_string rsn_cap_replay_counter[] = {
+  {0x00, "1 replay counter per PTKSA/GTKSA/STAKeySA"},
+  {0x01, "2 replay counters per PTKSA/GTKSA/STAKeySA"},
+  {0x02, "4 replay counters per PTKSA/GTKSA/STAKeySA"},
+  {0x03, "16 replay counters per PTKSA/GTKSA/STAKeySA"},
+  {0, NULL}
+};
+
+static const true_false_string ht_ldpc_coding_flag = {
+  "Transmitter supports receiving LDPC coded packets",
+  "Transmitter does not support receiving LDPC coded packets"
+};
+
+static const true_false_string ht_chan_width_flag = {
+  "Transmitter supports 20MHz and 40MHz operation",
+  "Transmitter only supports 20MHz operation"
+};
+
+static const value_string ht_sm_pwsave_flag[] = {
+  {0x00, "Static SM Power Save mode"},
+  {0x01, "Dynamic SM Power Save mode"},
+  {0x02, "Reserved"},
+  {0x03, "SM Power Save disabled"},
+  {0x00, NULL}
+};
+
+static const true_false_string ht_green_flag = {
+  "Transmitter is able to receive PPDUs with Green Field (GF) preamble",
+  "Transmitter is not able to receive PPDUs with Green Field (GF) preamble"
+};
+
+static const value_string ht_rx_stbc_flag[] = {
+  {0x00, "No Rx STBC support"},
+  {0x01, "Rx support of one spatial stream"},
+  {0x02, "Rx support of one and two spatial streams"},
+  {0x03, "Rx support of one, two, and three spatial streams"},
+  {0x00, NULL}
+};
+
+  /* IEEE Stc 802.11ac/D3.1 */
+
+static const value_string vht_max_mpdu_length_flag[] = {
+  {0x00, "3895 Octets"},
+  {0x01, "7991 Octets"},
+  {0x02, "11454 Octets"},
+  {0x03, "Reserved"},
+  {0x00, NULL}
+};
+
+static const value_string vht_supported_chan_width_set_flag[] = {
+  {0x00, "Neither 160MHz nor 80+80 supported"},
+  {0x01, "160MHz supported"},
+  {0x02, "160MHz and 80+80 Supported"},
+  {0x03, "Reserved"},
+  {0x00, NULL}
+};
+
+static const value_string vht_rx_stbc_flag[] = {
+  {0x00, "None"},
+  {0x01, "1 Spatial Stream Supported"},
+  {0x02, "1 to 2 Spatial Stream Supported"},
+  {0x03, "1 to 3 Spatial Stream Supported"},
+  {0x04, "1 to 4 Spatial Stream Supported"},
+  {0x02, "160MHz and 80+80 Supported"},
+  {0x05, "Reserved"},
+  {0x06, "Reserved"},
+  {0x07, "Reserved"},
+  {0x00, NULL}
+};
+
+static const value_string num_plus_one_3bit_flag[] = {
+  {0x00, "1"},
+  {0x01, "2"},
+  {0x02, "3"},
+  {0x03, "4"},
+  {0x04, "5"},
+  {0x05, "6"},
+  {0x06, "7"},
+  {0x07, "8"},
+  {0x00, NULL}
+};
+
+static const value_string vht_max_ampdu_flag[] = {
+  {0x00, "8,191"},
+  {0x01, "16,383"},
+  {0x02, "32,767"},
+  {0x03, "65,535"},
+  {0x04, "131,071"},
+  {0x05, "262,143"},
+  {0x06, "524,287"},
+  {0x07, "1,048,575"},
+  {0x00, NULL}
+};
+
+static const value_string vht_link_adapt_flag[] = {
+  {0x00, "No Feedback"},
+  {0x01, "Reserved (logically only solicited feedback)"},
+  {0x02, "Unsolicited feedback only"},
+  {0x03, "Both (can provide unsolicited feedback and respond to VHT MRQ)"},
+  {0x00, NULL}
+};
+
+static const value_string vht_supported_mcs_flag[] = {
+  {0x00, "MCS 0-7"},
+  {0x01, "MCS 0-8"},
+  {0x02, "MCS 0-9"},
+  {0x03, "Not Supported"},
+  {0x00, NULL}
+};
+
+static const value_string vht_op_channel_width_flag[] = {
+  {0x00, "20 MHz or 40 MHz"},
+  {0x01, "80 MHz"},
+  {0x02, "160 MHz"},
+  {0x03, "80+80 MHz"},
+  {0x00, NULL}
+};
+
+
+
+static const true_false_string ht_delayed_block_ack_flag = {
+  "Transmitter supports HT-Delayed BlockAck",
+  "Transmitter does not support HT-Delayed BlockAck"
+};
+
+static const true_false_string ht_max_amsdu_flag = {
+  "7935 bytes",
+  "3839 bytes"
+};
+
+static const true_false_string ht_dss_cck_40_flag = {
+  "Will/Can use DSSS/CCK in 40 MHz",
+  "Won't/Can't use of DSSS/CCK in 40 MHz"
+};
+
+static const true_false_string ht_psmp_flag = {
+  "Will/Can support PSMP operation",
+  "Won't/Can't support PSMP operation"
+};
+
+static const true_false_string ht_40_mhz_intolerant_flag = {
+  "Use of 40 MHz transmissions restricted/disallowed",
+  "Use of 40 MHz transmissions unrestricted/allowed"
+};
+
+static const value_string ampduparam_mpdu_start_spacing_flags[] = {
+  {0x00, "no restriction"},
+  {0x01, "1/4 [usec]"},
+  {0x02, "1/2 [usec]"},
+  {0x03, "1 [usec]"},
+  {0x04, "2 [usec]"},
+  {0x05, "4 [usec]"},
+  {0x06, "8 [usec]"},
+  {0x07, "16 [usec]"},
+  {0x00, NULL}
+};
+
+static const true_false_string mcsset_tx_mcs_set_defined_flag = {
+  "Defined",
+  "Not Defined",
+};
+
+static const true_false_string mcsset_tx_rx_mcs_set_not_equal_flag = {
+  "Not Equal",
+  "Equal",
+};
+
+static const value_string mcsset_tx_max_spatial_streams_flags[] = {
+  {0x00, "1 spatial stream"},
+  {0x01, "2 spatial streams"},
+  {0x02, "3 spatial streams"},
+  {0x03, "4 spatial streams"},
+  {0x00, NULL}
+};
+
+static const value_string htex_transtime_flags[] = {
+  {0x00, "No Transition"},
+  {0x01, "400 usec"},
+  {0x02, "1.5 msec"},
+  {0x03, "5 msec"},
+  {0x00, NULL}
+};
+
+static const value_string htex_mcs_flags[] = {
+  {0x00, "STA does not provide MCS feedback"},
+  {0x01, "Reserved"},
+  {0x02, "STA provides only unsolicited MCS feedback"},
+  {0x03, "STA can provide MCS feedback in response to MRQ as well as unsolicited MCS feedback"},
+  {0x00, NULL}
+};
+
+static const value_string txbf_calib_flag[] = {
+  {0x00, "incapable"},
+  {0x01, "Limited involvement, cannot initiate"},
+  {0x02, "Limited involvement, can initiate"},
+  {0x03, "Fully capable"},
+  {0x00, NULL}
+};
+
+static const value_string txbf_feedback_flags[] = {
+  {0x00, "not supported"},
+  {0x01, "delayed feedback capable"},
+  {0x02, "immediate feedback capable"},
+  {0x03, "delayed and immediate feedback capable"},
+  {0x00, NULL}
+};
+
+static const value_string txbf_antenna_flags[] = {
+  {0x00, "1 TX antenna sounding"},
+  {0x01, "2 TX antenna sounding"},
+  {0x02, "3 TX antenna sounding"},
+  {0x03, "4 TX antenna sounding"},
+  {0x00, NULL}
+};
+
+static const value_string txbf_csi_max_rows_bf_flags[] = {
+  {0x00, "1 row of CSI"},
+  {0x01, "2 rows of CSI"},
+  {0x02, "3 rows of CSI"},
+  {0x03, "4 rows of CSI"},
+  {0x00, NULL}
+};
+
+static const value_string txbf_chan_est_flags[] = {
+  {0x00, "1 space time stream"},
+  {0x01, "2 space time streams"},
+  {0x02, "3 space time streams"},
+  {0x03, "4 space time streams"},
+  {0x00, NULL}
+};
+
+static const value_string txbf_min_group_flags[] = {
+  {0x00, "No grouping supported"},
+  {0x01, "Groups of 1,2 supported"},
+  {0x02, "Groups of 1,4 supported"},
+  {0x03, "Groups of 1,2,4 supported"},
+  {0x00, NULL}
+};
+
+static const value_string hta_ext_chan_offset_flag[] = {
+  {0x00, "No Extension Channel"},
+  {0x01, "Extension Channel above control channel"},
+  {0x02, "Undefined"},
+  {0x03, "Extension Channel below control channel"},
+  {0x00, NULL}
+};
+
+static const true_false_string hta_rec_tx_width_flag = {
+  "Any channel width enabled",
+  "Use 20MHz channel (control)"
+};
+
+static const true_false_string hta_rifs_mode_flag = {
+  "Use of RIFS permitted",
+  "Use of RIFS prohibited"
+};
+
+static const true_false_string hta_controlled_access_flag = {
+  "Not only PSMP",
+  "PSMP only"
+};
+
+static const value_string hta_service_interval_flag[] = {
+  {0x00, "5ms"},
+  {0x01, "10ms"},
+  {0x02, "15ms"},
+  {0x03, "20ms"},
+  {0x04, "25ms"},
+  {0x05, "30ms"},
+  {0x06, "35ms"},
+  {0x07, "40ms"},
+  {0x00, NULL}
+};
+
+static const value_string hta_operating_mode_flag[] = {
+  {0x00, "Pure HT, no protection"},
+  {0x01, "There may be non-HT devices (control & ext channel)"},
+  {0x02, "No non-HT is associated, but at least 1 20MHz is. protect on"},
+  {0x03, "Mixed: no non-HT is associated, protect on"},
+  {0x00, NULL}
+};
+
+static const true_false_string hta_non_gf_devices_flag = {
+  "All HT devices associated are GF capable",
+  "One or More HT devices are not GF capable"
+};
+
+static const true_false_string hta_dual_stbc_protection_flag = {
+  "Dual CTS protections is used",
+  "Regular use of RTS/CTS"
+};
+
+static const true_false_string hta_secondary_beacon_flag = {
+  "Secondary Beacon",
+  "Primary Beacon"
+};
+
+static const true_false_string hta_lsig_txop_protection_flag = {
+  "Full Support",
+  "Not full support"
+};
+
+static const true_false_string hta_pco_active_flag = {
+  "PCO is activated in the BSS",
+  "PCO is not activated in the BSS"
+};
+
+static const true_false_string hta_pco_phase_flag = {
+  "Switch to 20MHz phase/keep 20MHz",
+  "Switch to 40MHz phase/keep 40MHz"
+};
+
+static const value_string ht_info_secondary_channel_offset_flags[] = {
+  {0x00, "No secondary channel"},
+  {0x01, "Secondary channel is above the primary channel"},
+  {0x02, "Reserved"},
+  {0x03, "Secondary channel is below the primary channel"},
+  {0x00, NULL}
+};
+
+static const true_false_string ht_info_channel_width_flag = {
+  "Channel of any width supported",
+  "20 MHz channel width only"
+};
+
+static const true_false_string ht_info_rifs_mode_flag = {
+  "Permitted",
+  "Prohibited"
+};
+
+static const true_false_string ht_info_psmp_stas_only_flag = {
+  "Association requests are accepted from only PSMP capable STA",
+  "Association requests are accepted regardless of PSMP capability"
+};
+
+static const value_string ht_info_service_interval_granularity_flags[] = {
+  {0x00, "5 ms"},
+  {0x01, "10 ms"},
+  {0x02, "15 ms"},
+  {0x03, "20 ms"},
+  {0x04, "25 ms"},
+  {0x05, "30 ms"},
+  {0x06, "35 ms"},
+  {0x07, "40 ms"},
+  {0x00, NULL}
+};
+
+static const value_string ht_info_operating_mode_flags[] = {
+  {0x00, "All STAs are - 20/40 MHz HT or in a 20/40 MHz BSS or are 20 MHz HT in a 20 MHz BSS"},
+  {0x01, "HT non-member protection mode"},
+  {0x02, "Only HT STAs in the BSS, however, there exists at least one 20 MHz STA"},
+  {0x03, "HT mixed mode"},
+  {0x00, NULL}
+};
+
+static const true_false_string ht_info_non_greenfield_sta_present_flag = {
+  "One or more associated STAs are not greenfield capable",
+  "All associated STAs are greenfield capable"
+};
+
+static const true_false_string ht_info_transmit_burst_limit_flag = {
+  "2.4 GHz - 6.16 ms | All other bands - 3.08 ms",
+  "No limit"
+};
+
+static const true_false_string ht_info_obss_non_ht_stas_present_flag = {
+  "Use of protection for non-HT STAs by overlapping BSSs is needed",
+  "Use of protection for non-HT STAs by overlapping BSSs is not needed"
+};
+
+static const true_false_string ht_info_dual_beacon_flag = {
+  "AP transmits a secondary beacon",
+  "No second beacon is transmitted"
+};
+
+static const true_false_string ht_info_dual_cts_protection_flag = {
+  "Required",
+  "Not required"
+};
+
+static const true_false_string ht_info_secondary_beacon_flag = {
+  "Secondary beacon",
+  "Primary beacon"
+};
+
+static const true_false_string ht_info_lsig_txop_protection_full_support_flag = {
+  "All HT STAs in the BSS support L-SIG TXOP protection",
+  "One or more HT STAs in the BSS do not support L-SIG TXOP protection"
+};
+
+static const true_false_string ht_info_pco_phase_flag = {
+  "Switch to or continue 40 MHz phase",
+  "Switch to or continue 20 MHz phase"
+};
+
+static const true_false_string htc_lac_trq_flag = {
+  "Want sounding PPDU",
+  "Don't want sounding PPDU"
+};
+
+static const true_false_string htc_lac_mai_mrq_flag = {
+  "MCS feedback requested",
+  "No MCS feedback requested"
+};
+
+static const value_string ieee80211_htc_lac_asel_command_flags[] = {
+  {0x00, "Transmit Antenna Selection Sounding Indication (TXASSI)"},
+  {0x01, "Transmit Antenna Selection Sounding Request (TXASSR)"},
+  {0x02, "Receive Antenna Selection Sounding Indication (RXASSI)"},
+  {0x03, "Receive Antenna Selection Sounding Request (RXASSR)"},
+  {0x04, "Sounding Label"},
+  {0x05, "No feedback, ASEL training failure"},
+  {0x06, "Transmit Antenna Selection Sounding Indication (TXASSI) requesting feedback of explicit CSI"},
+  {0x07, "Reserved"},
+  {0x00, NULL}
+};
+
+static const value_string ieee80211_htc_cal_pos_flags[] = {
+  {0x00, "Not a calibration frame"},
+  {0x01, "Calibration Start"},
+  {0x02, "Sounding Response"},
+  {0x03, "Sounding Complete"},
+  {0x00, NULL}
+};
+
+static const true_false_string ieee80211_htc_ndp_announcement_flag = {
+  "NDP will follow",
+  "No NDP will follow"
+};
+
+static const value_string ieee80211_htc_csi_steering_flags[] = {
+  {0x00, "No feedback required"},
+  {0x01, "CSI"},
+  {0x02, "Non-compressed Beamforming Feedback Matrix"},
+  {0x03, "Compressed Beamforming Feedback Matrix"},
+  {0x00, NULL}
+};
+
+static const value_string ieee80211_tag_secondary_channel_offset_flags[] = {
+  {0x00, "No Secondary Channel"},
+  {0x01, "Above Primary Channel"},
+  {0x02, "Reserved"},
+  {0x03, "Below Primary Channel"},
+  {0x00, NULL}
+};
+
+static const value_string ieee80211_tag_ext_channel_switch_announcement_switch_mode_flags[] = {
+  {0x00, "Frames may be transmitted before the channel switch has been completed"},
+  {0x01, "No more frames are to be transmitted until the channel switch has been completed"},
+  {0x00, NULL}
+};
+
+static const value_string service_interval_granularity_vals[] = {
+  { 0, "5 ms" },
+  { 1, "10 ms" },
+  { 2, "15 ms" },
+  { 3, "20 ms" },
+  { 4, "25 ms" },
+  { 5, "30 ms" },
+  { 6, "35 ms" },
+  { 7, "40 ms" },
+  { 0x00, NULL }
+};
+
+static const value_string wep_type_vals[] = {
+  { AIRPDCAP_KEY_TYPE_WEP, STRING_KEY_TYPE_WEP },
+  { AIRPDCAP_KEY_TYPE_WPA_PWD, STRING_KEY_TYPE_WPA_PWD },
+  { AIRPDCAP_KEY_TYPE_WPA_PSK, STRING_KEY_TYPE_WPA_PSK },
+  { 0x00, NULL }
 };
 
 static int proto_wlan = -1;
@@ -2200,6 +3287,69 @@ static int hf_ieee80211_tag_cisco_ccx1_unknown = -1;
 static int hf_ieee80211_tag_cisco_ccx1_name = -1;
 static int hf_ieee80211_tag_cisco_ccx1_clients = -1;
 
+static int hf_ieee80211_vht_cap = -1;
+static int hf_ieee80211_vht_max_mpdu_length = -1;
+static int hf_ieee80211_vht_supported_chan_width_set = -1;
+static int hf_ieee80211_vht_rx_ldpc = -1;
+static int hf_ieee80211_vht_short_gi_for_80 = -1;
+static int hf_ieee80211_vht_short_gi_for_160 = -1;
+static int hf_ieee80211_vht_tx_stbc = -1;
+static int hf_ieee80211_vht_rx_stbc = -1;
+static int hf_ieee80211_vht_su_beamformer_cap = -1;
+static int hf_ieee80211_vht_su_beamformee_cap = -1;
+static int hf_ieee80211_vht_beamformer_antennas = -1;
+static int hf_ieee80211_vht_sounding_dimensions = -1;
+static int hf_ieee80211_vht_mu_beamformer_cap = -1;
+static int hf_ieee80211_vht_mu_beamformee_cap = -1;
+static int hf_ieee80211_vht_txop_ps = -1;
+static int hf_ieee80211_vht_var_htc_field = -1;
+static int hf_ieee80211_vht_max_ampdu = -1;
+static int hf_ieee80211_vht_link_adaptation_cap = -1;
+static int hf_ieee80211_vht_rx_pattern = -1;
+static int hf_ieee80211_vht_tx_pattern = -1;
+static int hf_ieee80211_vht_reserv = -1;
+
+static int hf_ieee80211_vht_mcsset = -1;
+
+static int hf_ieee80211_vht_mcsset_rx_mcs_map = -1;
+static int hf_ieee80211_vht_mcsset_rx_max_mcs_for_0_ss = -1;
+static int hf_ieee80211_vht_mcsset_rx_max_mcs_for_1_ss = -1;
+static int hf_ieee80211_vht_mcsset_rx_max_mcs_for_2_ss = -1;
+static int hf_ieee80211_vht_mcsset_rx_max_mcs_for_3_ss = -1;
+static int hf_ieee80211_vht_mcsset_rx_max_mcs_for_4_ss = -1;
+static int hf_ieee80211_vht_mcsset_rx_max_mcs_for_5_ss = -1;
+static int hf_ieee80211_vht_mcsset_rx_max_mcs_for_6_ss = -1;
+static int hf_ieee80211_vht_mcsset_rx_max_mcs_for_7_ss = -1;
+
+static int hf_ieee80211_vht_mcsset_rx_highest_long_gi = -1;
+
+static int hf_ieee80211_vht_mcsset_tx_mcs_map = -1;
+static int hf_ieee80211_vht_mcsset_tx_max_mcs_for_0_ss = -1;
+static int hf_ieee80211_vht_mcsset_tx_max_mcs_for_1_ss = -1;
+static int hf_ieee80211_vht_mcsset_tx_max_mcs_for_2_ss = -1;
+static int hf_ieee80211_vht_mcsset_tx_max_mcs_for_3_ss = -1;
+static int hf_ieee80211_vht_mcsset_tx_max_mcs_for_4_ss = -1;
+static int hf_ieee80211_vht_mcsset_tx_max_mcs_for_5_ss = -1;
+static int hf_ieee80211_vht_mcsset_tx_max_mcs_for_6_ss = -1;
+static int hf_ieee80211_vht_mcsset_tx_max_mcs_for_7_ss = -1;
+
+static int hf_ieee80211_vht_op = -1;
+static int hf_ieee80211_vht_op_channel_width = -1;
+static int hf_ieee80211_vht_op_channel_center0 = -1;
+static int hf_ieee80211_vht_op_channel_center1 = -1;
+
+static int hf_ieee80211_vht_op_basic_mcs_map = -1;
+static int hf_ieee80211_vht_op_max_basic_mcs_for_0_ss = -1;
+static int hf_ieee80211_vht_op_max_basic_mcs_for_1_ss = -1;
+static int hf_ieee80211_vht_op_max_basic_mcs_for_2_ss = -1;
+static int hf_ieee80211_vht_op_max_basic_mcs_for_3_ss = -1;
+static int hf_ieee80211_vht_op_max_basic_mcs_for_4_ss = -1;
+static int hf_ieee80211_vht_op_max_basic_mcs_for_5_ss = -1;
+static int hf_ieee80211_vht_op_max_basic_mcs_for_6_ss = -1;
+static int hf_ieee80211_vht_op_max_basic_mcs_for_7_ss = -1;
+
+static int hf_ieee80211_vht_mcsset_tx_highest_long_gi = -1;
+
 static int hf_ieee80211_tag_neighbor_report_bssid = -1;
 static int hf_ieee80211_tag_neighbor_report_bssid_info = -1;
 static int hf_ieee80211_tag_neighbor_report_bssid_info_reachability = -1;
@@ -2642,6 +3792,14 @@ static gint ett_hta_cap_tree = -1;
 static gint ett_hta_cap1_tree = -1;
 static gint ett_hta_cap2_tree = -1;
 static gint ett_htc_tree = -1;
+
+static gint ett_vht_cap_tree = -1;
+static gint ett_vht_mcsset_tree = -1;
+static gint ett_vht_rx_mcsbit_tree = -1;
+static gint ett_vht_tx_mcsbit_tree = -1;
+static gint ett_vht_basic_mcsbit_tree = -1;
+
+static gint ett_vht_op_tree = -1;
 
 static gint ett_ht_info_delimiter1_tree = -1;
 static gint ett_ht_info_delimiter2_tree = -1;
@@ -5870,7 +7028,7 @@ dissect_vendor_ie_wpawme(proto_tree * tree, tvbuff_t * tvb, int offset, guint32 
       proto_tree *wpa_mcs_tree, *wpa_ucs_tree, *wpa_akms_tree;
       proto_tree *wpa_sub_ucs_tree, *wpa_sub_akms_tree;
       guint16 ucs_count, akms_count;
-      guint i;
+      guint ii;
 
       proto_tree_add_item(tree, hf_ieee80211_wfa_ie_wpa_version, tvb, offset, 2, ENC_LITTLE_ENDIAN);
       offset += 2;
@@ -5896,7 +7054,7 @@ dissect_vendor_ie_wpawme(proto_tree * tree, tvbuff_t * tvb, int offset, guint32 
 
       wpa_ucs_item = proto_tree_add_item(tree, hf_ieee80211_wfa_ie_wpa_ucs_list, tvb, offset, ucs_count * 4, ENC_NA);
       wpa_ucs_tree = proto_item_add_subtree(wpa_ucs_item, ett_wpa_ucs_tree);
-      for(i = 1; i <= ucs_count; i++)
+      for(ii = 0; ii < ucs_count; ii++)
       {
         wpa_sub_ucs_item = proto_tree_add_item(wpa_ucs_tree, hf_ieee80211_wfa_ie_wpa_ucs, tvb, offset, 4, ENC_BIG_ENDIAN);
         wpa_sub_ucs_tree = proto_item_add_subtree(wpa_sub_ucs_item, ett_wpa_sub_ucs_tree);
@@ -5920,7 +7078,7 @@ dissect_vendor_ie_wpawme(proto_tree * tree, tvbuff_t * tvb, int offset, guint32 
 
       wpa_akms_item = proto_tree_add_item(tree, hf_ieee80211_wfa_ie_wpa_akms_list, tvb, offset, akms_count * 4, ENC_NA);
       wpa_akms_tree = proto_item_add_subtree(wpa_akms_item, ett_wpa_akms_tree);
-      for(i = 1; i <= akms_count; i++)
+      for(ii = 0; ii < akms_count; ii++)
       {
         wpa_sub_akms_item = proto_tree_add_item(wpa_akms_tree, hf_ieee80211_wfa_ie_wpa_akms, tvb, offset, 4, ENC_BIG_ENDIAN);
         wpa_sub_akms_tree = proto_item_add_subtree(wpa_sub_akms_item, ett_wpa_sub_akms_tree);
@@ -6441,7 +7599,7 @@ dissect_rsn_ie(packet_info * pinfo, proto_tree * tree, tvbuff_t * tvb,
   proto_tree *rsn_gcs_tree, *rsn_pcs_tree, *rsn_akms_tree, *rsn_cap_tree, *rsn_pmkid_tree, *rsn_gmcs_tree;
   proto_tree *rsn_sub_pcs_tree, *rsn_sub_akms_tree;
   guint16 pcs_count, akms_count, pmkid_count;
-  guint i;
+  guint ii;
   int tag_end = offset + tag_len;
 
   proto_tree_add_item(tree, hf_ieee80211_rsn_version, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -6475,7 +7633,7 @@ dissect_rsn_ie(packet_info * pinfo, proto_tree * tree, tvbuff_t * tvb,
 
   rsn_pcs_item = proto_tree_add_item(tree, hf_ieee80211_rsn_pcs_list, tvb, offset, pcs_count * 4, ENC_NA);
   rsn_pcs_tree = proto_item_add_subtree(rsn_pcs_item, ett_rsn_pcs_tree);
-  for(i = 1; i <= pcs_count; i++)
+  for(ii = 0; ii < pcs_count; ii++)
   {
     rsn_sub_pcs_item = proto_tree_add_item(rsn_pcs_tree, hf_ieee80211_rsn_pcs, tvb, offset, 4, ENC_BIG_ENDIAN);
     rsn_sub_pcs_tree = proto_item_add_subtree(rsn_sub_pcs_item, ett_rsn_sub_pcs_tree);
@@ -6511,7 +7669,7 @@ dissect_rsn_ie(packet_info * pinfo, proto_tree * tree, tvbuff_t * tvb,
 
   rsn_akms_item = proto_tree_add_item(tree, hf_ieee80211_rsn_akms_list, tvb, offset, akms_count * 4, ENC_NA);
   rsn_akms_tree = proto_item_add_subtree(rsn_akms_item, ett_rsn_akms_tree);
-  for(i = 1; i <= akms_count; i++)
+  for(ii = 0; ii < akms_count; ii++)
   {
     rsn_sub_akms_item = proto_tree_add_item(rsn_akms_tree, hf_ieee80211_rsn_akms, tvb, offset, 4, ENC_BIG_ENDIAN);
     rsn_sub_akms_tree = proto_item_add_subtree(rsn_sub_akms_item, ett_rsn_sub_akms_tree);
@@ -6558,7 +7716,7 @@ dissect_rsn_ie(packet_info * pinfo, proto_tree * tree, tvbuff_t * tvb,
 
   rsn_pmkid_item = proto_tree_add_item(tree, hf_ieee80211_rsn_pmkid_list, tvb, offset, pmkid_count * 16, ENC_NA);
   rsn_pmkid_tree = proto_item_add_subtree(rsn_pmkid_item, ett_rsn_pmkid_tree);
-  for(i = 1; i <= pmkid_count; i++)
+  for(ii = 0; ii < pmkid_count; ii++)
   {
     proto_tree_add_item(rsn_pmkid_tree, hf_ieee80211_rsn_pmkid, tvb, offset, 16, ENC_NA);
     offset +=16;
@@ -6583,6 +7741,171 @@ dissect_rsn_ie(packet_info * pinfo, proto_tree * tree, tvbuff_t * tvb,
 
   return offset;
 }
+
+static int
+dissect_vht_mcs_set(proto_tree *tree, tvbuff_t *tvb, int offset) {
+  proto_item *ti;
+  proto_tree *mcs_tree, *rx_mcs_tree, *tx_mcs_tree;
+
+  /* 8 byte Supported MCS set */
+  ti = proto_tree_add_item(tree, hf_ieee80211_vht_mcsset, tvb, offset, 8, ENC_NA);
+
+  mcs_tree = proto_item_add_subtree(ti, ett_vht_mcsset_tree);
+
+  ti = proto_tree_add_item(mcs_tree, hf_ieee80211_vht_mcsset_rx_mcs_map, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  rx_mcs_tree = proto_item_add_subtree(ti, ett_vht_rx_mcsbit_tree);
+
+  /* B0 - B15 */
+  proto_tree_add_item(rx_mcs_tree, hf_ieee80211_vht_mcsset_rx_max_mcs_for_0_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(rx_mcs_tree, hf_ieee80211_vht_mcsset_rx_max_mcs_for_1_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(rx_mcs_tree, hf_ieee80211_vht_mcsset_rx_max_mcs_for_2_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(rx_mcs_tree, hf_ieee80211_vht_mcsset_rx_max_mcs_for_3_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(rx_mcs_tree, hf_ieee80211_vht_mcsset_rx_max_mcs_for_4_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(rx_mcs_tree, hf_ieee80211_vht_mcsset_rx_max_mcs_for_5_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(rx_mcs_tree, hf_ieee80211_vht_mcsset_rx_max_mcs_for_6_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(rx_mcs_tree, hf_ieee80211_vht_mcsset_rx_max_mcs_for_7_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+
+  offset += 2;
+  /* B16 - B28 13 bits*/
+  proto_tree_add_item(mcs_tree, hf_ieee80211_vht_mcsset_rx_highest_long_gi, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+
+  /* B29 - B31 2 reserved bits*/
+
+  offset += 2;
+  /* B32 - B47 */
+
+  ti = proto_tree_add_item(mcs_tree, hf_ieee80211_vht_mcsset_tx_mcs_map, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  tx_mcs_tree = proto_item_add_subtree(ti, ett_vht_tx_mcsbit_tree);
+  proto_tree_add_item(tx_mcs_tree, hf_ieee80211_vht_mcsset_tx_max_mcs_for_0_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(tx_mcs_tree, hf_ieee80211_vht_mcsset_tx_max_mcs_for_1_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(tx_mcs_tree, hf_ieee80211_vht_mcsset_tx_max_mcs_for_2_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(tx_mcs_tree, hf_ieee80211_vht_mcsset_tx_max_mcs_for_3_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(tx_mcs_tree, hf_ieee80211_vht_mcsset_tx_max_mcs_for_4_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(tx_mcs_tree, hf_ieee80211_vht_mcsset_tx_max_mcs_for_5_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(tx_mcs_tree, hf_ieee80211_vht_mcsset_tx_max_mcs_for_6_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(tx_mcs_tree, hf_ieee80211_vht_mcsset_tx_max_mcs_for_7_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+
+  offset += 2;
+  /* B48 - B60 13 bits */
+  proto_tree_add_item(mcs_tree, hf_ieee80211_vht_mcsset_tx_highest_long_gi, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  /* B61 - B63 2 reserved bits*/
+
+  offset += 2;
+  return offset;
+}
+
+static int
+dissect_vht_capability_ie(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset,
+         guint32 tag_len, proto_item *ti_len)
+{
+  proto_item *cap_item;
+  proto_tree *cap_tree;
+
+  if (tag_len != 12) {
+    expert_add_info_format(pinfo, ti_len, PI_MALFORMED, PI_ERROR,
+                           "VHT Capabilities IE length %u wrong, must be = 12", tag_len);
+    return offset;
+  }
+
+  /* 4 byte VHT Capabilities  Info*/
+  cap_item = proto_tree_add_item(tree, hf_ieee80211_vht_cap, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  cap_tree = proto_item_add_subtree(cap_item, ett_vht_cap_tree);
+
+  /* B0 - B1 2 bits */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_max_mpdu_length, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+  /* B2 - B3 2 bits*/
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_supported_chan_width_set, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* B4 - B7 4x 1 bit fields */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_rx_ldpc, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_short_gi_for_80, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_short_gi_for_160, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_tx_stbc, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* End of first byte */
+
+  /* B8 - B10 3 bit field */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_rx_stbc, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* B11 - B12 2x 1 bit fields */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_su_beamformer_cap, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_su_beamformee_cap, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* B13 - B15 3 bit field */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_beamformer_antennas, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* End of second byte */
+
+  /* B16 - B18 */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_sounding_dimensions, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+  /* B19 */  
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_mu_beamformer_cap, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* B20 - B22 2x 1 bit fields */ 
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_mu_beamformee_cap, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_txop_ps, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_var_htc_field, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* B23 - B25 3 bit field which takes us 2 bits into next byte */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_max_ampdu, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* B26 - B27 2 bit field */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_link_adaptation_cap, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* B28 - B29 2x 1 bit fields */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_rx_pattern, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_tx_pattern, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  /* B30 - B31 Reserved */
+  proto_tree_add_item(cap_tree, hf_ieee80211_vht_reserv, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+
+  offset += 4;
+
+  /* 8 byte MCS set */
+  offset = dissect_vht_mcs_set(tree, tvb, offset);
+
+  return offset;
+}
+
+static int
+dissect_vht_operation_ie(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset,
+         guint32 tag_len, proto_item *ti_len)
+{
+  proto_item *op_item, *ti;
+  proto_tree *op_tree, *basic_mcs_tree;
+
+  if (tag_len != 5) {
+    expert_add_info_format(pinfo, ti_len, PI_MALFORMED, PI_ERROR,
+                           "VHT Operation IE length %u wrong, must be = 5", tag_len);
+    return offset;
+  }
+
+  /* 3 byte VHT Operation Info*/
+  op_item = proto_tree_add_item(tree, hf_ieee80211_vht_op, tvb, offset, 3, ENC_LITTLE_ENDIAN);
+  op_tree = proto_item_add_subtree(op_item, ett_vht_op_tree);
+  proto_tree_add_item(op_tree, hf_ieee80211_vht_op_channel_width, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(op_tree, hf_ieee80211_vht_op_channel_center0, tvb, offset+1, 1, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(op_tree, hf_ieee80211_vht_op_channel_center1, tvb, offset+2, 1, ENC_LITTLE_ENDIAN);
+
+  offset += 3;
+  /* VHT Basic MCS Set */
+  ti = proto_tree_add_item(tree, hf_ieee80211_vht_op_basic_mcs_map, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  basic_mcs_tree = proto_item_add_subtree(ti, ett_vht_basic_mcsbit_tree);
+  proto_tree_add_item(basic_mcs_tree, hf_ieee80211_vht_op_max_basic_mcs_for_0_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(basic_mcs_tree, hf_ieee80211_vht_op_max_basic_mcs_for_1_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(basic_mcs_tree, hf_ieee80211_vht_op_max_basic_mcs_for_2_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(basic_mcs_tree, hf_ieee80211_vht_op_max_basic_mcs_for_3_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(basic_mcs_tree, hf_ieee80211_vht_op_max_basic_mcs_for_4_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(basic_mcs_tree, hf_ieee80211_vht_op_max_basic_mcs_for_5_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(basic_mcs_tree, hf_ieee80211_vht_op_max_basic_mcs_for_6_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(basic_mcs_tree, hf_ieee80211_vht_op_max_basic_mcs_for_7_ss, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+
+  offset += 2;
+
+  return offset;
+}
+
 
 static void
 dissect_mobility_domain(proto_tree *tree, tvbuff_t *tvb, int offset,
@@ -7138,7 +8461,7 @@ dissect_ht_capability_ie(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, in
 
   if (tag_len != 26) {
     expert_add_info_format(pinfo, ti_len, PI_MALFORMED, PI_ERROR,
-                           "HT Capability IE length %u wrong, must be = 26", tag_len);
+                           "HT Capabilities IE length %u wrong, must be = 26", tag_len);
     return offset;
   }
 
@@ -7155,23 +8478,22 @@ dissect_ht_capability_ie(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, in
     cap_item = proto_tree_add_item(tree, hf_ieee80211_ht_cap, tvb, offset, 2, ENC_LITTLE_ENDIAN);
   }
   cap_tree = proto_item_add_subtree(cap_item, ett_ht_cap_tree);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_ldpc_coding, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_chan_width, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_sm_pwsave, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_green, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_short20, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_short40, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_tx_stbc, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  offset += 1;
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_ldpc_coding, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_chan_width, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_sm_pwsave, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_green, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_short20, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_short40, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_tx_stbc, tvb, offset, 2, ENC_LITTLE_ENDIAN);
 
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_rx_stbc, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_delayed_block_ack, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_max_amsdu, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_dss_cck_40, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_psmp, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_40_mhz_intolerant, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  proto_tree_add_item(cap_tree, hf_ieee80211_ht_l_sig, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-  offset += 1;
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_rx_stbc, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_delayed_block_ack, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_max_amsdu, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_dss_cck_40, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_psmp, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_40_mhz_intolerant, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(cap_tree, hf_ieee80211_ht_l_sig, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  offset += 2; 
 
   /* 1 byte A-MPDU Parameters */
   if(vs)
@@ -8956,9 +10278,9 @@ add_tagged_field(packet_info * pinfo, proto_tree * tree, tvbuff_t * tvb, int off
       break;
 
     case TAG_RSN_IE: /* 7.3.2.25 RSN information element (48) */
-      if (tag_len < 20)
+      if (tag_len < 18)
       {
-        expert_add_info_format(pinfo, ti_len, PI_MALFORMED, PI_ERROR, "Tag Length %u wrong, must be >= 20", tag_len);
+        expert_add_info_format(pinfo, ti_len, PI_MALFORMED, PI_ERROR, "Tag Length %u wrong, must be >= 18", tag_len);
         break;
       }
       offset += 2;
@@ -9094,6 +10416,14 @@ add_tagged_field(packet_info * pinfo, proto_tree * tree, tvbuff_t * tvb, int off
       /* Total number off associated clients and repeater access points */
       proto_tree_add_item(tree, hf_ieee80211_tag_cisco_ccx1_clients, tvb, offset, 1, ENC_NA);
       offset += 1;
+      break;
+
+    case TAG_VHT_CAPABILITY:
+      dissect_vht_capability_ie(tvb, pinfo, tree, offset+2, tag_len, ti_len);
+      break;
+
+    case TAG_VHT_OPERATION:
+      dissect_vht_operation_ie(tvb, pinfo, tree, offset+2, tag_len, ti_len);
       break;
 
     case TAG_VENDOR_SPECIFIC_IE: /* 7.3.2.26 Vendor Specific information element (221) */
@@ -10069,15 +11399,15 @@ dissect_ieee80211_common (tvbuff_t * tvb, packet_info * pinfo,
       src = tvb_get_ptr (tvb, 10, 6);
       dst = tvb_get_ptr (tvb, 4, 6);
 
-      SET_ADDRESS_SUB(&pinfo->dl_src, AT_ETHER, AT_SUB_IEEE80211, 6, src);
-      SET_ADDRESS_SUB(&pinfo->src, AT_ETHER, AT_SUB_IEEE80211, 6, src);
-      SET_ADDRESS_SUB(&pinfo->dl_dst, AT_ETHER, AT_SUB_IEEE80211, 6, dst);
-      SET_ADDRESS_SUB(&pinfo->dst, AT_ETHER, AT_SUB_IEEE80211, 6, dst);
+      SET_ADDRESS_HF(&pinfo->dl_src, AT_ETHER, 6, src, hf_ieee80211_addr_sa);
+      SET_ADDRESS_HF(&pinfo->src, AT_ETHER, 6, src, hf_ieee80211_addr_sa);
+      SET_ADDRESS_HF(&pinfo->dl_dst, AT_ETHER, 6, dst, hf_ieee80211_addr_da);
+      SET_ADDRESS_HF(&pinfo->dst, AT_ETHER, 6, dst, hf_ieee80211_addr_da);
 
       /* for tap */
-      SET_ADDRESS_SUB(&whdr->bssid, AT_ETHER, AT_SUB_IEEE80211, 6, tvb_get_ptr(tvb, 16,6));
-      SET_ADDRESS_SUB(&whdr->src, AT_ETHER, AT_SUB_IEEE80211, 6, src);
-      SET_ADDRESS_SUB(&whdr->dst, AT_ETHER, AT_SUB_IEEE80211, 6, dst);
+      SET_ADDRESS_HF(&whdr->bssid, AT_ETHER, 6, tvb_get_ptr(tvb, 16,6), hf_ieee80211_addr_bssid);
+      SET_ADDRESS_HF(&whdr->src, AT_ETHER, 6, src, hf_ieee80211_addr_sa);
+      SET_ADDRESS_HF(&whdr->dst, AT_ETHER, 6, dst, hf_ieee80211_addr_da);
       whdr->type = frame_type_subtype;
 
       seq_control = tvb_get_letohs(tvb, 22);
@@ -10233,30 +11563,28 @@ dissect_ieee80211_common (tvbuff_t * tvb, packet_info * pinfo,
 
             bar_control = tvb_get_letohs(tvb, offset);
             block_ack_type = (bar_control & 0x0006) >> 1;
-            proto_tree_add_uint(hdr_tree, hf_ieee80211_block_ack_request_type, tvb,
-              offset, 1, block_ack_type);
-            bar_parent_item = proto_tree_add_uint_format(hdr_tree,
-              hf_ieee80211_block_ack_request_control, tvb, offset, 2, bar_control,
-              "Block Ack Request (BAR) Control: 0x%04X", bar_control);
+            proto_tree_add_item(hdr_tree, hf_ieee80211_block_ack_request_type, tvb,
+              offset, 2, ENC_LITTLE_ENDIAN);
+            bar_parent_item = proto_tree_add_item(hdr_tree,
+              hf_ieee80211_block_ack_request_control, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             bar_sub_tree = proto_item_add_subtree(bar_parent_item,
               ett_block_ack);
-            proto_tree_add_boolean(bar_sub_tree,
-              hf_ieee80211_block_ack_control_ack_policy, tvb, offset, 1, bar_control);
-            proto_tree_add_boolean(bar_sub_tree, hf_ieee80211_block_ack_control_multi_tid,
-              tvb, offset, 1, bar_control);
-            proto_tree_add_boolean(bar_sub_tree,
-              hf_ieee80211_block_ack_control_compressed_bitmap, tvb, offset, 1,
-              bar_control);
-            proto_tree_add_uint(bar_sub_tree, hf_ieee80211_block_ack_control_reserved,
-              tvb, offset, 2, bar_control);
+            proto_tree_add_item(bar_sub_tree,
+              hf_ieee80211_block_ack_control_ack_policy, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(bar_sub_tree, hf_ieee80211_block_ack_control_multi_tid,
+              tvb, offset, 2, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(bar_sub_tree,
+              hf_ieee80211_block_ack_control_compressed_bitmap, tvb, offset, 2,
+              ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(bar_sub_tree, hf_ieee80211_block_ack_control_reserved,
+              tvb, offset, 2, ENC_LITTLE_ENDIAN);
 
             switch (block_ack_type)
             {
               case 0: /*Basic BlockAckReq */
               {
-                proto_tree_add_uint(bar_sub_tree,
-                hf_ieee80211_block_ack_control_basic_tid_info, tvb, offset+1, 1,
-                  bar_control);
+                proto_tree_add_item(bar_sub_tree,
+                hf_ieee80211_block_ack_control_basic_tid_info, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                 offset += 2;
 
                 /*offset +=*/ add_fixed_field(hdr_tree, tvb, offset,
@@ -10265,9 +11593,8 @@ dissect_ieee80211_common (tvbuff_t * tvb, packet_info * pinfo,
               }
               case 2: /* Compressed BlockAckReq */
               {
-                proto_tree_add_uint(bar_sub_tree,
-                hf_ieee80211_block_ack_control_compressed_tid_info, tvb, offset+1, 1,
-                  bar_control);
+                proto_tree_add_item(bar_sub_tree,
+                hf_ieee80211_block_ack_control_compressed_tid_info, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                 offset += 2;
 
                 /*offset +=*/ add_fixed_field(hdr_tree, tvb, offset,
@@ -10277,23 +11604,21 @@ dissect_ieee80211_common (tvbuff_t * tvb, packet_info * pinfo,
               case 3: /* Multi-TID BlockAckReq */
               {
                 guint8 tid_count;
-                guint i;
+                guint iii;
                 proto_tree *bar_mtid_tree, *bar_mtid_sub_tree;
 
                 tid_count = ((bar_control & 0xF000) >> 12) + 1;
-                proto_tree_add_uint_format(bar_sub_tree, hf_ieee80211_block_ack_control_multi_tid_info, tvb, offset+1, 1, bar_control,
-                decode_numeric_bitfield(bar_control, 0xF000, 16,"Number of TIDs Present: 0x%%X"), tid_count);
+                proto_tree_add_uint(bar_sub_tree, hf_ieee80211_block_ack_control_multi_tid_info, tvb, offset, 2, tid_count);
                 offset += 2;
 
                 bar_parent_item = proto_tree_add_text (hdr_tree, tvb, offset, tid_count*4, "Per TID Info");
                 bar_mtid_tree = proto_item_add_subtree(bar_parent_item, ett_block_ack);
-                for (i = 1; i <= tid_count; i++) {
-                  bar_parent_item = proto_tree_add_uint(bar_mtid_tree, hf_ieee80211_block_ack_multi_tid_info, tvb, offset, 4, i);
+                for (iii = 0; iii < tid_count; iii++) {
+                  bar_parent_item = proto_tree_add_uint(bar_mtid_tree, hf_ieee80211_block_ack_multi_tid_info, tvb, offset, 4, iii);
                   bar_mtid_sub_tree = proto_item_add_subtree(bar_parent_item, ett_block_ack);
 
-                  bar_control = tvb_get_letohs(tvb, offset);
-                  proto_tree_add_uint(bar_mtid_sub_tree, hf_ieee80211_block_ack_multi_tid_reserved, tvb, offset, 2, bar_control);
-                  proto_tree_add_uint(bar_mtid_sub_tree, hf_ieee80211_block_ack_multi_tid_value, tvb, offset+1, 1, bar_control);
+                  proto_tree_add_item(bar_mtid_sub_tree, hf_ieee80211_block_ack_multi_tid_reserved, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+                  proto_tree_add_item(bar_mtid_sub_tree, hf_ieee80211_block_ack_multi_tid_value, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                   offset += 2;
 
                   offset += add_fixed_field(bar_mtid_sub_tree, tvb, offset, FIELD_BLOCK_ACK_SSC);
@@ -10324,28 +11649,26 @@ dissect_ieee80211_common (tvbuff_t * tvb, packet_info * pinfo,
 
             ba_control = tvb_get_letohs(tvb, offset);
             block_ack_type = (ba_control & 0x0006) >> 1;
-            proto_tree_add_uint(hdr_tree, hf_ieee80211_block_ack_type, tvb, offset, 1, block_ack_type);
-            ba_parent_item = proto_tree_add_uint_format(hdr_tree,
-              hf_ieee80211_block_ack_control, tvb, offset, 2, ba_control,
-              "Block Ack (BA) Control: 0x%04X", ba_control);
+            proto_tree_add_item(hdr_tree, hf_ieee80211_block_ack_type, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+            ba_parent_item = proto_tree_add_item(hdr_tree,
+              hf_ieee80211_block_ack_control, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             ba_sub_tree = proto_item_add_subtree(ba_parent_item, ett_block_ack);
-            proto_tree_add_boolean(ba_sub_tree, hf_ieee80211_block_ack_control_ack_policy,
-              tvb, offset, 1, ba_control);
-            proto_tree_add_boolean(ba_sub_tree, hf_ieee80211_block_ack_control_multi_tid,
-              tvb, offset, 1, ba_control);
-            proto_tree_add_boolean(ba_sub_tree,
-              hf_ieee80211_block_ack_control_compressed_bitmap, tvb, offset, 1,
-              ba_control);
-            proto_tree_add_uint(ba_sub_tree, hf_ieee80211_block_ack_control_reserved, tvb,
-              offset, 2, ba_control);
+            proto_tree_add_item(ba_sub_tree, hf_ieee80211_block_ack_control_ack_policy,
+              tvb, offset, 2, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(ba_sub_tree, hf_ieee80211_block_ack_control_multi_tid,
+              tvb, offset, 2, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(ba_sub_tree,
+              hf_ieee80211_block_ack_control_compressed_bitmap, tvb, offset, 2,
+              ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(ba_sub_tree, hf_ieee80211_block_ack_control_reserved, tvb,
+              offset, 2, ENC_LITTLE_ENDIAN);
 
             switch (block_ack_type)
             {
               case 0: /*Basic BlockAck */
               {
-                proto_tree_add_uint(ba_sub_tree,
-                hf_ieee80211_block_ack_control_basic_tid_info, tvb, offset+1, 1,
-                  ba_control);
+                proto_tree_add_item(ba_sub_tree,
+                hf_ieee80211_block_ack_control_basic_tid_info, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                 offset += 2;
 
                 offset += add_fixed_field(hdr_tree, tvb, offset, FIELD_BLOCK_ACK_SSC);
@@ -10361,7 +11684,7 @@ dissect_ieee80211_common (tvbuff_t * tvb, packet_info * pinfo,
                 proto_item *ba_bitmap_item;
                 proto_tree *ba_bitmap_tree;
 
-                proto_tree_add_uint(ba_sub_tree, hf_ieee80211_block_ack_control_basic_tid_info, tvb, offset+1, 1, ba_control);
+                proto_tree_add_item(ba_sub_tree, hf_ieee80211_block_ack_control_basic_tid_info, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                 offset += 2;
 
                 ssn = tvb_get_letohs(tvb, offset);
@@ -10382,25 +11705,22 @@ dissect_ieee80211_common (tvbuff_t * tvb, packet_info * pinfo,
               case 3:  /* Multi-TID BlockAck */
               {
                 guint8 tid_count;
-                guint i;
+                guint iii;
                 proto_tree *ba_mtid_tree, *ba_mtid_sub_tree;
 
                 tid_count = ((ba_control & 0xF000) >> 12) + 1;
-                proto_tree_add_uint_format(ba_sub_tree,
-                hf_ieee80211_block_ack_control_compressed_tid_info, tvb, offset+1, 1,
-                  ba_control, decode_numeric_bitfield(ba_control, 0xF000,
-                  16,"Number of TIDs Present: 0x%%X"), tid_count);
+                proto_tree_add_uint(ba_sub_tree,
+                hf_ieee80211_block_ack_control_compressed_tid_info, tvb, offset, 2, tid_count);
                 offset += 2;
 
                 ba_parent_item = proto_tree_add_text (hdr_tree, tvb, offset, tid_count*4, "Per TID Info");
                 ba_mtid_tree = proto_item_add_subtree(ba_parent_item, ett_block_ack);
-                for (i = 1; i <= tid_count; i++) {
-                  ba_parent_item = proto_tree_add_uint(ba_mtid_tree, hf_ieee80211_block_ack_multi_tid_info, tvb, offset, 4, i);
+                for (iii = 0; iii < tid_count; iii++) {
+                  ba_parent_item = proto_tree_add_uint(ba_mtid_tree, hf_ieee80211_block_ack_multi_tid_info, tvb, offset, 4, iii);
                   ba_mtid_sub_tree = proto_item_add_subtree(ba_parent_item, ett_block_ack);
 
-                  ba_control = tvb_get_letohs(tvb, offset);
-                  proto_tree_add_uint(ba_mtid_sub_tree, hf_ieee80211_block_ack_multi_tid_reserved, tvb, offset, 2, ba_control);
-                  proto_tree_add_uint(ba_mtid_sub_tree, hf_ieee80211_block_ack_multi_tid_value, tvb, offset+1, 1, ba_control);
+                  proto_tree_add_item(ba_mtid_sub_tree, hf_ieee80211_block_ack_multi_tid_reserved, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+                  proto_tree_add_item(ba_mtid_sub_tree, hf_ieee80211_block_ack_multi_tid_value, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                   offset += 2;
 
                   offset += add_fixed_field(ba_mtid_sub_tree, tvb, offset, FIELD_BLOCK_ACK_SSC);
@@ -10449,16 +11769,16 @@ dissect_ieee80211_common (tvbuff_t * tvb, packet_info * pinfo,
           break;
       }
 
-      SET_ADDRESS_SUB(&pinfo->dl_src, AT_ETHER, AT_SUB_IEEE80211, 6, src);
-      SET_ADDRESS_SUB(&pinfo->src, AT_ETHER, AT_SUB_IEEE80211, 6, src);
-      SET_ADDRESS_SUB(&pinfo->dl_dst, AT_ETHER, AT_SUB_IEEE80211, 6, dst);
-      SET_ADDRESS_SUB(&pinfo->dst, AT_ETHER, AT_SUB_IEEE80211, 6, dst);
+      SET_ADDRESS_HF(&pinfo->dl_src, AT_ETHER, 6, src, hf_ieee80211_addr_sa);
+      SET_ADDRESS_HF(&pinfo->src, AT_ETHER, 6, src, hf_ieee80211_addr_sa);
+      SET_ADDRESS_HF(&pinfo->dl_dst, AT_ETHER, 6, dst, hf_ieee80211_addr_da);
+      SET_ADDRESS_HF(&pinfo->dst, AT_ETHER, 6, dst, hf_ieee80211_addr_da);
 
       /* for tap */
 
-      SET_ADDRESS_SUB(&whdr->bssid, AT_ETHER, AT_SUB_IEEE80211, 6, bssid);
-      SET_ADDRESS_SUB(&whdr->src, AT_ETHER, AT_SUB_IEEE80211, 6, src);
-      SET_ADDRESS_SUB(&whdr->dst, AT_ETHER, AT_SUB_IEEE80211, 6, dst);
+      SET_ADDRESS_HF(&whdr->bssid, AT_ETHER, 6, bssid, hf_ieee80211_addr_bssid);
+      SET_ADDRESS_HF(&whdr->src, AT_ETHER, 6, src, hf_ieee80211_addr_sa);
+      SET_ADDRESS_HF(&whdr->dst, AT_ETHER, 6, dst, hf_ieee80211_addr_da);
       whdr->type = frame_type_subtype;
 
       seq_control = tvb_get_letohs(tvb, 22);
@@ -11537,580 +12857,6 @@ wlan_retransmit_init(void)
 void
 proto_register_ieee80211 (void)
 {
-  static const value_string frame_type[] = {
-    {MGT_FRAME,     "Management frame"},
-    {CONTROL_FRAME, "Control frame"},
-    {DATA_FRAME,    "Data frame"},
-    {0,             NULL}
-  };
-
-  static const value_string tofrom_ds[] = {
-    {0,                       "Not leaving DS or network is operating "
-      "in AD-HOC mode (To DS: 0 From DS: 0)"},
-    {FLAG_TO_DS,              "Frame from STA to DS via an AP (To DS: 1 "
-      "From DS: 0)"},
-    {FLAG_FROM_DS,            "Frame from DS to a STA via AP(To DS: 0 "
-      "From DS: 1)"},
-    {FLAG_TO_DS|FLAG_FROM_DS, "WDS (AP to AP) or Mesh (MP to MP) Frame "
-      "(To DS: 1 From DS: 1)"},
-    {0, NULL}
-  };
-
-  static const true_false_string tods_flag = {
-    "Frame is entering DS",
-    "Frame is not entering DS"
-  };
-
-  static const true_false_string fromds_flag = {
-    "Frame is exiting DS",
-    "Frame is not exiting DS"
-  };
-
-  static const true_false_string more_frags = {
-    "More fragments follow",
-    "This is the last fragment"
-  };
-
-  static const true_false_string retry_flags = {
-    "Frame is being retransmitted",
-    "Frame is not being retransmitted"
-  };
-
-  static const true_false_string pm_flags = {
-    "STA will go to sleep",
-    "STA will stay up"
-  };
-
-  static const true_false_string md_flags = {
-    "Data is buffered for STA at AP",
-    "No data buffered"
-  };
-
-  static const true_false_string protected_flags = {
-    "Data is protected",
-    "Data is not protected"
-  };
-
-  static const true_false_string order_flags = {
-    "Strictly ordered",
-    "Not strictly ordered"
-  };
-
-  static const true_false_string cf_ess_flags = {
-    "Transmitter is an AP",
-    "Transmitter is a STA"
-  };
-
-
-  static const true_false_string cf_privacy_flags = {
-    "AP/STA can support WEP",
-    "AP/STA cannot support WEP"
-  };
-
-  static const true_false_string cf_preamble_flags = {
-    "Short preamble allowed",
-    "Short preamble not allowed"
-  };
-
-  static const true_false_string cf_pbcc_flags = {
-    "PBCC modulation allowed",
-    "PBCC modulation not allowed"
-  };
-
-  static const true_false_string cf_agility_flags = {
-    "Channel agility in use",
-    "Channel agility not in use"
-  };
-
-  static const true_false_string short_slot_time_flags = {
-    "Short slot time in use",
-    "Short slot time not in use"
-  };
-
-  static const true_false_string dsss_ofdm_flags = {
-    "DSSS-OFDM modulation allowed",
-    "DSSS-OFDM modulation not allowed"
-  };
-
-  static const true_false_string cf_spec_man_flags = {
-    "dot11SpectrumManagementRequired TRUE",
-    "dot11SpectrumManagementRequired FALSE"
-  };
-
-  static const true_false_string cf_apsd_flags = {
-    "apsd implemented",
-    "apsd not implemented"
-  };
-
-  static const true_false_string cf_del_blk_ack_flags = {
-    "delayed block ack implemented",
-    "delayed block ack not implemented"
-  };
-
-  static const true_false_string cf_imm_blk_ack_flags = {
-    "immediate block ack implemented",
-    "immediate block ack not implemented"
-  };
-  static const true_false_string cf_ibss_flags = {
-    "Transmitter belongs to an IBSS",
-    "Transmitter belongs to a BSS"
-  };
-
-  static const true_false_string eosp_flag = {
-    "End of service period",
-    "Service period"
-  };
-
-  static const true_false_string bit4_flag = {
-    "Bits 8-15 of QoS Control field are Queue Size",
-    "Bits 8-15 of QoS Control field are TXOP Duration Requested"
-  };
-
-  static const true_false_string ieee80211_qos_amsdu_present_flag = {
-    "A-MSDU",
-    "MSDU"
-  };
-
-  static const value_string sta_cf_pollable[] = {
-    {0x00, "Station is not CF-Pollable"},
-    {0x02, "Station is CF-Pollable, "
-     "not requesting to be placed on the  CF-polling list"},
-    {0x01, "Station is CF-Pollable, "
-     "requesting to be placed on the CF-polling list"},
-    {0x03, "Station is CF-Pollable, requesting never to be polled"},
-    {0x0200, "QSTA requesting association in QBSS"},
-    {0, NULL}
-  };
-
-  static const value_string ap_cf_pollable[] = {
-    {0x00, "No point coordinator at AP"},
-    {0x02, "Point coordinator at AP for delivery only (no polling)"},
-    {0x01, "Point coordinator at AP for delivery and polling"},
-    {0x03, "Reserved"},
-    {0x0200, "QAP (HC) does not use CFP for delivery of unicast data type frames"},
-    {0x0202, "QAP (HC) uses CFP for delivery, but does not send CF-Polls to non-QoS STAs"},
-    {0x0201, "QAP (HC) uses CFP for delivery, and sends CF-Polls to non-QoS STAs"},
-    {0x0203, "Reserved"},
-    {0, NULL}
-  };
-
-
-  static const value_string auth_alg[] = {
-    {0x00, "Open System"},
-    {0x01, "Shared key"},
-    {0x02, "Fast BSS Transition"},
-    {0x80, "Network EAP"},  /* Cisco proprietary? */
-    {0, NULL}
-  };
-
-  static const true_false_string ff_block_ack_params_amsdu_permitted_flag = {
-    "Permitted in QoS Data MPDUs",
-    "Not Permitted"
-  };
-
-  static const true_false_string ff_block_ack_params_policy_flag = {
-    "Immediate Block Ack",
-    "Delayed Block Ack"
-  };
-
-  static const value_string  ff_channel_width_vals[] = {
-    {0x00, "20 MHz channel width only"},
-    {0x01, "Any channel width in the STA's Supported Channel Width Set"},
-    {0, NULL}
-  };
-
-  static const true_false_string ff_qos_info_ap_q_ack_flag = {
-      "Implemented",
-      "Not Implemented"
-  };
-
-  static const true_false_string ff_qos_info_ap_queue_req_flag = {
-      "Can process a nonzero Queue Size subfield in the QoS Control field in QoS data frames",
-      "Can NOT process a nonzero Queue Size subfield in the QoS Control field in QoS data frames"
-  };
-
-  static const true_false_string ff_qos_info_ap_txop_request_flag = {
-      "Can process a nonzero TXOP Duration Requested subfield in the QoS Control field in QoS data frames",
-      "Can NOT process a nonzero TXOP Duration Requested subfield in the QoS Control field in QoS data frames"
-  };
-
-  static const true_false_string ff_qos_info_sta_ac_flag = {
-      "Trigger-enabled and Delivery-enabled",
-      "Neither Trigger-enabled nor Delivery-enabled"
-  };
-
-  static const true_false_string ff_qos_info_sta_q_ack_flag = {
-      "Implemented",
-      "Not Implemented"
-  };
-
-  static const value_string ff_qos_info_sta_max_sp_len_flags[] = {
-    {0x00, "AP may deliver all buffered MSDUs, A-MSDUs and MMPDUs"},
-    {0x01, "AP may deliver a maximum of two MSDUs and MMPDUs per SP"},
-    {0x02, "AP may deliver a maximum of four MSDUs and MMPDUs per SP"},
-    {0x03, "AP may deliver a maximum of six MSDUs and MMPDUs per SP"},
-    {0, NULL}
-  };
-
-  static const true_false_string ff_qos_info_sta_more_data_ack_flag = {
-      "Can process ACK frames with the More Data bit in the Frame Control field set to 1",
-      "Can NOT process ACK frames with the More Data bit in the Frame Control field set to 1"
-  };
-
-  static const true_false_string ff_sm_pwr_save_sm_mode_flag = {
-      "Dynamic SM Power Save mode",
-      "Static SM Power Save mode"
-  };
-
-  static const true_false_string ff_pco_phase_cntrl_flag = {
-      "40 MHz Phase",
-      "20 MHz Phase"
-  };
-
-  static const true_false_string ff_psmp_param_set_more_psmp_flag = {
-      "More PSMP Sequences Follow",
-      "No PSMP Sequences Follow"
-  };
-
-  static const value_string ff_mimo_cntrl_nc_index_flags[] = {
-    {0x00, "1 Column"},
-    {0x01, "2 Columns"},
-    {0x02, "3 Columns"},
-    {0x03, "4 Columns"},
-    {0, NULL}
-  };
-
-  static const value_string ff_mimo_cntrl_nr_index_flags[] = {
-    {0x00, "1 Row"},
-    {0x01, "2 Rows"},
-    {0x02, "3 Rows"},
-    {0x03, "4 Rows"},
-    {0, NULL}
-  };
-
-  static const true_false_string ff_mimo_cntrl_channel_width_flag = {
-      "40 MHz",
-      "20 MHz"
-  };
-
-  static const true_false_string ff_ht_info_information_request_flag = {
-      "Requesting HT Information Exchange management action frame",
-      "Should not send an HT Information Exchange management action frame"
-  };
-
-  static const true_false_string ff_ht_info_40_mhz_intolerant_flag = {
-      "Transmitting station is intolerant of 40 MHz operation",
-      "Transmitting station permits 40 MHz operation"
-  };
-
-  static const true_false_string ff_ht_info_sta_chan_width_flag = {
-      "40 MHz",
-      "20 MHz"
-  };
-
-  static const value_string ff_ht_action_flags[] = {
-    {HT_ACTION_NOTIFY_CHAN_WIDTH, "Notify Channel Width"},
-    {HT_ACTION_SM_PWR_SAVE, "Spatial Multiplexing (SM) Power Save"},
-    {HT_ACTION_PSMP_ACTION, "Power Save Multi-Poll (PSMP) action frame"},
-    {HT_ACTION_SET_PCO_PHASE, "Set PCO Phase"},
-    {HT_ACTION_MIMO_CSI, "MIMO CSI Matrices"},
-    {HT_ACTION_MIMO_BEAMFORMING, "MIMO Non-compressed Beamforming"},
-    {HT_ACTION_MIMO_COMPRESSED_BEAMFORMING, "MIMO Compressed Beamforming"},
-    {HT_ACTION_ANT_SEL_FEEDBACK, "Antenna Selection Indices Feedback"},
-    {HT_ACTION_HT_INFO_EXCHANGE, "HT Information Exchange"},
-    {0x00, NULL}
-  };
-
-  static const value_string ff_mimo_cntrl_grouping_flags[] = {
-    {0x00, "No Grouping"},
-    {0x01, "Carrier Groups of 2"},
-    {0x02, "Carrier Groups of 4"},
-    {0x03, "Reserved"},
-    {0, NULL}
-  };
-
-  static const value_string ff_mimo_cntrl_coefficient_size_flags[] = {
-    {0x00, "4 Bits"},
-    {0x01, "5 Bits"},
-    {0x02, "6 Bits"},
-    {0x03, "8 Bits"},
-    {0, NULL}
-  };
-
-  static const value_string ff_mimo_cntrl_codebook_info_flags[] = {
-    {0x00, "1 bit for 'Capital Psi', 3 bits for 'Small Psi'"},
-    {0x01, "2 bit for 'Capital Psi', 4 bits for 'Small Psi'"},
-    {0x02, "3 bit for 'Capital Psi', 5 bits for 'Small Psi'"},
-    {0x03, "4 bit for 'Capital Psi', 6 bits for 'Small Psi'"},
-    {0, NULL}
-  };
-
-
-
-  static const value_string ff_pa_action_codes[] = {
-    {PA_DSE_ENABLEMENT, "DSE enablement"},
-    {PA_DSE_DEENABLEMENT, "DSE deenablement"},
-    {PA_DSE_REG_LOC_ANNOUNCEMENT, "DSE Registered Location Announcement"},
-    {PA_EXT_CHANNEL_SWITCH_ANNOUNCEMENT, "Extended Channel Switch Announcement"},
-    {PA_DSE_MEASUREMENT_REQUEST, "DSE measurement request"},
-    {PA_DSE_MEASUREMENT_REPORT, "DSE measurement report"},
-    {PA_MEASUREMENT_PILOT, "Measurement Pilot"},
-    {PA_DSE_POWER_CONSTRAINT, "DSE power constraint"},
-    {PA_VENDOR_SPECIFIC, "Vendor Specific"},
-    {PA_GAS_INITIAL_REQUEST, "GAS Initial Request"},
-    {PA_GAS_INITIAL_RESPONSE, "GAS Initial Response"},
-    {PA_GAS_COMEBACK_REQUEST, "GAS Comeback Request"},
-    {PA_GAS_COMEBACK_RESPONSE, "GAS Comeback Response"},
-    {PA_TDLS_DISCOVERY_RESPONSE, "TDLS Discovery Response"},
-    {0x00, NULL}
-  };
-
-  static const value_string category_codes[] = {
-    {CAT_SPECTRUM_MGMT, "Spectrum Management (SM)"},
-    {0x80 | CAT_SPECTRUM_MGMT, "Spectrum Management (SM) (error)"},
-    {CAT_QOS, "Quality of Service (QoS)"},
-    {0x80 | CAT_QOS, "Quality of Service (QoS (error))"},
-    {CAT_DLS, "Direct-Link Setup (DLS)"},
-    {0x80 | CAT_DLS, "Direct-Link Setup (DLS) (error)"},
-    {CAT_BLOCK_ACK, "Block Ack"},
-    {0x80 | CAT_BLOCK_ACK, "Block Ack (error)"},
-    {CAT_PUBLIC, "Public Action"},
-    {0x80 | CAT_PUBLIC, "Public Action (error)"},
-    {CAT_RADIO_MEASUREMENT, "Radio Measurement"},
-    {0x80 | CAT_RADIO_MEASUREMENT, "Radio Measurement (error)"},
-    {CAT_FAST_BSS_TRANSITION, "Fast BSS Transition"},
-    {0x80 | CAT_FAST_BSS_TRANSITION, "Fast BSS Transition (error)"},
-    {CAT_HT, "High Throughput"},
-    {0x80 | CAT_HT, "High Throughput (error)"},
-    {CAT_SA_QUERY, "SA Query"},
-    {0x80 | CAT_SA_QUERY, "SA Query (error)"},
-    {CAT_PUBLIC_PROTECTED, "Protected Dual of Public Action"},
-    {0x80 | CAT_PUBLIC_PROTECTED, "Protected Dual of Public Action (error)"},
-    {CAT_WNM, "WNM"},
-    {0x80 | CAT_WNM, "WNM (error)"},
-    {CAT_UNPROTECTED_WNM, "Unprotected WNM"},
-    {0x80 | CAT_UNPROTECTED_WNM, "Unprotected WNM (error)"},
-    {CAT_TDLS, "TDLS"},
-    {0x80 | CAT_TDLS, "TDLS (error)"},
-    {CAT_MESH, "MESH"},
-    {0x80 | CAT_MESH, "Mesh (error)"},
-    {CAT_MULTIHOP, "Multihop"},
-    {0x80 | CAT_MULTIHOP, "Multihop (error)"},
-    {CAT_SELF_PROTECTED, "Self-protected"},
-    {0x80 | CAT_SELF_PROTECTED, "Self-protected (error)"},
-    {CAT_MGMT_NOTIFICATION, "Management Notification"},
-    {0x80 | CAT_MGMT_NOTIFICATION, "Management Notification (error)"},
-    {CAT_VENDOR_SPECIFIC_PROTECTED, "Vendor-specific Protected"},
-    {0x80 | CAT_VENDOR_SPECIFIC_PROTECTED, "Vendor-specific Protected (error)"},
-    {CAT_VENDOR_SPECIFIC, "Vendor Specific"},
-    {0x80 | CAT_VENDOR_SPECIFIC, "Vendor Specific (error)"},
-    {0, NULL}
-  };
-
-  static const value_string action_codes[] ={
-    {SM_ACTION_MEASUREMENT_REQUEST, "Measurement Request"},
-    {SM_ACTION_MEASUREMENT_REPORT, "Measurement Report"},
-    {SM_ACTION_TPC_REQUEST, "TPC Request"},
-    {SM_ACTION_TPC_REPORT, "TPC Report"},
-    {SM_ACTION_CHAN_SWITCH_ANNC, "Channel Switch Announcement"},
-    {0, NULL}
-  };
-
-  static const value_string vendor_action_types_mrvl[] ={
-    {MRVL_ACTION_MESH_MANAGEMENT, "Mesh Management"},
-    {0, NULL}
-  };
-
-  static const value_string mesh_mgt_action_codes_mrvl[] ={
-    {MRVL_MESH_MGMT_ACTION_RREQ, "Route Request"},
-    {MRVL_MESH_MGMT_ACTION_RREP, "Route Response"},
-    {MRVL_MESH_MGMT_ACTION_RERR, "Route Error"},
-    {MRVL_MESH_MGMT_ACTION_PLDM, "Peer Link Down"},
-    {0, NULL}
-  };
-
-  static const value_string mesh_path_selection_codes[] ={
-    {0x0, "Hybrid Wireless Mesh Protocol"},
-    {0, NULL}
-  };
-
-  static const value_string mesh_metric_codes[] ={
-    {0x0, "Airtime Link Metric"},
-    {0, NULL}
-  };
-
-  static const value_string wme_action_codes[] = {
-    {0x00, "Setup request"},
-    {0x01, "Setup response"},
-    {0x02, "Teardown"},
-    {0x00, NULL}
-  };
-
-  static const value_string wme_status_codes[] = {
-    {0x00, "Admission accepted"},
-    {0x01, "Invalid parameters"},
-    {0x03, "Refused"},
-    {0x00, NULL}
-  };
-
-  static const value_string mesh_action[] ={
-    {MESH_ACTION_LINK_METRIC_REPORT, "Mesh Link Metric Report"},
-    {MESH_ACTION_HWMP, "HWMP Mesh Path Selection"},
-    {MESH_ACTION_GATE_ANNOUNCE, "Gate Announcement"},
-    {MESH_ACTION_CONGESTION_CTL, "Congestion Control Notification"},
-    {MESH_ACTION_MCCA_SETUP_REQUEST, "MCCA Setup Request"},
-    {MESH_ACTION_MCCA_SETUP_REPLY, "MCCA Setup Reply"},
-    {MESH_ACTION_MCCA_ADV_REQUEST, "MCCA Advertisement Request"},
-    {MESH_ACTION_MCCA_ADV, "MCCA Advertisement"},
-    {MESH_ACTION_MCCA_TEARDOWN, "MCCA Teardown"},
-    {MESH_ACTION_TBTT_ADJ_REQUEST, "TBTT Adjustment Request"},
-    {MESH_ACTION_TBTT_ADJ_RESPONSE, "TBTT Adjustment Response"},
-    {0, NULL}
-  };
-
-  static const value_string multihop_action[] ={
-    {MULTIHOP_ACTION_PROXY_UPDATE, "Proxy Update"},
-    {MULTIHOP_ACTION_PROXY_UPDATE_CONF, "Proxy Update Confirmation"},
-    {0, NULL}
-  };
-
-  static const value_string selfprot_action[] = {
-    {SELFPROT_ACTION_MESH_PEERING_OPEN, "Mesh Peering Open"},
-    {SELFPROT_ACTION_MESH_PEERING_CONFIRM, "Mesh Peering Confirm"},
-    {SELFPROT_ACTION_MESH_PEERING_CLOSE, "Mesh Peering Close"},
-    {SELFPROT_ACTION_MESH_GROUP_KEY_INFORM, "Mesh Group Key Inform"},
-    {SELFPROT_ACTION_MESH_GROUP_KEY_ACK, "Mesh Group Key Ack"},
-    {0, NULL}
-  };
-
-  static const value_string mesh_peering_proto_ids[] = {
-    {MESH_PEERING_PROTO_MGMT, "Mesh peering management protocol"},
-    {MESH_PEERING_PROTO_AMPE, "Authenticated mesh peering exchange protocol"},
-    {MESH_PEERING_PROTO_VENDOR, "Vendor specific"},
-    {0, NULL}
-  };
-
-  static const true_false_string hwmp_targ_usn_flags = {
-    "[USN = 1] Target Sequence Number Unknown at Originator",
-    "[USN = 0] Target Sequence Number Known at Originator"
-  };
-
-  static const true_false_string hwmp_targ_to_flags = {
-    "[TO = 1] Only Target Will Respond",
-    "[TO = 0] Intermediate Nodes May Respond"
-  };
-
-  static const value_string ack_policy[] = {
-    {0x00, "Normal Ack"},
-    {0x01, "No Ack"},
-    {0x02, "No explicit acknowledgment"},
-    {0x03, "Block Ack"},
-    {0x00, NULL}
-  };
-
-  static const value_string qos_action_codes[] = {
-    {SM_ACTION_ADDTS_REQUEST, "ADDTS Request"},
-    {SM_ACTION_ADDTS_RESPONSE, "ADDTS Response"},
-    {SM_ACTION_DELTS, "DELTS"},
-    {SM_ACTION_QOS_SCHEDULE, "Schedule"},
-    {0, NULL}
-  };
-
-  static const value_string ba_action_codes[] = {
-    {BA_ADD_BLOCK_ACK_REQUEST, "Add Block Ack Request"},
-    {BA_ADD_BLOCK_ACK_RESPONSE, "Add Block Ack Response"},
-    {BA_DELETE_BLOCK_ACK, "Delete Block Ack"},
-    {0x00, NULL}
-  };
-
-  static const value_string dls_action_codes[] = {
-    {SM_ACTION_DLS_REQUEST, "DLS Request"},
-    {SM_ACTION_DLS_RESPONSE, "DLS Response"},
-    {SM_ACTION_DLS_TEARDOWN, "DLS Teardown"},
-    {0, NULL}
-  };
-
-  static const value_string tsinfo_type[] = {
-    {0x0, "Aperiodic or unspecified Traffic"},
-    {0x1, "Periodic Traffic"},
-    {0, NULL}
-  };
-
-  static const value_string tsinfo_direction[] = {
-    {0x00, "Uplink"},
-    {0x01, "Downlink"},
-    {0x02, "Direct link"},
-    {0x03, "Bidirectional link"},
-    {0, NULL}
-  };
-
-  static const value_string tsinfo_access[] = {
-    {0x00, "Reserved"},
-    {0x01, "EDCA"},
-    {0x02, "HCCA"},
-    {0x03, "HEMM"},
-    {0, NULL}
-  };
-
-  static const value_string qos_up[] = {
-    {0x00, "Best Effort"},
-    {0x01, "Background"},
-    {0x02, "Spare"},
-    {0x03, "Excellent Effort"},
-    {0x04, "Controlled Load"},
-    {0x05, "Video"},
-    {0x06, "Voice"},
-    {0x07, "Network Control"},
-    {0, NULL}
-  };
-
-  static const value_string classifier_type[] = {
-    {0x00, "Ethernet parameters"},
-    {0x01, "TCP/UDP IP parameters"},
-    {0x02, "IEEE 802.1D/Q parameters"},
-    {0, NULL}
-  };
-
-  static const true_false_string ieee80211_block_ack_control_ack_policy_flag = {
-      "Immediate Acknowledgement Required",
-      "Sender Does Not Require Immediate Acknowledgement"
-  };
-
-  static const value_string ieee80211_block_ack_request_type_flags[] = {
-    {0x00, "Basic Block Ack Request"},
-    {0x01, "Reserved"},
-    {0x02, "Compressed Block Ack Request"},
-    {0x03, "Multi-TID Block Ack Request"},
-    {0x00, NULL}
-  };
-
-  static const value_string ieee80211_block_ack_type_flags[] = {
-    {0x00, "Basic Block Ack"},
-    {0x01, "Reserved"},
-    {0x02, "Compressed Block"},
-    {0x03, "Multi-TID Block"},
-    {0x00, NULL}
-  };
-
-  static const value_string ft_action_codes[] ={
-    {FT_ACTION_REQUEST, "FT Request"},
-    {FT_ACTION_RESPONSE, "FT Response"},
-    {FT_ACTION_CONFIRM, "FT Confirm"},
-    {FT_ACTION_ACK, "FT Ack"},
-    {0, NULL}
-  };
-
-  static const value_string sa_query_action_codes[] ={
-    {SA_QUERY_REQUEST, "SA Query Request"},
-    {SA_QUERY_RESPONSE, "SA Query Response"},
-    {0, NULL}
-  };
-
-  static const value_string ieee80211_data_encap_payload_types[] = {
-    {1, "Remote Request/Response"},
-    {2, "TDLS"},
-    {0, NULL}
-  };
 
   static hf_register_info hf[] = {
     {&hf_ieee80211_fc_field,
@@ -12402,11 +13148,11 @@ proto_register_ieee80211 (void)
 
     {&hf_ieee80211_block_ack_request_type,
      {"Block Ack Request Type", "wlan.bar.type",
-      FT_UINT8, BASE_HEX, VALS(ieee80211_block_ack_request_type_flags), 0, "Block Ack Request (BAR) Type", HFILL }},
+      FT_UINT8, BASE_HEX, VALS(ieee80211_block_ack_request_type_flags), 0x06, "Block Ack Request (BAR) Type", HFILL }},
 
     {&hf_ieee80211_block_ack_type,
      {"Block Ack Type", "wlan.ba.type",
-      FT_UINT8, BASE_HEX, VALS(ieee80211_block_ack_type_flags), 0, NULL, HFILL }},
+      FT_UINT8, BASE_HEX, VALS(ieee80211_block_ack_type_flags), 0x06, NULL, HFILL }},
 
     {&hf_ieee80211_block_ack_bitmap,
      {"Block Ack Bitmap", "wlan.ba.bm",
@@ -12471,433 +13217,6 @@ proto_register_ieee80211 (void)
     {&hf_ieee80211_ff_url,
      {"Session Information URL", "wlan_mgt.fixed.session_information.url",
       FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL }},
-  };
-
-  static const true_false_string qos_info_field_qack_flags = {
-    "STAs/APs MIB attribute dot11QAckOptionImplemented is true",
-    "STAs/APs MIB attribute dot11QAckOptionImplemented is false"
-  };
-
-  static const true_false_string qos_info_field_more_data_ack_flags = {
-    "STA can process Ack frames with More Data bit and will remain in the awake state.",
-    "STA cannot process Ack frames with More Data bit in Frame Control field."
-  };
-
-  static const true_false_string qos_info_field_queue_req_flags = {
-    "AP can process a nonzero Queue Size subfield in the QoS Control field in QoS data frames",
-    "AP cannot process Queue Size subfield in QoS data frames."
-  };
-
-  /* 7.3.1.17 Table 19b-Settings of the Max SP Length subfield */
-  static const value_string qos_info_field_max_sp_length_flags[] =
-  {
-    { 0x0, "QAP may deliver all buffered MSDUs and MMPDUs." },
-    { 0x2, "QAP may deliver a maximum of two MSDUs and MMPDUs per SP." },
-    { 0x1, "QAP may deliver a maximum of four MSDUs and MMPDUs per SP." },
-    { 0x3, "QAP may deliver a maximum of six MSDUs and MMPDUs per SP." },
-    { 0, NULL}
-  };
-
-  static const true_false_string rsn_preauth_flags = {
-    "Transmitter supports pre-authentication",
-    "Transmitter does not support pre-authentication"
-  };
-
-  static const true_false_string rsn_no_pairwise_flags = {
-    "Transmitter cannot support WEP default key 0 simultaneously with "
-    "Pairwise key",
-    "Transmitter can support WEP default key 0 simultaneously with "
-    "Pairwise key"
-  };
-
-  static const value_string rsn_cap_replay_counter[] = {
-    {0x00, "1 replay counter per PTKSA/GTKSA/STAKeySA"},
-    {0x01, "2 replay counters per PTKSA/GTKSA/STAKeySA"},
-    {0x02, "4 replay counters per PTKSA/GTKSA/STAKeySA"},
-    {0x03, "16 replay counters per PTKSA/GTKSA/STAKeySA"},
-    {0, NULL}
-  };
-
-  static const true_false_string ht_ldpc_coding_flag = {
-    "Transmitter supports receiving LDPC coded packets",
-    "Transmitter does not support receiving LDPC coded packets"
-  };
-
-  static const true_false_string ht_chan_width_flag = {
-    "Transmitter supports 20MHz and 40MHz operation",
-    "Transmitter only supports 20MHz operation"
-  };
-
-  static const value_string ht_sm_pwsave_flag[] = {
-    {0x00, "Static SM Power Save mode"},
-    {0x01, "Dynamic SM Power Save mode"},
-    {0x02, "Reserved"},
-    {0x03, "SM Power Save disabled"},
-    {0x00, NULL}
-  };
-
-  static const true_false_string ht_green_flag = {
-    "Transmitter is able to receive PPDUs with Green Field (GF) preamble",
-    "Transmitter is not able to receive PPDUs with Green Field (GF) preamble"
-  };
-
-  static const value_string ht_rx_stbc_flag[] = {
-    {0x00, "No Rx STBC support"},
-    {0x01, "Rx support of one spatial stream"},
-    {0x02, "Rx support of one and two spatial streams"},
-    {0x03, "Rx support of one, two, and three spatial streams"},
-    {0x00, NULL}
-  };
-
-  static const true_false_string ht_delayed_block_ack_flag = {
-    "Transmitter supports HT-Delayed BlockAck",
-    "Transmitter does not support HT-Delayed BlockAck"
-  };
-
-  static const true_false_string ht_max_amsdu_flag = {
-    "7935 bytes",
-    "3839 bytes"
-  };
-
-  static const true_false_string ht_dss_cck_40_flag = {
-    "Will/Can use DSSS/CCK in 40 MHz",
-    "Won't/Can't use of DSSS/CCK in 40 MHz"
-  };
-
-  static const true_false_string ht_psmp_flag = {
-    "Will/Can support PSMP operation",
-    "Won't/Can't support PSMP operation"
-  };
-
-  static const true_false_string ht_40_mhz_intolerant_flag = {
-    "Use of 40 MHz transmissions restricted/disallowed",
-    "Use of 40 MHz transmissions unrestricted/allowed"
-  };
-
-  static const value_string ampduparam_mpdu_start_spacing_flags[] = {
-    {0x00, "no restriction"},
-    {0x01, "1/4 [usec]"},
-    {0x02, "1/2 [usec]"},
-    {0x03, "1 [usec]"},
-    {0x04, "2 [usec]"},
-    {0x05, "4 [usec]"},
-    {0x06, "8 [usec]"},
-    {0x07, "16 [usec]"},
-    {0x00, NULL}
-  };
-
-  static const true_false_string mcsset_tx_mcs_set_defined_flag = {
-    "Defined",
-    "Not Defined",
-  };
-
-  static const true_false_string mcsset_tx_rx_mcs_set_not_equal_flag = {
-    "Not Equal",
-    "Equal",
-  };
-
-  static const value_string mcsset_tx_max_spatial_streams_flags[] = {
-    {0x00, "1 spatial stream"},
-    {0x01, "2 spatial streams"},
-    {0x02, "3 spatial streams"},
-    {0x03, "4 spatial streams"},
-    {0x00, NULL}
-  };
-
-  static const value_string htex_transtime_flags[] = {
-    {0x00, "No Transition"},
-    {0x01, "400 usec"},
-    {0x02, "1.5 msec"},
-    {0x03, "5 msec"},
-    {0x00, NULL}
-  };
-
-  static const value_string htex_mcs_flags[] = {
-    {0x00, "STA does not provide MCS feedback"},
-    {0x01, "Reserved"},
-    {0x02, "STA provides only unsolicited MCS feedback"},
-    {0x03, "STA can provide MCS feedback in response to MRQ as well as unsolicited MCS feedback"},
-    {0x00, NULL}
-  };
-
-  static const value_string txbf_calib_flag[] = {
-    {0x00, "incapable"},
-    {0x01, "Limited involvement, cannot initiate"},
-    {0x02, "Limited involvement, can initiate"},
-    {0x03, "Fully capable"},
-    {0x00, NULL}
-  };
-
-  static const value_string txbf_feedback_flags[] = {
-    {0x00, "not supported"},
-    {0x01, "delayed feedback capable"},
-    {0x02, "immediate feedback capable"},
-    {0x03, "delayed and immediate feedback capable"},
-    {0x00, NULL}
-  };
-
-  static const value_string txbf_antenna_flags[] = {
-    {0x00, "1 TX antenna sounding"},
-    {0x01, "2 TX antenna sounding"},
-    {0x02, "3 TX antenna sounding"},
-    {0x03, "4 TX antenna sounding"},
-    {0x00, NULL}
-  };
-
-  static const value_string txbf_csi_max_rows_bf_flags[] = {
-    {0x00, "1 row of CSI"},
-    {0x01, "2 rows of CSI"},
-    {0x02, "3 rows of CSI"},
-    {0x03, "4 rows of CSI"},
-    {0x00, NULL}
-  };
-
-  static const value_string txbf_chan_est_flags[] = {
-    {0x00, "1 space time stream"},
-    {0x01, "2 space time streams"},
-    {0x02, "3 space time streams"},
-    {0x03, "4 space time streams"},
-    {0x00, NULL}
-  };
-
-  static const value_string txbf_min_group_flags[] = {
-    {0x00, "No grouping supported"},
-    {0x01, "Groups of 1,2 supported"},
-    {0x02, "Groups of 1,4 supported"},
-    {0x03, "Groups of 1,2,4 supported"},
-    {0x00, NULL}
-  };
-
-  static const value_string hta_ext_chan_offset_flag[] = {
-    {0x00, "No Extension Channel"},
-    {0x01, "Extension Channel above control channel"},
-    {0x02, "Undefined"},
-    {0x03, "Extension Channel below control channel"},
-    {0x00, NULL}
-  };
-
-  static const true_false_string hta_rec_tx_width_flag = {
-    "Any channel width enabled",
-    "Use 20MHz channel (control)"
-  };
-
-  static const true_false_string hta_rifs_mode_flag = {
-    "Use of RIFS permitted",
-    "Use of RIFS prohibited"
-  };
-
-  static const true_false_string hta_controlled_access_flag = {
-    "Not only PSMP",
-    "PSMP only"
-  };
-
-  static const value_string hta_service_interval_flag[] = {
-    {0x00, "5ms"},
-    {0x01, "10ms"},
-    {0x02, "15ms"},
-    {0x03, "20ms"},
-    {0x04, "25ms"},
-    {0x05, "30ms"},
-    {0x06, "35ms"},
-    {0x07, "40ms"},
-    {0x00, NULL}
-  };
-
-  static const value_string hta_operating_mode_flag[] = {
-    {0x00, "Pure HT, no protection"},
-    {0x01, "There may be non-HT devices (control & ext channel)"},
-    {0x02, "No non-HT is associated, but at least 1 20MHz is. protect on"},
-    {0x03, "Mixed: no non-HT is associated, protect on"},
-    {0x00, NULL}
-  };
-
-  static const true_false_string hta_non_gf_devices_flag = {
-    "All HT devices associated are GF capable",
-    "One or More HT devices are not GF capable"
-  };
-
-  static const true_false_string hta_dual_stbc_protection_flag = {
-    "Dual CTS protections is used",
-    "Regular use of RTS/CTS"
-  };
-
-  static const true_false_string hta_secondary_beacon_flag = {
-    "Secondary Beacon",
-    "Primary Beacon"
-  };
-
-  static const true_false_string hta_lsig_txop_protection_flag = {
-    "Full Support",
-    "Not full support"
-  };
-
-  static const true_false_string hta_pco_active_flag = {
-    "PCO is activated in the BSS",
-    "PCO is not activated in the BSS"
-  };
-
-  static const true_false_string hta_pco_phase_flag = {
-    "Switch to 20MHz phase/keep 20MHz",
-    "Switch to 40MHz phase/keep 40MHz"
-  };
-
-  static const value_string ht_info_secondary_channel_offset_flags[] = {
-    {0x00, "No secondary channel"},
-    {0x01, "Secondary channel is above the primary channel"},
-    {0x02, "Reserved"},
-    {0x03, "Secondary channel is below the primary channel"},
-    {0x00, NULL}
-  };
-
-  static const true_false_string ht_info_channel_width_flag = {
-    "Channel of any width supported",
-    "20 MHz channel width only"
-  };
-
-  static const true_false_string ht_info_rifs_mode_flag = {
-    "Permitted",
-    "Prohibited"
-  };
-
-  static const true_false_string ht_info_psmp_stas_only_flag = {
-    "Association requests are accepted from only PSMP capable STA",
-    "Association requests are accepted regardless of PSMP capability"
-  };
-
-  static const value_string ht_info_service_interval_granularity_flags[] = {
-    {0x00, "5 ms"},
-    {0x01, "10 ms"},
-    {0x02, "15 ms"},
-    {0x03, "20 ms"},
-    {0x04, "25 ms"},
-    {0x05, "30 ms"},
-    {0x06, "35 ms"},
-    {0x07, "40 ms"},
-    {0x00, NULL}
-  };
-
-  static const value_string ht_info_operating_mode_flags[] = {
-    {0x00, "All STAs are - 20/40 MHz HT or in a 20/40 MHz BSS or are 20 MHz HT in a 20 MHz BSS"},
-    {0x01, "HT non-member protection mode"},
-    {0x02, "Only HT STAs in the BSS, however, there exists at least one 20 MHz STA"},
-    {0x03, "HT mixed mode"},
-    {0x00, NULL}
-  };
-
-  static const true_false_string ht_info_non_greenfield_sta_present_flag = {
-    "One or more associated STAs are not greenfield capable",
-    "All associated STAs are greenfield capable"
-  };
-
-  static const true_false_string ht_info_transmit_burst_limit_flag = {
-    "2.4 GHz - 6.16 ms | All other bands - 3.08 ms",
-    "No limit"
-  };
-
-  static const true_false_string ht_info_obss_non_ht_stas_present_flag = {
-    "Use of protection for non-HT STAs by overlapping BSSs is needed",
-    "Use of protection for non-HT STAs by overlapping BSSs is not needed"
-  };
-
-  static const true_false_string ht_info_dual_beacon_flag = {
-    "AP transmits a secondary beacon",
-    "No second beacon is transmitted"
-  };
-
-  static const true_false_string ht_info_dual_cts_protection_flag = {
-    "Required",
-    "Not required"
-  };
-
-  static const true_false_string ht_info_secondary_beacon_flag = {
-    "Secondary beacon",
-    "Primary beacon"
-  };
-
-  static const true_false_string ht_info_lsig_txop_protection_full_support_flag = {
-    "All HT STAs in the BSS support L-SIG TXOP protection",
-    "One or more HT STAs in the BSS do not support L-SIG TXOP protection"
-  };
-
-  static const true_false_string ht_info_pco_phase_flag = {
-    "Switch to or continue 40 MHz phase",
-    "Switch to or continue 20 MHz phase"
-  };
-
-  static const true_false_string htc_lac_trq_flag = {
-    "Want sounding PPDU",
-    "Don't want sounding PPDU"
-  };
-
-  static const true_false_string htc_lac_mai_mrq_flag = {
-    "MCS feedback requested",
-    "No MCS feedback requested"
-  };
-
-  static const value_string ieee80211_htc_lac_asel_command_flags[] = {
-    {0x00, "Transmit Antenna Selection Sounding Indication (TXASSI)"},
-    {0x01, "Transmit Antenna Selection Sounding Request (TXASSR)"},
-    {0x02, "Receive Antenna Selection Sounding Indication (RXASSI)"},
-    {0x03, "Receive Antenna Selection Sounding Request (RXASSR)"},
-    {0x04, "Sounding Label"},
-    {0x05, "No feedback, ASEL training failure"},
-    {0x06, "Transmit Antenna Selection Sounding Indication (TXASSI) requesting feedback of explicit CSI"},
-    {0x07, "Reserved"},
-    {0x00, NULL}
-  };
-
-  static const value_string ieee80211_htc_cal_pos_flags[] = {
-    {0x00, "Not a calibration frame"},
-    {0x01, "Calibration Start"},
-    {0x02, "Sounding Response"},
-    {0x03, "Sounding Complete"},
-    {0x00, NULL}
-  };
-
-  static const true_false_string ieee80211_htc_ndp_announcement_flag = {
-    "NDP will follow",
-    "No NDP will follow"
-  };
-
-  static const value_string ieee80211_htc_csi_steering_flags[] = {
-    {0x00, "No feedback required"},
-    {0x01, "CSI"},
-    {0x02, "Non-compressed Beamforming Feedback Matrix"},
-    {0x03, "Compressed Beamforming Feedback Matrix"},
-    {0x00, NULL}
-  };
-
-  static const value_string ieee80211_tag_secondary_channel_offset_flags[] = {
-    {0x00, "No Secondary Channel"},
-    {0x01, "Above Primary Channel"},
-    {0x02, "Reserved"},
-    {0x03, "Below Primary Channel"},
-    {0x00, NULL}
-  };
-
-  static const value_string ieee80211_tag_ext_channel_switch_announcement_switch_mode_flags[] = {
-    {0x00, "Frames may be transmitted before the channel switch has been completed"},
-    {0x01, "No more frames are to be transmitted until the channel switch has been completed"},
-    {0x00, NULL}
-  };
-
-  static const value_string service_interval_granularity_vals[] = {
-    { 0, "5 ms" },
-    { 1, "10 ms" },
-    { 2, "15 ms" },
-    { 3, "20 ms" },
-    { 4, "25 ms" },
-    { 5, "30 ms" },
-    { 6, "35 ms" },
-    { 7, "40 ms" },
-    { 0x00, NULL }
-  };
-
-  static const value_string wep_type_vals[] = {
-    { AIRPDCAP_KEY_TYPE_WEP, STRING_KEY_TYPE_WEP },
-    { AIRPDCAP_KEY_TYPE_WPA_PWD, STRING_KEY_TYPE_WPA_PWD },
-    { AIRPDCAP_KEY_TYPE_WPA_PSK, STRING_KEY_TYPE_WPA_PSK },
-    { 0x00, NULL }
   };
 
   static hf_register_info ff[] = {
@@ -14332,11 +14651,11 @@ proto_register_ieee80211 (void)
 
     {&hf_ieee80211_ht_cap,
      {"HT Capabilities Info", "wlan_mgt.ht.capabilities", FT_UINT16, BASE_HEX,
-      NULL, 0, "HT Capability information", HFILL }},
+      NULL, 0, "HT Capabilities information", HFILL }},
 
     {&hf_ieee80211_ht_vs_cap,
      {"HT Capabilities Info (VS)", "wlan_mgt.vs.ht.capabilities", FT_UINT16, BASE_HEX,
-      NULL, 0, "Vendor Specific HT Capability information", HFILL }},
+      NULL, 0, "Vendor Specific HT Capabilities information", HFILL }},
 
     {&hf_ieee80211_ht_ldpc_coding,
      {"HT LDPC coding capability", "wlan_mgt.ht.capabilities.ldpccoding",
@@ -14409,11 +14728,11 @@ proto_register_ieee80211 (void)
       NULL, HFILL }},
 
     {&hf_ieee80211_ampduparam,
-     {"A-MPDU Parameters", "wlan_mgt.ht.ampduparam", FT_UINT16, BASE_HEX,
+     {"A-MPDU Parameters", "wlan_mgt.ht.ampduparam", FT_UINT8, BASE_HEX,
       NULL, 0, NULL, HFILL }},
 
     {&hf_ieee80211_ampduparam_vs,
-     {"A-MPDU Parameters (VS)", "wlan_mgt.vs.ht.ampduparam", FT_UINT16, BASE_HEX,
+     {"A-MPDU Parameters (VS)", "wlan_mgt.vs.ht.ampduparam", FT_UINT8, BASE_HEX,
       NULL, 0, "Vendor Specific A-MPDU Parameters", HFILL }},
 
     {&hf_ieee80211_ampduparam_mpdu,
@@ -14609,6 +14928,249 @@ proto_register_ieee80211 (void)
      {"Minimal grouping used for explicit feedback reports", "wlan_mgt.txbf.mingroup",
       FT_UINT32, BASE_HEX, VALS (&txbf_min_group_flags), 0x00060000,
       NULL, HFILL }},
+
+    {&hf_ieee80211_vht_cap,
+     {"VHT Capabilities Info", "wlan_mgt.vht.capabilities", FT_UINT32, BASE_HEX,
+      NULL, 0, "VHT Capabilities information", HFILL }},
+
+    {&hf_ieee80211_vht_max_mpdu_length,
+     {"Maximum MPDU Length", "wlan_mgt.vht.capabilities.maxmpdulength",
+      FT_UINT32, BASE_HEX, VALS (&vht_max_mpdu_length_flag), 0x00000003,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_supported_chan_width_set,
+     {"Supported Channel Width Set", "wlan_mgt.vht.capabilities.supportedchanwidthset",
+      FT_UINT32, BASE_HEX, VALS (&vht_supported_chan_width_set_flag), 0x0000000c,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_rx_ldpc,
+     {"Rx LDPC", "wlan_mgt.vht.capabilities.rxldpc",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00000010,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_short_gi_for_80,
+     {"Short GI for 80Mhz", "wlan_mgt.vht.capabilities.short80",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00000020,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_short_gi_for_160,
+     {"Short GI for 160Mhz and 80+80MHz", "wlan_mgt.vht.capabilities.short160",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00000040,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tx_stbc,
+     {"Tx STBC", "wlan_mgt.vht.capabilities.txstbc",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00000080,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_rx_stbc,
+     {"Rx STBC", "wlan_mgt.vht.capabilities.rxstbc",
+      FT_UINT32, BASE_HEX, VALS (&vht_rx_stbc_flag), 0x00000700,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_su_beamformer_cap,
+     {"SU Beam-former Capable", "wlan_mgt.vht.capabilities.subeamformer",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00000800,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_su_beamformee_cap,
+     {"SU Beam-formee Capable", "wlan_mgt.vht.capabilities.subeamformee",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00001000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_beamformer_antennas,
+     {"Compressed Steering Number of Beamformer Antennas Supported", "wlan_mgt.vht.capabilities.beamformerants",
+      FT_UINT32, BASE_HEX, VALS (&num_plus_one_3bit_flag), 0x0000e000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_sounding_dimensions,
+     {"Number of Sounding Dimensions", "wlan_mgt.vht.capabilities.soundingdimensions",
+      FT_UINT32, BASE_HEX, VALS (&num_plus_one_3bit_flag), 0x00070000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mu_beamformer_cap,
+     {"MU Beam-former Capable", "wlan_mgt.vht.capabilities.mubeamformer",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00080000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mu_beamformee_cap,
+     {"MU Beam-formee Capable", "wlan_mgt.vht.capabilities.mubeamformee",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00100000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_txop_ps,
+     {"VHT TXOP PS", "wlan_mgt.vht.capabilities.vhttxopps",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00200000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_var_htc_field,
+     {"+HTC-VHT Capable (VHT variant HT Control field)", "wlan_mgt.vht.capabilities.vhthtc",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x00400000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_max_ampdu,
+     {"Max A-MPDU Length", "wlan_mgt.vht.capabilities.maxampdu",
+      FT_UINT32, BASE_HEX, VALS (&vht_max_ampdu_flag), 0x03800000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_link_adaptation_cap,
+     {"VHT Link Adaptation", "wlan_mgt.vht.capabilities.linkadapt",
+      FT_UINT32, BASE_HEX, VALS (&vht_link_adapt_flag), 0x0c000000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_rx_pattern,
+     {"Rx Antenna Pattern Consistency", "wlan_mgt.vht.capabilities.rxpatconsist",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x10000000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tx_pattern,
+     {"Tx Antenna Pattern Consistency", "wlan_mgt.vht.capabilities.txpatconsist",
+      FT_BOOLEAN, 32, TFS (&tfs_supported_not_supported), 0x20000000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_reserv,
+     {"Reserved", "wlan_mgt.vht.reserved",
+      FT_BOOLEAN, 32, NULL, 0xc0000000,
+      NULL, HFILL }},
+
+     {&hf_ieee80211_vht_mcsset,
+      {"VHT Supported MCS Set", "wlan_mgt.vht.mcsset",
+       FT_NONE, BASE_NONE, NULL, 0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_mcs_map,
+     {"Rx MCS Map", "wlan_mgt.vht.mcsset.rxmcsmap",
+      FT_UINT16, BASE_HEX, NULL, 0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_max_mcs_for_0_ss,
+     {"Rx SS 0", "wlan_mgt.vht.mcsset.rxmcsmap.ss0",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0003, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_max_mcs_for_1_ss,
+     {"Rx SS 1", "wlan_mgt.vht.mcsset.rxmcsmap.ss1",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x000c, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_max_mcs_for_2_ss,
+     {"Rx SS 2", "wlan_mgt.vht.mcsset.rxmcsmap.ss2",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0030, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_max_mcs_for_3_ss,
+     {"Rx SS 3", "wlan_mgt.vht.mcsset.rxmcsmap.ss3",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x00c0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_max_mcs_for_4_ss,
+     {"Rx SS 4", "wlan_mgt.vht.mcsset.rxmcsmap.ss4",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0300, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_max_mcs_for_5_ss,
+     {"Rx SS 5", "wlan_mgt.vht.mcsset.rxmcsmap.ss5",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0c00, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_max_mcs_for_6_ss,
+     {"Rx SS 6", "wlan_mgt.vht.mcsset.rxmcsmap.ss6",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x3000, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_max_mcs_for_7_ss,
+     {"Rx SS 7", "wlan_mgt.vht.mcsset.rxmcsmap.ss7",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0xc000, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_rx_highest_long_gi,
+     {"Rx Highest Long GI Data Rate (in Mb/s, 0 = subfield not in use)", "wlan_mgt.vht.mcsset.rxhighestlonggirate",
+      FT_UINT16, BASE_HEX, NULL, 0x1fff,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_mcs_map,
+     {"Tx MCS Map", "wlan_mgt.vht.mcsset.txmcsmap",
+      FT_UINT16, BASE_HEX, NULL, 0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_max_mcs_for_0_ss,
+     {"Tx SS 0", "wlan_mgt.vht.mcsset.txmcsmap.ss0",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0003, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_max_mcs_for_1_ss,
+     {"Tx SS 1", "wlan_mgt.vht.mcsset.txmcsmap.ss1",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x000c, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_max_mcs_for_2_ss,
+     {"Tx SS 2", "wlan_mgt.vht.mcsset.txmcsmap.ss2",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0030, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_max_mcs_for_3_ss,
+     {"Tx SS 3", "wlan_mgt.vht.mcsset.txmcsmap.ss3",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x00c0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_max_mcs_for_4_ss,
+     {"Tx SS 4", "wlan_mgt.vht.mcsset.txmcsmap.ss4",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0300, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_max_mcs_for_5_ss,
+     {"Tx SS 5", "wlan_mgt.vht.mcsset.txmcsmap.ss5",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0c00, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_max_mcs_for_6_ss,
+     {"Tx SS 6", "wlan_mgt.vht.mcsset.txmcsmap.ss6",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x3000, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_max_mcs_for_7_ss,
+     {"Tx SS 7", "wlan_mgt.vht.mcsset.txmcsmap.ss7",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0xc000, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_mcsset_tx_highest_long_gi,
+     {"Tx Highest Long GI Data Rate  (in Mb/s, 0 = subfield not in use)", "wlan_mgt.vht.mcsset.txhighestlonggirate",
+      FT_UINT16, BASE_HEX, NULL, 0x1fff,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op,
+     {"VHT Operation Info", "wlan_mgt.vht.op", FT_NONE, BASE_NONE,
+      NULL, 0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_channel_width,
+     {"Channel Width", "wlan_mgt.vht.op.channelwidth",
+      FT_UINT8, BASE_HEX, VALS(vht_op_channel_width_flag), 0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_channel_center0,
+     {"Channel Center Segment 0", "wlan_mgt.vht.op.channelcenter0",
+      FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_channel_center1,
+     {"Channel Center Segment 1", "wlan_mgt.vht.op.channelcenter1",
+      FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_basic_mcs_map,
+     {"Basic MCS Map", "wlan_mgt.vht.op.basicmcsmap",
+      FT_UINT16, BASE_HEX, NULL, 0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_max_basic_mcs_for_0_ss,
+     {"Basic SS 0", "wlan_mgt.vht.op.basicmcsmap.ss0",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0003, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_max_basic_mcs_for_1_ss,
+     {"Basic SS 1", "wlan_mgt.vht.op.basicmcsmap.ss1",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x000c, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_max_basic_mcs_for_2_ss,
+     {"Basic SS 2", "wlan_mgt.vht.op.basicmcsmap.ss2",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0030, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_max_basic_mcs_for_3_ss,
+     {"Basic SS 3", "wlan_mgt.vht.op.basicmcsmap.ss3",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x00c0, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_max_basic_mcs_for_4_ss,
+     {"Basic SS 4", "wlan_mgt.vht.op.basicmcsmap.ss4",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0300, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_max_basic_mcs_for_5_ss,
+     {"Basic SS 5", "wlan_mgt.vht.op.basicmcsmap.ss5",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x0c00, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_max_basic_mcs_for_6_ss,
+     {"Basic SS 6", "wlan_mgt.vht.op.basicmcsmap.ss6",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0x3000, NULL, HFILL }},
+
+    {&hf_ieee80211_vht_op_max_basic_mcs_for_7_ss,
+     {"Basic SS 7", "wlan_mgt.vht.op.basicmcsmap.ss7",
+      FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0xc000, NULL, HFILL }},
+
 
     {&hf_ieee80211_txbf_csi_num_bf_ant,
      {"Max antennae STA can support when CSI feedback required", "wlan_mgt.txbf.csinumant",
@@ -16460,6 +17022,12 @@ proto_register_ieee80211 (void)
     &ett_mimo_report,
     &ett_cntrl_wrapper_fc,
     &ett_cntrl_wrapper_payload,
+    &ett_vht_cap_tree,
+    &ett_vht_mcsset_tree,
+    &ett_vht_rx_mcsbit_tree,
+    &ett_vht_tx_mcsbit_tree,
+    &ett_vht_basic_mcsbit_tree,
+    &ett_vht_op_tree,
     &ett_ht_info_delimiter1_tree,
     &ett_ht_info_delimiter2_tree,
     &ett_ht_info_delimiter3_tree,
@@ -16586,7 +17154,7 @@ proto_register_ieee80211 (void)
             uat_wep_key_record_copy_cb,        /* copy callback */
             uat_wep_key_record_update_cb,      /* update callback */
             uat_wep_key_record_free_cb,        /* free callback */
-            NULL,                       /* post update callback */
+            init_wepkeys,               /* post update callback - update the WEP/WPA keys */
             wep_uat_flds);             /* UAT field definitions */
 
   prefs_register_uat_preference(wlan_module,
@@ -16791,16 +17359,16 @@ void set_airpdcap_keys(void)
         keys->Keys[keys->nKeys] = key;
         keys->nKeys++;
       }
-      else if(dk->type == AIRPDCAP_KEY_TYPE_WPA_PMK)
+      else if(dk->type == AIRPDCAP_KEY_TYPE_WPA_PSK)
       {
-        key.KeyType = AIRPDCAP_KEY_TYPE_WPA_PMK;
+        key.KeyType = AIRPDCAP_KEY_TYPE_WPA_PSK;
 
         bytes = g_byte_array_new();
         hex_str_to_bytes(dk->key->str, bytes, FALSE);
 
         /* XXX - Pass the correct array of bytes... */
-        if (bytes->len <= AIRPDCAP_WPA_PMK_LEN) {
-          memcpy(key.KeyData.Wpa.Pmk, bytes->data, bytes->len);
+        if (bytes->len <= AIRPDCAP_WPA_PSK_LEN) {
+          memcpy(key.KeyData.Wpa.Psk, bytes->data, bytes->len);
 
           keys->Keys[keys->nKeys] = key;
           keys->nKeys++;

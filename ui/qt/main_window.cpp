@@ -44,9 +44,9 @@
 #include "wireshark_application.h"
 #include "proto_tree.h"
 #include "byte_view_tab.h"
-#include "capture_file_dialog.h"
 #include "display_filter_edit.h"
 #include "import_text_dialog.h"
+#include "export_dissection_dialog.h"
 
 #include "qt_ui_utils.h"
 
@@ -86,6 +86,8 @@ MainWindow::MainWindow(QWidget *parent) :
     gbl_cur_main_window = this;
     main_ui_->setupUi(this);
     setMenusForCaptureFile();
+    setForCapturedPackets(false);
+    setMenusForSelectedTreeRow();
     setForCaptureInProgress(false);
     setMenusForFileSet(false);
 
@@ -103,8 +105,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
     main_ui_->goToFrame->hide();
     go_to_margins = main_ui_->goToHB->contentsMargins();
-    go_to_margins.setTop(0);
-    go_to_margins.setBottom(0);
+//    go_to_margins.setTop(0);
+//    go_to_margins.setBottom(0);
     main_ui_->goToHB->setContentsMargins(go_to_margins);
     // XXX For some reason the cursor is drawn funny with an input mask set
     // https://bugreports.qt-project.org/browse/QTBUG-7174
@@ -182,6 +184,11 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(main_welcome_, SIGNAL(recentFileActivated(QString&)),
             this, SLOT(openCaptureFile(QString&)));
 
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            packet_list_, SLOT(setCaptureFile(capture_file*)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            byte_view_tab, SLOT(setCaptureFile(capture_file*)));
+
     connect(main_ui_->actionGoNextPacket, SIGNAL(triggered()),
             packet_list_, SLOT(goNextPacket()));
     connect(main_ui_->actionGoPreviousPacket, SIGNAL(triggered()),
@@ -201,8 +208,8 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(proto_tree, SIGNAL(protoItemSelected(QString&)),
             main_ui_->statusBar, SLOT(pushFieldStatus(QString&)));
 
-    connect(proto_tree, SIGNAL(protoItemSelected(bool)),
-            main_ui_->actionViewExpandSubtrees, SLOT(setEnabled(bool)));
+    connect(proto_tree, SIGNAL(protoItemSelected(field_info *)),
+            this, SLOT(setMenusForSelectedTreeRow(field_info *)));
 
     connect(&file_set_dialog_, SIGNAL(fileSetOpenCaptureFile(QString&)),
             this, SLOT(openCaptureFile(QString&)));
@@ -498,7 +505,6 @@ void MainWindow::importCaptureFile() {
 void MainWindow::saveCaptureFile(capture_file *cf, bool stay_closed) {
     QString file_name;
     gboolean discard_comments;
-    cf_write_status_t status;
 
     if (cf->is_tempfile) {
         /* This is a temporary capture file, so saving it means saving
@@ -511,6 +517,8 @@ void MainWindow::saveCaptureFile(capture_file *cf, bool stay_closed) {
         saveAsCaptureFile(cf, FALSE, stay_closed);
     } else {
         if (cf->unsaved_changes) {
+            cf_write_status_t status;
+
             /* This is not a temporary capture file, but it has unsaved
                changes, so saving it means doing a "safe save" on top
                of the existing file, in the same format - no UI needed
@@ -712,7 +720,7 @@ void MainWindow::exportSelectedPackets() {
     if (!cap_file_)
         return;
 
-    /* init the packet range */
+    /* Init the packet range */
     packet_range_init(&range, cap_file_);
     range.process_filtered = TRUE;
     range.include_dependents = TRUE;
@@ -837,10 +845,25 @@ void MainWindow::exportSelectedPackets() {
     return;
 }
 
+void MainWindow::exportDissections(export_type_e export_type) {
+    ExportDissectionDialog ed_dlg(this, cap_file_, export_type);
+    packet_range_t range;
+
+    if (!cap_file_)
+        return;
+
+    /* Init the packet range */
+    packet_range_init(&range, cap_file_);
+    range.process_filtered = TRUE;
+    range.include_dependents = TRUE;
+
+    ed_dlg.exec();
+}
+
 void MainWindow::fileAddExtension(QString &file_name, int file_type, bool compressed) {
     QString file_name_lower;
     QString file_suffix;
-    GSList  *extensions_list, *extension;
+    GSList  *extensions_list;
     gboolean add_extension;
 
     /*
@@ -851,6 +874,8 @@ void MainWindow::fileAddExtension(QString &file_name, int file_type, bool compre
     file_name_lower = file_name.toLower();
     extensions_list = wtap_get_file_extensions_list(file_type, FALSE);
     if (extensions_list != NULL) {
+        GSList *extension;
+
         /* We have one or more extensions for this file type.
            Start out assuming we need to add the default one. */
         add_extension = TRUE;
@@ -1057,10 +1082,10 @@ void MainWindow::setMenusForCaptureFile(bool force_disable)
         main_ui_->actionFileSave->setEnabled(false);
         main_ui_->actionFileSaveAs->setEnabled(false);
         main_ui_->actionFileExportPackets->setEnabled(false);
-        main_ui_->actionFileExportPacketDissections->setEnabled(false);
+        main_ui_->menuFileExportPacketDissections->setEnabled(false);
         main_ui_->actionFileExportPacketBytes->setEnabled(false);
         main_ui_->actionFileExportSSLSessionKeys->setEnabled(false);
-        main_ui_->actionFileExportObjects->setEnabled(false);
+        main_ui_->menuFileExportObjects->setEnabled(false);
         main_ui_->actionViewReload->setEnabled(false);
     } else {
         main_ui_->actionFileMerge->setEnabled(cf_can_write_with_wiretap(cap_file_));
@@ -1098,10 +1123,10 @@ void MainWindow::setMenusForCaptureFile(bool force_disable)
          * we can write the file out in at least one format.
          */
         main_ui_->actionFileExportPackets->setEnabled(cf_can_write_with_wiretap(cap_file_));
-        main_ui_->actionFileExportPacketDissections->setEnabled(true);
+        main_ui_->menuFileExportPacketDissections->setEnabled(true);
         main_ui_->actionFileExportPacketBytes->setEnabled(true);
         main_ui_->actionFileExportSSLSessionKeys->setEnabled(true);
-        main_ui_->actionFileExportObjects->setEnabled(true);
+        main_ui_->menuFileExportObjects->setEnabled(true);
         main_ui_->actionViewReload->setEnabled(true);
     }
 }
@@ -1112,10 +1137,10 @@ void MainWindow::setMenusForCaptureInProgress(bool capture_in_progress) {
 
     main_ui_->actionFileOpen->setEnabled(!capture_in_progress);
     main_ui_->menuOpenRecentCaptureFile->setEnabled(!capture_in_progress);
-    main_ui_->actionFileExportPacketDissections->setEnabled(capture_in_progress);
+    main_ui_->menuFileExportPacketDissections->setEnabled(capture_in_progress);
     main_ui_->actionFileExportPacketBytes->setEnabled(capture_in_progress);
     main_ui_->actionFileExportSSLSessionKeys->setEnabled(capture_in_progress);
-    main_ui_->actionFileExportObjects->setEnabled(capture_in_progress);
+    main_ui_->menuFileExportObjects->setEnabled(capture_in_progress);
     main_ui_->menuFileSet->setEnabled(!capture_in_progress);
     main_ui_->actionFileQuit->setEnabled(true);
 
@@ -1144,6 +1169,42 @@ void MainWindow::setMenusForCaptureStopping() {
     main_ui_->actionStopCapture->setEnabled(false);
     main_ui_->actionCaptureRestart->setEnabled(false);
 #endif /* HAVE_LIBPCAP */
+}
+
+void MainWindow::setForCapturedPackets(bool have_captured_packets)
+{
+    main_ui_->actionFilePrint->setEnabled(have_captured_packets);
+
+//    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/Print",
+//                         have_captured_packets);
+
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/FindPacket",
+//                         have_captured_packets);
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/FindNext",
+//                         have_captured_packets);
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/FindPrevious",
+//                         have_captured_packets);
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/ViewMenu/ZoomIn",
+//                         have_captured_packets);
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/ViewMenu/ZoomOut",
+//                         have_captured_packets);
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/ViewMenu/NormalSize",
+//                         have_captured_packets);
+
+    main_ui_->actionGoGoToPacket->setEnabled(have_captured_packets);
+    main_ui_->actionGoPreviousPacket->setEnabled(have_captured_packets);
+    main_ui_->actionGoNextPacket->setEnabled(have_captured_packets);
+    main_ui_->actionGoFirstPacket->setEnabled(have_captured_packets);
+    main_ui_->actionGoLastPacket->setEnabled(have_captured_packets);
+
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/GoMenu/PreviousPacketInConversation",
+//                         have_captured_packets);
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/GoMenu/NextPacketInConversation",
+//                         have_captured_packets);
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/StatisticsMenu/Summary",
+//                         have_captured_packets);
+//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/StatisticsMenu/ProtocolHierarchy",
+//                         have_captured_packets);
 }
 
 void MainWindow::setMenusForFileSet(bool enable_list_files) {

@@ -33,6 +33,8 @@ set(QTSHARK_H_SRC
 	color_utils.h
 	display_filter_combo.h
 	display_filter_edit.h
+	export_dissection_dialog.h
+	export_object_dialog.h
 	file_set_dialog.h
 	import_text_dialog.h
 	interface_tree.h
@@ -41,13 +43,16 @@ set(QTSHARK_H_SRC
 	main_welcome.h
 	main_window.h
 	monospace_font.h
+	packet_format_group_box.h
 	packet_list.h
 	packet_list_model.h
 	packet_range_group_box.h
+	print_dialog.h
 	progress_bar.h
 	proto_tree.h
 	recent_file_status.h
 	simple_dialog_qt.h
+	splash_overlay.h
 	syntax_line_edit.h
 	wireshark_application.h
 
@@ -66,6 +71,8 @@ set(QTSHARK_CPP_SRC
 	color_utils.cpp
 	display_filter_combo.cpp
 	display_filter_edit.cpp
+	export_dissection_dialog.cpp
+	export_object_dialog.cpp
 	file_set_dialog.cpp
 	import_text_dialog.cpp
 	interface_tree.cpp
@@ -76,16 +83,19 @@ set(QTSHARK_CPP_SRC
 	main_window.cpp
 	main_window_slots.cpp
 	monospace_font.cpp
+	packet_format_group_box.cpp
 	packet_list.cpp
 	packet_list_model.cpp
 	packet_list_record.cpp
 	packet_range_group_box.cpp
+	print_dialog.cpp
 	progress_bar.cpp
 	proto_tree.cpp
 	qt_ui_utils.cpp
 	recent_file_status.cpp
 	simple_dialog_qt.cpp
 	sparkline_delegate.cpp
+	splash_overlay.cpp
 	syntax_line_edit.cpp
 	wireshark_application.cpp
 )
@@ -96,10 +106,14 @@ set(QTSHARK_SRC
 
 set(QTSHARK_UI
 	file_set_dialog.ui
+	export_object_dialog.ui
 	import_text_dialog.ui
 	main_welcome.ui
 	main_window.ui
+	packet_format_group_box.ui
 	packet_range_group_box.ui
+	print_dialog.ui
+	splash_overlay.ui
 )
 
 set(QTSHARK_QRC

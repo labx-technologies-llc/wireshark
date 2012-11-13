@@ -6,10 +6,17 @@
  * Added option field filters
  * Copyright 2011, Michael Mann
  *
+ * Added option  77 : RFC 3004 - The User Class Option for DHCP
+ * Added option 117 : RFC 2937 - The Name Service Search Option for DHCP
+ * Added option 119 : RFC 3397 - Dynamic Host Configuration Protocol (DHCP) Domain Search Option
+ *                    RFC 3396 - Encoding Long Options in the Dynamic Host Configuration Protocol (DHCPv4)
+ * Copyright 2012, Jerome LAFORGE <jerome.laforge [AT] gmail.com>
+ *
  * $Id$
  *
  * The information used comes from:
  * RFC	951: Bootstrap Protocol
+ * RFC 1035: Domain Names - Implementation And Specification
  * RFC 1497: BOOTP extensions
  * RFC 1542: Clarifications and Extensions for the Bootstrap Protocol
  * RFC 2131: Dynamic Host Configuration Protocol
@@ -19,10 +26,14 @@
  * RFC 2489: Procedure for Defining New DHCP Options
  * RFC 2610: DHCP Options for Service Location Protocol
  * RFC 2685: Virtual Private Networks Identifier
+ * RFC 2937: The Name Service Search Option for DHCP
+ * RFC 3004: The User Class Option for DHCP
  * RFC 3046: DHCP Relay Agent Information Option
  * RFC 3118: Authentication for DHCP Messages
  * RFC 3203: DHCP reconfigure extension
  * RFC 3315: Dynamic Host Configuration Protocol for IPv6 (DHCPv6)
+ * RFC 3396: Encoding Long Options in the Dynamic Host Configuration Protocol (DHCPv4)
+ * RFC 3397: Dynamic Host Configuration Protocol (DHCP) Domain Search Option
  * RFC 3495: DHCP Option (122) for CableLabs Client Configuration
  * RFC 3594: PacketCable Security Ticket Control Sub-Option (122.9)
  * RFC 3442: Classless Static Route Option for DHCP version 4
@@ -143,6 +154,8 @@ static int hf_bootp_pkt_mta_cap_len = -1;
 static int hf_bootp_docsis_cm_cap_type = -1;
 static int hf_bootp_docsis_cm_cap_len = -1;
 static int hf_bootp_client_identifier_uuid = -1;
+static int hf_bootp_client_identifier_duid_llt_hw_type = -1;
+static int hf_bootp_client_identifier_duid_ll_hw_type = -1;
 static int hf_bootp_option_type = -1;
 static int hf_bootp_option_length = -1;
 static int hf_bootp_option_value = -1;
@@ -307,6 +320,9 @@ static int hf_bootp_option_default_finger_server = -1;			/* 73 */
 static int hf_bootp_option_default_irc_server = -1;			/* 74 */
 static int hf_bootp_option_streettalk_server = -1;			/* 75 */
 static int hf_bootp_option_streettalk_da_server = -1;			/* 76 */
+static int hf_bootp_option77_user_class = -1;				/* 77 User Class instance */
+static int hf_bootp_option77_user_class_length = -1;			/* 77 length of User Class instance */
+static int hf_bootp_option77_user_class_data = -1;			/* 77 data of User Class instance */
 static int hf_bootp_option_slp_directory_agent_value = -1;		/* 78 */
 static int hf_bootp_option_slp_directory_agent_slpda_address = -1;	/* 78 */
 static int hf_bootp_option_slp_service_scope_value = -1;		/* 79 */
@@ -373,6 +389,10 @@ static int hf_bootp_option_civic_location_ca_value = -1;		/* 99 */
 static int hf_bootp_option_netinfo_parent_server_address = -1;		/* 112 */
 static int hf_bootp_option_netinfo_parent_server_tag = -1;		/* 113 */
 static int hf_bootp_option_dhcp_auto_configuration = -1;		/* 116 */
+static int hf_bootp_option_dhcp_name_service_search_option = -1;		/* 117 */
+static int hf_bootp_option_dhcp_dns_domain_search_list_rfc_3396_detected = -1;	/* 119 */
+static int hf_bootp_option_dhcp_dns_domain_search_list_refer_last_option = -1;	/* 119 */
+static int hf_bootp_option_dhcp_dns_domain_search_list_fqdn = -1;		/* 119 */
 static int hf_bootp_option_sip_server_enc = -1;					/* 120 */
 static int hf_bootp_option_sip_server_name = -1;				/* 120 */
 static int hf_bootp_option_sip_server_address = -1;				/* 120 */
@@ -424,10 +444,18 @@ static gint ett_bootp_flags = -1;
 static gint ett_bootp_option = -1;
 static gint ett_bootp_option43_suboption = -1;
 static gint ett_bootp_option63_suboption = -1;
+static gint ett_bootp_option77_instance = -1;
 static gint ett_bootp_option82_suboption = -1;
 static gint ett_bootp_option82_suboption9 = -1;
 static gint ett_bootp_option125_suboption = -1;
 static gint ett_bootp_fqdn = -1;
+
+/* RFC2937 The Name Service Search Option for DHCP */
+#define RFC2937_LOCAL_NAMING_INFORMATION                           0
+#define RFC2937_DOMAIN_NAME_SERVER_OPTION                          6
+#define RFC2937_NETWORK_INFORMATION_SERVERS_OPTION                41
+#define RFC2937_NETBIOS_OVER_TCP_IP_NAME_SERVER_OPTION            44
+#define RFC2937_NETWORK_INFORMATION_SERVICE_PLUS_SERVERS_OPTION   65
 
 /* RFC3825decoder error codes of the conversion function */
 #define RFC3825_NOERROR				  0
@@ -502,6 +530,13 @@ struct rfc3825_location_decimal_t {
 				    2: NAD83/NAVD88
 				    3: NAD83/MLLW */
 };
+
+/* The RFC 3397 allows to cut long option (RFC 3396). */
+struct rfc3397_rfc3396_dns_domain_search_list_t {
+	unsigned int nb_option_119;
+	unsigned int index_current_option_119;
+	tvbuff_t* buff;
+} dns_domain_search_list;
 
 /* converts fixpoint presentation into decimal presentation
    also converts values which are out of range to allow decoding of received data */
@@ -917,7 +952,7 @@ static struct opt_info default_bootp_opt[BOOTP_OPT_NUM] = {
 /*  74 */ { "Default IRC Server",			ipv4_list, &hf_bootp_option_default_irc_server },
 /*  75 */ { "StreetTalk Server",			ipv4_list, &hf_bootp_option_streettalk_server },
 /*  76 */ { "StreetTalk Directory Assistance Server",	ipv4_list, &hf_bootp_option_streettalk_da_server },
-/*  77 */ { "User Class Information",			opaque, NULL },
+/*  77 */ { "User Class Information",			special, NULL },
 /*  78 */ { "Directory Agent Information",		special, NULL },
 /*  79 */ { "Service Location Agent Scope",		special, NULL },
 /*  80 */ { "Rapid commit",				opaque, NULL },
@@ -957,9 +992,9 @@ static struct opt_info default_bootp_opt[BOOTP_OPT_NUM] = {
 /* 114 */ { "URL [TODO:RFC3679]",			opaque, NULL },
 /* 115 */ { "Removed/Unassigned",			opaque, NULL },
 /* 116 */ { "DHCP Auto-Configuration",			val_u_byte, &hf_bootp_option_dhcp_auto_configuration },
-/* 117 */ { "Name Service Search [TODO:RFC2937]",	opaque, NULL },
+/* 117 */ { "Name Service Search",			special, NULL },
 /* 118 */ { "Subnet Selection Option",			ipv4_list, &hf_bootp_option_subnet_selection_option },
-/* 119 */ { "Domain Search [TODO:RFC3397]",		opaque, NULL },
+/* 119 */ { "Domain Search",				special, NULL },
 /* 120 */ { "SIP Servers",		special, NULL },
 /* 121 */ { "Classless Static Route",			special, NULL},
 /* 122 */ { "CableLabs Client Configuration [TODO:RFC3495]",	opaque, NULL },
@@ -1494,6 +1529,9 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				*vendor_class_id_p =
 				    tvb_get_ptr(tvb, voff+2, consumed-2);
 				break;
+			case 119:
+				dns_domain_search_list.nb_option_119++;
+				break;
 			}
 		}
 
@@ -1614,6 +1652,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				o52voff = FILE_NAME_OFFSET;
 				o52eoff = FILE_NAME_OFFSET + FILE_NAME_LEN;
 				o52at_end = FALSE;
+				dns_domain_search_list.index_current_option_119 = 0;
 				while (o52voff < o52eoff && !o52at_end) {
 					o52voff += bootp_option(tvb, pinfo, bp_tree, o52voff,
 						o52eoff, FALSE, &o52at_end,
@@ -1634,6 +1673,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				o52voff = SERVER_NAME_OFFSET;
 				o52eoff = SERVER_NAME_OFFSET + SERVER_NAME_LEN;
 				o52at_end = FALSE;
+				dns_domain_search_list.index_current_option_119 = 0;
 				while (o52voff < o52eoff && !o52at_end) {
 					o52voff += bootp_option(tvb, pinfo, bp_tree, o52voff,
 						o52eoff, FALSE, &o52at_end,
@@ -1683,7 +1723,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			(tvb_memeql(tvb, optoff, (const guint8*)PACKETCABLE_CM_CAP20,
 				(int)strlen(PACKETCABLE_CM_CAP20)) == 0 ))
 		{
-			dissect_docsis_cm_cap(v_tree, tvb, optoff, optlen, ENC_BIG_ENDIAN);
+			dissect_docsis_cm_cap(v_tree, tvb, optoff, optlen, FALSE);
 		} else
 			if (tvb_memeql(tvb, optoff, (const guint8*)PACKETCABLE_CM_CAP30,
 				(int)strlen(PACKETCABLE_CM_CAP30)) == 0 )
@@ -1709,14 +1749,14 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		   (e.g. a fully qualified domain name). */
 
 		if (optlen == 7 && byte > 0 && byte < 48) {
-			proto_tree_add_text(v_tree, tvb, optoff, 1,
-				"Hardware type: %s",
-				arphrdtype_to_str(byte,
-					"Unknown (0x%02x)"));
+			proto_tree_add_item(v_tree,
+					hf_bootp_hw_type, tvb, optoff, 1,
+					ENC_NA);
+
 			if (byte == ARPHRD_ETHER || byte == ARPHRD_IEEE802)
 				proto_tree_add_item(v_tree,
-				    hf_bootp_hw_ether_addr, tvb, optoff+1, 6,
-				    ENC_NA);
+					hf_bootp_hw_ether_addr, tvb, optoff+1, 6,
+					ENC_NA);
 			else
 				proto_tree_add_text(v_tree, tvb, optoff+1, 6,
 					"Client hardware address: %s",
@@ -1753,9 +1793,9 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 					break;
 				}
 				hwtype=tvb_get_ntohs(tvb, optoff + 2);
-				proto_tree_add_text(v_tree, tvb, optoff + 2, 2,
-					"Hardware type: %s (%u)", arphrdtype_to_str(hwtype, "Unknown"),
-					hwtype);
+				proto_tree_add_item(v_tree, hf_bootp_client_identifier_duid_llt_hw_type,
+						tvb, optoff + 2, 2, ENC_BIG_ENDIAN);
+
 				/* XXX seconds since Jan 1 2000 */
 				proto_tree_add_text(v_tree, tvb, optoff + 4, 4,
 					"Time: %u", tvb_get_ntohl(tvb, optoff + 4));
@@ -1787,10 +1827,9 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 					break;
 				}
 				hwtype=tvb_get_ntohs(tvb, optoff + 2);
-				proto_tree_add_text(v_tree, tvb, optoff + 2, 2,
-					"Hardware type: %s (%u)",
-					arphrdtype_to_str(hwtype, "Unknown"),
-					hwtype);
+				proto_tree_add_item(v_tree, hf_bootp_client_identifier_duid_ll_hw_type,
+						tvb, optoff + 2, 2, ENC_BIG_ENDIAN);
+
 				if (optlen > 4) {
 					proto_tree_add_text(v_tree, tvb, optoff + 4,
 						optlen - 9, "Link-layer address: %s",
@@ -1802,7 +1841,29 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			/* otherwise, it's opaque data */
 		}
 		break;
+	case 77: {	/* User Class Information RFC 3004 */
+		guchar user_class_instance_index;
+		proto_item *vti;
+		proto_tree *o77_v_tree;
+		for (user_class_instance_index = 0, i = 0, byte = tvb_get_guint8(tvb, optoff); i < optlen; byte = tvb_get_guint8(tvb, optoff + i), user_class_instance_index++) {
+			/* Create subtree for instance of User Class. */
+			vti = proto_tree_add_uint_format_value(v_tree, hf_bootp_option77_user_class,
+					tvb, optoff + i, byte + 1, user_class_instance_index, "[%d]", user_class_instance_index);
+			o77_v_tree = proto_item_add_subtree(vti, ett_bootp_option77_instance);
 
+			/* Add length for instance of User Class. */
+			proto_tree_add_item(o77_v_tree, hf_bootp_option77_user_class_length,
+					tvb, optoff + i, 1, ENC_BIG_ENDIAN);
+
+			/* Add data for instance of User Class. */
+			proto_tree_add_item(o77_v_tree, hf_bootp_option77_user_class_data,
+					tvb, optoff + i + 1, byte, ENC_BIG_ENDIAN);
+
+			/* Slide to next instance of User Class if any. */
+			i += byte + 1;
+		}
+		break;
+	}
 	case 97:	/* Client Identifier (UUID) */
 		if (optlen > 0)
 			byte = tvb_get_guint8(tvb, optoff);
@@ -1819,14 +1880,13 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		   (e.g. a fully qualified domain name). */
 
 		if (optlen == 7 && byte > 0 && byte < 48) {
-			proto_tree_add_text(v_tree, tvb, optoff, 1,
-				"Hardware type: %s",
-				arphrdtype_to_str(byte,
-					"Unknown (0x%02x)"));
+			proto_tree_add_item(v_tree,
+					hf_bootp_hw_type, tvb, optoff, 1,
+					ENC_NA);
 			if (byte == ARPHRD_ETHER || byte == ARPHRD_IEEE802)
 				proto_tree_add_item(v_tree,
-				    hf_bootp_hw_ether_addr, tvb, optoff+1, 6,
-				    ENC_NA);
+					hf_bootp_hw_ether_addr, tvb, optoff+1, 6,
+					ENC_NA);
 			else
 				proto_tree_add_text(v_tree, tvb, optoff+1, 6,
 					"Client hardware address: %s",
@@ -2073,6 +2133,84 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		}
 		break;
 
+	case 117:   /* The Name Service Search Option for DHCP (RFC 2937) */
+		if (optlen < 2) {
+			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length (%u) isn't >= 2", optlen);
+		} else if (optlen & 1) {
+			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length (%u) isn't even number", optlen);
+		} else {
+			guint16 ns;
+			for (i = 0, ns = tvb_get_ntohs(tvb, optoff); i < optlen; i += 2, ns = tvb_get_ntohs(tvb, optoff + i)) {
+				switch (ns) {
+				case RFC2937_LOCAL_NAMING_INFORMATION:
+					proto_tree_add_string(v_tree, hf_bootp_option_dhcp_name_service_search_option, tvb, optoff + i, 2, "Local naming information (e.g., an /etc/hosts file on a UNIX machine) (0)");
+					break;
+				case RFC2937_DOMAIN_NAME_SERVER_OPTION:
+					proto_tree_add_string(v_tree, hf_bootp_option_dhcp_name_service_search_option, tvb, optoff + i, 2, "Domain Name Server Option (6)");
+					break;
+				case RFC2937_NETWORK_INFORMATION_SERVERS_OPTION:
+					proto_tree_add_string(v_tree, hf_bootp_option_dhcp_name_service_search_option, tvb, optoff + i, 2, "Network Information Servers Option (41)");
+					break;
+				case RFC2937_NETBIOS_OVER_TCP_IP_NAME_SERVER_OPTION:
+					proto_tree_add_string(v_tree, hf_bootp_option_dhcp_name_service_search_option, tvb, optoff + i, 2, "NetBIOS over TCP/IP Name Server Option (44)");
+					break;
+				case RFC2937_NETWORK_INFORMATION_SERVICE_PLUS_SERVERS_OPTION:
+					proto_tree_add_string(v_tree, hf_bootp_option_dhcp_name_service_search_option, tvb, optoff + i, 2, "Network Information Service+ Servers Option (65)");
+					break;
+				default:
+					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Invalid Name Service (%u). RFC 2937 defines only 0, 6, 41, 44, and 65 as possible values.", ns);
+					break;
+				}
+			}
+		}
+		break;
+
+	case 119: { /* Dynamic Host Configuration Protocol (DHCP) Domain Search Option (RFC 3397) */
+	            /* Encoding Long Options in the Dynamic Host Configuration Protocol (DHCPv4) (RFC 3396) */
+	            /* Domain Names - Implementation And Specification (RFC 1035) */
+#define BOOTP_MAX_NO_CHAR 64
+		char tmpChar[BOOTP_MAX_NO_CHAR];
+		dns_domain_search_list.index_current_option_119++;
+		if (dns_domain_search_list.nb_option_119 > 1) {
+			g_snprintf(tmpChar, BOOTP_MAX_NO_CHAR, "%u/%u", dns_domain_search_list.index_current_option_119, dns_domain_search_list.nb_option_119);
+			proto_tree_add_string(v_tree, hf_bootp_option_dhcp_dns_domain_search_list_rfc_3396_detected, tvb, optoff, optlen, tmpChar);
+			if (dns_domain_search_list.index_current_option_119 != dns_domain_search_list.nb_option_119) {
+				g_snprintf(tmpChar, BOOTP_MAX_NO_CHAR, "%u/%u", dns_domain_search_list.nb_option_119, dns_domain_search_list.nb_option_119);
+				proto_tree_add_string(v_tree, hf_bootp_option_dhcp_dns_domain_search_list_refer_last_option, tvb, optoff, optlen, tmpChar);
+			}
+		}
+
+		if (dns_domain_search_list.buff == NULL) {
+			/* We use composite tvb for managing RFC 3396 */
+			dns_domain_search_list.buff = tvb_new_composite();
+		}
+
+		/* Concatenate the block before being interpreted for managing RFC 3396 */
+		tvb_composite_append(dns_domain_search_list.buff, tvb_new_subset(tvb, optoff, optlen, optlen));
+
+		if (dns_domain_search_list.index_current_option_119 == dns_domain_search_list.nb_option_119) {
+			/* Here, we are into the last (or unique) option 119. */
+			/* We will display the information about fqdn */
+			unsigned int consumed = 0;
+			unsigned int offset = 0;
+			tvb_composite_finalize(dns_domain_search_list.buff);
+
+			while (offset < tvb_length(dns_domain_search_list.buff)) {
+				/* use the get_dns_name method that manages all techniques of RFC 1035 (compression pointer and so on) */
+				consumed = get_dns_name(dns_domain_search_list.buff, offset, tvb_length(dns_domain_search_list.buff), 0, &dns_name);
+				if (dns_domain_search_list.nb_option_119 == 1) {
+					/* RFC 3396 is not used, so we can easily link the fqdn with v_tree. */
+					proto_tree_add_string(v_tree, hf_bootp_option_dhcp_dns_domain_search_list_fqdn, tvb, optoff + offset, consumed, dns_name);
+				} else {
+					/* RFC 3396 is used, so the option is split into several option 119. We don't link fqdn with v_tree. */
+					proto_tree_add_string(v_tree, hf_bootp_option_dhcp_dns_domain_search_list_fqdn, tvb, 0, 0, dns_name);
+				}
+				offset += consumed;
+			}
+			dns_domain_search_list.buff = NULL;
+		}
+		break;
+	}
 	case 120:   /* SIP Servers (RFC 3361) */
 		{
 			guint8 enc;
@@ -4743,6 +4881,8 @@ dissect_bootp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	guint16	      flags, secs;
 	int	      offset_delta;
 	guint8	      overload        = 0; /* DHCP option overload */
+	dns_domain_search_list.nb_option_119 = 0;
+	dns_domain_search_list.buff = NULL;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "BOOTP");
 	/*
@@ -4794,6 +4934,7 @@ dissect_bootp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 */
 	tmpvoff = voff;
 	at_end = FALSE;
+	dns_domain_search_list.index_current_option_119 = 0;
 	while (tmpvoff < eoff && !at_end) {
 		offset_delta = bootp_option(tvb, pinfo, 0, tmpvoff, eoff, TRUE, &at_end,
 		    &dhcp_type, &vendor_class_id, &overload);
@@ -4829,12 +4970,8 @@ dissect_bootp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree_add_uint(bp_tree, hf_bootp_type, tvb,
 				   0, 1,
 				   op);
-	proto_tree_add_uint_format_value(bp_tree, hf_bootp_hw_type, tvb,
-					 1, 1,
-					 htype,
-					 "%s",
-					 arphrdtype_to_str(htype,
-						     "Unknown (0x%02x)"));
+	proto_tree_add_item(bp_tree, hf_bootp_hw_type, tvb,
+					 1, 1, ENC_BIG_ENDIAN);
 	proto_tree_add_uint(bp_tree, hf_bootp_hw_len, tvb,
 			    2, 1, hlen);
 	proto_tree_add_item(bp_tree, hf_bootp_hops, tvb,
@@ -4946,6 +5083,7 @@ dissect_bootp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 
 	at_end = FALSE;
+	dns_domain_search_list.index_current_option_119 = 0;
 	while (voff < eoff && !at_end) {
 		offset_delta = bootp_option(tvb, pinfo, bp_tree, voff, eoff, FALSE, &at_end,
 		    &dhcp_type, &vendor_class_id, &overload);
@@ -5019,7 +5157,7 @@ proto_register_bootp(void)
 
 		{ &hf_bootp_hw_type,
 		  { "Hardware type", "bootp.hw.type",
-		    FT_UINT8, BASE_HEX, NULL, 0x0,
+		    FT_UINT8, BASE_HEX, VALS(arp_hrd_vals), 0x0,
 		    NULL, HFILL }},
 
 		{ &hf_bootp_hw_len,
@@ -5171,6 +5309,16 @@ proto_register_bootp(void)
 		  { "Client Identifier (UUID)", "bootp.client_id_uuid",
 		    FT_GUID, BASE_NONE, NULL, 0x0,
 		    "Client Machine Identifier (UUID)", HFILL }},
+
+		{ &hf_bootp_client_identifier_duid_llt_hw_type,
+		  { "Hardware type", "bootp.client_id_duid_llt_hw_type",
+		    FT_UINT16, BASE_DEC, VALS(arp_hrd_vals), 0x0,
+		    "Client Identifier DUID LLT Hardware type", HFILL }},
+
+		{ &hf_bootp_client_identifier_duid_ll_hw_type,
+		  { "Hardware type", "bootp.client_id_duid_ll_hw_type",
+		    FT_UINT16, BASE_DEC, VALS(arp_hrd_vals), 0x0,
+		    "Client Identifier DUID LL Hardware type", HFILL }},
 
 		{ &hf_bootp_option_type,
 		  { "Option", "bootp.option.type",
@@ -5948,6 +6096,21 @@ proto_register_bootp(void)
 		    FT_IPv4, BASE_NONE, NULL, 0x00,
 		    "Option 76: StreetTalk Directory Assistance Server", HFILL }},
 
+		{ &hf_bootp_option77_user_class,
+		  { "Instance of User Class", "bootp.option.user_class",
+		    FT_UINT8, BASE_DEC, NULL, 0x0,
+		    NULL, HFILL }},
+
+		{ &hf_bootp_option77_user_class_length,
+		  { "User Class Length", "bootp.option.user_class.length",
+		    FT_UINT8, BASE_DEC, NULL, 0x0,
+		    "Length of User Class Instance", HFILL }},
+
+		{ &hf_bootp_option77_user_class_data,
+		  { "User Class Data", "bootp.option.user_class.data",
+		    FT_BYTES, BASE_NONE, NULL, 0x0,
+		    "Data of User Class Instance", HFILL }},
+
 		{ &hf_bootp_option_slp_directory_agent_value,
 		  { "Value", "bootp.option.slp_directory_agent.value",
 		    FT_UINT8, BASE_DEC, VALS(slpda_vals), 0x0,
@@ -6250,6 +6413,26 @@ proto_register_bootp(void)
 		    FT_UINT8, BASE_DEC, VALS(dhcp_autoconfig), 0x0,
 		    "Option 116: DHCP Auto-Configuration", HFILL }},
 
+		{ &hf_bootp_option_dhcp_name_service_search_option,
+		  { "Name Service", "bootp.option.dhcp_name_service_search_option",
+		    FT_STRINGZ, BASE_NONE, NULL, 0x0,
+		    "Option 117: Name Service", HFILL }},
+
+		{ &hf_bootp_option_dhcp_dns_domain_search_list_rfc_3396_detected,
+		  { "Encoding Long Options detected (RFC 3396)", "bootp.option.dhcp_dns_domain_search_list_rfc_3396_detected",
+		    FT_STRINGZ, BASE_NONE, NULL, 0x0,
+		    "Option 119: Encoding Long Options detected (RFC 3396)", HFILL }},
+
+		{ &hf_bootp_option_dhcp_dns_domain_search_list_refer_last_option,
+		  { "For the data, please refer to last option 119", "bootp.option.dhcp_dns_domain_search_list_refer_last_option",
+		    FT_STRINGZ, BASE_NONE, NULL, 0x0,
+		    "Option 119: For the data, please refer to last option 119", HFILL }},
+
+		{ &hf_bootp_option_dhcp_dns_domain_search_list_fqdn,
+		  { "FQDN", "bootp.option.dhcp_dns_domain_search_list_fqdn",
+		    FT_STRINGZ, BASE_NONE, NULL, 0x0,
+		    "Option 119: FQDN", HFILL }},
+
 		{ &hf_bootp_option_sip_server_enc,
 		  { "SIP Server Encoding", "bootp.option.sip_server.encoding",
 		    FT_UINT8, BASE_DEC, VALS(sip_server_enc_vals), 0x0,
@@ -6465,6 +6648,7 @@ proto_register_bootp(void)
 		&ett_bootp_option,
 		&ett_bootp_option43_suboption,
 		&ett_bootp_option63_suboption,
+		&ett_bootp_option77_instance,
 		&ett_bootp_option82_suboption,
 		&ett_bootp_option82_suboption9,
 		&ett_bootp_option125_suboption,
@@ -6497,7 +6681,7 @@ proto_register_bootp(void)
 				       "The PacketCable CCC protocol version",
 				       &pkt_ccc_protocol_version,
 				       pkt_ccc_protocol_versions,
-				       ENC_BIG_ENDIAN);
+				       FALSE);
 
 	prefs_register_uint_preference(bootp_module, "pkt.ccc.option",
 				       "PacketCable CCC option",

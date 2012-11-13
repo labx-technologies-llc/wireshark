@@ -39,6 +39,12 @@
     <item row="0" column="0">
      <widget class="QFrame" name="goToFrame">
       <layout class="QHBoxLayout" name="goToHB">
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
        <item>
         <spacer name="horizontalSpacer">
          <property name="orientation">
@@ -111,6 +117,25 @@
      <addaction name="actionFileSetNextFile"/>
      <addaction name="actionFileSetPreviousFile"/>
     </widget>
+    <widget class="QMenu" name="menuFileExportPacketDissections">
+     <property name="title">
+      <string>Export Packet Dissections</string>
+     </property>
+     <addaction name="actionFileExportAsPlainText"/>
+     <addaction name="actionFileExportAsCSV"/>
+     <addaction name="actionFileExportAsCArrays"/>
+     <addaction name="separator"/>
+     <addaction name="actionFileExportAsPSML"/>
+     <addaction name="actionFileExportAsPDML"/>
+    </widget>
+    <widget class="QMenu" name="menuFileExportObjects">
+     <property name="title">
+      <string>Export Objects</string>
+     </property>
+     <addaction name="actionFileExportObjectsDICOM"/>
+     <addaction name="actionFileExportObjectsHTTP"/>
+     <addaction name="actionFileExportObjectsSMB"/>
+    </widget>
     <addaction name="actionFileOpen"/>
     <addaction name="menuOpenRecentCaptureFile"/>
     <addaction name="actionFileMerge"/>
@@ -123,10 +148,10 @@
     <addaction name="menuFileSet"/>
     <addaction name="separator"/>
     <addaction name="actionFileExportPackets"/>
-    <addaction name="actionFileExportPacketDissections"/>
+    <addaction name="menuFileExportPacketDissections"/>
     <addaction name="actionFileExportPacketBytes"/>
     <addaction name="actionFileExportSSLSessionKeys"/>
-    <addaction name="actionFileExportObjects"/>
+    <addaction name="menuFileExportObjects"/>
     <addaction name="separator"/>
     <addaction name="actionFilePrint"/>
     <addaction name="separator"/>
@@ -581,15 +606,10 @@
   </action>
   <action name="actionFileExportPackets">
    <property name="text">
-    <string>Export Packets...</string>
+    <string>Export Specified Packets...</string>
    </property>
    <property name="toolTip">
     <string>Export specified packets</string>
-   </property>
-  </action>
-  <action name="actionFileExportPacketDissections">
-   <property name="text">
-    <string>Export Packet Dissections...</string>
    </property>
   </action>
   <action name="actionFileExportPacketBytes">
@@ -603,11 +623,6 @@
   <action name="actionFileExportSSLSessionKeys">
    <property name="text">
     <string>Export SSL Session Keys...</string>
-   </property>
-  </action>
-  <action name="actionFileExportObjects">
-   <property name="text">
-    <string>Export Objects...</string>
    </property>
   </action>
   <action name="actionFilePrint">
@@ -680,6 +695,46 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+R</string>
+   </property>
+  </action>
+  <action name="actionFileExportAsPlainText">
+   <property name="text">
+    <string>As Plain &amp;Text...</string>
+   </property>
+  </action>
+  <action name="actionFileExportAsCSV">
+   <property name="text">
+    <string>As CSV...</string>
+   </property>
+  </action>
+  <action name="actionFileExportAsCArrays">
+   <property name="text">
+    <string>As &quot;C&quot; Arrays...</string>
+   </property>
+  </action>
+  <action name="actionFileExportAsPSML">
+   <property name="text">
+    <string>As PSML XML...</string>
+   </property>
+  </action>
+  <action name="actionFileExportAsPDML">
+   <property name="text">
+    <string>As PDML XML...</string>
+   </property>
+  </action>
+  <action name="actionFileExportObjectsHTTP">
+   <property name="text">
+    <string>&amp;HTTP...</string>
+   </property>
+  </action>
+  <action name="actionFileExportObjectsDICOM">
+   <property name="text">
+    <string>&amp;DICOM...</string>
+   </property>
+  </action>
+  <action name="actionFileExportObjectsSMB">
+   <property name="text">
+    <string>&amp;SMB...</string>
    </property>
   </action>
  </widget>

@@ -99,6 +99,8 @@ static int hf_ah_sequence = -1;
 static int proto_esp = -1;
 static int hf_esp_spi = -1;
 static int hf_esp_iv = -1;
+static int hf_esp_icv_good = -1;
+static int hf_esp_icv_bad = -1;
 static int hf_esp_sequence = -1;
 static int hf_esp_pad_len = -1;
 static int hf_esp_protocol = -1;
@@ -108,6 +110,7 @@ static int hf_ipcomp_cpi = -1;
 
 static gint ett_ah = -1;
 static gint ett_esp = -1;
+static gint ett_esp_icv = -1;
 static gint ett_ipcomp = -1;
 
 static dissector_handle_t data_handle;
@@ -132,13 +135,15 @@ static dissector_table_t ip_dissector_table;
 #define IPSEC_AUTH_HMAC_SHA1_96 1
 #define IPSEC_AUTH_HMAC_SHA256_96 2
 #define IPSEC_AUTH_HMAC_SHA256_128 3
-#define IPSEC_AUTH_HMAC_MD5_96 4
-#define IPSEC_AUTH_HMAC_RIPEMD160_96 5
+#define IPSEC_AUTH_HMAC_SHA384_192 4
+#define IPSEC_AUTH_HMAC_SHA512_256 5
+#define IPSEC_AUTH_HMAC_MD5_96 6
+#define IPSEC_AUTH_HMAC_RIPEMD160_96 7
 /* define IPSEC_AUTH_AES_XCBC_MAC_96 6 */
-#define IPSEC_AUTH_ANY_96BIT 7
-#define IPSEC_AUTH_ANY_128BIT 8
-#define IPSEC_AUTH_ANY_192BIT 9
-#define IPSEC_AUTH_ANY_256BIT 10
+#define IPSEC_AUTH_ANY_96BIT 8
+#define IPSEC_AUTH_ANY_128BIT 9
+#define IPSEC_AUTH_ANY_192BIT 10
+#define IPSEC_AUTH_ANY_256BIT 11
 
 #define IPSEC_IPV6_ADDR_LEN 128
 #define IPSEC_IPV4_ADDR_LEN 32
@@ -592,8 +597,10 @@ filter_address_match(gchar *addr, gchar *filter, gint typ)
   guint addr_len = (guint)strlen(addr);
   guint filter_len = (guint)strlen(filter);
 
-  if(addr_len != filter_len)
-     return FALSE;
+   if((filter_len == 1) && (filter[0] == IPSEC_SA_WILDCARDS_ANY))
+      return TRUE;
+   else if(addr_len != filter_len)
+	  return FALSE;
 
   /* No length specified */
    if( ((typ == IPSEC_SA_IPV6) && (filter_len > IPSEC_IPV6_ADDR_LEN))
@@ -948,10 +955,15 @@ static void
 dissect_esp_authentication(proto_tree *tree, tvbuff_t *tvb, gint len, gint esp_auth_len, guint8 *authenticator_data_computed,
                            gboolean authentication_ok, gboolean authentication_checking_ok)
 {
+    proto_item *item;
+    proto_tree *icv_tree;
+    gboolean good = FALSE, bad = FALSE;
+
     if(esp_auth_len == 0)
     {
-        proto_tree_add_text(tree, tvb, len, 0,
+        item = proto_tree_add_text(tree, tvb, len, 0,
             "NULL Authentication");
+        good = TRUE;
     }
 
     /* Make sure we have the auth trailer data */
@@ -959,27 +971,40 @@ dissect_esp_authentication(proto_tree *tree, tvbuff_t *tvb, gint len, gint esp_a
     {
         if((authentication_ok) && (authentication_checking_ok))
         {
-            proto_tree_add_text(tree, tvb, len - esp_auth_len, esp_auth_len,
+            item = proto_tree_add_text(tree, tvb, len - esp_auth_len, esp_auth_len,
                 "Authentication Data [correct]");
+            good = TRUE;
         }
 
         else if((authentication_ok) && (!authentication_checking_ok))
         {
-            proto_tree_add_text(tree, tvb, len - esp_auth_len, esp_auth_len,
+            item = proto_tree_add_text(tree, tvb, len - esp_auth_len, esp_auth_len,
                 "Authentication Data [incorrect, should be 0x%s]", authenticator_data_computed);
+            bad = TRUE;
 
             g_free(authenticator_data_computed);
         }
 
-        else proto_tree_add_text(tree, tvb, len - esp_auth_len, esp_auth_len,
+        else item = proto_tree_add_text(tree, tvb, len - esp_auth_len, esp_auth_len,
             "Authentication Data");
     }
     else
     {
         /* Truncated so just display what we have */
-        proto_tree_add_text(tree, tvb, len - esp_auth_len, esp_auth_len - (len - tvb_length(tvb)),
+        item = proto_tree_add_text(tree, tvb, len - esp_auth_len, esp_auth_len - (len - tvb_length(tvb)),
             "Authentication Data (truncated)");
+        bad = TRUE;
     }
+
+    icv_tree = proto_item_add_subtree(item, ett_esp_icv);
+
+    item = proto_tree_add_boolean(icv_tree, hf_esp_icv_good,
+        tvb, len - esp_auth_len, esp_auth_len, good);
+    PROTO_ITEM_SET_GENERATED(item);
+
+    item = proto_tree_add_boolean(icv_tree, hf_esp_icv_bad,
+        tvb, len - esp_auth_len, esp_auth_len, bad);
+    PROTO_ITEM_SET_GENERATED(item);
 }
 #endif
 
@@ -1143,10 +1168,12 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     esp_auth_len = 16;
                     break;
 
+				case IPSEC_AUTH_HMAC_SHA512_256:
                 case IPSEC_AUTH_ANY_256BIT:
                     esp_auth_len = 32;
                     break;
 
+				case IPSEC_AUTH_HMAC_SHA384_192:
                 case IPSEC_AUTH_ANY_192BIT:
                     esp_auth_len = 24;
                     break;
@@ -1200,6 +1227,16 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     case IPSEC_AUTH_HMAC_SHA256_96:
                     case IPSEC_AUTH_HMAC_SHA256_128:
                         auth_algo_libgcrypt = GCRY_MD_SHA256;
+                        authentication_check_using_hmac_libgcrypt = TRUE;
+                        break;
+
+					case IPSEC_AUTH_HMAC_SHA384_192:
+                        auth_algo_libgcrypt = GCRY_MD_SHA384;
+                        authentication_check_using_hmac_libgcrypt = TRUE;
+                        break;
+
+					case IPSEC_AUTH_HMAC_SHA512_256:
+                        auth_algo_libgcrypt = GCRY_MD_SHA512;
                         authentication_check_using_hmac_libgcrypt = TRUE;
                         break;
 
@@ -1833,7 +1870,6 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     */
     if(!g_esp_enable_encryption_decode && g_esp_enable_authentication_check && sad_is_present)
     {
-        sad_is_present = FALSE;
         call_dissector(data_handle,
             tvb_new_subset(tvb, sizeof(struct newesp), len - sizeof(struct newesp) - esp_auth_len, -1),
             pinfo, esp_tree);
@@ -2001,7 +2037,14 @@ proto_register_ipsec(void)
         "IP Encapsulating Security Payload Next Header", HFILL }},
     { &hf_esp_iv,
       { "ESP IV", "esp.iv", FT_BYTES, BASE_NONE, NULL, 0x0,
-        "IP Encapsulating Security Payload", HFILL }}
+        "IP Encapsulating Security Payload", HFILL }},
+
+    { &hf_esp_icv_good,
+      { "Good", "esp.icv_good", FT_BOOLEAN, BASE_NONE,  NULL, 0x0,
+        "True: ICV matches packet content; False: doesn't match content or not checked", HFILL }},
+    { &hf_esp_icv_bad,
+      { "Bad", "esp.icv_bad", FT_BOOLEAN, BASE_NONE,  NULL, 0x0,
+        "True: ICV doesn't match packet content; False: matches content or not checked", HFILL }},
   };
 
   static hf_register_info hf_ipcomp[] = {
@@ -2016,6 +2059,7 @@ proto_register_ipsec(void)
   static gint *ett[] = {
     &ett_ah,
     &ett_esp,
+    &ett_esp_icv,
     &ett_ipcomp,
   };
 
@@ -2044,6 +2088,8 @@ proto_register_ipsec(void)
     { IPSEC_AUTH_HMAC_SHA1_96, "HMAC-SHA-1-96 [RFC2404]" },
     { IPSEC_AUTH_HMAC_SHA256_96, "HMAC-SHA-256-96 [draft-ietf-ipsec-ciph-sha-256-00]" },
     { IPSEC_AUTH_HMAC_SHA256_128, "HMAC-SHA-256-128 [RFC4868]" },
+    { IPSEC_AUTH_HMAC_SHA384_192, "HMAC-SHA-384-192 [RFC4868]" },
+    { IPSEC_AUTH_HMAC_SHA512_256, "HMAC-SHA-512-256 [RFC4868]" },
     { IPSEC_AUTH_HMAC_MD5_96, "HMAC-MD5-96 [RFC2403]" },
     { IPSEC_AUTH_HMAC_RIPEMD160_96, "MAC-RIPEMD-160-96 [RFC2857]" },
 /*    { IPSEC_AUTH_AES_XCBC_MAC_96, "AES-XCBC-MAC-96 [RFC3566]" }, */
