@@ -331,7 +331,7 @@ static gboolean
 parse_http_header(char *data, size_t len, size_t *content_start) {
   char *tmp, *copy, *line;
   size_t pos = 0;
-  int next_line;
+  int next_line = 0;
   gboolean is_gzipped;
 
   /* XXX handle case where only partial header is passed in here.
@@ -429,7 +429,7 @@ frs_return_t
 	size_t              nchars;
 	frs_return_t        frs_return;
 	z_stream            strm;
-	gboolean            gunzip;
+	gboolean            gunzip = FALSE;
 	int                 ret;
 
 

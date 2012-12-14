@@ -165,7 +165,7 @@ static void dissect_3gcsd_plmnbc(proto_tree* tree, tvbuff_t* tvb, packet_info* p
 	asn1_ctx_t asn1_ctx;
 
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
-	dissect_ber_octet_string(implicit ? *((gboolean*)implicit) : FALSE, &asn1_ctx, tree, tvb, 0, hfid, NULL);
+	dissect_ber_octet_string(implicit, &asn1_ctx, tree, tvb, 0, hfid, NULL);
 	de_bearer_cap(tvb, tree, pinfo, 4, tvb_length(tvb)-4, NULL, 0);
 }
 
