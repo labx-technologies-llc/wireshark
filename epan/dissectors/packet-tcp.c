@@ -2603,7 +2603,7 @@ dissect_tcpopt_mptcp(const ip_tcp_opt *optp _U_, tvbuff_t *tvb,
 
     proto_tree *mptcp_flags_tree;
     guint8 subtype;
-    guint8 index;
+    guint8 indx;
     guint8 flags;
     guint8 ipver;
 
@@ -2710,7 +2710,7 @@ dissect_tcpopt_mptcp(const ip_tcp_opt *optp _U_, tvbuff_t *tvb,
 
                 case 24:
                     offset += 2;
-                    for (index = 0; index < 5; index++) {
+                    for (indx = 0; indx < 5; indx++) {
                         proto_tree_add_item(mptcp_tree,
                                 hf_tcp_option_mptcp_sender_mac, tvb, offset,
                                 4, ENC_BIG_ENDIAN);
@@ -5604,7 +5604,7 @@ proto_register_tcp(void)
         &ett_tcp_process_info
     };
 
-    static enum_val_t window_scaling_vals[] = {
+    static const enum_val_t window_scaling_vals[] = {
         {"not-known",  "Not known",                  WindowScaling_NotKnown},
         {"0",          "0 (no scaling)",             WindowScaling_0},
         {"1",          "1 (multiply by 2)",          WindowScaling_1},

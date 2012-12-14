@@ -819,12 +819,12 @@ get_interface_list(int *err, char **err_str)
 				j = 0;
 				while (names[i] != 0) {
 					if (j < MAX_WIN_IF_NAME_LEN)
-					ascii_name[j++] = (char) names[i++];
+						ascii_name[j++] = (char) names[i++];
 				}
 				ascii_name[j] = '\0';
 				i++;
 				il = g_list_append(il,
-				    if_info_new(ascii_name, ascii_desc));
+				    if_info_new(ascii_name, ascii_desc, FALSE));
 			}
 		} else {
 			/*
@@ -844,7 +844,7 @@ get_interface_list(int *err, char **err_str)
 				 * that interface's description.
 				 */
 				il = g_list_append(il,
-				    if_info_new(&win95names[i], desc));
+				    if_info_new(&win95names[i], desc, FALSE));
 
 				/*
 				 * Skip to the next description.

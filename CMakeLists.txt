@@ -518,10 +518,14 @@ if(UNIX)
 endif()
 
 if(APPLE)
-#TODO verify that APPLE implies HAVE_OS_X_FRAMEWORKS
+	#
+	# We assume that APPLE means OS X so that we have the OS X
+	# frameworks.
+	#
 	set(HAVE_OS_X_FRAMEWORKS 1)
-	FIND_LIBRARY (APPLE_CORE_SERVICES_LIBRARY CoreServices)
-	FIND_LIBRARY (APPLE_COCOA_LIBRARY Cocoa)
+	FIND_LIBRARY (APPLE_APPLICATION_SERVICES_LIBRARY ApplicationServices)
+	FIND_LIBRARY (APPLE_CORE_FOUNDATION_LIBRARY CoreFoundation)
+	FIND_LIBRARY (APPLE_SYSTEM_CONFIGURATION_LIBRARY SystemConfiguration)
 endif()
 
 if(WIN32)
@@ -586,13 +590,13 @@ ADD_CUSTOM_COMMAND(
 
 if(UNIX)
 	set(PLATFORM_SRC
-		capture-pcap-util-unix.c
+		capture-pcap-util-unix.c capture_unix_ifnames.c
 	)
 endif()
 
 if(WIN32)
 	set(PLATFORM_SRC
-		capture-wpcap.c capture_wpcap_packet.c
+		capture-wpcap.c capture_wpcap_packet.c capture_win_ifnames.c
 	)
 endif()
 
@@ -611,6 +615,7 @@ set(WIRESHARK_COMMON_SRC
 	${PLATFORM_SRC}
 	capture-pcap-util.c
 	cfile.c
+	cfutils.c
 	clopts_common.c
 	disabled_protos.c
 	frame_data_sequence.c
@@ -758,8 +763,9 @@ if(BUILD_wireshark AND GTK_FOUND)
 		codecs
 		${PORTAUDIO_LIBRARIES}
 		${LIBEPAN_LIBS}
+		${APPLE_APPLICATION_SERVICES_LIBRARY}
 		${APPLE_CORE_SERVICES_LIBRARY}
-		${APPLE_COCOA_LIBRARY}
+		${APPLE_SYSTEM_CONFIGURATION_LIBRARY}
 		${NL_LIBRARIES}
 	)
 	# qtshark and wireshark share wireshark_FILES
@@ -780,8 +786,9 @@ if(BUILD_qtshark AND QT_FOUND)
 		codecs
 		${PORTAUDIO_LIBRARIES}
 		${LIBEPAN_LIBS}
-		${APPLE_CORE_SERVICES_LIBRARY}
-		${APPLE_COCOA_LIBRARY}
+		${APPLE_APPLICATION_SERVICES_LIBRARY}
+		${APPLE_CORE_FOUNDATION_LIBRARY}
+		${APPLE_SYSTEM_CONFIGURATION_LIBRARY}
 		${NL_LIBRARIES}
 	)
 	# qtshark and wireshark share wireshark_FILES
@@ -800,7 +807,8 @@ register_tap_files(tshark-tap-register.c
 if(BUILD_tshark)
 	set(tshark_LIBS
 		${LIBEPAN_LIBS}
-		${APPLE_COCOA_LIBRARY}
+		${APPLE_CORE_FOUNDATION_LIBRARY}
+		${APPLE_SYSTEM_CONFIGURATION_LIBRARY}
 	)
 	set(tshark_FILES
 		capture_opts.c
@@ -823,7 +831,8 @@ endif()
 if(BUILD_rawshark AND PCAP_FOUND)
 	set(rawshark_LIBS
 		${LIBEPAN_LIBS}
-		${APPLE_COCOA_LIBRARY}
+		${APPLE_CORE_FOUNDATION_LIBRARY}
+		${APPLE_SYSTEM_CONFIGURATION_LIBRARY}
 	)
 	set(rawshark_FILES
 	        ${WIRESHARK_COMMON_SRC}
@@ -934,7 +943,6 @@ if(BUILD_capinfos)
 		wsutil
 		${ZLIB_LIBRARIES}
 		${GCRYPT_LIBRARIES}
-		${APPLE_COCOA_LIBRARY}
 	)
 	set(capinfos_FILES
 		capinfos.c
@@ -976,7 +984,8 @@ if(BUILD_dumpcap AND PCAP_FOUND)
 		${GLIB2_LIBRARIES}
 		${GTHREAD2_LIBRARIES}
 		${ZLIB_LIBRARIES}
-		${APPLE_COCOA_LIBRARY}
+		${APPLE_CORE_FOUNDATION_LIBRARY}
+		${APPLE_SYSTEM_CONFIGURATION_LIBRARY}
 		${NL_LIBRARIES}
 	)
 	set(dumpcap_FILES
@@ -984,6 +993,7 @@ if(BUILD_dumpcap AND PCAP_FOUND)
 		capture_opts.c
 		capture-pcap-util.c
 		capture_stop_conditions.c
+		cfutils.c
 		clopts_common.c
 		conditions.c
 		dumpcap.c

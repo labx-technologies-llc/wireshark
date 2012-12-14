@@ -52,19 +52,84 @@
 #include <netinet/in.h>
 #endif
 
+#ifdef _WIN32
+#include "capture_win_ifnames.h" /* windows friendly interface names */
+#else
+#include "capture_unix_ifnames.h"
+#endif
+
 if_info_t *
-if_info_new(char *name, char *description)
+if_info_new(const char *name, const char *description, gboolean loopback)
 {
 	if_info_t *if_info;
+#ifdef _WIN32
+	const char *guid_text;
+	GUID guid;
+#endif
 
 	if_info = (if_info_t *)g_malloc(sizeof (if_info_t));
 	if_info->name = g_strdup(name);
-	if (description == NULL)
-		if_info->description = NULL;
+#ifdef _WIN32
+	/*
+	 * On Windows, the "description" is a vendor description,
+	 * and the friendly name isn't returned by WinPcap.
+	 * Fetch it ourselves.
+	 */
+
+	/*
+	 * Skip over the "\Device\NPF_" prefix in the device name,
+	 * if present.
+	 */
+	if (strncmp("\\Device\\NPF_", name, 12) == 0)
+		guid_text = name + 12;
 	else
-		if_info->description = g_strdup(description);
+		guid_text = name;
+
+	/* Now try to parse what remains as a GUID. */
+	if (parse_as_guid(guid_text, &guid)) {
+		/*
+		 * Success. Try to get a friendly name using the GUID.
+		 * As this is a regular interface, the description is a
+		 * vendor description.
+		 */
+		if_info->friendly_name = get_interface_friendly_name_from_device_guid(&guid);
+		if_info->vendor_description = g_strdup(description);
+	} else {
+		/*
+		 * This is probably not a regular interface; we only
+		 * support NT 5 (W2K) and later, so all regular interfaces
+		 * should have GUIDs at the end of the name.  Therefore,
+		 * the description, if supplied, is a friendly name
+		 * provided by WinPcap, and there is no vendor
+		 * description.
+		 */
+		if_info->friendly_name = g_strdup(description);
+		if_info->vendor_description = NULL;
+	}
+#else
+	/*
+	 * On UN*X, if there is a description, it's a friendly
+	 * name, and there is no vendor description.
+	 * If there's no description, fetch a friendly name
+	 * if we can; if that fails, then, for a loopback
+	 * interface, give it the friendly name "Loopback".
+	 */
+	if_info->friendly_name = g_strdup(description);
+	if (if_info->friendly_name == NULL) {
+		if_info->friendly_name = get_unix_interface_friendly_name(name);
+		if (if_info->friendly_name == NULL) {
+			/*
+			 * If this is a loopback interface, give it a
+			 * "friendly name" of "Loopback".
+			 */
+			if (loopback)
+				if_info->friendly_name = g_strdup("Loopback");
+		}
+	}
+	if_info->vendor_description = NULL;
+#endif
+	if_info->loopback = loopback;
 	if_info->addrs = NULL;
-	if_info->loopback = FALSE;
 	return if_info;
 }
 
@@ -104,16 +169,12 @@ if_info_add_address(if_info_t *if_info, struct sockaddr *addr)
 
 #ifdef HAVE_PCAP_FINDALLDEVS
 /*
- * Get all IP address information, and the loopback flag, for the given
- * interface.
+ * Get all IP address information for the given interface.
  */
 static void
 if_info_ip(if_info_t *if_info, pcap_if_t *d)
 {
 	pcap_addr_t *a;
-
-	/* Loopback flag */
-	if_info->loopback = (d->flags & PCAP_IF_LOOPBACK) ? TRUE : FALSE;
 
 	/* All addresses */
 	for (a = d->addresses; a != NULL; a = a->next) {
@@ -151,7 +212,8 @@ get_interface_list_findalldevs_ex(const char *source,
 	}
 
 	for (dev = alldevs; dev != NULL; dev = dev->next) {
-		if_info = if_info_new(dev->name, dev->description);
+		if_info = if_info_new(dev->name, dev->description,
+		    (dev->flags & PCAP_IF_LOOPBACK) ? TRUE : FALSE);
 		il = g_list_append(il, if_info);
 		if_info_ip(if_info, dev);
 	}
@@ -187,7 +249,8 @@ get_interface_list_findalldevs(int *err, char **err_str)
 	}
 
 	for (dev = alldevs; dev != NULL; dev = dev->next) {
-		if_info = if_info_new(dev->name, dev->description);
+		if_info = if_info_new(dev->name, dev->description,
+		    (dev->flags & PCAP_IF_LOOPBACK) ? TRUE : FALSE);
 		il = g_list_append(il, if_info);
 		if_info_ip(if_info, dev);
 	}
@@ -209,7 +272,8 @@ free_if_cb(gpointer data, gpointer user_data _U_)
 	if_info_t *if_info = (if_info_t *)data;
 
 	g_free(if_info->name);
-	g_free(if_info->description);
+	g_free(if_info->friendly_name);
+	g_free(if_info->vendor_description);
 
 	g_slist_foreach(if_info->addrs, free_if_info_addr_cb, NULL);
 	g_slist_free(if_info->addrs);

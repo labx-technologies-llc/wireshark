@@ -14,7 +14,7 @@
 # Service Name and Transport Protocol Port Number Registry
 # 
 # Last Updated
-# 2012-11-09
+# 2012-12-07
 # 
 # Experts
 # 
@@ -8266,12 +8266,10 @@ m2pa	3565/tcp	# M2PA                                                            
 m2pa	3565/sctp	# M2PA                                                                                                                                                                [RFC4165]
 quest-data-hub	3566/tcp	# Quest Data Hub               [Greg_Cottman_2]                                   [Greg_Cottman_2]                                          2010-10-18
 # 3566        udp    Reserved                                                                                                                                               2010-10-18
-oap	3567/tcp	# Object Access Protocol       [Bryant_Eastham]                                   [Bryant_Eastham]                                          2002-08
-oap	3567/udp	# Object Access Protocol       [Bryant_Eastham]                                   [Bryant_Eastham]                                          2002-08
-oap-s	3568/tcp	# Object Access Protocol over  [Bryant_Eastham]                                   [Bryant_Eastham]                                          2003-01
-# SSL
-oap-s	3568/udp	# Object Access Protocol over  [Bryant_Eastham]                                   [Bryant_Eastham]                                          2003-01
-# SSL
+enc-eps	3567/tcp	# EMIT protocol stack          [Panasonic_Intranet_Panasonic_North_America_PEWLA] [Bryant_Eastham]                                          2002-08      2012-11-12
+enc-eps	3567/udp	# EMIT protocol stack          [Panasonic_Intranet_Panasonic_North_America_PEWLA] [Bryant_Eastham]                                          2002-08      2012-11-12
+enc-tunnel-sec	3568/tcp	# EMIT secure tunnel           [Panasonic_Intranet_Panasonic_North_America_PEWLA] [Bryant_Eastham]                                          2003-01      2012-11-12
+enc-tunnel-sec	3568/udp	# EMIT secure tunnel           [Panasonic_Intranet_Panasonic_North_America_PEWLA] [Bryant_Eastham]                                          2003-01      2012-11-12
 mbg-ctrl	3569/tcp	# Meinberg Control Service     [Martin_Burnicki]                                  [Martin_Burnicki]                                         2002-08
 mbg-ctrl	3569/udp	# Meinberg Control Service     [Martin_Burnicki]                                  [Martin_Burnicki]                                         2002-08
 mccwebsvr-port	3570/tcp	# MCC Web Server Port
@@ -11208,10 +11206,11 @@ stun-behaviors	5349/tcp	# STUN Behavior Discovery over                          
 # TLS
 stun-behaviors	5349/udp	# Reserved for a future                                                                                                                                               [RFC5780]
 # enhancement of STUN-BEHAVIOR
-nat-pmp-status	5350/tcp	# NAT-PMP Status Announcements [Stuart_Cheshire]                                  [Stuart_Cheshire]                                         2007-12-03
-nat-pmp-status	5350/udp	# NAT-PMP Status Announcements [Stuart_Cheshire]                                  [Stuart_Cheshire]                                         2007-12-03
-nat-pmp	5351/tcp	# NAT Port Mapping Protocol    [Joshua_Graessley]                                 [Joshua_Graessley]                                        2004-12
-nat-pmp	5351/udp	# NAT Port Mapping Protocol    [Joshua_Graessley]                                 [Joshua_Graessley]                                        2004-12
+# 5350        tcp    Reserved
+pcp-multicast	5350/udp	# Port Control Protocol        [IESG]                                             [IETF_Chair]                                                                        [RFC-ietf-pcp-base-29]
+# Multicast
+# 5351        tcp    Reserved
+pcp	5351/udp	# Port Control Protocol        [IESG]                                             [IETF_Chair]                                                                        [RFC-ietf-pcp-base-29]
 dns-llq	5352/tcp	# DNS Long-Lived Queries       [Kiren_Sekar]                                      [Kiren_Sekar]                                             2005-08
 dns-llq	5352/udp	# DNS Long-Lived Queries       [Kiren_Sekar]                                      [Kiren_Sekar]                                             2005-08
 mdns	5353/tcp	# Multicast DNS                [IESG]                                             [IETF_Chair]                                                                        [RFC-cheshire-dnsext-multicastdns-15]
@@ -11418,10 +11417,10 @@ farenet	5557/tcp	# Sandlab FARENET              [Kay_T_Labinsky]                
 # 5558-5565            Unassigned
 westec-connect	5566/tcp	# Westec Connect               [Jon_Bolen]                                        [Jon_Bolen]                                               2009-03-18
 # 5566        udp    Reserved
-m-oap	5567/tcp	# Multicast Object Access      [Bryant_Eastham]                                   [Bryant_Eastham]                                          2004-11
-# Protocol
-m-oap	5567/udp	# Multicast Object Access      [Bryant_Eastham]                                   [Bryant_Eastham]                                          2004-11
-# Protocol
+enc-eps-mc-sec	5567/tcp	# EMIT protocol stack          [Panasonic_Intranet_Panasonic_North_America_PEWLA] [Bryant_Eastham]                                          2004-11      2012-11-12
+# multicast/secure transport
+enc-eps-mc-sec	5567/udp	# EMIT protocol stack          [Panasonic_Intranet_Panasonic_North_America_PEWLA] [Bryant_Eastham]                                          2004-11      2012-11-12
+# multicast/secure transport
 sdt	5568/tcp	# Session Data Transport       [Daniel_W_Antonuk]                                 [Daniel_W_Antonuk]                                        2006-05
 # Multicast
 sdt	5568/udp	# Session Data Transport       [Daniel_W_Antonuk]                                 [Daniel_W_Antonuk]                                        2006-05
@@ -12325,7 +12324,7 @@ mcer-port	6510/tcp	# MCER Port                    [Portnoy_Boxman]              
 mcer-port	6510/udp	# MCER Port                    [Portnoy_Boxman]                                   [Portnoy_Boxman]
 # 6511        tcp    Reserved
 # Datagram Congestion Control
-dccp-udp	6511/udp	# Protocol Encapsulation for   [IESG]                                             [IETF_Chair]                                                                        [RFC-ietf-dccp-udpencap-10]
+dccp-udp	6511/udp	# Protocol Encapsulation for   [IESG]                                             [IETF_Chair]                                                                        [RFC6773]
 # NAT Traversal
 # 6512-6512            Unassigned
 netconf-tls	6513/tcp	# NETCONF over TLS                                                                                                                                                    [RFC5539]
@@ -12758,7 +12757,9 @@ drm-production	7171/tcp	# Discovery and Retention Mgt  [Micha_Ben_Efraim_3]     
 # Production
 drm-production	7171/udp	# Discovery and Retention Mgt  [Micha_Ben_Efraim_3]                               [Micha_Ben_Efraim_3]                                      2010-02-18
 # Production
-# 7172               Unassigned
+metalbend	7172/tcp	# Port used for MetalBend      [Micha_Ben_Efraim_4]                               [Micha_Ben_Efraim_4]                                      2012-11-27
+# programmable interface
+# 7172        udp    Reserved
 zsecure	7173/tcp	# zSecure Server               [Hans_Schoone]                                     [Hans_Schoone]                                            2010-10-01
 # 7173        udp    Reserved
 clutild	7174/tcp	# Clutild                      [Cheryl_Stoutenburg]                               [Cheryl_Stoutenburg]
@@ -13439,7 +13440,10 @@ copy-disc	8445/udp	# Port for copy discovery      [Copy]                        
 # 8446-8449            Unassigned
 npmp	8450/tcp	# npmp                         [Ian_Chard]                                        [Ian_Chard]
 npmp	8450/udp	# npmp                         [Ian_Chard]                                        [Ian_Chard]
-# 8451-8469            Unassigned
+# 8451-8456            Unassigned
+nexentamv	8457/tcp	# Nexenta Management GUI       [Nexenta]                                          [Andrew_Galloway]                                         2012-12-07
+# 8457        udp    Reserved
+# 8458-8469            Unassigned
 cisco-avp	8470/tcp	# Cisco Address Validation     [Cullen_Jennings]                                  [Cullen_Jennings]                                         2009-02-13
 # Protocol
 # 8470        udp    Reserved
@@ -13471,10 +13475,8 @@ rtsp-alt	8554/udp	# RTSP Alternate (see port     [Stephen_Casner_2]             
 d-fence	8555/tcp	# SYMAX D-FENCE                [Thomas_Geisel]                                    [Thomas_Geisel]                                           2003-01
 d-fence	8555/udp	# SYMAX D-FENCE                [Thomas_Geisel]                                    [Thomas_Geisel]                                           2003-01
 # 8556-8566            Unassigned
-oap-admin	8567/tcp	# Object Access Protocol       [Bryant_Eastham]                                   [Bryant_Eastham]                                          2005-08
-# Administration
-oap-admin	8567/udp	# Object Access Protocol       [Bryant_Eastham]                                   [Bryant_Eastham]                                          2005-08
-# Administration
+enc-tunnel	8567/tcp	# EMIT tunneling protocol      [Panasonic_Intranet_Panasonic_North_America_PEWLA] [Bryant_Eastham]                                          2005-08      2012-11-12
+enc-tunnel	8567/udp	# EMIT tunneling protocol      [Panasonic_Intranet_Panasonic_North_America_PEWLA] [Bryant_Eastham]                                          2005-08      2012-11-12
 # 8568-8599            Unassigned
 asterix	8600/tcp	# Surveillance Data            [Eivan_Cerasi]                                     [Eivan_Cerasi]                                            2005-11
 asterix	8600/udp	# Surveillance Data            [Eivan_Cerasi]                                     [Eivan_Cerasi]                                            2005-11
@@ -13728,7 +13730,15 @@ astergatefax	9107/tcp	# AstergateFax Control Service [Gijs_Middelkamp]          
 # 9108-9118            Unassigned
 mxit	9119/tcp	# MXit Instant Messaging       [Marnus_Freeman]                                   [Marnus_Freeman]                                          2006-02
 mxit	9119/udp	# MXit Instant Messaging       [Marnus_Freeman]                                   [Marnus_Freeman]                                          2006-02
-# 9120-9130            Unassigned
+# 9120-9121            Unassigned
+# Global Relay compliant
+grcmp	9122/tcp	# mobile instant messaging     [Global_Relay]                                     [Mike_Sample]                                             2012-11-28
+# protocol
+# 9122        udp    Reserved
+grcp	9123/tcp	# Global Relay compliant       [Global_Relay]                                     [Mike_Sample]                                             2012-11-28
+# instant messaging protocol
+# 9123        udp    Reserved
+# 9124-9130            Unassigned
 dddp	9131/tcp	# Dynamic Device Discovery     [Shane_Dick]                                       [Shane_Dick]                                              2005-08
 dddp	9131/udp	# Dynamic Device Discovery     [Shane_Dick]                                       [Shane_Dick]                                              2005-08
 # 9132-9159            Unassigned
@@ -14282,7 +14292,10 @@ nmc-disc	10810/udp	# Nuance Mobile Care Discovery [Gordon_Waddell]              
 # 10811-10859           Unassigned
 helix	10860/tcp	# Helix Client/Server          [Matthew_Strange][Larry_Atkin_2]                   [Matthew_Strange][Larry_Atkin_2]                          2009-03-06
 helix	10860/udp	# Helix Client/Server          [Matthew_Strange][Larry_Atkin_2]                   [Matthew_Strange][Larry_Atkin_2]                          2009-03-06
-# 10861-10989           Unassigned
+# 10861-10879           Unassigned
+bveapi	10880/tcp	# BVEssentials HTTP API        [Tri_Tech_Computers_Ltd]                           [James_Emerton]                                           2012-11-19
+bveapi	10880/udp	# BVEssentials HTTP API        [Tri_Tech_Computers_Ltd]                           [James_Emerton]                                           2012-11-19
+# 10881-10989           Unassigned
 rmiaux	10990/tcp	# Auxiliary RMI Port           [Eugen_Bacic_2]                                    [Eugen_Bacic_2]
 rmiaux	10990/udp	# Auxiliary RMI Port           [Eugen_Bacic_2]                                    [Eugen_Bacic_2]
 # 10991-10999           Unassigned
@@ -15581,8 +15594,9 @@ pmcd	44321/tcp	# PCP server (pmcd)            [Ken_McDonell]                    
 pmcd	44321/udp	# PCP server (pmcd)            [Ken_McDonell]                                     [Ken_McDonell]                                            2010-12-20
 pmcdproxy	44322/tcp	# PCP server (pmcd) proxy      [Ken_McDonell]                                     [Ken_McDonell]                                            2003-07      2010-12-20
 pmcdproxy	44322/udp	# PCP server (pmcd) proxy      [Ken_McDonell]                                     [Ken_McDonell]                                            2003-07      2010-12-20
-# 44323       tcp    Reserved
-pcp	44323/udp	# Port Control Protocol        [Dan_Wing]                                         [Dan_Wing]                                                2011-01-11
+# 44323       tcp    Unassigned
+# 44323       udp    Unassigned                                                                                                                                                                                                                         "pcp" assignment withdrawn, moved to port 5351 per
+# RFC-ietf-pcp-base-29
 # UNAUTHORIZED
 # USE: Ports
 # 44324-44443           Unassigned                                                                                                                                                                                                           44515 & 44516
@@ -15920,6 +15934,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # Anquet map synchronization
 # anquetsync                            between desktop and handheld [Paul_Lesurf]                                      [Paul_Lesurf]                                                                                                                                      Defined TXT keys: Proprietary
 # devices
+# antrmai                        tcp    ANT Galio web services       [ANT_Software]                                     [Simon_Middleton]                                         2012-12-06                                                                               Defined TXT keys: txtvers, man
 # appelezvous                           Appelezvous                  [Marco_Piovanelli]                                 [Marco_Piovanelli]                                                                                                                                 Defined TXT keys: None
 # apple-ausend                          Apple Audio Units            [James_McCartney]                                  [James_McCartney]                                                                                                                                  Defined TXT keys: None
 # apple-mobdev                   tcp    Apple Mobile Device Protocol [Apple_2]                                          [Paul_Chinn][Justin_Ko]                                   2011-10-20                                                                               Defined TXT keys: None
@@ -15980,6 +15995,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # boxraysrvr                     tcp    Boxray Devices Host Server   [Caprice_Productions]                              [Lance_Drake]                                             2012-07-05                                                                               Defined TXT keys: none
 # bri                                   RFID Reader Basic Reader     [Thaddeus_Ternes]                                  [Thaddeus_Ternes]                                                                                                                                  Defined TXT keys: None
 # Interface
+# bridgeprotocol                 tcp    JSON RPC Bridge Protocol     [Michel_Stam_2]                                    [Michel_Stam_2]                                           2012-11-20                                                                               Defined TXT keys: path, version
 # bsqdea                                Backup Simplicity            [Qdea]                                             [Qdea]                                                                                                                                             Defined TXT keys: None
 # caldav                         tcp    Calendaring Extensions to    [IESG]                                             [IETF_Chair]                                              2012-02-17                [draft-daboo-srv-caldav]                                       This is an extension of the http service. Defined TXT keys:
 # WebDAV (CalDAV) - non-TLS                                                                                                                                                                                                          path=<context path>
@@ -16036,6 +16052,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # dbaudio                        udp    d&b audiotechnik remote      [d_b_audiotechnik]                                 [Christian_Laendner]                                      2011-10-06                                                                               protovers=<version of proprietary protocol> guid=<type>
 # network                                                                                                                                                                                                                            name=<name> sn=<serial number> device=<cleartext type>
 # fwver=<firmware version>
+# dccp-ping                     dccp    ping/traceroute using DCCP   [Samuel_Jero]                                      [Samuel_Jero]                                             2012-11-14                                                      1885957735               Defined TXT keys: None
 # device-info                           Device Info                  [Stuart_Cheshire_5][Marc_Krochmal]                 [Stuart_Cheshire_5][Marc_Krochmal]                                                                                                                 Not a service type. Special name reserved for DNS-SD device
 # info.
 # devonsync                      tcp    DEVONthink synchronization   [DEVONtechnologies_LLC]                            [Rob_Rix][Eric_Boehnisch-Volkmann]                        2011-10-18                                                                               Defined TXT keys: None at present
@@ -16527,6 +16544,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # Server
 # p2pchat                        udp    Peer-to-Peer Chat (Sample    [Roger_Pantos]                                     [Roger_Pantos]                                                                                                                                     Defined TXT keys: None
 # Java Bonjour application)
+# p2pstorage-sec                 tcp    DataBOND p2p storage         [Dell]                                             [Jessica_Zhang]                                           2012-11-19                                                                               Defined TXT keys: txtvers, machineid, status
 # pairandshare                   tcp    Pair & Share data protocol   [Intel]                                            [Joshua_Boelter]                                          2011-10-18                                                                               Defined TXT keys: Proprietary
 # panoply                        tcp    Panoply multimedia composite [Natarajan_Balasundar]                             [Natarajan_Balasundar]                                                                                                                             Defined TXT keys: None
 # transfer protocol
@@ -16935,6 +16953,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # vue4rendercow                         VueProRenderCow                                                                                                                                                                                                                    Defined TXT keys: None
 # vxi-11                                VXI-11 TCP/IP Instrument     [Nick_Barendt_2]                                   [Nick_Barendt_2]                                                                                                                                   Defined TXT keys: None
 # Protocol
+# wakeywakey                     tcp    Proprietary                  [gerry_Brown_associates]                           [Gerry_Brown]                                             2012-11-29                                                                               Defined TXT keys: None
 # walkietalkie                          Walkie Talkie                [Johan_Kool]                                       [Johan_Kool]                                                                                                                                       Defined TXT keys: None
 # wd-2go                         tcp    NAS Service Protocol         [Western_Digital]                                  [Rajesh_Batra]                                            2012-07-11                                                                               Defined TXT keys: None
 # we-jell                               Proprietary collaborative    [Vaughn_Amann]                                     [Vaughn_Amann]                                                                                                                                     Defined TXT keys: user=<user name> stat=<OK, DND, AWY,
@@ -17220,6 +17239,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Andrew_Crockford]                                        Andrew Crockford                                mailto:andrew.crockford&modus-interactive.co.uk
 # [Andrew_Donoho]                                           Andrew Donoho                                   mailto:awd&us.ibm.com
 # [Andrew_Draper]                                           Andrew Draper                                   mailto:adraper&altera.com
+# [Andrew_Galloway]                                         Andrew Galloway           Nexenta               mailto:andrew.galloway&nexenta.com                            2012-12-07
 # [Andrew_H_Derbyshire]                                     Andrew H Derbyshire                             mailto:ahd&meetingmaker.plus.kew.com                          2004-12
 # [Andrew_Hoddinott]                                        Andrew Hoddinott                                mailto:support&artvps.com
 # [Andrew_Jay_Schneider]                                    Andrew Jay Schneider                            mailto:ajs&relsoft.com
@@ -17272,6 +17292,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Annette_Klecha]                                          Annette Klecha                                  mailto:annette_klecha&bbn.hp.com
 # [Anoop_Tewari]                                            Anoop Tewari                                    mailto:anoop&next.distinct.com
 # [Ansgar_Bergmann]                                         Ansgar Bergmann                                 mailto:Ansgar.Bergmann&etsi.fr
+# [ANT_Software]                                                                      ANT Software Limited  mailto:simon.middleton&antplc.com                             2012-12-06
 # [Anthon_van_der_Neut]                                     Anthon van der Neut                             mailto:anthon&mnt.org
 # [Anthony_Cake]                                            Anthony Cake                                    mailto:anthonyrc&lecroy.com
 # [Anthony_Carrabino]                                       Anthony Carrabino                               mailto:anthonyc&vistasoftware.com                             2003-08
@@ -17585,7 +17606,9 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Bryan_Otey]                                              Bryan Otey                                      mailto:bwo&softdesk.com
 # [Bryan_Vergato]                                           Bryan Vergato                                   mailto:iana&ivocalize.com                                     2006-05
 # [Bryan_Wilcutt]                                           Bryan Wilcutt                                   mailto:bwilcutt&comtechefdata.com                             2005-06
-# [Bryant_Eastham]                                          Bryant Eastham                                  mailto:protocols&pewla.us.pewg.panasonic.com                  2005-08
+# Panasonic Intranet,
+# [Bryant_Eastham]                                          Bryant Eastham            Panasonic North       mailto:bryant.eastham&us.panasonic.com                        2012-11-12
+# America (PEWLA)
 # [Bryce_Beeston]                                           Bryce Beeston                                   mailto:bryce.beeston&emerson.com                              2011-06-23
 # [Bryce_Bhatnagar]                                         Bryce Bhatnagar                                 mailto:BRYCEBH&attachmate.com
 # [Buck_Caldwell]                                           Buck Caldwell                                   mailto:buck_c&polygon.com
@@ -18128,6 +18151,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Dean_Webb]                                               Dean Webb                                       mailto:dean.webb&ascend.com
 # [DEIF_AS]                                                                           DEIF A/S              mailto:aes&deif.com                                           2012-10-15
 # [Delcio_Prizon]                                           Delcio Prizon                                   mailto:dprizon&smar.com.br
+# [Dell]                                                                              Dell                  mailto:jessica_z&dell.com                                     2012-11-19
 # [Delphix_Corp]                                                                      Delphix Corp          mailto:peng.dai&delphix.com                                   2012-11-01
 # [Denis_Ducharme]                                          Denis Ducharme                                  mailto:dducharme&softek.com
 # [Denis_Leclerc]                                           Denis Leclerc                                   mailto:DLeclerc&banyan.com
@@ -18561,6 +18585,10 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Gerd_Beling]                                             Gerd Beling                                     mailto:GBELING&isi.edu
 # [Gerg_Cole]                                               Gerg Cole                                       mailto:gcole&corp.borland.com
 # [Gerhard_Wagner]                                          Gerhard Wagner                                  mailto:gw&nova-ratio.de                                       2009-03-10
+# [Gerry_Brown]                                             Gerry Brown               gerry Brown           mailto:gerry&gbrown.com                                       2012-11-29
+# associates
+# [gerry_Brown_associates]                                                            gerry Brown           mailto:gerry&gbrown.com                                       2012-11-29
+# associates
 # [Gerry_Dubois]                                            Gerry Dubois                                    mailto:gdubois&carriustech.com                                2005-08
 # [Gerry_Gorman]                                            Gerry Gorman                                    mailto:gerry.gorman&emclock.com                               2010-12-06
 # [Gert_Thomasen]                                           Gert Thomasen                                   mailto:gert.thomasen&etsi.org                                 2009-12-07
@@ -18592,6 +18620,8 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Glenn_Peterson]                                          Glenn Peterson                                  mailto:glennp&microsoft.com
 # [Glenn_Reid]                                              Glenn Reid                                      mailto:port-reg&fiveacross.com                                2004-11
 # [Glenn_Russell]                                           Glenn Russell                                   mailto:grussell&cablelabs.com
+# [Global_Relay]                                                                      Global Relay          mailto:Michael.Sample&GlobalRelay.net                         2012-11-28
+# Communications Inc
 # [Gobby_0x539]                                                                       0x539 dev group       http://darcs.0x539.de/trac/obby/cgi-bin/trac.cgi
 # [Gopikrishna_Sandra]                                      Gopikrishna Sandra                              mailto:v-gosand&microsoft.com                                 2005-02
 # [Goran_Runfeldt]                                          Goeran Runfeldt                                 mailto:goran&netadmin.se                                      2006-12
@@ -18877,6 +18907,8 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [James_David_Fisher]                                      James David Fisher                              mailto:jfisher1&avaya.com
 # [James_E_Housley]                                         James E. Housley                                mailto:jim&thehousleys.net
 # [James_E_King_III]                                        James E. King, III                              mailto:James_E_K&dell.com                                     2010-06-24
+# [James_Emerton]                                           James Emerton             Tri Tech Computers    mailto:james&tri-tech.com                                     2012-11-19
+# Ltd.
 # [James_Falkner]                                           James Falkner                                   mailto:james.falkner&sun.com
 # [James_Figgins]                                           James Figgins                                   mailto:james.figgins&durodata.co.uk                           2006-07
 # [James_Gettys]                                            James Gettys                                    mailto:jg&w3.org
@@ -19046,6 +19078,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Jesse_Ursery]                                            Jesse Ursery                                    mailto:jesse.ursery&ametek.com                                2010-11-22
 # [Jesse_W_Towner]                                          Jesse W. Towner                                 mailto:jwtowner&dsmedialabs.com
 # [Jessica_Yan]                                             Jessica Yan                                     mailto:jessica.yan2&t-mobile.com                              2008-02-19
+# [Jessica_Zhang]                                           Jessica Zhang             Dell                  mailto:jessica_z&dell.com                                     2012-11-19
 # [Jesus_David_Rodrigue]                                    Jesus David Rodriguez                           mailto:jesusdavid&magaya.com                                  2003-02
 # [Jesus_De_Meyer]                                          Jesus De Meyer                                  mailto:jesus&edot-studios.com
 # [Jesus_Ortiz]                                             Jesus Ortiz                                     mailto:jesus_ortiz&emotion.com
@@ -19890,6 +19923,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Micha_Ben_Efraim]                                        Micha Ben-Efraim                                mailto:benmi07&ca.com                                         2008-01-07
 # [Micha_Ben_Efraim_2]                                      Micha Ben-Efraim                                mailto:micha&metalix.net                                      2011-01-31
 # [Micha_Ben_Efraim_3]                                      Micha Ben-Efraim                                mailto:micha.ben-efraim&ca.com                                2010-02-18
+# [Micha_Ben_Efraim_4]                                      Micha Ben-Efraim                                mailto:micha&metalix.net                                      2012-11-27
 # [Michael_Agishtein]                                       Michael Agishtein                               mailto:misha&unx.dec.com
 # [Michael_Alyn_Miller]                                     Michael Alyn Miller                             mailto:iana&aeolon.com
 # [Michael_Andre]                                           Michael Andre                                   mailto:mandre&gts-tkts.com
@@ -19989,6 +20023,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Michel_Bourget]                                          Michel Bourget                                  mailto:michel&sgi.com                                         2009-01-06
 # [Michel_Stam]                                             Michel Stam               HaloteC Instruments   mailto:michel.stam&halotec.com                                2012-02-07
 # B.V.
+# [Michel_Stam_2]                                           Michel Stam                                     mailto:michel.iana&reverze.net                                2012-11-20
 # [Micromat]                                                Micromat                                        mailto:support&micromat.com
 # [Microsoft_Corporation]                                                             Microsoft Corporation mailto:pratshar&microsoft.com                                 2011-08-04
 # [Microsoft_Corporation_2]                                                           Microsoft Corporation mailto:stdsreq&microsoft.com                                  2012-03-15
@@ -20043,6 +20078,8 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Mike_Pontillo]                                           Mike Pontillo                                   mailto:pontillo&hp.com                                        2003-08
 # [Mike_Rieker]                                             Mike Rieker                                     mailto:mikea&sp32.com
 # [Mike_Rodbell]                                            Mike Rodbell                                    mailto:mrodbell&ciena.com
+# [Mike_Sample]                                             Mike Sample               Global Relay          mailto:Michael.Sample&GlobalRelay.net                         2012-11-28
+# Communications Inc
 # [Mike_Sherrill]                                           Mike Sherrill                                   mailto:sherrill&commvault.com
 # [Mike_Spitzer]                                            Mike Spitzer                                    mailto:mjs&polyserve.com                                      2005-08
 # [Mike_St_Johns]                                           Mike St. Johns                                  mailto:stjohns&arpa.mil
@@ -20130,6 +20167,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Nestor_A_Diaz]                                           Nestor A. Diaz                                  mailto:nestor&tiendalinux.com                                 2009-05-12
 # [NetOp_Technical_Supp]                                    NetOp Technical Support                         mailto:support&danware.dk
 # [Nevil_Brownlee]                                          Nevil Brownlee                                  mailto:n.brownlee&auckland.ac.nz                              2006-10
+# [Nexenta]                                                 John S. Howard            Nexenta               mailto:jsh&nexenta.com                                        2012-12-07
 # [NexStor_India_Limite]                                    NexStor India Limited                           mailto:next&nda.vsnl.net.in
 # [NextDay_Aps]                                                                       NextDay Aps           mailto:nextday&infinite-loop.dk                               2012-04-24
 # [Nexum]                                                                             Nexum, Inc.           mailto:mfread&nexuminc.com                                    2012-09-21
@@ -20249,6 +20287,9 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [PV_Shivkumar]                                            PV Shivkumar                                    mailto:p.shivkumar&oracle.com                                 2003-10
 # [P_T_K_Farrar]                                            P.T.K. Farrar                                   mailto:farrarp&teccon.co.uk
 # [P_V_Shivkumar]                                           P.V.Shivkumar                                   mailto:PSHIVKUM&us.oracle.com
+# Panasonic Intranet,
+# [Panasonic_Intranet_Panasonic_North_America_PEWLA]                                  Panasonic North       mailto:protocols&pewla.us.pewg.panasonic.com                  2012-11-12
+# America (PEWLA)
 # [Panic_Inc]                                                                         Panic Inc.            mailto:cabel&panic.com                                        2012-07-19
 # [Panic_Ride]                                              Panic Ride                                      mailto:panicride&hao.org
 # [Paolo_Desii]                                             Paolo Desii               POWERSOFT S.R.L.      mailto:paolo.desii&powersoft.it                               2012-01-03
@@ -20883,6 +20924,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Sameer_Deokule]                                          Sameer Deokule                                  mailto:sameer.deokule&veritas.com                             2002-03
 # [Samppa_Lahtinen]                                         Samppa Lahtinen                                 mailto:samppa.lahtinen&motivesys.com                          2004-06
 # [Samuel_Bercovici]                                        Samuel Bercovici                                mailto:samuelb&radware.com                                    2011-08-05
+# [Samuel_Jero]                                             Samuel Jero                                     mailto:sj323707&ohio.edu                                      2012-11-14
 # [Samuele_Sequi]                                           Samuele Sequi                                   mailto:samuelesequi&defcom.it                                 2004-02
 # [Sanchaita_Datta]                                         Sanchaita Datta                                 mailto:sdatta&ragula.com
 # [Sancho_Lerena]                                           Sancho Lerena                                   mailto:slerena&artica.es                                      2009-06-02
@@ -21020,6 +21062,7 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # [Simon_Hovell]                                            Simon Hovell                                    mailto:simonh&brandcomms.com
 # [Simon_J_Gerraty]                                         Simon J. Gerraty                                mailto:sjg&quick.com.au
 # [Simon_Jolly]                                             Simon Jolly                                     mailto:simon.jolly&origin-data.co.uk                          2002-07
+# [Simon_Middleton]                                         Simon Middleton           ANT Software Limited  mailto:simon.middleton&antplc.com                             2012-12-06
 # [Simon_Newton]                                            Simon Newton                                    mailto:simon&nomis52.net                                      2012-06-01
 # [Simon_P_Jackson]                                         Simon P Jackson                                 mailto:jacko&kring.co.uk
 # [Simon_Parker]                                            Simon Parker                                    mailto:simon.j.parker&philips.com
@@ -21489,6 +21532,8 @@ matahari	49000/tcp	# Matahari Broker              [Matahari_Project]            
 # Development Team
 # [Trevor_Bell]                                             Trevor Bell                                     mailto:Trevor&iguana.iosoftware.com
 # [Trevor_Perkes]                                           Trevor Perkes                                   mailto:trevor.perkes&landesk.com                              2010-02-01
+# [Tri_Tech_Computers_Ltd]                                                            Tri Tech Computers    mailto:admins&tri-tech.com                                    2012-11-19
+# Ltd.
 # [Tristan_Richardson]                                      Tristan Richardson                              mailto:iana&realvnc.com                                       2006-03
 # [Tristan_Seifert]                                         Tristan Seifert                                 mailto:admin&247server.net                                    2011-01-31
 # [Tristan_Seifert_2]                                       Tristan Seifert           Squee! Application    mailto:tristan&squee.co                                       2011-07-19

@@ -63,11 +63,13 @@
 #define nbap_debug1(str,p1) g_warning(str,p1)
 #define nbap_debug2(str,p1,p2) g_warning(str,p1,p2)
 #define nbap_debug3(str,p1,p2,p3) g_warning(str,p1,p2,p3)
+#define nbap_debug4(str,p1,p2,p3,p4) g_warning(str,p1,p2,p3,p4)
 #else
 #define nbap_debug0(str)
 #define nbap_debug1(str,p1)
 #define nbap_debug2(str,p1,p2)
 #define nbap_debug3(str,p1,p2,p3)
+#define nbap_debug4(str,p1,p2,p3,p4)
 #endif
 
 /* Global variables */
@@ -152,7 +154,6 @@ typedef struct
 
 } nbap_edch_port_info_t;
 
-nbap_edch_port_info_t * nbap_edch_port_info;
 
 typedef struct
 {
@@ -192,7 +193,8 @@ typedef struct com_ctxt_{
 		/*guint	nodeb_context;*/
 		guint	crnc_context;
 		guint	frame_num;
-}nbap_com_context_id;
+}nbap_com_context_id_t;
+
 gboolean crcn_context_present = FALSE;
 static GTree * com_context_map;
 
@@ -412,9 +414,6 @@ static gint nbap_key_cmp(gconstpointer a_ptr, gconstpointer b_ptr, gpointer igno
 			g_free(key);
 
 	}*/
-static void nbap_free_value(gpointer value ){
-			g_free(value);
-	}
 
 static void nbap_init(void){
 	guint8 i;
@@ -428,15 +427,15 @@ static void nbap_init(void){
 	/*Initialize*/
 	com_context_map = g_tree_new_full(nbap_key_cmp,
                        NULL,      /* data pointer, optional */
-                       NULL,
-                       nbap_free_value);
+                       NULL,      /* function to free the memory allocated for the key used when removing the entry */
+                       g_free);
                        
                        
                            /*Initialize structure for muxed flow indication*/
     edch_flow_port_map = g_tree_new_full(nbap_key_cmp,
                        NULL,      /* data pointer, optional */
-                       NULL,
-                       NULL);
+                       NULL,      /* function to free the memory allocated for the key used when removing the entry */
+                       g_free);
                        
     for (i = 0; i < 15; i++) {
 		lchId_type_table[i+1] = *lch_contents[i];
@@ -522,8 +521,8 @@ void proto_register_nbap(void)
 }
 
 /*
-#define	EXTRA_PPI 1
-*/
+ * #define	EXTRA_PPI 1
+ */
 /*--- proto_reg_handoff_nbap ---------------------------------------*/
 void
 proto_reg_handoff_nbap(void)

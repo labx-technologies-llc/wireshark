@@ -182,7 +182,8 @@ void WiresharkApplication::captureCallback(int event, capture_options * capture_
         emit captureCaptureUpdateStarted(capture_opts);
         break;
     case(capture_cb_capture_update_continue):
-        /*g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture update continue");*/
+        g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture update continue");
+        emit captureCaptureUpdateContinue(capture_opts);
         break;
     case(capture_cb_capture_update_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture update finished");
@@ -392,6 +393,8 @@ WiresharkApplication::WiresharkApplication(int &argc,  char **argv) :
     }
 #endif // Q_WS_WIN
 
+    setAttribute(Qt::AA_DontShowIconsInMenus, true);
+
     recent_timer_ = new QTimer(this);
     connect(recent_timer_, SIGNAL(timeout()), this, SLOT(refreshRecentFiles()));
     recent_timer_->start(2000);
@@ -410,6 +413,12 @@ void WiresharkApplication::allSystemsGo()
         emit openCaptureFile(pending_open_files_.front());
         pending_open_files_.pop_front();
     }
+}
+
+void WiresharkApplication::applyAllPreferences()
+{
+    prefs_apply_all();
+    emit updatePreferences();
 }
 
 QList<recent_item_status *> WiresharkApplication::recentItems() const {

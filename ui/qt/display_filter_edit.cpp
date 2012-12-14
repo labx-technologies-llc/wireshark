@@ -32,6 +32,9 @@
 #include "display_filter_edit.h"
 #include "syntax_line_edit.h"
 
+#include <QPainter>
+#include <QStyleOptionFrame>
+
 #include "ui/utf8_entities.h"
 
 // platform
@@ -85,7 +88,9 @@ UIMiniCancelButton::UIMiniCancelButton(QWidget *pParent /* = 0 */)
 DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
     SyntaxLineEdit(parent),
     plain_(plain),
-    field_name_only_(false)
+    field_name_only_(false),
+    apply_button_(NULL)
+
 {
     setAccessibleName(tr("Display filter entry"));
 
@@ -111,26 +116,24 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
     bookmark_button_->setStyleSheet(QString(
             "QToolButton { /* all types of tool button */"
             "  border 0 0 0 0;"
+#ifdef Q_WS_MAC
             "  border-right: %1px solid gray;"
+#else
+            "  border-right: %1px solid palette(shadow);"
+#endif
             "  border-top-left-radius: 3px;"
             "  border-bottom-left-radius: 3px;"
             "  padding-left: 1px;"
-            "  image: url(:/dfilter/dfilter_bookmark_normal.png);"
-//            "  background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"
-//            "                                      stop: 0 #f6f7fa, stop: 1 #dadbde);"
+            "  image: url(:/dfilter/dfilter_bookmark_normal.png) center;"
             "}"
 
             "QToolButton:hover {"
-            "  image: url(:/dfilter/dfilter_bookmark_hover.png);"
+            "  image: url(:/dfilter/dfilter_bookmark_hover.png) center;"
             "}"
             "QToolButton:pressed {"
-            "  image: url(:/dfilter/dfilter_bookmark_pressed.png);"
+            "  image: url(:/dfilter/dfilter_bookmark_pressed.png) center;"
             "}"
 
-//            "QToolButton:pressed {"
-//            "    background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"
-//            "                                      stop: 0 #dadbde, stop: 1 #f6f7fa);"
-//            "}"
 
             ).arg(plain_ ? 0 : 1)
             );
@@ -140,39 +143,39 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
     clear_button_->setCursor(Qt::ArrowCursor);
     clear_button_->setStyleSheet(
             "QToolButton {"
-            "  image: url(:/dfilter/dfilter_erase_normal.png);"
+            "  image: url(:/dfilter/dfilter_erase_normal.png) center;"
             "  border: none;"
             "  width: 16px;"
             "}"
             "QToolButton:hover {"
-            "  image: url(:/dfilter/dfilter_erase_active.png);"
+            "  image: url(:/dfilter/dfilter_erase_active.png) center;"
             "}"
             "QToolButton:pressed {"
-            "  image: url(:/dfilter/dfilter_erase_selected.png);"
+            "  image: url(:/dfilter/dfilter_erase_selected.png) center;"
             "}"
             );
     clear_button_->hide();
     connect(clear_button_, SIGNAL(clicked()), this, SLOT(clear()));
     connect(this, SIGNAL(textChanged(const QString&)), this, SLOT(checkFilter(const QString&)));
 
-    apply_button_ = NULL;
     if (!plain_) {
         apply_button_ = new QToolButton(this);
         apply_button_->setCursor(Qt::ArrowCursor);
+        apply_button_->setEnabled(false);
         apply_button_->setStyleSheet(
                 "QToolButton { /* all types of tool button */"
                 "  border 0 0 0 0;"
                 "  border-top-right-radius: 3px;"
                 "  border-bottom-right-radius: 3px;"
                 "  padding-right: 1px;"
-                "  image: url(:/dfilter/dfilter_apply_normal.png);"
+                "  image: url(:/dfilter/dfilter_apply_normal.png) center;"
                 "}"
 
                 "QToolButton:hover {"
-                "  image: url(:/dfilter/dfilter_apply_hover.png);"
+                "  image: url(:/dfilter/dfilter_apply_hover.png) center;"
                 "}"
                 "QToolButton:pressed {"
-                "  image: url(:/dfilter/dfilter_apply_pressed.png);"
+                "  image: url(:/dfilter/dfilter_apply_pressed.png) center;"
                 "}"
                 );
         connect(apply_button_, SIGNAL(clicked()), this, SLOT(applyDisplayFilter()));
@@ -237,12 +240,15 @@ void DisplayFilterEdit::resizeEvent(QResizeEvent *)
         apsz.setHeight(0); apsz.setWidth(0);
     }
     int frameWidth = style()->pixelMetric(QStyle::PM_DefaultFrameWidth);
-    clear_button_->move(rect().right() - frameWidth - cbsz.width() - apsz.width(),
-                      (rect().bottom() + 1 - cbsz.height())/2);
+    clear_button_->move(contentsRect().right() - frameWidth - cbsz.width() - apsz.width(),
+                        contentsRect().top());
+    clear_button_->setMaximumHeight(contentsRect().height());
     if (apply_button_) {
-        apply_button_->move(rect().right() - frameWidth - apsz.width(),
-                          (rect().bottom() + 1 - apsz.height())/2);
+        apply_button_->move(contentsRect().right() - frameWidth - apsz.width(),
+                            contentsRect().top());
+        apply_button_->setMaximumHeight(contentsRect().height());
     }
+    bookmark_button_->setMaximumHeight(contentsRect().height());
 }
 
 void DisplayFilterEdit::checkFilter(const QString& text)
@@ -298,43 +304,17 @@ void DisplayFilterEdit::showDisplayFilterDialog()
 
 void DisplayFilterEdit::applyDisplayFilter()
 {
-    QString    dfString(text());
-    gchar *dftext = NULL;
-    cf_status_t cf_status;
-
     if (syntaxState() != Valid && syntaxState() != Empty) {
         return;
     }
 
-    if (dfString.length() > 0)
-        dftext = g_strdup(dfString.toUtf8().constData());
-    cf_status = cf_filter_packets(&cfile, dftext, FALSE);
-    g_free(dftext);
+    QString new_filter = text();
+    emit filterPackets(new_filter, true);
+}
 
-    if (cf_status == CF_OK) {
-        if (apply_button_) {
-            apply_button_->setEnabled(false);
-        }
-        if (dfString.length() < 1) {
-//            gtk_widget_set_sensitive (g_object_get_data (G_OBJECT(filter_cm), E_DFILTER_CLEAR_KEY), FALSE);
-//            gtk_widget_set_sensitive (g_object_get_data (G_OBJECT(filter_cm), E_DFILTER_SAVE_KEY), FALSE);
-        }
-    }
-
-    if (cf_status == CF_OK && dfString.length() > 0) {
-//        int index;
-
-        g_log(NULL, G_LOG_LEVEL_DEBUG, "FIX: add \"%s\" to recent display filters", this->text().toUtf8().constData());
-
-//        if(!dfilter_entry_match(filter_cm,s, &index)){
-//            gtk_combo_box_text_prepend_text(GTK_COMBO_BOX_TEXT(filter_cm), s);
-//            index++;
-//        }
-//        while ((guint)index >= prefs.gui_recent_df_entries_max){
-//            gtk_combo_box_text_remove(GTK_COMBO_BOX_TEXT(filter_cm), index);
-//            index--;
-//        }
-    }
+void DisplayFilterEdit::displayFilterSuccess(bool success)
+{
+    apply_button_->setEnabled(!success);
 }
 
 /*

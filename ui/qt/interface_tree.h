@@ -47,18 +47,24 @@ public:
 protected:
     void hideEvent(QHideEvent *evt);
     void showEvent(QShowEvent *evt);
+    void resizeEvent(QResizeEvent *evt);
 
 private:
     if_stat_cache_t *stat_cache_;
     QTimer *stat_timer_;
 
 signals:
+    void interfaceUpdated(const char *device_name, bool selected);
 
 public slots:
+    // add_interface_to_list
+    // change_interface_selection
+    // change_interface_selection_for_all
 
 private slots:
     void getInterfaceList();
     void updateStatistics(void);
+    void updateSelectedInterfaces();
 };
 
 #endif // INTERFACE_TREE_H

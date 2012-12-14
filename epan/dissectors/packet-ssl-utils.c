@@ -29,6 +29,7 @@
 #include <zlib.h>
 #endif
 
+#include <ctype.h>
 #include "packet-ssl-utils.h"
 #include "packet-ssl.h"
 
@@ -37,6 +38,8 @@
 #include <epan/addr_resolv.h>
 #include <epan/ipv6-utils.h>
 #include <wsutil/file_util.h>
+
+#include <svnversion.h>
 
 /*
  * Lookup tables
@@ -3878,6 +3881,12 @@ ssl_set_debug(const gchar* name)
         ssl_debug_file = ws_fopen(name, "w");
     if (!use_stderr && ssl_debug_file)
         debug_file_must_be_closed = 1;
+
+    ssl_debug_printf("Wireshark SSL debug log " VERSION
+#ifdef SVNVERSION
+		     " (" SVNVERSION " from " SVNPATH ")"
+#endif
+		     "\n\n");
 }
 
 void
@@ -3901,31 +3910,22 @@ ssl_debug_printf(const gchar* fmt, ...)
 }
 
 void
-ssl_print_text_data(const gchar* name, const guchar* data, size_t len)
-{
-    size_t i;
-    if (!ssl_debug_file)
-        return;
-    fprintf(ssl_debug_file,"%s: ",name);
-    for (i=0; i< len; i++) {
-      fprintf(ssl_debug_file,"%c",data[i]);
-    }
-    fprintf(ssl_debug_file,"\n");
-}
-
-void
 ssl_print_data(const gchar* name, const guchar* data, size_t len)
 {
-    size_t i;
+    size_t i, j, k;
     if (!ssl_debug_file)
         return;
     fprintf(ssl_debug_file,"%s[%d]:\n",name, (int) len);
-    for (i=0; i< len; i++) {
-        if ((i > 0) && (i%16 == 0))
-            fprintf(ssl_debug_file,"\n");
-        fprintf(ssl_debug_file,"%.2x ",data[i]&255);
+    for (i=0; i<len; i+=16) {
+        for (j=i, k=0; k<16 && j<len; ++j, ++k)
+            fprintf(ssl_debug_file,"%.2x ",data[j]);
+        for (; k<16; ++k)
+            fprintf(ssl_debug_file,"   ");
+        fprintf(ssl_debug_file,"|");
+        for (j=i, k=0; k<16 && j<len; ++j, ++k)
+            fprintf(ssl_debug_file,"%c",isprint(data[j]) ? data[j] : '.');
+        fprintf(ssl_debug_file,"|\n");
     }
-    fprintf(ssl_debug_file,"\n");
 }
 
 void

@@ -116,6 +116,10 @@ struct ipoint {
 	int x, y;
 };
 
+struct zoomfactor {
+	double x, y;
+};
+
 typedef enum {
 	ELMT_NONE=0,
 	ELMT_RECT=1,
@@ -285,7 +289,6 @@ struct magnify {
 };
 
 struct graph {
-	struct graph *next;
 #define GRAPH_TSEQ_STEVENS	0
 #define GRAPH_TSEQ_TCPTRACE	1
 #define GRAPH_THROUGHPUT	2
@@ -329,12 +332,14 @@ struct graph {
 	/* viewport (=graph window area which is reserved for graph itself), its
 	 * size and position relative to origin of the graph window */
 	struct irect wp;
+	/* whether and where the graph has been 'grabbed' and may now be moved */
 	struct grab grab;
 	/* If we need to display 237019 sequence numbers (=bytes) onto say 500
 	 * pixels, we have to scale the graph down by factor of 0.002109. This
 	 * number would be zoom.y. Obviously, both directions have separate zooms.*/
 	struct zooms zoom;
 	struct cross cross;
+	gboolean zoomrect_erase_needed;
 	struct magnify magnify;
 	struct axis *x_axis, *y_axis;
 	struct segment *segments;
@@ -372,12 +377,12 @@ static int refnum=0;
 #define DBS_AXES_DRAWING	(1 << 2)
 #define DBS_GRAPH_DRAWING	(1 << 3)
 #define DBS_TPUT_ELMTS		(1 << 4)
-/*int debugging = DBS_FENTRY;*/
+/*static int debugging = DBS_FENTRY;*/
 static int debugging = 0;
-/*int debugging = DBS_AXES_TICKS;*/
-/*int debugging = DBS_AXES_DRAWING;*/
-/*int debugging = DBS_GRAPH_DRAWING;*/
-/*int debugging = DBS_TPUT_ELMTS;*/
+/*static int debugging = DBS_AXES_TICKS;*/
+/*static int debugging = DBS_AXES_DRAWING;*/
+/*static int debugging = DBS_GRAPH_DRAWING;*/
+/*static int debugging = DBS_TPUT_ELMTS;*/
 
 static void create_gui (struct graph * );
 #if 0
@@ -463,6 +468,8 @@ static void toggle_seq_origin (struct graph * );
 static void restore_initial_graph_view (struct graph *g);
 static void cross_draw (struct graph * , int , int );
 static void cross_erase (struct graph * );
+static void zoomrect_draw (struct graph * , int , int );
+static void zoomrect_erase (struct graph * );
 static void magnify_move (struct graph * , int , int );
 static void magnify_create (struct graph * , int , int );
 static void magnify_destroy (struct graph * );
@@ -510,6 +517,10 @@ static void wscale_make_elmtlist(struct graph *);
 static int rint (double );	/* compiler template for Windows */
 #endif
 
+/* This should arguably be part of the graph, but in practice you can
+   only click on one graph at a time, so this is probably OK */
+static struct irect zoomrect;
+
 /*
  * Uncomment the following define to revert WIN32 to
  * use original mouse button controls
@@ -531,6 +542,7 @@ static char helptext[] =
 	"   <Ctrl>-Right Mouse Button		displays a portion of graph under cursor magnified\n"
 #else /* !ORIGINAL_WIN32_BUTTONS */
 	"   Left Mouse Button			selects segment under cursor in Wireshark's packet list\n"
+	"								can also drag to zoom in on a rectangular region\n"
 	"\n"
 	"   Middle Mouse Button			zooms in (towards area under cursor)\n"
 	"   <Shift>-Middle Mouse Button	zooms out\n"
@@ -724,6 +736,8 @@ static void create_drawing_area (struct graph *g)
 	GtkWidget *hbox;
 #endif
 	debug(DBS_FENTRY) puts ("create_drawing_area()");
+
+	/* Set title of window with file + conversation details */
 	display_name = cf_get_display_name(&cfile);
 	g_snprintf (window_title, WINDOW_TITLE_LENGTH, "TCP Graph %d: %s %s:%d -> %s:%d",
 			refnum,
@@ -747,42 +761,40 @@ static void create_drawing_area (struct graph *g)
 	gtk_widget_show (g->drawing_area);
 
 #if GTK_CHECK_VERSION(3,0,0)
-    g_signal_connect(g->drawing_area, "draw", G_CALLBACK(draw_event), g);
+	g_signal_connect(g->drawing_area, "draw", G_CALLBACK(draw_event), g);
 #else
-    g_signal_connect(g->drawing_area, "expose_event", G_CALLBACK(expose_event), g);
+	g_signal_connect(g->drawing_area, "expose_event", G_CALLBACK(expose_event), g);
 #endif
 	/* this has to be done later, after the widget has been shown */
 	/*
-	g_signal_connect(g->drawing_area,"configure_event", G_CALLBACK(configure_event),
-        g);
+	g_signal_connect(g->drawing_area,"configure_event", G_CALLBACK(configure_event), g);
 	 */
 
 	g_signal_connect(g->drawing_area, "button_press_event",
-                       G_CALLBACK(button_press_event), g);
+	                 G_CALLBACK(button_press_event), g);
 	g_signal_connect(g->drawing_area, "button_release_event",
-                       G_CALLBACK(button_release_event), g);
+	                 G_CALLBACK(button_release_event), g);
 	g_signal_connect(g->drawing_area, "motion_notify_event",
-                       G_CALLBACK(motion_notify_event), g);
+	                 G_CALLBACK(motion_notify_event), g);
 	g_signal_connect(g->drawing_area, "leave_notify_event",
-                       G_CALLBACK(leave_notify_event), g);
+	                 G_CALLBACK(leave_notify_event), g);
 	g_signal_connect(g->drawing_area, "enter_notify_event",
-                       G_CALLBACK(enter_notify_event), g);
+	                 G_CALLBACK(enter_notify_event), g);
 	g_signal_connect(g->toplevel, "destroy", G_CALLBACK(callback_toplevel_destroy), g);
 	/* why doesn't drawing area send key_press_signals? */
 	g_signal_connect(g->toplevel, "key_press_event", G_CALLBACK(key_press_event), g);
 	g_signal_connect(g->toplevel, "key_release_event", G_CALLBACK(key_release_event),
-                       g);
-	gtk_widget_set_events(g->toplevel,
-                              GDK_KEY_PRESS_MASK|GDK_KEY_RELEASE_MASK);
+	                 g);
+	gtk_widget_set_events(g->toplevel, GDK_KEY_PRESS_MASK|GDK_KEY_RELEASE_MASK);
 
 	gtk_widget_set_events (g->drawing_area,
-                               GDK_EXPOSURE_MASK
-                               | GDK_LEAVE_NOTIFY_MASK
-                               | GDK_ENTER_NOTIFY_MASK
-                               | GDK_BUTTON_PRESS_MASK
-                               | GDK_BUTTON_RELEASE_MASK
-                               | GDK_POINTER_MOTION_MASK
-                               | GDK_POINTER_MOTION_HINT_MASK);
+	                       GDK_EXPOSURE_MASK
+	                       | GDK_LEAVE_NOTIFY_MASK
+	                       | GDK_ENTER_NOTIFY_MASK
+	                       | GDK_BUTTON_PRESS_MASK
+	                       | GDK_BUTTON_RELEASE_MASK
+	                       | GDK_POINTER_MOTION_MASK
+	                       | GDK_POINTER_MOTION_HINT_MASK);
 
 #if 0
 	/* Prep. to include the controls in the graph window */
@@ -822,8 +834,8 @@ static void create_drawing_area (struct graph *g)
 #if GTK_CHECK_VERSION(3,0,0)
 	context = gtk_widget_get_style_context (g->drawing_area);
 	gtk_style_context_get (context, GTK_STATE_FLAG_NORMAL,
-					   GTK_STYLE_PROPERTY_FONT, &g->font,
-					   NULL);
+	                       GTK_STYLE_PROPERTY_FONT, &g->font,
+	                       NULL);
 #else
 	g->font = gtk_widget_get_style(g->drawing_area)->font_desc;
 
@@ -863,7 +875,7 @@ static void create_drawing_area (struct graph *g)
 	 */
 #endif
 	g_signal_connect(g->drawing_area, "configure_event", G_CALLBACK(configure_event),
-                       g);
+	                 g);
 
 	/* puts ("exiting create_drawing_area()"); */
 }
@@ -880,52 +892,52 @@ static void callback_toplevel_destroy (GtkWidget *widget _U_, gpointer data)
 
 static void control_panel_create (struct graph *g)
 {
-    GtkWidget *toplevel, *notebook;
-    GtkWidget *table;
-    GtkWidget *help_bt, *close_bt, *bbox;
-    char window_title[WINDOW_TITLE_LENGTH];
+	GtkWidget *toplevel, *notebook;
+	GtkWidget *table;
+	GtkWidget *help_bt, *close_bt, *bbox;
+	char window_title[WINDOW_TITLE_LENGTH];
 
-    debug(DBS_FENTRY) puts ("control_panel_create()");
+	debug(DBS_FENTRY) puts ("control_panel_create()");
 
-    notebook = gtk_notebook_new ();
-    control_panel_add_zoom_page (g, notebook);
-    control_panel_add_magnify_page (g, notebook);
-    control_panel_add_origin_page (g, notebook);
-    control_panel_add_cross_page (g, notebook);
-    control_panel_add_graph_type_page (g, notebook);
+	notebook = gtk_notebook_new ();
+	control_panel_add_zoom_page (g, notebook);
+	control_panel_add_magnify_page (g, notebook);
+	control_panel_add_origin_page (g, notebook);
+	control_panel_add_cross_page (g, notebook);
+	control_panel_add_graph_type_page (g, notebook);
 
-    g_snprintf (window_title, WINDOW_TITLE_LENGTH,
-                "Graph %d - Control - Wireshark", refnum);
-    toplevel = dlg_window_new ("tcp-graph-control");
-    gtk_window_set_title(GTK_WINDOW(toplevel), window_title);
+	g_snprintf (window_title, WINDOW_TITLE_LENGTH,
+	            "Graph %d - Control - Wireshark", refnum);
+	toplevel = dlg_window_new ("tcp-graph-control");
+	gtk_window_set_title(GTK_WINDOW(toplevel), window_title);
 
-    table = gtk_table_new (2, 1,  FALSE);
-    gtk_container_add (GTK_CONTAINER (toplevel), table);
+	table = gtk_table_new (2, 1,  FALSE);
+	gtk_container_add (GTK_CONTAINER (toplevel), table);
 
-    gtk_table_attach (GTK_TABLE (table), notebook, 0, 1, 0, 1,
-                      GTK_FILL|GTK_EXPAND, GTK_FILL, 5, 5);
+	gtk_table_attach (GTK_TABLE (table), notebook, 0, 1, 0, 1,
+	                  GTK_FILL|GTK_EXPAND, GTK_FILL, 5, 5);
 
-    /* Button row. */
-    bbox = dlg_button_row_new(GTK_STOCK_HELP, GTK_STOCK_CLOSE, NULL);
-    gtk_table_attach (GTK_TABLE (table), bbox, 0, 1, 1, 2,
-                      GTK_FILL|GTK_EXPAND, GTK_FILL, 5, 5);
+	/* Button row. */
+	bbox = dlg_button_row_new(GTK_STOCK_HELP, GTK_STOCK_CLOSE, NULL);
+	gtk_table_attach (GTK_TABLE (table), bbox, 0, 1, 1, 2,
+	                  GTK_FILL|GTK_EXPAND, GTK_FILL, 5, 5);
 
-    help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
-    g_signal_connect(help_bt, "clicked", G_CALLBACK(callback_create_help), g);
+	help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+	g_signal_connect(help_bt, "clicked", G_CALLBACK(callback_create_help), g);
 
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
-    window_set_cancel_button(toplevel, close_bt, NULL);
-    g_signal_connect(close_bt, "clicked", G_CALLBACK(callback_close), g);
+	close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	window_set_cancel_button(toplevel, close_bt, NULL);
+	g_signal_connect(close_bt, "clicked", G_CALLBACK(callback_close), g);
 
-    g_signal_connect(toplevel, "delete_event", G_CALLBACK(callback_delete_event), g);
-    g_signal_connect(toplevel, "destroy", G_CALLBACK(callback_toplevel_destroy), g);
+	g_signal_connect(toplevel, "delete_event", G_CALLBACK(callback_delete_event), g);
+	g_signal_connect(toplevel, "destroy", G_CALLBACK(callback_toplevel_destroy), g);
 
-    /* gtk_widget_show_all (table); */
-    /* g->gui.control_panel = table; */
-    gtk_widget_show_all (toplevel);
-    window_present(toplevel);
+	/* gtk_widget_show_all (table); */
+	/* g->gui.control_panel = table; */
+	gtk_widget_show_all (toplevel);
+	window_present(toplevel);
 
-    g->gui.control_panel = toplevel;
+	g->gui.control_panel = toplevel;
 }
 
 static void control_panel_add_zoom_page (struct graph *g, GtkWidget *n)
@@ -1047,7 +1059,7 @@ static void callback_close (GtkWidget *widget _U_, gpointer data)
 static void callback_create_help(GtkWidget *widget _U_, gpointer data _U_)
 {
 	GtkWidget *toplevel, *vbox, *text, *scroll, *bbox, *close_bt;
-        GtkTextBuffer *buf;
+	GtkTextBuffer *buf;
 
 	toplevel = dlg_window_new ("Help for TCP graphing");
 	gtk_window_set_default_size(GTK_WINDOW(toplevel), 500, 400);
@@ -1058,11 +1070,11 @@ static void callback_create_help(GtkWidget *widget _U_, gpointer data _U_)
 
 	scroll = scrolled_window_new (NULL, NULL);
 	gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scroll),
-                                   GTK_SHADOW_IN);
+	                                    GTK_SHADOW_IN);
 	gtk_box_pack_start (GTK_BOX (vbox), scroll, TRUE, TRUE, 0);
-        text = gtk_text_view_new();
+	text = gtk_text_view_new();
 	gtk_text_view_set_editable(GTK_TEXT_VIEW(text), FALSE);
-        buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text));
+	buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text));
 	gtk_text_buffer_set_text(buf, helptext, -1);
 	gtk_container_add (GTK_CONTAINER (scroll), text);
 
@@ -1168,7 +1180,7 @@ static GtkWidget *control_panel_create_zoom_group (struct graph *g)
 	zoom_ratio_toggle = gtk_check_button_new_with_label("Preserve their ratio");
 	g_object_set_data(G_OBJECT(zoom_same_toggle), "flag", (gpointer)ZOOM_STEPS_SAME);
 	g_object_set_data(G_OBJECT(zoom_ratio_toggle), "flag",
-                        (gpointer)ZOOM_STEPS_KEEP_RATIO);
+	                  (gpointer)ZOOM_STEPS_KEEP_RATIO);
 	g_signal_connect(zoom_same_toggle, "clicked", G_CALLBACK(callback_zoom_flags), g);
 	g_signal_connect(zoom_ratio_toggle, "clicked", G_CALLBACK(callback_zoom_flags), g);
 
@@ -1493,7 +1505,7 @@ static GtkWidget *control_panel_create_zoomlock_group (struct graph *g)
 	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (zoom_lock_none), TRUE);
 	zoom_lock_box = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
 	gtk_box_pack_start(GTK_BOX(zoom_lock_box), zoom_lock_none,
-                           TRUE, TRUE, 0);
+	                   TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(zoom_lock_box), zoom_lock_h, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(zoom_lock_box), zoom_lock_v, TRUE, TRUE, 0);
 	zoom_lock_frame = gtk_frame_new ("Zoom lock:");
@@ -1597,13 +1609,13 @@ static GtkWidget *control_panel_create_graph_type_group (struct graph *g)
 		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(graph_tseqttrace),TRUE);
 		break;
 	case GRAPH_THROUGHPUT:
-		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (graph_tput), TRUE);
+		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(graph_tput), TRUE);
 		break;
 	case GRAPH_RTT:
-		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (graph_rtt), TRUE);
+		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(graph_rtt), TRUE);
 		break;
 	case GRAPH_WSCALE:
-		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (graph_wscale), TRUE);
+		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(graph_wscale), TRUE);
 		break;
 	}
 	graph_init = gtk_check_button_new_with_label ("Init on change");
@@ -1620,11 +1632,15 @@ static GtkWidget *control_panel_create_graph_type_group (struct graph *g)
 	gtk_container_add (GTK_CONTAINER (graph_frame), graph_box);
 
 	g_object_set_data(G_OBJECT(graph_tseqstevens), "new-graph-type",
-                        GINT_TO_POINTER(0));
-	g_object_set_data(G_OBJECT(graph_tseqttrace), "new-graph-type", GINT_TO_POINTER(1));
-	g_object_set_data(G_OBJECT(graph_tput), "new-graph-type", GINT_TO_POINTER(2));
-	g_object_set_data(G_OBJECT(graph_rtt), "new-graph-type", GINT_TO_POINTER(3));
-	g_object_set_data(G_OBJECT(graph_wscale), "new-graph-type", GINT_TO_POINTER(GRAPH_WSCALE));
+	                  GINT_TO_POINTER(GRAPH_TSEQ_STEVENS));
+	g_object_set_data(G_OBJECT(graph_tseqttrace), "new-graph-type",
+	                  GINT_TO_POINTER(GRAPH_TSEQ_TCPTRACE));
+	g_object_set_data(G_OBJECT(graph_tput), "new-graph-type",
+	                  GINT_TO_POINTER(GRAPH_THROUGHPUT));
+	g_object_set_data(G_OBJECT(graph_rtt), "new-graph-type",
+	                  GINT_TO_POINTER(GRAPH_RTT));
+	g_object_set_data(G_OBJECT(graph_wscale), "new-graph-type",
+	                  GINT_TO_POINTER(GRAPH_WSCALE));
 
 	g->gt.graph_wscale = (GtkToggleButton *)graph_wscale;
 	g->gt.graph_rtt = (GtkToggleButton * )graph_rtt;
@@ -1632,12 +1648,12 @@ static GtkWidget *control_panel_create_graph_type_group (struct graph *g)
 	g->gt.graph_tseqstevens = (GtkToggleButton * )graph_tseqstevens;
 	g->gt.graph_tseqttrace = (GtkToggleButton * )graph_tseqttrace;
 
-        g_signal_connect(graph_tseqttrace, "toggled", G_CALLBACK(callback_graph_type), g);
-        g_signal_connect(graph_tseqstevens, "toggled", G_CALLBACK(callback_graph_type), g);
-        g_signal_connect(graph_tput, "toggled", G_CALLBACK(callback_graph_type), g);
-        g_signal_connect(graph_rtt, "toggled", G_CALLBACK(callback_graph_type), g);
-        g_signal_connect(graph_wscale, "toggled", G_CALLBACK(callback_graph_type), g);
-        g_signal_connect(graph_init, "toggled", G_CALLBACK(callback_graph_init_on_typechg), g);
+	g_signal_connect(graph_tseqttrace, "toggled", G_CALLBACK(callback_graph_type), g);
+	g_signal_connect(graph_tseqstevens, "toggled", G_CALLBACK(callback_graph_type), g);
+	g_signal_connect(graph_tput, "toggled", G_CALLBACK(callback_graph_type), g);
+	g_signal_connect(graph_rtt, "toggled", G_CALLBACK(callback_graph_type), g);
+	g_signal_connect(graph_wscale, "toggled", G_CALLBACK(callback_graph_type), g);
+	g_signal_connect(graph_init, "toggled", G_CALLBACK(callback_graph_init_on_typechg), g);
 
 	return graph_frame;
 }
@@ -1720,7 +1736,8 @@ static void graph_initialize_values (struct graph *g)
 	/* g->zoom.x = g->zoom.y = 1.0; */
 	g->zoom.step_x = g->zoom.step_y = 1.2;
 	g->zoom.flags = 0;
-	g->cross.draw = g->cross.erase_needed = 0;
+	g->cross.draw = g->cross.erase_needed = FALSE;
+	g->zoomrect_erase_needed = FALSE;
 	g->grab.grabbed = 0;
 	g->magnify.active = 0;
 	g->magnify.offset.x = g->magnify.offset.y = 0;
@@ -1824,10 +1841,10 @@ tapall_tcpip_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, cons
 	struct tcpheader *tcphdr=(struct tcpheader *)vip;
 
 	if (compare_headers(&g->src_address, &g->dst_address,
-			    g->src_port, g->dst_port,
-			    &tcphdr->ip_src, &tcphdr->ip_dst,
-			    tcphdr->th_sport, tcphdr->th_dport,
-			    ts->direction)) {
+	                    g->src_port, g->dst_port,
+	                    &tcphdr->ip_src, &tcphdr->ip_dst,
+	                    tcphdr->th_sport, tcphdr->th_dport,
+	                    ts->direction)) {
 
 		struct segment *segment = g_malloc(sizeof (struct segment));
 		segment->next = NULL;
@@ -1899,7 +1916,7 @@ static void graph_segment_list_get (struct graph *g, gboolean stream_known)
 	error_string=register_tap_listener("tcp", &ts, "tcp", 0, NULL, tapall_tcpip_packet, NULL);
 	if(error_string){
 		fprintf(stderr, "wireshark: Couldn't register tcp_graph tap: %s\n",
-		    error_string->str);
+		        error_string->str);
 		g_string_free(error_string, TRUE);
 		exit(1);
 	}
@@ -1981,7 +1998,7 @@ static struct tcpheader *select_tcpip_session (capture_file *cf, struct segment 
 	error_string=register_tap_listener("tcp", &th, NULL, 0, NULL, tap_tcpip_packet, NULL);
 	if(error_string){
 		fprintf(stderr, "wireshark: Couldn't register tcp_graph tap: %s\n",
-		    error_string->str);
+		        error_string->str);
 		g_string_free(error_string, TRUE);
 		exit(1);
 	}
@@ -2003,7 +2020,7 @@ static struct tcpheader *select_tcpip_session (capture_file *cf, struct segment 
 	}
 	/* XXX fix this later, we should show a dialog allowing the user
 	   to select which session he wants here
-         */
+	*/
 	if(th.num_hdrs>1){
 		/* can only handle a single tcp layer yet */
 		simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
@@ -2098,16 +2115,6 @@ static void graph_element_lists_free (struct graph *g)
 {
 	struct element_list *list, *next_list;
 
-#if 0
-	for (list=g->elists; list; list=list->next)
-		g_free (list->elements);
-	while (g->elists->next) {
-		list = g->elists->next->next;
-		g_free (g->elists->next);
-		g->elists->next = list;
-	}
-#endif
-
 	for (list=g->elists; list; list=next_list) {
 		g_free (list->elements);
 		next_list = list->next;
@@ -2148,19 +2155,20 @@ static void graph_title_pixmap_draw (struct graph *g)
 #else
 	cr = gdk_cairo_create (g->title_pixmap);
 #endif
-	cairo_set_source_rgb (cr, 1, 1, 1);
+	cairo_set_source_rgb (cr, 1, 1, 1);  /* set fill color */
 	cairo_rectangle (cr, 0, 0,  g->x_axis->p.width, g->wp.y);
 	cairo_fill (cr);
+	cairo_set_source_rgb (cr, 0, 0, 0); /* set text color */
 
 	for (i=0; g->title[i]; i++) {
 		gint w, h;
-        PangoLayout *layout;
-        layout = gtk_widget_create_pango_layout(g->drawing_area,
-                                                g->title[i]);
-        pango_layout_get_pixel_size(layout, &w, &h);
+		PangoLayout *layout;
+		layout = gtk_widget_create_pango_layout(g->drawing_area,
+		                                        g->title[i]);
+		pango_layout_get_pixel_size(layout, &w, &h);
 		cairo_move_to (cr, g->wp.width/2 - w/2, 20 + i*(h+3));
 		pango_cairo_show_layout (cr, layout);
-        g_object_unref(G_OBJECT(layout));
+		g_object_unref(G_OBJECT(layout));
 	}
 	cairo_destroy (cr);
 }
@@ -2242,9 +2250,9 @@ static void graph_pixmap_display (struct graph *g)
 	cairo_rectangle (cr, g->wp.x, g->wp.y, g->wp.width, g->wp.height);
 	cairo_fill (cr);
 	cairo_destroy (cr);
-    if (g->cross.erase_needed) {
-       cross_erase(g);
-    }
+	if (g->cross.erase_needed) {
+		cross_erase(g);
+	}
 }
 
 static void graph_pixmaps_switch (struct graph *g)
@@ -2262,7 +2270,7 @@ static void graph_pixmap_draw (struct graph *g)
 	GdkColor *color_to_set = NULL;
 	gboolean line_stroked = TRUE;
 
-	debug(DBS_FENTRY) puts ("graph_display()");
+	debug(DBS_FENTRY) puts ("graph_pixmap_draw()");
 	not_disp = 1 ^ g->displayed;
 
 #if GTK_CHECK_VERSION(2,22,0)
@@ -2273,6 +2281,9 @@ static void graph_pixmap_draw (struct graph *g)
 	cairo_set_source_rgb (cr, 1, 1, 1);
 	cairo_rectangle (cr, 0, 0, g->wp.width, g->wp.height);
 	cairo_fill (cr);
+
+	/* Want line width 1 for all elements */
+	cairo_set_line_width (cr, 1.0);
 
 	for (list=g->elists; list; list=list->next)
 		for (e=list->elements; e->type != ELMT_NONE; e++) {
@@ -2500,7 +2511,7 @@ static void v_axis_pixmap_draw (struct axis *axis)
 						offset + corr + axis->s.y);
 
 		debug(DBS_AXES_DRAWING) printf("%f @ %d\n",
-                                               i*axis->major + fl, y);
+		                               i*axis->major + fl, y);
 		if (y < 0 || y > axis->p.height)
 			continue;
 
@@ -2775,7 +2786,7 @@ static int get_label_dim (struct axis *axis, int dir, double label)
 	double y;
 	char str[32];
 	int rdigits, dim;
-        PangoLayout *layout;
+	PangoLayout *layout;
 
 	 /* First, let's compute how many digits to the right of radix
 	 * we need to print */
@@ -2789,16 +2800,16 @@ static int get_label_dim (struct axis *axis, int dir, double label)
 	g_snprintf (str, sizeof(str), "%.*f", rdigits, label);
 	switch (dir) {
 	case AXIS_HORIZONTAL:
-                layout = gtk_widget_create_pango_layout(axis->g->drawing_area,
-                                                        str);
-                pango_layout_get_pixel_size(layout, &dim, NULL);
-                g_object_unref(G_OBJECT(layout));
+		layout = gtk_widget_create_pango_layout(axis->g->drawing_area,
+		                                        str);
+		pango_layout_get_pixel_size(layout, &dim, NULL);
+		g_object_unref(G_OBJECT(layout));
 		break;
 	case AXIS_VERTICAL:
-                layout = gtk_widget_create_pango_layout(axis->g->drawing_area,
-                                                        str);
-                pango_layout_get_pixel_size(layout, NULL, &dim);
-                g_object_unref(G_OBJECT(layout));
+		layout = gtk_widget_create_pango_layout(axis->g->drawing_area,
+		                                        str);
+		pango_layout_get_pixel_size(layout, NULL, &dim);
+		g_object_unref(G_OBJECT(layout));
 		break;
 	default:
 		puts ("initialize axis: an axis must be either horizontal or vertical");
@@ -2932,7 +2943,32 @@ static void cross_draw (struct graph *g, int x, int y)
 
 	g->cross.x = x;
 	g->cross.y = y;
-	g->cross.erase_needed = 1;
+	g->cross.erase_needed = TRUE;
+}
+
+static void zoomrect_draw (struct graph *g, int x, int y)
+{
+	if (x >  g->wp.x+0.5 && x < g->wp.x+g->wp.width &&
+	    y >  g->wp.y     && y < g->wp.y+g->wp.height) {
+
+		cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(g->drawing_area));
+		gdk_cairo_set_source_color(cr, &g->s.tseq_tcptrace.seq_color);
+		cairo_set_line_width(cr, 1.0);
+
+		/* Do outline of rect */
+		cairo_rectangle(cr, zoomrect.x, zoomrect.y, x-zoomrect.x, y-zoomrect.y);
+		cairo_stroke(cr);
+		cairo_destroy(cr);
+	}
+
+	g->zoomrect_erase_needed = TRUE;
+}
+
+static void zoomrect_erase (struct graph *g)
+{
+	/* Just redraw what is in the pixmap buffer */
+	graph_pixmap_display(g);
+	g->zoomrect_erase_needed = FALSE;
 }
 
 static void cross_erase (struct graph *g)
@@ -2940,7 +2976,7 @@ static void cross_erase (struct graph *g)
 	int x = g->cross.x;
 	int y = g->cross.y;
 
-	g->cross.erase_needed = 0;
+	g->cross.erase_needed = FALSE;
 
 	if (x >  g->wp.x && x < g->wp.x+g->wp.width &&
 	    y >= g->wp.y && y < g->wp.y+g->wp.height) {
@@ -3062,11 +3098,11 @@ static void magnify_destroy (struct graph *g)
 		g_free (list->elements);
 
 	if (mg->elists) {
-    while (mg->elists->next) {
-      list = mg->elists->next->next;
-      g_free (mg->elists->next);
-      mg->elists->next = list;
-    }
+		while (mg->elists->next) {
+			list = mg->elists->next->next;
+			g_free (mg->elists->next);
+			mg->elists->next = list;
+		}
 	}
 	g_free (g->magnify.g);
 	g->magnify.active = 0;
@@ -3131,7 +3167,7 @@ static void magnify_draw (struct graph *g)
 
 static gboolean configure_event (GtkWidget *widget _U_, GdkEventConfigure *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+	struct graph *g = user_data;
 	struct {
 		double x, y;
 	} zoom;
@@ -3191,7 +3227,7 @@ static gboolean configure_event (GtkWidget *widget _U_, GdkEventConfigure *event
 static gboolean
 draw_event(GtkWidget *widget _U_, cairo_t *cr, gpointer user_data)
 {
-    struct graph *g = user_data;
+	struct graph *g = user_data;
 
 	debug(DBS_FENTRY) puts ("draw_event()");
 
@@ -3215,8 +3251,8 @@ draw_event(GtkWidget *widget _U_, cairo_t *cr, gpointer user_data)
 #else
 static gboolean expose_event (GtkWidget *widget, GdkEventExpose *event, gpointer user_data)
 {
-    struct graph *g = user_data;
-    cairo_t *cr;
+	struct graph *g = user_data;
+	cairo_t *cr;
 
 	debug(DBS_FENTRY) puts ("expose_event()");
 
@@ -3248,68 +3284,40 @@ static gboolean expose_event (GtkWidget *widget, GdkEventExpose *event, gpointer
 }
 #endif
 
-static void do_zoom_common (struct graph *g, GdkEventButton *event)
+#define ZOOM_REDRAW   1
+#define ZOOM_NOREDRAW 0
+static void
+perform_zoom(struct graph *g, struct zoomfactor *zf,
+             int origin_x, int origin_y, int redraw)
 {
 	int cur_width = g->geom.width, cur_height = g->geom.height;
-	struct { double x, y; } factor;
-	int pointer_x, pointer_y;
-
-	/* Get mouse position */
-	if (event == NULL) {
-		/* Keyboard - query it */
-		get_mouse_position (g->drawing_area, &pointer_x, &pointer_y, NULL);
-	}
-	else {
-		/* Mouse - just read it from event */
-		pointer_x = (int)event->x;
-		pointer_y = (int)event->y;
-	}
-
-	/* Work out x and y zooming factors to use */
-	if (g->zoom.flags & ZOOM_OUT) {
-		/* If can't zoom out anymore so don't waste time redrawing the whole graph! */
-		if ((g->geom.height <= g->wp.height) &&
-			(g->geom.width  <= g->wp.width)) {
-			return;
-		}
-
-		if (g->zoom.flags & ZOOM_HLOCK)
-			factor.x = 1.0;
-		else
-			factor.x = 1 / g->zoom.step_x;
-		if (g->zoom.flags & ZOOM_VLOCK)
-			factor.y = 1.0;
-		else
-			factor.y = 1 / g->zoom.step_y;
-	} else {
-		if (g->zoom.flags & ZOOM_HLOCK)
-			factor.x = 1.0;
-		else
-			factor.x = g->zoom.step_x;
-		if (g->zoom.flags & ZOOM_VLOCK)
-			factor.y = 1.0;
-		else
-			factor.y = g->zoom.step_y;
-	}
 
 	/* Multiply by x and y factors */
-	g->geom.width = (int )rint (g->geom.width * factor.x);
-	g->geom.height = (int )rint (g->geom.height * factor.y);
+	g->geom.width = (int )rint (g->geom.width * zf->x);
+	g->geom.height = (int )rint (g->geom.height * zf->y);
 
-	if (g->geom.width < g->wp.width)
+	/* If already fully-zoomed out, don't waste time re-drawing */
+	if ((g->geom.width <= g->wp.width) &&
+	    (g->geom.height <= g->wp.height)) {
+		return;
+	}
+
+	if (g->geom.width < g->wp.width) {
 		g->geom.width = g->wp.width;
-	if (g->geom.height < g->wp.height)
+	}
+	if (g->geom.height < g->wp.height) {
 		g->geom.height = g->wp.height;
+	}
 
 	/* Divide to work out new zoom */
 	g->zoom.x = (g->geom.width - 1) / g->bounds.width;
 	g->zoom.y = (g->geom.height- 1) / g->bounds.height;
 
 	/* Move origin to keep mouse position at centre of view */
-	g->geom.x -= (int )rint ((g->geom.width - cur_width) *
-			((pointer_x - g->geom.x)/(double )cur_width));
-	g->geom.y -= (int )rint ((g->geom.height - cur_height) *
-			((pointer_y - g->geom.y)/(double )cur_height));
+	g->geom.x -= (int)rint ((g->geom.width - cur_width) *
+			((origin_x - g->geom.x)/(double )cur_width));
+	g->geom.y -= (int)rint ((g->geom.height - cur_height) *
+			((origin_y - g->geom.y)/(double )cur_height));
 
 	if (g->geom.x > g->wp.x)
 		g->geom.x = g->wp.x;
@@ -3319,34 +3327,167 @@ static void do_zoom_common (struct graph *g, GdkEventButton *event)
 		g->geom.x = g->wp.width + g->wp.x - g->geom.width;
 	if (g->wp.y + g->wp.height > g->geom.y + g->geom.height)
 		g->geom.y = g->wp.height + g->wp.y - g->geom.height;
-#if 0
-	printf ("%s press: graph: (%d,%d), (%d,%d); viewport: (%d,%d), "
-			"(%d,%d); zooms: (%f,%f)\n",
-			(event != NULL) ? "mouse" : "key", g->geom.x, g->geom.y,
-			g->geom.width, g->geom.height, g->wp.x, g->wp.y, g->wp.width,
-			g->wp.height, g->zoom.x, g->zoom.y);
-#endif
-	graph_element_lists_make (g);
-	g->cross.erase_needed = 0;
-	graph_display (g);
-	axis_display (g->y_axis);
-	axis_display (g->x_axis);
-	update_zoom_spins (g);
+
+	if (redraw == ZOOM_NOREDRAW)
+		return;
+
+	graph_element_lists_make(g);
+	g->cross.erase_needed = FALSE;
+	graph_display(g);
+	axis_display(g->y_axis);
+	axis_display(g->x_axis);
+	update_zoom_spins(g);
 
 	if (g->cross.draw) {
 		g->cross.erase_needed = FALSE;
-		cross_draw (g, pointer_x, pointer_y);
+		cross_draw(g, origin_x, origin_y);
 	}
 }
 
+static void
+get_zoomfactor(struct graph *g, struct zoomfactor *zf, double step_x,
+    double step_y)
+{
+	if (g->zoom.flags & ZOOM_OUT) {
+		/*
+		 * If can't zoom out anymore don't waste time redrawing
+		 * the whole graph!
+		 */
+		if ((g->geom.height <= g->wp.height) &&
+		    (g->geom.width  <= g->wp.width)) {
+			zf->x = 1.0;
+			zf->y = 1.0;
+			return;
+		}
+		if (g->zoom.flags & ZOOM_HLOCK)
+			zf->x = 1.0;
+		else
+			zf->x = 1 / step_x;
+		if (g->zoom.flags & ZOOM_VLOCK)
+			zf->y = 1.0;
+		else
+			zf->y = 1 / step_y;
+	} else {
+		if (g->zoom.flags & ZOOM_HLOCK)
+			zf->x = 1.0;
+		else
+			zf->x = step_x;
+		if (g->zoom.flags & ZOOM_VLOCK)
+			zf->y = 1.0;
+		else
+			zf->y = step_y;
+	}
+}
+
+static void
+do_zoom_rectangle(struct graph *g, struct irect lcl_zoomrect)
+{
+	int cur_width = g->wp.width, cur_height = g->wp.height;
+	struct irect geom1 = g->geom;
+	struct zoomfactor factor;
+
+	/* Left hand too much to the right */
+	if (lcl_zoomrect.x > g->wp.x + g->wp.width)
+		return;
+	/* Right hand not far enough */
+	if (lcl_zoomrect.x + lcl_zoomrect.width < g->wp.x)
+		return;
+	/* Left hand too much to the left */
+	if (lcl_zoomrect.x < g->wp.x) {
+		int dx = g->wp.x - lcl_zoomrect.x;
+		lcl_zoomrect.x += dx;
+		lcl_zoomrect.width -= dx;
+	}
+	/* Right hand too much to the right */
+	if (lcl_zoomrect.x + lcl_zoomrect.width > g->wp.x + g->wp.width) {
+		int dx = lcl_zoomrect.width + lcl_zoomrect.x - g->wp.x - g->wp.width;
+		lcl_zoomrect.width -= dx;
+	}
+
+	/* Top too low */
+	if (lcl_zoomrect.y > g->wp.y + g->wp.height)
+		return;
+	/* Bottom too high */
+	if (lcl_zoomrect.y + lcl_zoomrect.height < g->wp.y)
+		return;
+	/* Top too high */
+	if (lcl_zoomrect.y < g->wp.y) {
+		int dy = g->wp.y - lcl_zoomrect.y;
+		lcl_zoomrect.y += dy;
+		lcl_zoomrect.height -= dy;
+	}
+	/* Bottom too low */
+	if (lcl_zoomrect.y + lcl_zoomrect.height > g->wp.y + g->wp.height) {
+		int dy = lcl_zoomrect.height + lcl_zoomrect.y - g->wp.y - g->wp.height;
+		lcl_zoomrect.height -= dy;
+	}
+
+/*
+	printf("before:\n"
+	       "\tgeom: (%d, %d)+(%d x %d)\n"
+*/
+
+	get_zoomfactor(g, &factor, (double)cur_width / lcl_zoomrect.width,
+	               (double)cur_height / lcl_zoomrect.height);
+/*
+	printf("Zoomfactor: %f x %f\n", factor.x, factor.y);
+*/
+	perform_zoom(g, &factor,
+	             lcl_zoomrect.x, lcl_zoomrect.y,
+	             ZOOM_NOREDRAW);
+
+/*
+	printf("middle:\n"
+	       "\tgeom: (%d, %d)+(%d x %d)\n"
+		   "\twp: (%d, %d)+(%d x %d)\n"
+		   "\tzoomrect: (%d, %d)+(%d x %d)\n",
+		   g->geom.x, g->geom.y,
+		   g->geom.width, g->geom.height,
+		   g->wp.x, g->wp.y, g->wp.width, g->wp.height,
+		   lcl_zoomrect.x, lcl_zoomrect.y, lcl_zoomrect.width, lcl_zoomrect.height);
+*/
+	g->geom.x = (int)(geom1.x * (1 + factor.x) -
+	            lcl_zoomrect.x * factor.x - (geom1.x - g->wp.x));
+	g->geom.y = (int)(geom1.y * (1 + factor.y) -
+	             lcl_zoomrect.y * factor.y - (geom1.y - g->wp.y));
+
+/*
+	printf("after:\n"
+	       "\tgeom: (%d, %d)+(%d x %d)\n"
+		   "\twp: (%d, %d)+(%d x %d)\n"
+		   "\tzoomrect: (%d, %d)+(%d x %d)\n",
+		   g->geom.x, g->geom.y,
+		   g->geom.width, g->geom.height,
+		   g->wp.x, g->wp.y, g->wp.width, g->wp.height,
+		   lcl_zoomrect.x, lcl_zoomrect.y, lcl_zoomrect.width, lcl_zoomrect.height);
+*/
+
+	graph_element_lists_make(g);
+	g->cross.erase_needed = FALSE;
+	graph_display(g);
+	axis_display(g->y_axis);
+	axis_display(g->x_axis);
+	update_zoom_spins(g);
+}
+
+
+
 static void do_zoom_mouse (struct graph *g, GdkEventButton *event)
 {
-	do_zoom_common (g, event);
+	struct zoomfactor factor;
+
+	get_zoomfactor(g, &factor, g->zoom.step_x, g->zoom.step_y);
+	perform_zoom(g, &factor, (int)event->x, (int)event->y, ZOOM_REDRAW);
 }
 
 static void do_zoom_keyboard (struct graph *g)
 {
-	do_zoom_common (g, NULL);
+	int pointer_x, pointer_y;
+	struct zoomfactor factor;
+
+	get_mouse_position (g->drawing_area, &pointer_x, &pointer_y, NULL);
+	get_zoomfactor(g, &factor, g->zoom.step_x, g->zoom.step_y);
+	perform_zoom(g, &factor, pointer_x, pointer_y, ZOOM_REDRAW);
 }
 
 static void do_zoom_in_keyboard (struct graph *g)
@@ -3413,7 +3554,7 @@ static void do_key_motion (struct graph *g)
 		g->geom.x = g->wp.width + g->wp.x - g->geom.width;
 	if (g->wp.y + g->wp.height > g->geom.y + g->geom.height)
 		g->geom.y = g->wp.height + g->wp.y - g->geom.height;
-	g->cross.erase_needed = 0;
+	g->cross.erase_needed = FALSE;
 	graph_display (g);
 	axis_display (g->y_axis);
 	axis_display (g->x_axis);
@@ -3452,7 +3593,7 @@ static void do_key_motion_right (struct graph *g, int step)
 
 static gboolean button_press_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+	struct graph *g = user_data;
 
 	debug(DBS_FENTRY) puts ("button_press_event()");
 
@@ -3476,10 +3617,22 @@ static gboolean button_press_event (GtkWidget *widget _U_, GdkEventButton *event
 #else /* !ORIGINAL_WIN32_BUTTONS */
 	} else if (event->button == MOUSE_BUTTON_MIDDLE) {
 #endif
+		/* Shift means we should zoom out */
+		if (event->state & GDK_SHIFT_MASK) {
+			gtk_toggle_button_set_active (g->zoom.widget.out_toggle, TRUE);
+		}
+		else {
+			gtk_toggle_button_set_active (g->zoom.widget.in_toggle, TRUE);
+		}
 		do_zoom_mouse(g, event);
 #ifndef ORIGINAL_WIN32_BUTTONS
 	} else if (event->button == MOUSE_BUTTON_LEFT) {
+		/* See if we're on an element that links to a frame */
 		graph_select_segment (g, (int )event->x, (int )event->y);
+
+		/* Record the origin of the zoom rectangle */
+		zoomrect.x = (int)event->x;
+		zoomrect.y = (int)event->y;
 #else /* ORIGINAL_WIN32_BUTTONS*/
 		}
 #endif
@@ -3489,7 +3642,7 @@ static gboolean button_press_event (GtkWidget *widget _U_, GdkEventButton *event
 
 static gboolean motion_notify_event (GtkWidget *widget _U_, GdkEventMotion *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+	struct graph *g = user_data;
 	int x, y;
 	GdkModifierType state;
 
@@ -3520,7 +3673,7 @@ static gboolean motion_notify_event (GtkWidget *widget _U_, GdkEventMotion *even
 				g->geom.x = g->wp.width + g->wp.x - g->geom.width;
 			if (g->wp.y + g->wp.height > g->geom.y + g->geom.height)
 				g->geom.y = g->wp.height + g->wp.y - g->geom.height;
-			g->cross.erase_needed = 0;
+			g->cross.erase_needed = FALSE;
 			graph_display (g);
 			axis_display (g->y_axis);
 			axis_display (g->x_axis);
@@ -3530,11 +3683,21 @@ static gboolean motion_notify_event (GtkWidget *widget _U_, GdkEventMotion *even
 		} else if (g->magnify.active)
 			magnify_move (g, x, y);
 	} else if (state & GDK_BUTTON1_MASK) {
+
+		/* TODO: not sure we really want to jump to frames unless we release? */
 		graph_select_segment (g, x, y);
+
+		/* Update cross if necessary */
 		if (g->cross.erase_needed)
 			cross_erase (g);
 		if (g->cross.draw)
 			cross_draw (g, x, y);
+
+		/* Draw bounded box for zoomrect being chosen! */
+		if (g->zoomrect_erase_needed) {
+			zoomrect_erase (g);
+		}
+		zoomrect_draw (g, x, y);
 	} else {
 		if (g->cross.erase_needed)
 			cross_erase (g);
@@ -3548,12 +3711,37 @@ static gboolean motion_notify_event (GtkWidget *widget _U_, GdkEventMotion *even
 
 static gboolean button_release_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+	struct graph *g = user_data;
 
 	debug(DBS_FENTRY) puts ("button_release_event()");
 
 	if (event->button == MOUSE_BUTTON_RIGHT)
 		g->grab.grabbed = FALSE;
+
+	if (event->button == MOUSE_BUTTON_LEFT) {
+		int xx1 = zoomrect.x;
+		int xx2 = (int)event->x;
+		int yy1 = zoomrect.y;
+		int yy2 = (int)event->y;
+		zoomrect.x = MIN(xx1, xx2);
+		zoomrect.width = abs(xx1 - xx2);
+		zoomrect.y = MIN(yy1, yy2);
+		zoomrect.height = abs(yy1 - yy2);
+
+		/* Finish selecting a region to zoom in on.
+		   Take care not to choose a too-small area (by accident?) */
+		if (zoomrect.width > 3 && zoomrect.height > 3) {
+			int oldflags = g->zoom.flags;
+
+			debug(DBS_GRAPH_DRAWING) printf("Zoom in from (%d, %d) - (%d, %d)\n",
+			                                zoomrect.x, zoomrect.y,
+			                                zoomrect.width, zoomrect.height);
+
+			g->zoom.flags &= ~ZOOM_OUT;
+			do_zoom_rectangle(g, zoomrect);
+			g->zoom.flags = oldflags;
+		}
+	}
 
 	if (g->magnify.active)
 		magnify_destroy (g);
@@ -3562,7 +3750,7 @@ static gboolean button_release_event (GtkWidget *widget _U_, GdkEventButton *eve
 
 static gboolean key_press_event (GtkWidget *widget _U_, GdkEventKey *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+	struct graph *g = user_data;
 	int step;
 
 	debug(DBS_FENTRY) puts ("key_press_event()");
@@ -3604,7 +3792,7 @@ static gboolean key_press_event (GtkWidget *widget _U_, GdkEventKey *event, gpoi
 	case 'g':
 		do_select_segment (g);
 		break;
-        case '1':
+	case '1':
 		do_rtt_graph (g);
 		break;
 	case '2':
@@ -3632,17 +3820,18 @@ static gboolean key_press_event (GtkWidget *widget _U_, GdkEventKey *event, gpoi
 		do_key_motion_down (g, step);
 		break;
 	case GDK_F1:
-	        callback_create_help (NULL, NULL);
+		callback_create_help (NULL, NULL);
 		break;
 	default:
 		break;
 	}
+
 	return TRUE;
 }
 
 static gboolean key_release_event (GtkWidget *widget _U_, GdkEventKey *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+	struct graph *g = user_data;
 
 	debug(DBS_FENTRY) puts ("key_release_event()");
 
@@ -3656,7 +3845,7 @@ static gboolean key_release_event (GtkWidget *widget _U_, GdkEventKey *event, gp
 
 static gboolean leave_notify_event (GtkWidget *widget _U_, GdkEventCrossing *event _U_, gpointer user_data)
 {
-    struct graph *g = user_data;
+	struct graph *g = user_data;
 
 	if (g->cross.erase_needed)
 		cross_erase (g);
@@ -3753,10 +3942,10 @@ static int get_num_dsegs (struct graph *g)
 
 	for (tmp=g->segments, count=0; tmp; tmp=tmp->next) {
 		if(compare_headers(&g->src_address, &g->dst_address,
-				   g->src_port, g->dst_port,
-				   &tmp->ip_src, &tmp->ip_dst,
-				   tmp->th_sport, tmp->th_dport,
-				   COMPARE_CURR_DIR)) {
+		           g->src_port, g->dst_port,
+		           &tmp->ip_src, &tmp->ip_dst,
+		           tmp->th_sport, tmp->th_dport,
+		           COMPARE_CURR_DIR)) {
 			count++;
 		}
 	}
@@ -3991,7 +4180,6 @@ static void tseq_stevens_toggle_time_origin (struct graph *g)
 
 static void tseq_tcptrace_read_config (struct graph *g)
 {
-
 	/* Black */
 	g->s.tseq_tcptrace.seq_color.pixel=0;
 	g->s.tseq_tcptrace.seq_color.red=0;
@@ -4024,6 +4212,7 @@ static void tseq_tcptrace_read_config (struct graph *g)
 
 	g->s.tseq_tcptrace.flags = 0;
 
+	/* Allocate first list, but not elements */
 	g->elists->next = (struct element_list * )
 				g_malloc (sizeof (struct element_list));
 	g->elists->next->next = NULL;
@@ -4057,19 +4246,24 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 
 	debug(DBS_FENTRY) puts ("tseq_tcptrace_make_elmtlist()");
 
-	if (g->elists->elements == NULL) {
+	if (g->elists->elements == NULL ) {
+		/* 3 elements per data segment */
+		int n = 1 + 3*get_num_dsegs(g);
+		e0 = elements0 = (struct element * )g_malloc (n*sizeof (struct element));
+	} else {
+		/* Existing array */
+		e0 = elements0 = g->elists->elements;
+	}
+
+	if (g->elists->next->elements == NULL) {
 		/* 4 elements per ACK, but only one for each SACK range */
 		int n = 1 + 4*get_num_acks(g, &num_sack_ranges);
 		n += num_sack_ranges;
-		e0 = elements0 = (struct element * )g_malloc (n*sizeof (struct element));
-	} else
-		e0 = elements0 = g->elists->elements;
-
-	if (g->elists->next->elements == NULL ) {
-		int n = 1 + 3*get_num_dsegs(g);
 		e1 = elements1 = (struct element * )g_malloc (n*sizeof (struct element));
-	} else
+	} else {
+		/* Existing array */
 		e1 = elements1 = g->elists->next->elements;
+	}
 
 	xx0 = g->bounds.x0;
 	yy0 = g->bounds.y0;
@@ -4087,7 +4281,7 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 				   &tmp->ip_src, &tmp->ip_dst,
 				   tmp->th_sport, tmp->th_dport,
 				   COMPARE_CURR_DIR)) {
-			/* forward direction -> we need seqno and amount of data */
+			/* forward direction (data) -> we need seqno and amount of data */
 			double yy1, yy2;
 
 			seq_cur = tmp->th_seq - seq_base;
@@ -4098,30 +4292,30 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 
 			yy1 = g->zoom.y * (seq_cur);
 			yy2 = g->zoom.y * (seq_cur + data);
-			e1->type = ELMT_LINE;
-			e1->parent = tmp;
+			e0->type = ELMT_LINE;
+			e0->parent = tmp;
 			/* Set the drawing color */
-			e1->elment_color_p = &g->s.tseq_tcptrace.seq_color;
-			e1->p.line.dim.x1 = e1->p.line.dim.x2 = x;
-			e1->p.line.dim.y1 = yy1;
-			e1->p.line.dim.y2 = yy2;
-			e1++;
-			e1->type = ELMT_LINE;
-			e1->parent = tmp;
+			e0->elment_color_p = &g->s.tseq_tcptrace.seq_color;
+			e0->p.line.dim.x1 = e0->p.line.dim.x2 = x;
+			e0->p.line.dim.y1 = yy1;
+			e0->p.line.dim.y2 = yy2;
+			e0++;
+			e0->type = ELMT_LINE;
+			e0->parent = tmp;
 			/* Set the drawing color */
-			e1->elment_color_p = &g->s.tseq_tcptrace.seq_color;
-			e1->p.line.dim.x1 = x - 1;
-			e1->p.line.dim.x2 = x + 1;
-			e1->p.line.dim.y1 = e1->p.line.dim.y2 = yy1;
-			e1++;
-			e1->type = ELMT_LINE;
-			e1->parent = tmp;
+			e0->elment_color_p = &g->s.tseq_tcptrace.seq_color;
+			e0->p.line.dim.x1 = x - 1;
+			e0->p.line.dim.x2 = x + 1;
+			e0->p.line.dim.y1 = e0->p.line.dim.y2 = yy1;
+			e0++;
+			e0->type = ELMT_LINE;
+			e0->parent = tmp;
 			/* Set the drawing color */
-			e1->elment_color_p = &g->s.tseq_tcptrace.seq_color;
-			e1->p.line.dim.x1 = x + 1;
-			e1->p.line.dim.x2 = x - 1;
-			e1->p.line.dim.y1 = e1->p.line.dim.y2 = yy2;
-			e1++;
+			e0->elment_color_p = &g->s.tseq_tcptrace.seq_color;
+			e0->p.line.dim.x1 = x + 1;
+			e0->p.line.dim.x2 = x - 1;
+			e0->p.line.dim.y1 = e0->p.line.dim.y2 = yy2;
+			e0++;
 		} else {
 			double ackno, win;
 			if (! TCP_ACK (tmp->th_flags))
@@ -4136,48 +4330,48 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 			if (ack_seen == TRUE) { /* don't plot the first ack */
 
 				/* Horizonal: time of previous ACK to now (at new ACK) */
-				e0->type = ELMT_LINE;
-				e0->parent = tmp;
+				e1->type = ELMT_LINE;
+				e1->parent = tmp;
 				/* Set the drawing color */
-				e0->elment_color_p = &g->s.tseq_tcptrace.ack_color[toggle];
-				e0->p.line.dim.x1 = p_t;
-				e0->p.line.dim.y1 = p_ackno;
-				e0->p.line.dim.x2 = x;
-				e0->p.line.dim.y2 = p_ackno;
-				e0++;
+				e1->elment_color_p = &g->s.tseq_tcptrace.ack_color[toggle];
+				e1->p.line.dim.x1 = p_t;
+				e1->p.line.dim.y1 = p_ackno;
+				e1->p.line.dim.x2 = x;
+				e1->p.line.dim.y2 = p_ackno;
+				e1++;
 
 				/* Vertical: from previous ACKNO to current one (at current time) */
-				e0->type = ELMT_LINE;
-				e0->parent = tmp;
+				e1->type = ELMT_LINE;
+				e1->parent = tmp;
 				/* Set the drawing color */
-				e0->elment_color_p = &g->s.tseq_tcptrace.ack_color[toggle];
-				e0->p.line.dim.x1 = x;
-				e0->p.line.dim.y1 = p_ackno;
-				e0->p.line.dim.x2 = x;
-				e0->p.line.dim.y2 = ackno!=p_ackno || ackno<4 ? ackno : ackno-4;
-				e0++;
+				e1->elment_color_p = &g->s.tseq_tcptrace.ack_color[toggle];
+				e1->p.line.dim.x1 = x;
+				e1->p.line.dim.y1 = p_ackno;
+				e1->p.line.dim.x2 = x;
+				e1->p.line.dim.y2 = ackno!=p_ackno || ackno<4 ? ackno : ackno-4;
+				e1++;
 
 				/* Horizontal: window line */
-				e0->type = ELMT_LINE;
-				e0->parent = tmp;
+				e1->type = ELMT_LINE;
+				e1->parent = tmp;
 				/* Set the drawing color */
-				e0->elment_color_p = &g->s.tseq_tcptrace.ack_color[toggle];
-				e0->p.line.dim.x1 = p_t;
-				e0->p.line.dim.y1 = p_win + p_ackno;
-				e0->p.line.dim.x2 = x;
-				e0->p.line.dim.y2 = p_win + p_ackno;
-				e0++;
+				e1->elment_color_p = &g->s.tseq_tcptrace.ack_color[toggle];
+				e1->p.line.dim.x1 = p_t;
+				e1->p.line.dim.y1 = p_win + p_ackno;
+				e1->p.line.dim.x2 = x;
+				e1->p.line.dim.y2 = p_win + p_ackno;
+				e1++;
 
 				/* Vertical: old window to new window */
-				e0->type = ELMT_LINE;
-				e0->parent = tmp;
+				e1->type = ELMT_LINE;
+				e1->parent = tmp;
 				/* Set the drawing color */
-				e0->elment_color_p = &g->s.tseq_tcptrace.ack_color[toggle];
-				e0->p.line.dim.x1 = x;
-				e0->p.line.dim.y1 = p_win + p_ackno;
-				e0->p.line.dim.x2 = x;
-				e0->p.line.dim.y2 = win + ackno;
-				e0++;
+				e1->elment_color_p = &g->s.tseq_tcptrace.ack_color[toggle];
+				e1->p.line.dim.x1 = x;
+				e1->p.line.dim.y1 = p_win + p_ackno;
+				e1->p.line.dim.x2 = x;
+				e1->p.line.dim.y2 = win + ackno;
+				e1++;
 
 				/* Toggle color to use for ACKs... */
 				toggle = 1^toggle;
@@ -4200,25 +4394,29 @@ static void tseq_tcptrace_make_elmtlist (struct graph *g)
 					   between SACKs, but when TCP is limited by option bytes and needs to
 					   miss out ranges, this can be pretty confusing as we end up apparently
 					   NACKing what has been received... */
-					e0->type = ELMT_LINE;
-					e0->parent = tmp;
+					e1->type = ELMT_LINE;
+					e1->parent = tmp;
 					/* Set the drawing color.  First range is significant, so use
 					   separate colour */
-					e0->elment_color_p = (n==0) ? &g->s.tseq_tcptrace.sack_color[0] :
+					e1->elment_color_p = (n==0) ? &g->s.tseq_tcptrace.sack_color[0] :
 					                              &g->s.tseq_tcptrace.sack_color[1];
-					e0->p.line.dim.x1 = x;
-					e0->p.line.dim.y1 = right_edge;
-					e0->p.line.dim.x2 = x;
-					e0->p.line.dim.y2 = left_edge;
-					e0++;
+					e1->p.line.dim.x1 = x;
+					e1->p.line.dim.y1 = right_edge;
+					e1->p.line.dim.x2 = x;
+					e1->p.line.dim.y2 = left_edge;
+					e1++;
 				}
 			}
 		}
 	}
+
+	/* Terminate both lists */
 	e0->type = ELMT_NONE;
 	e1->type = ELMT_NONE;
+
 	g->elists->elements = elements0;
 	g->elists->next->elements = elements1;
+	g->elists->next->next = NULL;
 }
 
 static void tseq_tcptrace_toggle_seq_origin (struct graph *g)
@@ -4251,9 +4449,10 @@ static void tput_make_elmtlist (struct graph *g)
 	struct element *elements, *e;
 	int i, sum=0;
 	double dtime, tput;
+	int num_sack_ranges;
 
 	if (g->elists->elements == NULL) {
-		int n = 1 + get_num_dsegs (g);
+		int n = 1 + get_num_dsegs (g) + get_num_acks (g, &num_sack_ranges);
 		e = elements = (struct element * )g_malloc (n*sizeof (struct element));
 	} else
 		e = elements = g->elists->elements;
@@ -4666,7 +4865,7 @@ static void wscale_make_elmtlist(struct graph* g)
 	for ( segm = g->segments; segm; segm = segm->next )
 	{
 		if (compare_headers(&g->src_address, &g->dst_address,
-					g->src_port, g->src_port,
+					g->src_port, g->dst_port,
 					&segm->ip_src, &segm->ip_dst,
 					segm->th_sport, segm->th_dport,
 					COMPARE_CURR_DIR))
@@ -4716,12 +4915,6 @@ static int rint (double x)
 
 gboolean tcp_graph_selected_packet_enabled(frame_data *current_frame, epan_dissect_t *edt, gpointer callback_data _U_)
 {
-    return current_frame != NULL ? (edt->pi.ipproto == IP_PROTO_TCP) : FALSE;
-}
-
-
-void
-register_tap_listener_tcp_graph(void)
-{
+	return current_frame != NULL ? (edt->pi.ipproto == IP_PROTO_TCP) : FALSE;
 }
 

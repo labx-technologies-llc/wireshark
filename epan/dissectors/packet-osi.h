@@ -45,9 +45,9 @@
 #define PROTO_STRING_ISIS "ISO 10589 ISIS InTRA Domain Routeing Information Exchange Protocol"
 #define PROTO_STRING_IDRP "ISO 10747 IDRP InTER Domain Routeing Information Exchange Protocol"
 #define PROTO_STRING_ESIS "ISO 9542 ESIS Routeing Information Exchange Protocol"
-#define PROTO_STRING_CLNP "ISO 8473 CLNP ConnectionLess Network Protocol"
-#define PROTO_STRING_COTP "ISO 8073 COTP Connection-Oriented Transport Protocol"
-#define PROTO_STRING_CLTP "ISO 8602 CLTP ConnectionLess Transport Protocol"
+#define PROTO_STRING_CLNP "ISO 8473/X.233 CLNP ConnectionLess Network Protocol"
+#define PROTO_STRING_COTP "ISO 8073/X.224 COTP Connection-Oriented Transport Protocol"
+#define PROTO_STRING_CLTP "ISO 8602/X.234 CLTP ConnectionLess Transport Protocol"
 #define PROTO_STRING_LSP  "ISO 10589 ISIS Link State Protocol Data Unit"
 #define PROTO_STRING_CSNP "ISO 10589 ISIS Complete Sequence Numbers Protocol Data Unit"
 #define PROTO_STRING_PSNP "ISO 10589 ISIS Partial Sequence Numbers Protocol Data Unit"
@@ -86,6 +86,8 @@ typedef enum {
 } cksum_status_t;
 
 extern cksum_status_t calc_checksum(tvbuff_t *, int, guint, guint);
-extern cksum_status_t check_and_get_checksum( tvbuff_t *, int, guint, guint, int, guint16*);
+extern cksum_status_t check_and_get_checksum(tvbuff_t *, int, guint, guint, int, guint16*);
+extern gboolean check_atn_ec_32(tvbuff_t *tvb, guint tpdu_len, guint offset_ec_32_val, guint offset_iso8073_val, guint clnp_dst_len, const guint8 *clnp_dst, guint clnp_src_len, const guint8 *clnp_src);
+extern gboolean check_atn_ec_16(tvbuff_t *tvb, guint tpdu_len, guint offset_ec_16_val, guint offset_iso8073_val, guint clnp_dst_len, const guint8 *clnp_dst, guint clnp_src_len, const guint8 *clnp_src);
 
 #endif /* _PACKET_OSI_H */

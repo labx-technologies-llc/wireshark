@@ -26,9 +26,13 @@
 #include "qt_ui_utils.h"
 #include "ui/recent.h"
 
-#include "display_filter_edit.h"
+#include <epan/prefs.h>
 
+#include "display_filter_edit.h"
 #include "display_filter_combo.h"
+#include "wireshark_application.h"
+
+#include <QCompleter>
 
 // If we ever add support for multiple windows this will need to be replaced.
 static DisplayFilterCombo *cur_display_filter_combo = NULL;
@@ -43,12 +47,15 @@ DisplayFilterCombo::DisplayFilterCombo(QWidget *parent) :
     cur_display_filter_combo = this;
     setStyleSheet(
             "QComboBox {"
+#ifdef Q_WS_MAC
             "  border: 1px solid gray;"
+#else
+            "  border: 1px solid palette(shadow);"
+#endif
             "  border-radius: 3px;"
             "  padding: 0px 0px 0px 0px;"
             "  margin-left: 0px;"
             "  min-width: 20em;"
-//            "  background: #ccccff;"
             " }"
 
             "QComboBox::drop-down {"
@@ -68,6 +75,8 @@ DisplayFilterCombo::DisplayFilterCombo(QWidget *parent) :
             "}"
             );
     completer()->setCompletionMode(QCompleter::PopupCompletion);
+
+    connect(wsApp, SIGNAL(updatePreferences()), this, SLOT(updateMaxCount()));
 }
 
 extern "C" void dfilter_recent_combo_write_all(FILE *rf) {
@@ -87,6 +96,18 @@ void DisplayFilterCombo::writeRecent(FILE *rf) {
             fprintf(rf, RECENT_KEY_DISPLAY_FILTER ": %s\n", filter_str);
         }
     }
+}
+
+void DisplayFilterCombo::applyDisplayFilter()
+{
+    DisplayFilterEdit *df_edit = qobject_cast<DisplayFilterEdit *>(lineEdit());
+
+    if (df_edit) df_edit->applyDisplayFilter();
+}
+
+void DisplayFilterCombo::updateMaxCount()
+{
+    setMaxCount(prefs.gui_recent_df_entries_max);
 }
 
 extern "C" gboolean dfilter_combo_add_recent(gchar *filter) {

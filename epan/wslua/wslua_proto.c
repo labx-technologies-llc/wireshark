@@ -623,6 +623,10 @@ WSLUA_CONSTRUCTOR ProtoField_new(lua_State* L) { /* Creates a new field to be us
         WSLUA_ARG_ERROR(ProtoField_new,TYPE,"invalid ftypes");
     }
 
+    if (!f->abbr || !f->abbr[0]) {
+        WSLUA_ARG_ERROR(ProtoField_new,ABBR,"Missing abbrev");
+    }
+
     if (proto_check_field_name(f->abbr)) {
         g_free(f->name);
         g_free(f->abbr);
@@ -692,6 +696,11 @@ static int ProtoField_integer(lua_State* L, enum ftenum type) {
     } else if ((base == BASE_HEX || base == BASE_OCT) &&
 	       (type == FT_INT8 || type == FT_INT16 || type == FT_INT24 || type == FT_INT32 || type == FT_INT64)) {
       luaL_argerror(L, 3, "This type does not display as hexadecimal");
+      return 0;
+    }
+
+    if (!abbr || !abbr[0]) {
+      luaL_argerror(L, 1, "Missing abbrev");
       return 0;
     }
 
@@ -854,6 +863,11 @@ static int ProtoField_boolean(lua_State* L, enum ftenum type) {
         return 0;
     }
 
+    if (!abbr || !abbr[0]) {
+      luaL_argerror(L,1,"Missing abbrev");
+      return 0;
+    }
+
     if (proto_check_field_name(abbr)) {
       luaL_argerror(L,1,"Invalid char in abbrev");
       return 0;
@@ -899,6 +913,11 @@ static int ProtoField_time(lua_State* L,enum ftenum type) {
     const gchar* name = luaL_optstring(L,2,abbr);
     absolute_time_display_e base = luaL_optint(L,3,ABSOLUTE_TIME_LOCAL);
     const gchar* blob = luaL_optstring(L,4,NULL);
+
+    if (!abbr || !abbr[0]) {
+      luaL_argerror(L,1,"Missing abbrev");
+      return 0;
+    }
 
     if (proto_check_field_name(abbr)) {
       luaL_argerror(L,1,"Invalid char in abbrev");
@@ -955,6 +974,11 @@ static int ProtoField_other(lua_State* L,enum ftenum type) {
     const gchar* abbr = luaL_checkstring(L,1);
     const gchar* name = luaL_optstring(L,2,abbr);
     const gchar* blob = luaL_optstring(L,3,NULL);
+
+    if (!abbr || !abbr[0]) {
+      luaL_argerror(L,1,"Missing abbrev");
+      return 0;
+    }
 
     if (proto_check_field_name(abbr)) {
       luaL_argerror(L,1,"Invalid char in abbrev");

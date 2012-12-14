@@ -76,6 +76,21 @@ SUFFIXES = .moc.cpp .qrc .rcc.cpp
 .qrc.rcc.cpp:
 	rcc -name `basename $< .qrc` -o $@ $<
 
+export_object_dialog.h: ui_export_object_dialog.h
+
+ui_export_object_dialog.h: export_object_dialog.ui
+	uic $< -o $@
+
+file_set_dialog.h: ui_file_set_dialog.h
+
+ui_file_set_dialog.h: file_set_dialog.ui
+	uic $< -o $@
+
+import_text_dialog.h: ui_import_text_dialog.h
+
+ui_import_text_dialog.h: import_text_dialog.ui
+	uic $< -o $@
+
 main_welcome.h: ui_main_welcome.h
 
 ui_main_welcome.h: main_welcome.ui
@@ -84,6 +99,26 @@ ui_main_welcome.h: main_welcome.ui
 main_window.h: ui_main_window.h
 
 ui_main_window.h: main_window.ui
+	uic $< -o $@
+
+packet_format_group_box.h: ui_packet_format_group_box.h
+
+ui_packet_format_group_box.h: packet_format_group_box.ui
+	uic $< -o $@
+
+packet_range_group_box.h: ui_packet_range_group_box.h
+
+ui_packet_range_group_box.h: packet_range_group_box.ui
+	uic $< -o $@
+
+print_dialog.h: ui_print_dialog.h
+
+ui_print_dialog.h: print_dialog.ui
+	uic $< -o $@
+
+splash_overlay.h: ui_splash_overlay.h
+
+ui_splash_overlay.h: splash_overlay.ui
 	uic $< -o $@
 
 doxygen:
@@ -131,12 +166,23 @@ remote_icons.h:
 #	Makefile.nmake
 EXTRA_DIST = \
 	$(GENERATOR_FILES)		\
+	$(QRC_FILES)			\
+	$(TS_FILES)			\
+	$(QM_FILES)			\
 	CMakeLists.txt			\
 	doxygen.cfg.in			\
+	export_object_dialog.ui		\
+	file_set_dialog.ui		\
+	import_text_dialog.ui		\
 	main.cpp			\
 	Makefile.common			\
 	Makefile_custom.common		\
 	main_welcome.ui			\
 	main_window.ui			\
+	packet_format_group_box.ui	\
+	packet_range_group_box.ui	\
+	print_dialog.ui			\
+	QtShark.pro			\
+	splash_overlay.ui		\
 	display_filter_16.svg		\
 	gpl-template.txt

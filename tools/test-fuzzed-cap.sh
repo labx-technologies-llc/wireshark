@@ -69,6 +69,9 @@ export WIRESHARK_SE_VERIFY_POINTERS=
 # abort instead of giving a nice error message
 export WIRESHARK_ABORT_ON_OUT_OF_MEMORY=
 
+# Call abort() on dissector bugs to make it easier to get a stack trace
+export WIRESHARK_ABORT_ON_DISSECTOR_BUG=
+
 # Turn on GLib memory debugging (since 2.13)
 export G_SLICE=debug-blocks
 # Cause glibc (Linux) to abort() if some memory errors are found
@@ -91,7 +94,11 @@ export MallocCheckHeapEach=1000
 export MallocCheckHeapAbort=1
 # Call abort() if an illegal free() call is made
 export MallocBadFreeAbort=1
-# Call abort() on dissector bugs to make it easier to get a stack trace
-export WIRESHARK_ABORT_ON_DISSECTOR_BUG=
 
-$BIN_DIR/tshark -nVxr $1 > /dev/null
+if $BIN_DIR/tshark -nVxr $1 > /dev/null
+then
+	echo
+	echo "* * Trying again without building tree * *"
+	echo
+	$BIN_DIR/tshark -nr $1 > /dev/null
+fi

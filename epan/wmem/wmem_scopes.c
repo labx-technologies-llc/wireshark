@@ -23,10 +23,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <stdlib.h>
+
 #include <glib.h>
 
 #include "wmem_scopes.h"
 #include "wmem_allocator_glib.h"
+#include "wmem_allocator_block.h"
 
 /* One of the supposed benefits of wmem over the old emem was going to be that
  * the scoping of the various memory pools would be obvious, since they would
@@ -49,22 +52,12 @@
  */
 
 /* TODO: Make these thread-local */
-static wmem_allocator_t *epan_scope   = NULL;
 static wmem_allocator_t *packet_scope = NULL;
 static wmem_allocator_t *file_scope   = NULL;
+static wmem_allocator_t *epan_scope   = NULL;
 
 static gboolean in_packet_scope = FALSE;
 static gboolean in_file_scope   = FALSE;
-
-/* Epan Scope */
-
-wmem_allocator_t *
-wmem_epan_scope(void)
-{
-    g_assert(epan_scope);
-
-    return epan_scope;
-}
 
 /* Packet Scope */
 
@@ -138,40 +131,56 @@ wmem_leave_file_scope(void)
     in_file_scope = FALSE;
 }
 
+/* Epan Scope */
+
+wmem_allocator_t *
+wmem_epan_scope(void)
+{
+    g_assert(epan_scope);
+
+    return epan_scope;
+}
+
 /* Scope Management */
 
 void
 wmem_init_scopes(void)
 {
-    g_assert(epan_scope   == NULL);
     g_assert(packet_scope == NULL);
     g_assert(file_scope   == NULL);
+    g_assert(epan_scope   == NULL);
 
     g_assert(in_packet_scope == FALSE);
     g_assert(in_file_scope   == FALSE);
 
-    epan_scope   = wmem_create_glib_allocator();
-    packet_scope = wmem_create_glib_allocator();
+    if (getenv("WIRESHARK_DEBUG_WMEM_PACKET_NO_CHUNKS")) {
+        packet_scope = wmem_create_glib_allocator();
+    }
+    else {
+        packet_scope = wmem_create_block_allocator();
+    }
+
     file_scope   = wmem_create_glib_allocator();
+    epan_scope   = wmem_create_glib_allocator();
 }
 
 void
 wmem_cleanup_scopes(void)
 {
-    g_assert(epan_scope);
     g_assert(packet_scope);
     g_assert(file_scope);
+    g_assert(epan_scope);
 
     g_assert(in_packet_scope == FALSE);
     g_assert(in_file_scope   == FALSE);
 
-    wmem_destroy_allocator(epan_scope);
     wmem_destroy_allocator(packet_scope);
     wmem_destroy_allocator(file_scope);
+    wmem_destroy_allocator(epan_scope);
 
-    epan_scope   = NULL;
     packet_scope = NULL;
     file_scope   = NULL;
+    epan_scope   = NULL;
 }
 
 /*

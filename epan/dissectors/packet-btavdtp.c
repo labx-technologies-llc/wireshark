@@ -231,6 +231,7 @@ static gboolean force_avdtp = FALSE;
 static dissector_handle_t btavdtp_handle;
 static dissector_handle_t bta2dp_handle;
 static dissector_handle_t btvdp_handle;
+static dissector_handle_t rtp_handle;
 
 static emem_tree_t *sep_list          = NULL;
 static emem_tree_t *sep_open          = NULL;
@@ -240,7 +241,6 @@ static emem_tree_t *cid_to_type_table = NULL;
 static int proto_bta2dp                        = -1;
 static gint ett_bta2dp                         = -1;
 
-static dissector_handle_t rtp_handle;
 static dissector_handle_t sbc_handle;
 static dissector_handle_t mp2t_handle;
 static dissector_handle_t mpeg_audio_handle;
@@ -250,7 +250,6 @@ static dissector_handle_t atrac_handle;
 static int proto_btvdp                         = -1;
 static gint ett_btvdp                          = -1;
 
-static dissector_handle_t rtp_handle;
 static dissector_handle_t h263_handle;
 static dissector_handle_t mp4v_es_handle;
 
@@ -404,7 +403,7 @@ typedef struct _cid_type_data_t {
 } cid_type_data_t;
 
 
-const char *
+static const char *
 get_sep_type(guint32 frame_number, guint seid)
 {
     sep_entry_t      *sep;
@@ -430,7 +429,7 @@ get_sep_type(guint32 frame_number, guint seid)
     return "unknown";
 }
 
-const char *
+static const char *
 get_sep_media_type(guint32 frame_number, guint seid)
 {
     sep_entry_t      *sep;
@@ -509,6 +508,7 @@ dissect_sep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint offset)
             sep_data = se_alloc(sizeof(sep_entry_t));
             sep_data->seid = seid;
             sep_data->type = type;
+            sep_data->codec = -1;
             sep_data->media_type = media_type;
             if (in_use) {
                 sep_data->state = SEP_STATE_IN_USE;
@@ -688,8 +688,8 @@ dissect_capabilities(tvbuff_t *tvb, packet_info *pinfo,
 {
     proto_item  *pitem                                        = NULL;
     proto_item  *ptree                                        = NULL;
-    proto_tree  *capabilities_tree                            = NULL;
-    proto_item  *capabilities_item                            = NULL;
+    proto_tree  *capabilities_tree;
+    proto_item  *capabilities_item;
     proto_tree  *service_tree                                 = NULL;
     proto_item  *service_item                                 = NULL;
     gint        service_category                              = 0;
@@ -801,6 +801,7 @@ dissect_capabilities(tvbuff_t *tvb, packet_info *pinfo,
                 proto_tree_add_item(service_tree, hf_btavdtp_header_compression_backch,   tvb, offset, 1, ENC_BIG_ENDIAN);
                 proto_tree_add_item(service_tree, hf_btavdtp_header_compression_media,    tvb, offset, 1, ENC_BIG_ENDIAN);
                 proto_tree_add_item(service_tree, hf_btavdtp_header_compression_recovery, tvb, offset, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(service_tree, hf_btavdtp_header_compression_rfa,      tvb, offset, 1, ENC_BIG_ENDIAN);
                 offset += 1;
                 losc -= 1;
                 break;
@@ -875,7 +876,7 @@ static gint
 dissect_seid(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint offset,
              gint seid_side, gint i_item, guint32 *sep_seid)
 {
-    guint32     seid           = 0;
+    guint32     seid;
     proto_tree  *seid_tree     = NULL;
     proto_item  *seid_item     = NULL;
 
@@ -1340,6 +1341,11 @@ proto_register_btavdtp(void)
             FT_UINT8, BASE_HEX, NULL, AVDTP_RFA0_MASK,
             NULL, HFILL }
         },
+        { &hf_btavdtp_number_of_signal_packets,
+            { "Number of signal packets",       "btavdtp.num_signal_packets",
+            FT_UINT8, BASE_DEC, NULL, 0,
+            NULL, HFILL }
+        },
         { &hf_btavdtp_error_code,
             { "Error Code",                     "btavdtp.error_code",
             FT_UINT8, BASE_HEX, VALS(error_code_vals), 0x00,
@@ -1463,7 +1469,7 @@ proto_register_btavdtp(void)
         },
         { &hf_btavdtp_header_compression_rfa,
             { "RFA",                            "btavdtp.header_compression_rfa",
-            FT_UINT8, BASE_HEX, VALS(true_false), 0x1f,
+            FT_UINT8, BASE_HEX, NULL, 0x1f,
             NULL, HFILL }
         },
         { &hf_btavdtp_content_protection_type,
@@ -1957,7 +1963,7 @@ proto_reg_handoff_btavdtp(void)
 
 
 static gint
-dissect_bta2dp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_bta2dp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     proto_item          *ti;
     proto_tree          *bta2dp_tree;
@@ -2074,7 +2080,7 @@ proto_reg_handoff_bta2dp(void)
 
 
 static gint
-dissect_btvdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_btvdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     proto_item          *ti;
     proto_tree          *btvdp_tree;

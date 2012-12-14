@@ -97,10 +97,7 @@ get_reload_framing_message_length(packet_info *pinfo _U_, tvbuff_t *tvb, int off
 
 
   if (tvb_get_guint8(tvb, offset) == DATA) {
-
-    length = 1 + 4;
-    length += 3;
-    length += (tvb_get_ntohs(tvb, 1 + 4)<<8)+ tvb_get_guint8(tvb, 1 + 4 + 2);
+    length = 1 + 4 + 3 + tvb_get_ntoh24(tvb, 1 + 4);
   }
 
   return length;
@@ -120,7 +117,7 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
   guint               effective_length;
   guint16             offset;
   conversation_t     *conversation;
-  reload_conv_info_t *reload_framing_info;
+  reload_conv_info_t *reload_framing_info = NULL;
   reload_frame_t *    reload_frame;
   guint8              type;
 
@@ -133,6 +130,8 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 
   conversation = find_conversation(pinfo->fd->num, &pinfo->src, &pinfo->dst,
                                    pinfo->ptype, pinfo->srcport, pinfo->destport, 0);
+  if (conversation)
+    reload_framing_info = conversation_get_proto_data(conversation, proto_reload_framing);
 
   /* Get the type
    * http://tools.ietf.org/html/draft-ietf-p2psip-base-12
@@ -145,7 +144,10 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     /* in the data type, check the reload token to be sure this
     *  is a reLoad packet
     */
-    message_length = (tvb_get_ntohs(tvb, 1 + 4)<<8)+ tvb_get_guint8(tvb, 1 + 4 + 2);
+    if (effective_length < 12)  /* [type + seq + length + token] */
+      return 0;
+
+    message_length = tvb_get_ntoh24(tvb, 1 + 4);
     if (message_length < MIN_RELOADDATA_HDR_LENGTH) {
       return 0;
     }
@@ -155,14 +157,14 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     }
     break;
   case ACK:
-    if (effective_length < 9 || ! conversation) {
+    /* Require previous ACK (i.e., reload_framing_info attached to conversation). */
+    if (effective_length < 9 || ! reload_framing_info) {
       return 0;
     }
     break;
   default:
     return 0;
   }
-
 
   /* The message seems to be a valid RELOAD framing message! */
 
@@ -209,13 +211,13 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
   /*
    * Do we already have a state structure for this conv
    */
-  reload_framing_info = conversation_get_proto_data(conversation, proto_reload_framing);
   if (!reload_framing_info) {
     /* No.  Attach that information to the conversation, and add
      * it to the list of information structures.
      */
     reload_framing_info = se_alloc(sizeof(reload_conv_info_t));
-    reload_framing_info->transaction_pdus = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "reload_framing_transaction_pdus");
+    reload_framing_info->transaction_pdus = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK,
+                                                                          "reload_framing_transaction_pdus");
     conversation_add_proto_data(conversation, proto_reload_framing, reload_framing_info);
   }
 
@@ -336,10 +338,8 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 
   case ACK:
   {
-    guint32     sequence;
     proto_item *ti_received;
 
-    sequence = tvb_get_ntohl(tvb, offset);
     proto_tree_add_uint(reload_framing_tree, hf_reload_framing_ack_sequence, tvb, offset , 4, sequence);
     offset += 4;
 
@@ -347,23 +347,23 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     {
       guint32     received;
       int         last_received      = -1;
-      int         index              = 0;
+      int         indx               = 0;
       proto_tree *received_tree;
       proto_item *ti_parsed_received = NULL;
 
       received = tvb_get_ntohl(tvb, offset);
-      while ((received<<index) != 0) {
-        if (index>=32) break;
-        if (received &(0x1<<(31-index))) {
-          if (index==0) {
+      while ((received<<indx) != 0) {
+        if (indx>=32) break;
+        if (received &(0x1<<(31-indx))) {
+          if (indx==0) {
             received_tree = proto_item_add_subtree(ti_received, ett_reload_framing_received);
             ti_parsed_received = proto_tree_add_item(received_tree, hf_reload_framing_parsed_received, tvb, offset, 4, ENC_NA);
-            proto_item_append_text(ti_parsed_received, "[%u", (sequence -32+index));
-            last_received = index;
+            proto_item_append_text(ti_parsed_received, "[%u", (sequence -32+indx));
+            last_received = indx;
           }
           else {
-            if (received &(0x1<<(31-index+1))) {
-              index++;
+            if (received &(0x1<<(31-indx+1))) {
+              indx++;
               /* range: skip */
               continue;
             }
@@ -373,43 +373,43 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
                 /* 1st acked ever */
                 received_tree = proto_item_add_subtree(ti_received, ett_reload_framing_received);
                 ti_parsed_received = proto_tree_add_item(received_tree, hf_reload_framing_parsed_received, tvb, offset, 4, ENC_NA);
-                proto_item_append_text(ti_parsed_received, "[%u",(sequence-32+index));
+                proto_item_append_text(ti_parsed_received, "[%u",(sequence-32+indx));
               }
               else {
-                proto_item_append_text(ti_parsed_received, ",%u",(sequence-32+index));
+                proto_item_append_text(ti_parsed_received, ",%u",(sequence-32+indx));
               }
-              last_received = index;
+              last_received = indx;
 
             }
           }
         }
-        else if (index>0) {
-          if ((received &(0x1<<(31-index+1))) && (received &(0x1<<(31-index+2)))) {
+        else if (indx>0) {
+          if ((received &(0x1<<(31-indx+1))) && (received &(0x1<<(31-indx+2)))) {
             /* end of a series */
-            if ((received &(0x1<<(31-index+3)))) {
-              proto_item_append_text(ti_parsed_received,"-%u",(sequence-32+index-1));
+            if ((received &(0x1<<(31-indx+3)))) {
+              proto_item_append_text(ti_parsed_received,"-%u",(sequence-32+indx-1));
             }
             else {
               /* just a pair */
-              proto_item_append_text(ti_received, ",%u", (sequence-32+index-1));
+              proto_item_append_text(ti_received, ",%u", (sequence-32+indx-1));
             }
           }
           else {
-            index++;
+            indx++;
             continue;
           }
         }
-        index++;
+        indx++;
       }
       if (last_received>=0) {
-        if ((received &(0x1<<(31-index+1))) && (received &(0x1<<(31-index+2)))) {
+        if ((received &(0x1<<(31-indx+1))) && (received &(0x1<<(31-indx+2)))) {
           /* end of a series */
-          if ((received &(0x1<<(31-index+3)))) {
-            proto_item_append_text(ti_parsed_received,"-%u",(sequence-32+index-1));
+          if ((received &(0x1<<(31-indx+3)))) {
+            proto_item_append_text(ti_parsed_received,"-%u",(sequence-32+indx-1));
           }
           else {
             /* just a pair */
-            proto_item_append_text(ti_parsed_received, ",%u", (sequence-32+index-1));
+            proto_item_append_text(ti_parsed_received, ",%u", (sequence-32+indx-1));
           }
         }
         proto_item_append_text(ti_parsed_received, "]");
@@ -446,6 +446,11 @@ dissect_reload_framing_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                    get_reload_framing_message_length, dissect_reload_framing_message_no_return);
 }
 
+/* ToDo: If a TCP connection is identified heuristically as reload-framing, then
+ *        the code should be such that reload-framing PDUs can be re-assembled (as is
+ *        done for a TCP connection identified as reload-framing because of
+ *        the TCP port used).
+ */
 static gboolean
 dissect_reload_framing_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {

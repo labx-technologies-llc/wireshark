@@ -271,7 +271,9 @@ wimaxasncp_DATA = \
 	wimaxasncp/dictionary.xml \
 	wimaxasncp/dictionary.dtd
 
-PLATFORM_SRC = capture-pcap-util-unix.c
+PLATFORM_SRC = \
+	capture-pcap-util-unix.c \
+	capture_unix_ifnames.c
 
 if HAVE_PLUGINS
 -include plugins/Custom.make
@@ -346,8 +348,9 @@ wireshark_LDADD = \
 	@C_ARES_LIBS@			\
 	@ADNS_LIBS@			\
 	@KRB5_LIBS@			\
-	@LAUNCHSERVICES_FRAMEWORKS@	\
-	@CORESERVICES_FRAMEWORKS@	\
+	@APPLICATIONSERVICES_FRAMEWORKS@	\
+	@SYSTEMCONFIGURATION_FRAMEWORKS@	\
+	@COREFOUNDATION_FRAMEWORKS@	\
 	@PY_LIBS@			\
 	@LIBGCRYPT_LIBS@		\
 	@LIBGNUTLS_LIBS@		\
@@ -381,7 +384,8 @@ tshark_LDADD = \
 	@C_ARES_LIBS@			\
 	@ADNS_LIBS@			\
 	@KRB5_LIBS@			\
-	@CORESERVICES_FRAMEWORKS@	\
+	@SYSTEMCONFIGURATION_FRAMEWORKS@	\
+	@COREFOUNDATION_FRAMEWORKS@	\
 	@PY_LIBS@			\
 	@LIBGCRYPT_LIBS@		\
 	@LIBGNUTLS_LIBS@		\
@@ -409,7 +413,8 @@ rawshark_LDADD = \
 	@C_ARES_LIBS@			\
 	@ADNS_LIBS@			\
 	@KRB5_LIBS@			\
-	@CORESERVICES_FRAMEWORKS@	\
+	@SYSTEMCONFIGURATION_FRAMEWORKS@	\
+	@COREFOUNDATION_FRAMEWORKS@	\
 	@PY_LIBS@			\
 	@LIBGCRYPT_LIBS@		\
 	@LIBGNUTLS_LIBS@		\
@@ -496,7 +501,8 @@ dumpcap_LDADD = \
 	@PCAP_LIBS@			\
 	@SOCKET_LIBS@			\
 	@NSL_LIBS@			\
-	@CORESERVICES_FRAMEWORKS@	\
+	@SYSTEMCONFIGURATION_FRAMEWORKS@	\
+	@COREFOUNDATION_FRAMEWORKS@	\
 	@LIBCAP_LIBS@
 dumpcap_CFLAGS = $(AM_CLEAN_CFLAGS)
 
@@ -585,6 +591,8 @@ EXTRA_DIST = \
 	adns_dll.rc		\
 	autogen.sh		\
 	capinfos.c		\
+	capture_win_ifnames.c	\
+	capture_win_ifnames.h	\
 	capture-wpcap.c		\
 	capture-wpcap.h		\
 	capture_wpcap_packet.c  \
@@ -787,6 +795,8 @@ EXTRA_DIST = \
 	image/toolbar/telephone_16.xpm	\
 	image/toolbar/telephony_16.xpm	\
 	image/toolbar/time_24.xpm	\
+	image/toolbar/toolbar_wireshark_file_16.png	\
+	image/toolbar/toolbar_wireshark_file_24.png	\
 	image/toolbar/voip_flow_24.xpm	\
 	image/toolbar/web_support_24.xpm	\
 	image/toolbar/wep_closed_24.xpm \
@@ -806,7 +816,6 @@ EXTRA_DIST = \
 	image/WiresharkDoc-32.png	\
 	image/WiresharkDoc-48.png	\
 	image/WiresharkDoc-64.png	\
-	image/WiresharkDoc_24.xpm	\
 	image/wiretap.rc.in	\
 	image/wsicon.svg	\
 	image/wsicon16.png	\
@@ -818,6 +827,8 @@ EXTRA_DIST = \
 	image/wsicon48.xpm	\
 	image/wsicon64.png	\
 	image/wsicon64.xpm	\
+	image/wsicon-ask.png	\
+	image/wsicon-ask.svg	\
 	image/wsiconcap.svg	\
 	image/wsiconcap16.xpm	\
 	image/wsiconcap256.png	\

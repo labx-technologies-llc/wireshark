@@ -331,8 +331,10 @@ parse_eprt_request(const guchar* line, gint linelen, guint32 *eprt_af,
     gboolean  ret = TRUE;
 
 
-    if (!line)
+    /* line contains the EPRT parameters, we need at least the 4 delimiters */
+    if (!line || linelen<4)
         return FALSE;
+
     /* Copy the rest of the line into a null-terminated buffer. */
     args = ep_strndup(line, linelen);
     p = args;
@@ -524,7 +526,7 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_tree     *ftp_tree          = NULL;
     proto_tree     *reqresp_tree      = NULL;
     proto_item     *ti, *hidden_item;
-    gint            offset            = 0;
+    gint            offset;
     const guchar   *line;
     guint32         code;
     gchar           code_str[4];
@@ -567,8 +569,8 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      * not longer than what's in the buffer, so the "tvb_get_ptr()"
      * call won't throw an exception.
      */
-    linelen = tvb_find_line_end(tvb, offset, -1, &next_offset, FALSE);
-    line    = tvb_get_ptr(tvb, offset, linelen);
+    linelen = tvb_find_line_end(tvb, 0, -1, &next_offset, FALSE);
+    line    = tvb_get_ptr(tvb, 0, linelen);
 
     /*
      * Put the first line from the buffer into the summary
@@ -578,34 +580,29 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         is_request ? "Request" : "Response",
         format_text(line, linelen));
 
-    if (tree) {
-        ti = proto_tree_add_item(tree, proto_ftp, tvb, offset, -1, ENC_NA);
-        ftp_tree = proto_item_add_subtree(ti, ett_ftp);
+    ti = proto_tree_add_item(tree, proto_ftp, tvb, 0, -1, ENC_NA);
+    ftp_tree = proto_item_add_subtree(ti, ett_ftp);
 
-        if (is_request) {
-            hidden_item = proto_tree_add_boolean(ftp_tree,
+    if (is_request) {
+        hidden_item = proto_tree_add_boolean(ftp_tree,
                 hf_ftp_request, tvb, 0, 0, TRUE);
-            PROTO_ITEM_SET_HIDDEN(hidden_item);
-            hidden_item = proto_tree_add_boolean(ftp_tree,
+        PROTO_ITEM_SET_HIDDEN(hidden_item);
+        hidden_item = proto_tree_add_boolean(ftp_tree,
                 hf_ftp_response, tvb, 0, 0, FALSE);
-            PROTO_ITEM_SET_HIDDEN(hidden_item);
-        } else {
-            hidden_item = proto_tree_add_boolean(ftp_tree,
+        PROTO_ITEM_SET_HIDDEN(hidden_item);
+    } else {
+        hidden_item = proto_tree_add_boolean(ftp_tree,
                 hf_ftp_request, tvb, 0, 0, FALSE);
-            PROTO_ITEM_SET_HIDDEN(hidden_item);
-            hidden_item = proto_tree_add_boolean(ftp_tree,
+        PROTO_ITEM_SET_HIDDEN(hidden_item);
+        hidden_item = proto_tree_add_boolean(ftp_tree,
                 hf_ftp_response, tvb, 0, 0, TRUE);
-            PROTO_ITEM_SET_HIDDEN(hidden_item);
-        }
-
-        /*
-         * Put the line into the protocol tree.
-         */
-        ti = proto_tree_add_text(ftp_tree, tvb, offset,
-            next_offset - offset, "%s",
-            tvb_format_text(tvb, offset, next_offset - offset));
-        reqresp_tree = proto_item_add_subtree(ti, ett_ftp_reqresp);
+        PROTO_ITEM_SET_HIDDEN(hidden_item);
     }
+
+    /* Put the line into the protocol tree. */
+    ti = proto_tree_add_text(ftp_tree, tvb, 0, next_offset, "%s",
+            tvb_format_text(tvb, 0, next_offset));
+    reqresp_tree = proto_item_add_subtree(ti, ett_ftp_reqresp);
 
     if (is_request) {
         /*
@@ -614,11 +611,8 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          */
         tokenlen = get_token_len(line, line + linelen, &next_token);
         if (tokenlen != 0) {
-            if (tree) {
-                proto_tree_add_item(reqresp_tree,
-                    hf_ftp_request_command, tvb, offset,
-                    tokenlen, ENC_ASCII|ENC_NA);
-            }
+            proto_tree_add_item(reqresp_tree, hf_ftp_request_command,
+                    tvb, 0, tokenlen, ENC_ASCII|ENC_NA);
             if (strncmp(line, "PORT", tokenlen) == 0)
                 is_port_request = TRUE;
             /*
@@ -646,13 +640,11 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * One-line reply, or first or last line
              * of a multi-line reply.
              */
-            tvb_get_nstringz0(tvb, offset, sizeof(code_str), code_str);
+            tvb_get_nstringz0(tvb, 0, sizeof(code_str), code_str);
             code = strtoul(code_str, NULL, 10);
 
-            if (tree) {
-                proto_tree_add_uint(reqresp_tree,
-                    hf_ftp_response_code, tvb, offset, 3, code);
-            }
+            proto_tree_add_uint(reqresp_tree,
+                    hf_ftp_response_code, tvb, 0, 3, code);
 
             /*
              * See if it's a passive-mode response.
@@ -685,51 +677,42 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             next_token = line;
         }
     }
-    offset  += (gint) (next_token - line);
+
+    offset   = (gint) (next_token - line);
     linelen -= (int) (next_token - line);
     line     = next_token;
 
-    if (tree) {
-        /*
-         * Add the rest of the first line as request or
-         * reply data.
-         */
-        if (linelen != 0) {
-            if (is_request) {
-                proto_tree_add_item(reqresp_tree,
+    /*
+     * Add the rest of the first line as request or
+     * reply data.
+     */
+    if (linelen != 0) {
+        if (is_request) {
+            proto_tree_add_item(reqresp_tree,
                     hf_ftp_request_arg, tvb, offset,
                     linelen, ENC_ASCII|ENC_NA);
-            } else {
-                proto_tree_add_item(reqresp_tree,
+        } else {
+            proto_tree_add_item(reqresp_tree,
                     hf_ftp_response_arg, tvb, offset,
                     linelen, ENC_ASCII|ENC_NA);
-            }
         }
-        offset = next_offset;
     }
+    offset = next_offset;
 
     /*
      * If this is a PORT request or a PASV response, handle it.
      */
     if (is_port_request) {
         if (parse_port_pasv(line, linelen, &ftp_ip, &ftp_port, &pasv_offset, &ftp_ip_len, &ftp_port_len)) {
-            if (tree) {
-                proto_tree_add_ipv4(reqresp_tree,
-                    hf_ftp_active_ip, tvb, pasv_offset + (tokenlen+1) , ftp_ip_len,
-                    ftp_ip);
-                proto_tree_add_uint(reqresp_tree,
-                    hf_ftp_active_port, tvb, pasv_offset + 1 + (tokenlen+1) + ftp_ip_len, ftp_port_len,
-                    ftp_port);
-            }
+            proto_tree_add_ipv4(reqresp_tree, hf_ftp_active_ip,
+                    tvb, pasv_offset + (tokenlen+1) , ftp_ip_len, ftp_ip);
+            proto_tree_add_uint(reqresp_tree, hf_ftp_active_port,
+                    tvb, pasv_offset + 1 + (tokenlen+1) + ftp_ip_len, ftp_port_len, ftp_port);
             SET_ADDRESS(&ftp_ip_address, AT_IPv4, 4, (const guint8 *)&ftp_ip);
             ftp_nat = !ADDRESSES_EQUAL(&pinfo->src, &ftp_ip_address);
             if (ftp_nat) {
-                if (tree) {
-                    proto_tree_add_boolean(
-                        reqresp_tree,
-                        hf_ftp_active_nat, tvb,
-                        0, 0, ftp_nat);
-                }
+                proto_tree_add_boolean(reqresp_tree, hf_ftp_active_nat,
+                        tvb, 0, 0, ftp_nat);
             }
         }
     }
@@ -741,22 +724,16 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * conversation for the data.
              */
             if (parse_port_pasv(line, linelen, &pasv_ip, &ftp_port, &pasv_offset, &ftp_ip_len, &ftp_port_len)) {
-                if (tree) {
-                    proto_tree_add_ipv4(reqresp_tree,
-                        hf_ftp_pasv_ip, tvb, pasv_offset + 4, ftp_ip_len, pasv_ip);
-                    proto_tree_add_uint(reqresp_tree,
-                        hf_ftp_pasv_port, tvb, pasv_offset + 4 + 1 + ftp_ip_len, ftp_port_len,
-                        ftp_port);
-                }
+                proto_tree_add_ipv4(reqresp_tree, hf_ftp_pasv_ip,
+                        tvb, pasv_offset + 4, ftp_ip_len, pasv_ip);
+                proto_tree_add_uint(reqresp_tree, hf_ftp_pasv_port,
+                        tvb, pasv_offset + 4 + 1 + ftp_ip_len, ftp_port_len, ftp_port);
                 SET_ADDRESS(&ftp_ip_address, AT_IPv4, 4,
                     (const guint8 *)&pasv_ip);
                 ftp_nat = !ADDRESSES_EQUAL(&pinfo->src, &ftp_ip_address);
                 if (ftp_nat) {
-                    if (tree) {
-                        proto_tree_add_boolean(reqresp_tree,
-                            hf_ftp_pasv_nat, tvb, 0, 0,
-                            ftp_nat);
-                    }
+                    proto_tree_add_boolean(reqresp_tree, hf_ftp_pasv_nat,
+                            tvb, 0, 0, ftp_nat);
                 }
 
                 /*
@@ -800,60 +777,57 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     if (is_eprt_request) {
-        if (linelen != 0) {
-            /* 
-             * RFC2428 - sect. 2
-             * This frame contains a EPRT request; let's dissect it and set up a 
-             * conversation for the data connection.
-             */
-            if (parse_eprt_request(line, linelen,
-                        &eprt_af, &eprt_ip, eprt_ipv6, &ftp_port,
-                        &eprt_ip_len, &ftp_port_len)) {
-                if (tree) {
-                    /* since parse_eprt_request() returned TRUE,
-                       we know that we have a valid address family */
-                    eprt_offset = tokenlen + 1 + 1;  /* token, space, 1st delimiter */
-                    proto_tree_add_uint(reqresp_tree, hf_ftp_eprt_af, tvb, 
-                            eprt_offset, 1, eprt_af);
-                    eprt_offset += 1 + 1; /* addr family, 2nd delimiter */
+        /* 
+         * RFC2428 - sect. 2
+         * This frame contains a EPRT request; let's dissect it and set up a 
+         * conversation for the data connection.
+         */
+        if (parse_eprt_request(line, linelen,
+                    &eprt_af, &eprt_ip, eprt_ipv6, &ftp_port,
+                    &eprt_ip_len, &ftp_port_len)) {
 
-                    if (eprt_af == EPRT_AF_IPv4) {
-                        proto_tree_add_ipv4(reqresp_tree, hf_ftp_eprt_ip,
-                                tvb, eprt_offset, eprt_ip_len, eprt_ip);
-                        SET_ADDRESS(&ftp_ip_address, AT_IPv4, 4,
-                                (const guint8 *)&eprt_ip);
-                    }
-                    else if (eprt_af == EPRT_AF_IPv6) {
-                        proto_tree_add_ipv6(reqresp_tree, hf_ftp_eprt_ipv6,
-                                tvb, eprt_offset, eprt_ip_len, (const guint8 *)eprt_ipv6);
-                        SET_ADDRESS(&ftp_ip_address, AT_IPv6, 16,
-                                (const guint8 *)&eprt_ipv6);
-                    }
-                    eprt_offset += eprt_ip_len + 1; /* addr, 3rd delimiter */
+            /* since parse_eprt_request() returned TRUE,
+               we know that we have a valid address family */
+            eprt_offset = tokenlen + 1 + 1;  /* token, space, 1st delimiter */
+            proto_tree_add_uint(reqresp_tree, hf_ftp_eprt_af, tvb, 
+                    eprt_offset, 1, eprt_af);
+            eprt_offset += 1 + 1; /* addr family, 2nd delimiter */
 
-                    proto_tree_add_uint(reqresp_tree, hf_ftp_eprt_port,
-                            tvb, eprt_offset, ftp_port_len, ftp_port);
-                }
-
-                /* Find/create conversation for data */
-                conversation = find_conversation(pinfo->fd->num,
-                        &pinfo->src, &ftp_ip_address,
-                        PT_TCP, ftp_port, 0, NO_PORT_B);
-                if (conversation == NULL) {
-                    conversation = conversation_new(
-                            pinfo->fd->num, &pinfo->src, &ftp_ip_address, 
-                            PT_TCP, ftp_port, 0, NO_PORT2);
-                    conversation_set_dissector(conversation,
-                            ftpdata_handle);
-                }
+            if (eprt_af == EPRT_AF_IPv4) {
+                proto_tree_add_ipv4(reqresp_tree, hf_ftp_eprt_ip,
+                        tvb, eprt_offset, eprt_ip_len, eprt_ip);
+                SET_ADDRESS(&ftp_ip_address, AT_IPv4, 4,
+                        (const guint8 *)&eprt_ip);
             }
-            else {
-                proto_item *item;
-                item = proto_tree_add_text(reqresp_tree, 
-                        tvb, offset - linelen - 1, linelen, "Invalid EPRT arguments");
-                expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-                        "EPRT arguments must have the form: |<family>|<addr>|<port>|");
+            else if (eprt_af == EPRT_AF_IPv6) {
+                proto_tree_add_ipv6(reqresp_tree, hf_ftp_eprt_ipv6,
+                        tvb, eprt_offset, eprt_ip_len, (const guint8 *)eprt_ipv6);
+                SET_ADDRESS(&ftp_ip_address, AT_IPv6, 16,
+                        (const guint8 *)&eprt_ipv6);
             }
+            eprt_offset += eprt_ip_len + 1; /* addr, 3rd delimiter */
+
+            proto_tree_add_uint(reqresp_tree, hf_ftp_eprt_port,
+                    tvb, eprt_offset, ftp_port_len, ftp_port);
+
+            /* Find/create conversation for data */
+            conversation = find_conversation(pinfo->fd->num,
+                    &pinfo->src, &ftp_ip_address,
+                    PT_TCP, ftp_port, 0, NO_PORT_B);
+            if (conversation == NULL) {
+                conversation = conversation_new(
+                        pinfo->fd->num, &pinfo->src, &ftp_ip_address, 
+                        PT_TCP, ftp_port, 0, NO_PORT2);
+                conversation_set_dissector(conversation,
+                        ftpdata_handle);
+            }
+        }
+        else {
+            proto_item *item;
+            item = proto_tree_add_text(reqresp_tree, 
+                    tvb, offset - linelen - 1, linelen, "Invalid EPRT arguments");
+            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
+                    "EPRT arguments must have the form: |<family>|<addr>|<port>|");
         }
     }
 
@@ -868,25 +842,24 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             if (parse_extended_pasv_response(line, linelen,
                         &ftp_port, &pasv_offset, &ftp_port_len)) {
                 /* Add IP address and port number to tree */
-                if (tree) {
-                    if (ftp_ip_address.type == AT_IPv4) {
-                        guint32 addr;
-                        memcpy(&addr, ftp_ip_address.data, 4);
-                        addr_it = proto_tree_add_ipv4(reqresp_tree,
-                                hf_ftp_epsv_ip, tvb, 0, 0, addr);
-                        PROTO_ITEM_SET_GENERATED(addr_it);
-                    }
-                    else if (ftp_ip_address.type == AT_IPv6) {
-                        addr_it = proto_tree_add_ipv6(reqresp_tree,
-                                hf_ftp_epsv_ipv6, tvb, 0, 0,
-                                (guint8*)ftp_ip_address.data);
-                        PROTO_ITEM_SET_GENERATED(addr_it);
-                    }
 
-                    proto_tree_add_uint(reqresp_tree, 
-                            hf_ftp_epsv_port, tvb, pasv_offset + 4, 
-                            ftp_port_len, ftp_port);
+                if (ftp_ip_address.type == AT_IPv4) {
+                    guint32 addr;
+                    memcpy(&addr, ftp_ip_address.data, 4);
+                    addr_it = proto_tree_add_ipv4(reqresp_tree,
+                            hf_ftp_epsv_ip, tvb, 0, 0, addr);
+                    PROTO_ITEM_SET_GENERATED(addr_it);
                 }
+                else if (ftp_ip_address.type == AT_IPv6) {
+                    addr_it = proto_tree_add_ipv6(reqresp_tree,
+                            hf_ftp_epsv_ipv6, tvb, 0, 0,
+                            (guint8*)ftp_ip_address.data);
+                    PROTO_ITEM_SET_GENERATED(addr_it);
+                }
+
+                proto_tree_add_uint(reqresp_tree, 
+                        hf_ftp_epsv_port, tvb, pasv_offset + 4, 
+                        ftp_port_len, ftp_port);
 
                 /* Find/create conversation for data */
                 conversation = find_conversation(pinfo->fd->num, &ftp_ip_address,
@@ -910,26 +883,24 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         }
     }
 
-    if (tree) {
+    /*
+     * Show the rest of the request or response as text,
+     * a line at a time.
+     * XXX - only if there's a continuation indicator?
+     */
+    while (tvb_offset_exists(tvb, offset)) {
         /*
-         * Show the rest of the request or response as text,
-         * a line at a time.
-         * XXX - only if there's a continuation indicator?
+         * Find the end of the line.
          */
-        while (tvb_offset_exists(tvb, offset)) {
-            /*
-             * Find the end of the line.
-             */
-            tvb_find_line_end(tvb, offset, -1, &next_offset, FALSE);
+        tvb_find_line_end(tvb, offset, -1, &next_offset, FALSE);
 
-            /*
-             * Put this line.
-             */
-            proto_tree_add_text(ftp_tree, tvb, offset,
+        /*
+         * Put this line.
+         */
+        proto_tree_add_text(ftp_tree, tvb, offset,
                 next_offset - offset, "%s",
                 tvb_format_text(tvb, offset, next_offset - offset));
-            offset = next_offset;
-        }
+        offset = next_offset;
     }
 }
 
@@ -938,36 +909,34 @@ dissect_ftpdata(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     proto_item *ti;
     int         data_length;
+    gboolean    is_text = TRUE;
+    gint        check_chars, i;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "FTP-DATA");
 
     col_add_fstr(pinfo->cinfo, COL_INFO, "FTP Data: %u bytes",
         tvb_reported_length(tvb));
 
-    if (tree) {
-        gboolean is_text = TRUE;
-        gint  check_chars, i;
-        data_length = tvb_length(tvb);
+    data_length = tvb_length(tvb);
 
-        ti = proto_tree_add_item(tree, proto_ftp_data, tvb, 0, -1, ENC_NA);
+    ti = proto_tree_add_item(tree, proto_ftp_data, tvb, 0, -1, ENC_NA);
 
-        /* Check the first few chars to see whether it looks like a text file or not */
-        check_chars = MIN(10, data_length);
-        for (i=0; i < check_chars; i++) {
-            if (!isprint(tvb_get_guint8(tvb, i))) {
-                is_text = FALSE;
-                break;
-            }
+    /* Check the first few chars to see whether it looks like a text file or not */
+    check_chars = MIN(10, data_length);
+    for (i=0; i < check_chars; i++) {
+        if (!isprint(tvb_get_guint8(tvb, i))) {
+            is_text = FALSE;
+            break;
         }
-                
-        if (is_text) {
-            /* Show as string, but don't format more text than will be displayed */
-            proto_item_append_text(ti, " (%s)", tvb_format_text(tvb, 0, MIN(data_length, ITEM_LABEL_LENGTH)));
-        }
-        else {
-            /* Assume binary, just show the number of bytes */
-            proto_item_append_text(ti, " (%u bytes data)", data_length);
-        }
+    }
+
+    if (is_text) {
+        /* Show as string, but don't format more text than will be displayed */
+        proto_item_append_text(ti, " (%s)", tvb_format_text(tvb, 0, MIN(data_length, ITEM_LABEL_LENGTH)));
+    }
+    else {
+        /* Assume binary, just show the number of bytes */
+        proto_item_append_text(ti, " (%u bytes data)", data_length);
     }
 }
 

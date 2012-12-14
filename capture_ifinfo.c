@@ -69,7 +69,8 @@ static void append_remote_list(GList *iflist)
         if_info = (if_info_t *)rlist->data;
         temp = g_malloc0(sizeof(if_info_t));
         temp->name = g_strdup(if_info->name);
-        temp->description = g_strdup(if_info->description);
+        temp->friendly_name = g_strdup(if_info->friendly_name);
+        temp->vendor_description = g_strdup(if_info->vendor_description);
         for (list = g_slist_nth(if_info->addrs, 0); list != NULL; list = g_slist_next(list)) {
             temp_addr = g_malloc0(sizeof(if_addr_t));
             if_addr = (if_addr_t *)list->data;
@@ -140,9 +141,9 @@ capture_interface_list(int *err, char **err_str)
     g_free(data);
 
     for (i = 0; raw_list[i] != NULL; i++) {
-        if_parts = g_strsplit(raw_list[i], "\t", 4);
+        if_parts = g_strsplit(raw_list[i], "\t", 5);
         if (if_parts[0] == NULL || if_parts[1] == NULL || if_parts[2] == NULL ||
-                if_parts[3] == NULL) {
+                if_parts[3] == NULL || if_parts[4] == NULL) {
             g_strfreev(if_parts);
             continue;
         }
@@ -159,8 +160,10 @@ capture_interface_list(int *err, char **err_str)
         if_info = g_malloc0(sizeof(if_info_t));
         if_info->name = g_strdup(name);
         if (strlen(if_parts[1]) > 0)
-            if_info->description = g_strdup(if_parts[1]);
-        addr_parts = g_strsplit(if_parts[2], ",", 0);
+            if_info->vendor_description = g_strdup(if_parts[1]);
+        if (strlen(if_parts[2]) > 0)
+            if_info->friendly_name = g_strdup(if_parts[2]);
+        addr_parts = g_strsplit(if_parts[3], ",", 0);
         for (j = 0; addr_parts[j] != NULL; j++) {
             if_addr = g_malloc0(sizeof(if_addr_t));
             if (inet_pton(AF_INET, addr_parts[j], &if_addr->addr.ip4_addr)) {
@@ -176,7 +179,7 @@ capture_interface_list(int *err, char **err_str)
                 if_info->addrs = g_slist_append(if_info->addrs, if_addr);
             }
         }
-        if (strcmp(if_parts[3], "loopback") == 0)
+        if (strcmp(if_parts[4], "loopback") == 0)
             if_info->loopback = TRUE;
         g_strfreev(if_parts);
         g_strfreev(addr_parts);
@@ -313,7 +316,8 @@ void add_interface_to_remote_list(if_info_t *if_info)
 
     if_info_t *temp = g_malloc0(sizeof(if_info_t));
     temp->name = g_strdup(if_info->name);
-    temp->description = g_strdup(if_info->description);
+    temp->friendly_name = g_strdup(if_info->friendly_name);
+    temp->vendor_description = g_strdup(if_info->vendor_description);
     for (list = g_slist_nth(if_info->addrs, 0); list != NULL; list = g_slist_next(list)) {
         temp_addr = g_malloc0(sizeof(if_addr_t));
         if_addr = (if_addr_t *)list->data;

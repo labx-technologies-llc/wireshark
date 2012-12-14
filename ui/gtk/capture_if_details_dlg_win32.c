@@ -58,6 +58,8 @@
 #include <Ntddndis.h>
 #endif
 
+#include "capture_win_ifnames.h"
+
 #include "../capture_wpcap_packet.h"
 
 /* packet32.h requires sockaddr_storage
@@ -1777,6 +1779,7 @@ capture_if_details_task_offload(GtkWidget *table, GtkWidget *main_vb, guint *row
 
 static int
 capture_if_details_general(GtkWidget *table, GtkWidget *main_vb, guint *row, LPADAPTER adapter, gchar *iface) {
+    gchar           *interface_friendly_name;
     gchar           string_buff[DETAILS_STR_MAX];
     const gchar     *manuf_name;
     unsigned int    uint_value;
@@ -1796,6 +1799,13 @@ capture_if_details_general(GtkWidget *table, GtkWidget *main_vb, guint *row, LPA
     /* general */
     add_string_to_table(table, row, "Characteristics", "");
 
+    /* OS friendly name - look it up from iface ("\Device\NPF_{11111111-2222-3333-4444-555555555555}") */
+    interface_friendly_name = get_windows_interface_friendly_name(/* IN */ iface);
+    if(interface_friendly_name!=NULL){
+        add_string_to_table(table, row, "OS Friendly name", interface_friendly_name);
+        g_free(interface_friendly_name);
+    }
+
     /* Vendor description */
     length = sizeof(values);
     if (wpcap_packet_request(adapter, OID_GEN_VENDOR_DESCRIPTION, FALSE /* !set */, values, &length)) {
@@ -1806,7 +1816,7 @@ capture_if_details_general(GtkWidget *table, GtkWidget *main_vb, guint *row, LPA
     }
     add_string_to_table(table, row, "Vendor description", string_buff);
 
-    /* Friendly name */
+    /* NDIS's "Friendly name" */
     length = sizeof(wvalues);
     if (wpcap_packet_request(adapter, OID_GEN_FRIENDLY_NAME, FALSE /* !set */, (char *)wvalues, &length)) {
         utf8value = g_utf16_to_utf8(wvalues, -1, NULL, NULL, NULL);
@@ -1816,7 +1826,7 @@ capture_if_details_general(GtkWidget *table, GtkWidget *main_vb, guint *row, LPA
     } else {
         g_snprintf(string_buff, DETAILS_STR_MAX, "-");
     }
-    add_string_to_table(table, row, "Friendly name", string_buff);
+    add_string_to_table(table, row, "NDIS Friendly name", string_buff);
 
     /* Interface */
     add_string_to_table(table, row, "Interface", iface);
@@ -1844,8 +1854,6 @@ capture_if_details_general(GtkWidget *table, GtkWidget *main_vb, guint *row, LPA
         g_snprintf(string_buff, DETAILS_STR_MAX, "-");
     }
     add_string_to_table(table, row, "Link speed", string_buff);
-
-
 
     uint_array_size = sizeof(uint_array);
     if (wpcap_packet_request(adapter, OID_GEN_MEDIA_SUPPORTED, FALSE /* !set */, (char *) uint_array, &uint_array_size)) {

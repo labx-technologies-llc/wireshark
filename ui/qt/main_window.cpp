@@ -90,6 +90,7 @@ MainWindow::MainWindow(QWidget *parent) :
     setMenusForSelectedTreeRow();
     setForCaptureInProgress(false);
     setMenusForFileSet(false);
+    interfaceSelectionChanged();
 
     connect(wsApp, SIGNAL(updateRecentItemStatus(const QString &, qint64, bool)), this, SLOT(updateRecentFiles()));
     updateRecentFiles();
@@ -98,10 +99,22 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(df_edit, SIGNAL(pushFilterSyntaxStatus(QString&)), main_ui_->statusBar, SLOT(pushFilterStatus(QString&)));
     connect(df_edit, SIGNAL(popFilterSyntaxStatus()), main_ui_->statusBar, SLOT(popFilterStatus()));
     connect(df_edit, SIGNAL(pushFilterSyntaxWarning(QString&)), main_ui_->statusBar, SLOT(pushTemporaryStatus(QString&)));
+    connect(df_edit, SIGNAL(filterPackets(QString&,bool)), this, SLOT(filterPackets(QString&,bool)));
+    connect (this, SIGNAL(displayFilterSuccess(bool)), df_edit, SLOT(displayFilterSuccess(bool)));
 
-    main_ui_->mainToolBar->addWidget(df_combo_box_);
+    // http://standards.freedesktop.org/icon-naming-spec/icon-naming-spec-latest.html
+    // http://qt-project.org/doc/qt-4.8/qstyle.html#StandardPixmap-enum
+    main_ui_->actionFileOpen->setIcon(
+                QIcon().fromTheme("document-open", style()->standardIcon(QStyle::SP_DirIcon)));
+    // main_ui_->actionFileSave set in main_window.ui
+    main_ui_->actionFileClose->setIcon(
+                QIcon().fromTheme("process-stop", style()->standardIcon(QStyle::SP_DialogCloseButton)));
 
-    main_ui_->utilityToolBar->hide();
+    // In Qt4 multiple toolbars and "pretty" are mutually exculsive on OS X. If
+    // unifiedTitleAndToolBarOnMac is enabled everything ends up in the same row.
+    // https://bugreports.qt-project.org/browse/QTBUG-22433
+    // This property is obsolete in Qt5 so this issue may be fixed in that version.
+    main_ui_->displayFilterToolBar->addWidget(df_combo_box_);
 
     main_ui_->goToFrame->hide();
     go_to_margins = main_ui_->goToHB->contentsMargins();
@@ -115,13 +128,19 @@ MainWindow::MainWindow(QWidget *parent) :
                 "  background: palette(window);"
                 "  padding-top: 0.1em;"
                 "  padding-bottom: 0.1em;"
-                "  border-bottom: 0.1em solid palette(shadow);"
+                "  border-bottom: 1px solid palette(shadow);"
                 "}"
                 "QLineEdit {"
                 "  max-width: 5em;"
                 "}"
                 );
+
 #if defined(Q_WS_MAC)
+    foreach (QMenu *menu, main_ui_->menuBar->findChildren<QMenu*>()) {
+        foreach (QAction *act, menu->actions()) {
+            act->setIconVisibleInMenu(false);
+        }
+    }
     main_ui_->goToLineEdit->setAttribute(Qt::WA_MacSmallSize, true);
     main_ui_->goToGo->setAttribute(Qt::WA_MacSmallSize, true);
     main_ui_->goToCancel->setAttribute(Qt::WA_MacSmallSize, true);
@@ -133,20 +152,20 @@ MainWindow::MainWindow(QWidget *parent) :
 
     packet_list_ = new PacketList(packet_splitter_);
 
-    ProtoTree *proto_tree = new ProtoTree(packet_splitter_);
-    proto_tree->setHeaderHidden(true);
-    proto_tree->installEventFilter(this);
+    proto_tree_ = new ProtoTree(packet_splitter_);
+    proto_tree_->setHeaderHidden(true);
+    proto_tree_->installEventFilter(this);
 
     ByteViewTab *byte_view_tab = new ByteViewTab(packet_splitter_);
     byte_view_tab->setTabPosition(QTabWidget::South);
     byte_view_tab->setDocumentMode(true);
 
-    packet_list_->setProtoTree(proto_tree);
+    packet_list_->setProtoTree(proto_tree_);
     packet_list_->setByteViewTab(byte_view_tab);
     packet_list_->installEventFilter(this);
 
     packet_splitter_->addWidget(packet_list_);
-    packet_splitter_->addWidget(proto_tree);
+    packet_splitter_->addWidget(proto_tree_);
     packet_splitter_->addWidget(byte_view_tab);
 
     main_ui_->mainStack->addWidget(packet_splitter_);
@@ -181,9 +200,13 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(wsApp, SIGNAL(captureFileClosed(const capture_file*)),
             this, SLOT(captureFileClosed(const capture_file*)));
 
+    connect(main_welcome_, SIGNAL(startCapture()),
+            this, SLOT(startCapture()));
     connect(main_welcome_, SIGNAL(recentFileActivated(QString&)),
             this, SLOT(openCaptureFile(QString&)));
 
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            main_ui_->statusBar, SLOT(setCaptureFile(capture_file*)));
     connect(this, SIGNAL(setCaptureFile(capture_file*)),
             packet_list_, SLOT(setCaptureFile(capture_file*)));
     connect(this, SIGNAL(setCaptureFile(capture_file*)),
@@ -199,21 +222,26 @@ MainWindow::MainWindow(QWidget *parent) :
             packet_list_, SLOT(goLastPacket()));
 
     connect(main_ui_->actionViewExpandSubtrees, SIGNAL(triggered()),
-            proto_tree, SLOT(expandSubtrees()));
+            proto_tree_, SLOT(expandSubtrees()));
     connect(main_ui_->actionViewExpandAll, SIGNAL(triggered()),
-            proto_tree, SLOT(expandAll()));
+            proto_tree_, SLOT(expandAll()));
     connect(main_ui_->actionViewCollapseAll, SIGNAL(triggered()),
-            proto_tree, SLOT(collapseAll()));
+            proto_tree_, SLOT(collapseAll()));
 
-    connect(proto_tree, SIGNAL(protoItemSelected(QString&)),
+    connect(proto_tree_, SIGNAL(protoItemSelected(QString&)),
             main_ui_->statusBar, SLOT(pushFieldStatus(QString&)));
 
-    connect(proto_tree, SIGNAL(protoItemSelected(field_info *)),
+    connect(proto_tree_, SIGNAL(protoItemSelected(field_info *)),
             this, SLOT(setMenusForSelectedTreeRow(field_info *)));
 
     connect(&file_set_dialog_, SIGNAL(fileSetOpenCaptureFile(QString&)),
             this, SLOT(openCaptureFile(QString&)));
 
+    QTreeWidget *iface_tree = findChild<QTreeWidget *>("interfaceTree");
+    if (iface_tree) {
+        connect(iface_tree, SIGNAL(itemSelectionChanged()),
+                this, SLOT(interfaceSelectionChanged()));
+    }
     main_ui_->mainStack->setCurrentWidget(main_welcome_);
 }
 
@@ -443,8 +471,10 @@ void MainWindow::mergeCaptureFile()
         cf_close(cap_file_);
 
         /* Try to open the merged capture file. */
+        cfile.window = this;
         if (cf_open(&cfile, tmpname, TRUE /* temporary file */, &err) != CF_OK) {
             /* We couldn't open it; fail. */
+            cfile.window = NULL;
             if (rfcode != NULL)
                 dfilter_free(rfcode);
             g_free(tmpname);

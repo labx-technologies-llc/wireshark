@@ -38,6 +38,8 @@
 #include <epan/conversation.h>
 #include <epan/expert.h>
 #include <epan/prefs.h>
+#include <epan/reassemble.h>
+
 #include "packet-usb.h"
 #include "packet-usb-hid.h"
 
@@ -168,6 +170,27 @@ static dissector_table_t usb_descriptor_dissector_table;
 static heur_dissector_list_t heur_bulk_subdissector_list;
 static heur_dissector_list_t heur_control_subdissector_list;
 static heur_dissector_list_t heur_interrupt_subdissector_list;
+
+static emem_tree_t *device_to_protocol_table     = NULL;
+static emem_tree_t *device_to_product_table     = NULL;
+
+static dissector_table_t device_to_dissector;
+static dissector_table_t protocol_to_dissector;
+static dissector_table_t product_to_dissector;
+
+typedef struct _device_product_data_t {
+    guint16  vendor;
+    guint16  product;
+    guint  bus_id;
+    guint  device_address;
+} device_product_data_t;
+
+typedef struct _device_protocol_data_t {
+    guint32  protocol;
+    guint  bus_id;
+    guint  device_address;
+} device_protocol_data_t;
+
 
 /* http://www.usb.org/developers/docs/USB_LANGIDs.pdf */
 static const value_string usb_langid_vals[] = {
@@ -322,31 +345,64 @@ static const value_string usb_langid_vals[] = {
     {0xfcff, "HID (Vendor Defined 4)"},
     {0, NULL}
 };
-
 static value_string_ext usb_langid_vals_ext = VALUE_STRING_EXT_INIT(usb_langid_vals);
 
 static const value_string usb_class_vals[] = {
-    {IF_CLASS_FROM_INTERFACE_DESC,      "Use class info in Interface Descriptor"},
-    {IF_CLASS_AUDIO,                    "AUDIO"},
-    {IF_CLASS_COMMUNICATIONS,           "COMMUNICATIONS"},
+    {IF_CLASS_DEVICE,                   "Device"},
+    {IF_CLASS_AUDIO,                    "Audio"},
+    {IF_CLASS_COMMUNICATIONS,           "Communications and CDC Control"},
     {IF_CLASS_HID,                      "HID"},
-    {IF_CLASS_PHYSICAL,                 "PHYSICAL"},
-    {IF_CLASS_IMAGE,                    "IMAGE"},
-    {IF_CLASS_PRINTER,                  "PRINTER"},
-    {IF_CLASS_MASSTORAGE,               "MASSTORAGE"},
-    {IF_CLASS_HUB,                      "HUB"},
-    {IF_CLASS_CDC_DATA,                 "CDC_DATA"},
-    {IF_CLASS_SMART_CARD,               "SMART_CARD"},
-    {IF_CLASS_CONTENT_SECURITY,         "CONTENT_SECURITY"},
-    {IF_CLASS_VIDEO,                    "VIDEO"},
-    {IF_CLASS_DIAGNOSTIC_DEVICE,        "DIAGNOSTIC_DEVICE"},
-    {IF_CLASS_WIRELESS_CONTROLLER,      "WIRELESS_CONTROLLER"},
-    {IF_CLASS_MISCELLANEOUS,            "MISCELLANEOUS"},
-    {IF_CLASS_APPLICATION_SPECIFIC,     "APPLICATION_SPECIFIC"},
-    {IF_CLASS_VENDOR_SPECIFIC,          "VENDOR_SPECIFIC"},
+    {IF_CLASS_PHYSICAL,                 "Physical"},
+    {IF_CLASS_IMAGE,                    "Imaging"},
+    {IF_CLASS_PRINTER,                  "Printer"},
+    {IF_CLASS_MASS_STORAGE,             "Mass Storage"},
+    {IF_CLASS_HUB,                      "Hub"},
+    {IF_CLASS_CDC_DATA,                 "CDC-Data"},
+    {IF_CLASS_SMART_CARD,               "Smart Card"},
+    {IF_CLASS_CONTENT_SECURITY,         "Content Security"},
+    {IF_CLASS_VIDEO,                    "Video"},
+    {IF_CLASS_PERSONAL_HEALTHCARE,      "Personal Healthcare"},
+    {IF_CLASS_AUDIO_VIDEO,              "Audio/Video Devices"},
+    {IF_CLASS_DIAGNOSTIC_DEVICE,        "Diagnostic Device"},
+    {IF_CLASS_WIRELESS_CONTROLLER,      "Wireless Controller"},
+    {IF_CLASS_MISCELLANEOUS,            "Miscellaneous"},
+    {IF_CLASS_APPLICATION_SPECIFIC,     "Application Specific"},
+    {IF_CLASS_VENDOR_SPECIFIC,          "Vendor Specific"},
     {0, NULL}
 };
+static value_string_ext usb_class_vals_ext = VALUE_STRING_EXT_INIT(usb_class_vals);
 
+/* use usb class, subclass and protocol id together
+  http://www.usb.org/developers/defined_class*/
+static const value_string usb_protocols[] = {
+    {0x000000,    "Use class code info from Interface Descriptors"},
+    {0x060101,    "Still Imaging"},
+    {0x090000,    "Full speed Hub"},
+    {0x090001,    "Hi-speed hub with single TT"},
+    {0x090002,    "Hi-speed hub with multiple TTs"},
+    {0x0D0000,    "Content Security"},
+    {0x100100,    "AVControl Interface"},
+    {0x100200,    "AVData Video Streaming Interface"},
+    {0x100300,    "AVData Audio Streaming Interface"},
+    {0xDC0101,    "USB2 Compliance Device"},
+    {0xE00101,    "Bluetooth Programming Interface"},
+    {0xE00102,    "UWB Radio Control Interface"},
+    {0xE00103,    "Remote NDIS"},
+    {0xE00104,    "Bluetooth AMP Controller"},
+    {0xE00201,    "Host Wire Adapter Control/Data interface"},
+    {0xE00202,    "Device Wire Adapter Control/Data interface"},
+    {0xE00203,    "Device Wire Adapter Isochronous interface"},
+    {0xEF0101,    "Active Sync device"},
+    {0xEF0102,    "Palm Sync"},
+    {0xEF0201,    "Interface Association Descriptor"},
+    {0xEF0202,    "Wire Adapter Multifunction Peripheral programming interface"},
+    {0xEF0301,    "Cable Based Association Framework"},
+    {0xFE0101,    "Device Firmware Upgrade"},
+    {0xFE0200,    "IRDA Bridge device"},
+    {0xFE0300,    "USB Test and Measurement Device"},
+    {0xFE0301,    "USB Test and Measurement Device conforming to the USBTMC USB488"},
+    {0, NULL}
+};
 
 static const value_string usb_transfer_type_vals[] = {
     {URB_CONTROL,                       "URB_CONTROL"},
@@ -375,72 +431,78 @@ static const value_string usb_endpoint_direction_vals[] = {
 };
 
 static const value_string usb_urb_type_vals[] = {
-    {URB_SUBMIT,  "URB_SUBMIT"},
-    {URB_COMPLETE,"URB_COMPLETE"},
-    {URB_ERROR,"URB_ERROR"},
+    {URB_SUBMIT,   "URB_SUBMIT"},
+    {URB_COMPLETE, "URB_COMPLETE"},
+    {URB_ERROR,    "URB_ERROR"},
     {0, NULL}
 };
+
+extern value_string_ext ext_usb_vendors_vals;
+extern value_string_ext ext_usb_products_vals;
 
 /*
  * Descriptor types.
  */
-#define USB_DT_DEVICE                    1
-#define USB_DT_CONFIG                    2
-#define USB_DT_STRING                    3
-#define USB_DT_INTERFACE                 4
-#define USB_DT_ENDPOINT                  5
-#define USB_DT_DEVICE_QUALIFIER          6
-#define USB_DT_OTHER_SPEED_CONFIG        7
-#define USB_DT_INTERFACE_POWER           8
+#define USB_DT_DEVICE                          1
+#define USB_DT_CONFIG                          2
+#define USB_DT_STRING                          3
+#define USB_DT_INTERFACE                       4
+#define USB_DT_ENDPOINT                        5
+#define USB_DT_DEVICE_QUALIFIER                6
+#define USB_DT_OTHER_SPEED_CONFIG              7
+#define USB_DT_INTERFACE_POWER                 8
 /* these are from a minor usb 2.0 revision (ECN) */
-#define USB_DT_OTG                       9
-#define USB_DT_DEBUG                    10
-#define USB_DT_INTERFACE_ASSOCIATION    11
+#define USB_DT_OTG                             9
+#define USB_DT_DEBUG                          10
+#define USB_DT_INTERFACE_ASSOCIATION          11
 /* these are from the Wireless USB spec */
-#define USB_DT_SECURITY                 12
-#define USB_DT_KEY                      13
-#define USB_DT_ENCRYPTION_TYPE          14
-#define USB_DT_BOS                      15
-#define USB_DT_DEVICE_CAPABILITY        16
-#define USB_DT_WIRELESS_ENDPOINT_COMP   17
-#define USB_DT_HID                      33
-#define USB_DT_RPIPE                    34
+#define USB_DT_SECURITY                       12
+#define USB_DT_KEY                            13
+#define USB_DT_ENCRYPTION_TYPE                14
+#define USB_DT_BOS                            15
+#define USB_DT_DEVICE_CAPABILITY              16
+#define USB_DT_WIRELESS_ENDPOINT_COMP         17
+#define USB_DT_HID                            33
+#define USB_DT_RPIPE                          34
+#define USB_DT_SUPERSPEED_ENDPOINT_COMPANION  48
 
 static const value_string descriptor_type_vals[] = {
-    {USB_DT_DEVICE,                     "DEVICE"},
-    {USB_DT_CONFIG,                     "CONFIGURATION"},
-    {USB_DT_STRING,                     "STRING"},
-    {USB_DT_INTERFACE,                  "INTERFACE"},
-    {USB_DT_ENDPOINT,                   "ENDPOINT"},
-    {USB_DT_DEVICE_QUALIFIER,           "DEVICE QUALIFIER"},
-    {USB_DT_OTHER_SPEED_CONFIG,         "OTHER_SPEED CONFIG"},
-    {USB_DT_INTERFACE_POWER,            "INTERFACE POWER"},
-    {USB_DT_OTG,                        "OTG"},
-    {USB_DT_DEBUG,                      "DEBUG"},
-    {USB_DT_INTERFACE_ASSOCIATION,      "INTERFACE ASSOCIATION"},
-    {USB_DT_SECURITY,                   "SECURITY"},
-    {USB_DT_KEY,                        "KEY"},
-    {USB_DT_ENCRYPTION_TYPE,            "ENCRYPTION TYPE"},
-    {USB_DT_BOS,                        "BOS"},
-    {USB_DT_DEVICE_CAPABILITY,          "DEVICE CAPABILITY"},
-    {USB_DT_WIRELESS_ENDPOINT_COMP,     "WIRELESS ENDPOINT COMP"},
-    {USB_DT_HID,                        "HID"},
-    {USB_DT_RPIPE,                      "RPIPE"},
+    {USB_DT_DEVICE,                         "DEVICE"},
+    {USB_DT_CONFIG,                         "CONFIGURATION"},
+    {USB_DT_STRING,                         "STRING"},
+    {USB_DT_INTERFACE,                      "INTERFACE"},
+    {USB_DT_ENDPOINT,                       "ENDPOINT"},
+    {USB_DT_DEVICE_QUALIFIER,               "DEVICE QUALIFIER"},
+    {USB_DT_OTHER_SPEED_CONFIG,             "OTHER_SPEED CONFIG"},
+    {USB_DT_INTERFACE_POWER,                "INTERFACE POWER"},
+    {USB_DT_OTG,                            "OTG"},
+    {USB_DT_DEBUG,                          "DEBUG"},
+    {USB_DT_INTERFACE_ASSOCIATION,          "INTERFACE ASSOCIATION"},
+    {USB_DT_SECURITY,                       "SECURITY"},
+    {USB_DT_KEY,                            "KEY"},
+    {USB_DT_ENCRYPTION_TYPE,                "ENCRYPTION TYPE"},
+    {USB_DT_BOS,                            "BOS"},
+    {USB_DT_DEVICE_CAPABILITY,              "DEVICE CAPABILITY"},
+    {USB_DT_WIRELESS_ENDPOINT_COMP,         "WIRELESS ENDPOINT COMP"},
+    {USB_DT_HID,                            "HID"},
+    {USB_DT_RPIPE,                          "RPIPE"},
+    {USB_DT_SUPERSPEED_ENDPOINT_COMPANION,  "SUPERSPEED USB ENDPOINT COMPANION"},
     {0,NULL}
 };
+static value_string_ext descriptor_type_vals_ext = VALUE_STRING_EXT_INIT(descriptor_type_vals);
 
 /*
  * Feature selectors.
  */
-#define USB_FS_DEVICE_REMOTE_WAKEUP     1
 #define USB_FS_ENDPOINT_HALT            0
+#define USB_FS_DEVICE_REMOTE_WAKEUP     1
 #define USB_FS_TEST_MODE                2
 
 static const value_string usb_feature_selector_vals[] = {
-    {USB_FS_DEVICE_REMOTE_WAKEUP,       "DEVICE REMOTE WAKEUP"},
     {USB_FS_ENDPOINT_HALT,              "ENDPOINT HALT"},
+    {USB_FS_DEVICE_REMOTE_WAKEUP,       "DEVICE REMOTE WAKEUP"},
     {USB_FS_TEST_MODE,                  "TEST MODE"},
-    {0,NULL}
+    {0, NULL}
 };
 
 static const value_string usb_bmAttributes_transfer_vals[] = {
@@ -448,7 +510,7 @@ static const value_string usb_bmAttributes_transfer_vals[] = {
     {0x01,      "Isochronous-Transfer"},
     {0x02,      "Bulk-Transfer"},
     {0x03,      "Interrupt-Transfer"},
-    {0,NULL}
+    {0, NULL}
 };
 
 static const value_string usb_bmAttributes_sync_vals[] = {
@@ -456,7 +518,7 @@ static const value_string usb_bmAttributes_sync_vals[] = {
     {0x01,      "Asynchronous"},
     {0x02,      "Adaptive"},
     {0x03,      "Synchronous"},
-    {0,NULL}
+    {0, NULL}
 };
 
 static const value_string usb_bmAttributes_behaviour_vals[] = {
@@ -464,7 +526,7 @@ static const value_string usb_bmAttributes_behaviour_vals[] = {
     {0x01,      "Explicit Feedback-Endpoint"},
     {0x02,      "Implicit Feedback-Data-Endpoint"},
     {0x03,      "Reserved"},
-    {0,NULL}
+    {0, NULL}
 };
 
 static const value_string usb_wMaxPacketSize_slots_vals[]  = {
@@ -472,7 +534,7 @@ static const value_string usb_wMaxPacketSize_slots_vals[]  = {
     {0x01,      "2"},
     {0x02,      "3"},
     {0x03,      "Reserved"},
-    {0,NULL}
+    {0, NULL}
 };
 
 /* from linux/include/asm-generic/errno.h */
@@ -617,139 +679,143 @@ static const value_string usb_wMaxPacketSize_slots_vals[]  = {
 #define ENOTRECOVERABLE 131     /* State not recoverable */
 
 
+/* Note: sorted in (unsigned) ascending order */
 static const value_string usb_urb_status_vals[] = {
-    { 0,                "Success"},
-    { -EPERM,           "Operation not permitted (-EPERM)" },
-    { -ENOENT,          "No such file or directory (-ENOENT)" },
-    { -ESRCH,           "No such process (-ESRCH)" },
-    { -EINTR,           "Interrupted system call (-EINTR)" },
-    { -EIO,             "I/O error (-EIO)" },
-    { -ENXIO,           "No such device or address (-ENXIO)" },
-    { -E2BIG,           "Argument list too long (-E2BIG)" },
-    { -ENOEXEC,         "Exec format error (-ENOEXEC)" },
-    { -EBADF,           "Bad file number (-EBADF)" },
-    { -ECHILD,          "No child processes (-ECHILD)" },
-    { -EAGAIN,          "Try again (-EAGAIN)" },
-    { -ENOMEM,          "Out of memory (-ENOMEM)" },
-    { -EACCES,          "Permission denied (-EACCES)" },
-    { -EFAULT,          "Bad address (-EFAULT)" },
-    { -ENOTBLK,         "Block device required (-ENOTBLK)" },
-    { -EBUSY,           "Device or resource busy (-EBUSY)" },
-    { -EEXIST,          "File exists (-EEXIST)" },
-    { -EXDEV,           "Cross-device link (-EXDEV)" },
-    { -ENODEV,          "No such device (-ENODEV)" },
-    { -ENOTDIR,         "Not a directory (-ENOTDIR)" },
-    { -EISDIR,          "Is a directory (-EISDIR)" },
-    { -EINVAL,          "Invalid argument (-EINVAL)" },
-    { -ENFILE,          "File table overflow (-ENFILE)" },
-    { -EMFILE,          "Too many open files (-EMFILE)" },
-    { -ENOTTY,          "Not a typewriter (-ENOTTY)" },
-    { -ETXTBSY,         "Text file busy (-ETXTBSY)" },
-    { -EFBIG,           "File too large (-EFBIG)" },
-    { -ENOSPC,          "No space left on device (-ENOSPC)" },
-    { -ESPIPE,          "Illegal seek (-ESPIPE)" },
-    { -EROFS,           "Read-only file system (-EROFS)" },
-    { -EMLINK,          "Too many links (-EMLINK)" },
-    { -EPIPE,           "Broken pipe (-EPIPE)" },
-    { -EDOM,            "Math argument out of domain of func (-EDOM)" },
-    { -ERANGE,          "Math result not representable (-ERANGE)" },
-    { -EDEADLK,         "Resource deadlock would occur (-EDEADLK)" },
-    { -ENAMETOOLONG,    "File name too long (-ENAMETOOLONG)" },
-    { -ENOLCK,          "No record locks available (-ENOLCK)" },
-    { -ENOSYS,          "Function not implemented (-ENOSYS)" },
-    { -ENOTEMPTY,       "Directory not empty (-ENOTEMPTY)" },
-    { -ELOOP,           "Too many symbolic links encountered (-ELOOP)" },
-    { -ENOMSG,          "No message of desired type (-ENOMSG)" },
-    { -EIDRM,           "Identifier removed (-EIDRM)" },
-    { -ECHRNG,          "Channel number out of range (-ECHRNG)" },
-    { -EL2NSYNC,        "Level 2 not synchronized (-EL2NSYNC)" },
-    { -EL3HLT,          "Level 3 halted (-EL3HLT)" },
-    { -EL3RST,          "Level 3 reset (-EL3RST)" },
-    { -ELNRNG,          "Link number out of range (-ELNRNG)" },
-    { -EUNATCH,         "Protocol driver not attached (-EUNATCH)" },
-    { -ENOCSI,          "No CSI structure available (-ENOCSI)" },
-    { -EL2HLT,          "Level 2 halted (-EL2HLT)" },
-    { -EBADE,           "Invalid exchange (-EBADE)" },
-    { -EBADR,           "Invalid request descriptor (-EBADR)" },
-    { -EXFULL,          "Exchange full (-EXFULL)" },
-    { -ENOANO,          "No anode (-ENOANO)" },
-    { -EBADRQC,         "Invalid request code (-EBADRQC)" },
-    { -EBADSLT,         "Invalid slot (-EBADSLT)" },
-    { -EBFONT,          "Bad font file format (-EBFONT)" },
-    { -ENOSTR,          "Device not a stream (-ENOSTR)" },
-    { -ENODATA,         "No data available (-ENODATA)" },
-    { -ETIME,           "Timer expired (-ETIME)" },
-    { -ENOSR,           "Out of streams resources (-ENOSR)" },
-    { -ENONET,          "Machine is not on the network (-ENONET)" },
-    { -ENOPKG,          "Package not installed (-ENOPKG)" },
-    { -EREMOTE,         "Object is remote (-EREMOTE)" },
-    { -ENOLINK,         "Link has been severed (-ENOLINK)" },
-    { -EADV,            "Advertise error (-EADV)" },
-    { -ESRMNT,          "Srmount error (-ESRMNT)" },
-    { -ECOMM,           "Communication error on send (-ECOMM)" },
-    { -EPROTO,          "Protocol error (-EPROTO)" },
-    { -EMULTIHOP,       "Multihop attempted (-EMULTIHOP)" },
-    { -EDOTDOT,         "RFS specific error (-EDOTDOT)" },
-    { -EBADMSG,         "Not a data message (-EBADMSG)" },
-    { -EOVERFLOW,       "Value too large for defined data type (-EOVERFLOW)" },
-    { -ENOTUNIQ,        "Name not unique on network (-ENOTUNIQ)" },
-    { -EBADFD,          "File descriptor in bad state (-EBADFD)" },
-    { -EREMCHG,         "Remote address changed (-EREMCHG)" },
-    { -ELIBACC,         "Can not access a needed shared library (-ELIBACC)" },
-    { -ELIBBAD,         "Accessing a corrupted shared library (-ELIBBAD)" },
-    { -ELIBSCN,         ".lib section in a.out corrupted (-ELIBSCN)" },
-    { -ELIBMAX,         "Attempting to link in too many shared libraries (-ELIBMAX)" },
-    { -ELIBEXEC,        "Cannot exec a shared library directly (-ELIBEXEC)" },
-    { -EILSEQ,          "Illegal byte sequence (-EILSEQ)" },
-    { -ERESTART,        "Interrupted system call should be restarted (-ERESTART)" },
-    { -ESTRPIPE,        "Streams pipe error (-ESTRPIPE)" },
-    { -EUSERS,          "Too many users (-EUSERS)" },
-    { -ENOTSOCK,        "Socket operation on non-socket (-ENOTSOCK)" },
-    { -EDESTADDRREQ,    "Destination address required (-EDESTADDRREQ)" },
-    { -EMSGSIZE,        "Message too long (-EMSGSIZE)" },
-    { -EPROTOTYPE,      "Protocol wrong type for socket (-EPROTOTYPE)" },
-    { -ENOPROTOOPT,     "Protocol not available (-ENOPROTOOPT)" },
-    { -EPROTONOSUPPORT, "Protocol not supported (-EPROTONOSUPPORT)" },
-    { -ESOCKTNOSUPPORT, "Socket type not supported (-ESOCKTNOSUPPORT)" },
-    { -EOPNOTSUPP,      "Operation not supported on transport endpoint (-EOPNOTSUPP)" },
-    { -EPFNOSUPPORT,    "Protocol family not supported (-EPFNOSUPPORT)" },
-    { -EAFNOSUPPORT,    "Address family not supported by protocol (-EAFNOSUPPORT)" },
-    { -EADDRINUSE,      "Address already in use (-EADDRINUSE)" },
-    { -EADDRNOTAVAIL,   "Cannot assign requested address (-EADDRNOTAVAIL)" },
-    { -ENETDOWN,        "Network is down (-ENETDOWN)" },
-    { -ENETUNREACH,     "Network is unreachable (-ENETUNREACH)" },
-    { -ENETRESET,       "Network dropped connection because of reset (-ENETRESET)" },
-    { -ECONNABORTED,    "Software caused connection abort (-ECONNABORTED)" },
-    { -ECONNRESET,      "Connection reset by peer (-ECONNRESET)" },
-    { -ENOBUFS,         "No buffer space available (-ENOBUFS)" },
-    { -EISCONN,         "Transport endpoint is already connected (-EISCONN)" },
-    { -ENOTCONN,        "Transport endpoint is not connected (-ENOTCONN)" },
-    { -ESHUTDOWN,       "Cannot send after transport endpoint shutdown (-ESHUTDOWN)" },
-    { -ETOOMANYREFS,    "Too many references: cannot splice (-ETOOMANYREFS)" },
-    { -ETIMEDOUT,       "Connection timed out (-ETIMEDOUT)" },
-    { -ECONNREFUSED,    "Connection refused (-ECONNREFUSED)" },
-    { -EHOSTDOWN,       "Host is down (-EHOSTDOWN)" },
-    { -EHOSTUNREACH,    "No route to host (-EHOSTUNREACH)" },
-    { -EALREADY,        "Operation already in progress (-EALREADY)" },
-    { -EINPROGRESS,     "Operation now in progress (-EINPROGRESS)" },
-    { -ESTALE,          "Stale NFS file handle (-ESTALE)" },
-    { -EUCLEAN,         "Structure needs cleaning (-EUCLEAN)" },
-    { -ENOTNAM,         "Not a XENIX named type file (-ENOTNAM)" },
-    { -ENAVAIL,         "No XENIX semaphores available (-ENAVAIL)" },
-    { -EISNAM,          "Is a named type file (-EISNAM)" },
-    { -EREMOTEIO,       "Remote I/O error (-EREMOTEIO)" },
-    { -EDQUOT,          "Quota exceeded (-EDQUOT)" },
-    { -ENOMEDIUM,       "No medium found (-ENOMEDIUM)" },
-    { -EMEDIUMTYPE,     "Wrong medium type (-EMEDIUMTYPE)" },
-    { -ECANCELED,       "Operation Canceled (-ECANCELED)" },
-    { -ENOKEY,          "Required key not available (-ENOKEY)" },
-    { -EKEYEXPIRED,     "Key has expired (-EKEYEXPIRED)" },
-    { -EKEYREVOKED,     "Key has been revoked (-EKEYREVOKED)" },
-    { -EKEYREJECTED,    "Key was rejected by service (-EKEYREJECTED)" },
-    { -EOWNERDEAD,      "Owner died (-EOWNERDEAD)" },
     { -ENOTRECOVERABLE, "State not recoverable (-ENOTRECOVERABLE)" },
+    { -EOWNERDEAD,      "Owner died (-EOWNERDEAD)" },
+    { -EKEYREJECTED,    "Key was rejected by service (-EKEYREJECTED)" },
+    { -EKEYREVOKED,     "Key has been revoked (-EKEYREVOKED)" },
+    { -EKEYEXPIRED,     "Key has expired (-EKEYEXPIRED)" },
+    { -ENOKEY,          "Required key not available (-ENOKEY)" },
+    { -ECANCELED,       "Operation Canceled (-ECANCELED)" },
+    { -EMEDIUMTYPE,     "Wrong medium type (-EMEDIUMTYPE)" },
+    { -ENOMEDIUM,       "No medium found (-ENOMEDIUM)" },
+    { -EDQUOT,          "Quota exceeded (-EDQUOT)" },
+    { -EREMOTEIO,       "Remote I/O error (-EREMOTEIO)" },
+    { -EISNAM,          "Is a named type file (-EISNAM)" },
+    { -ENAVAIL,         "No XENIX semaphores available (-ENAVAIL)" },
+    { -ENOTNAM,         "Not a XENIX named type file (-ENOTNAM)" },
+    { -EUCLEAN,         "Structure needs cleaning (-EUCLEAN)" },
+    { -ESTALE,          "Stale NFS file handle (-ESTALE)" },
+    { -EINPROGRESS,     "Operation now in progress (-EINPROGRESS)" },
+    { -EALREADY,        "Operation already in progress (-EALREADY)" },
+    { -EHOSTUNREACH,    "No route to host (-EHOSTUNREACH)" },
+    { -EHOSTDOWN,       "Host is down (-EHOSTDOWN)" },
+    { -ECONNREFUSED,    "Connection refused (-ECONNREFUSED)" },
+    { -ETIMEDOUT,       "Connection timed out (-ETIMEDOUT)" },
+    { -ETOOMANYREFS,    "Too many references: cannot splice (-ETOOMANYREFS)" },
+    { -ESHUTDOWN,       "Cannot send after transport endpoint shutdown (-ESHUTDOWN)" },
+    { -ENOTCONN,        "Transport endpoint is not connected (-ENOTCONN)" },
+    { -EISCONN,         "Transport endpoint is already connected (-EISCONN)" },
+    { -ENOBUFS,         "No buffer space available (-ENOBUFS)" },
+    { -ECONNRESET,      "Connection reset by peer (-ECONNRESET)" },
+    { -ECONNABORTED,    "Software caused connection abort (-ECONNABORTED)" },
+    { -ENETRESET,       "Network dropped connection because of reset (-ENETRESET)" },
+    { -ENETUNREACH,     "Network is unreachable (-ENETUNREACH)" },
+    { -ENETDOWN,        "Network is down (-ENETDOWN)" },
+    { -EADDRNOTAVAIL,   "Cannot assign requested address (-EADDRNOTAVAIL)" },
+    { -EADDRINUSE,      "Address already in use (-EADDRINUSE)" },
+    { -EAFNOSUPPORT,    "Address family not supported by protocol (-EAFNOSUPPORT)" },
+    { -EPFNOSUPPORT,    "Protocol family not supported (-EPFNOSUPPORT)" },
+    { -EOPNOTSUPP,      "Operation not supported on transport endpoint (-EOPNOTSUPP)" },
+    { -ESOCKTNOSUPPORT, "Socket type not supported (-ESOCKTNOSUPPORT)" },
+    { -EPROTONOSUPPORT, "Protocol not supported (-EPROTONOSUPPORT)" },
+    { -ENOPROTOOPT,     "Protocol not available (-ENOPROTOOPT)" },
+    { -EPROTOTYPE,      "Protocol wrong type for socket (-EPROTOTYPE)" },
+    { -EMSGSIZE,        "Message too long (-EMSGSIZE)" },
+    { -EDESTADDRREQ,    "Destination address required (-EDESTADDRREQ)" },
+    { -ENOTSOCK,        "Socket operation on non-socket (-ENOTSOCK)" },
+    { -EUSERS,          "Too many users (-EUSERS)" },
+    { -ESTRPIPE,        "Streams pipe error (-ESTRPIPE)" },
+    { -ERESTART,        "Interrupted system call should be restarted (-ERESTART)" },
+    { -EILSEQ,          "Illegal byte sequence (-EILSEQ)" },
+    { -ELIBEXEC,        "Cannot exec a shared library directly (-ELIBEXEC)" },
+    { -ELIBMAX,         "Attempting to link in too many shared libraries (-ELIBMAX)" },
+    { -ELIBSCN,         ".lib section in a.out corrupted (-ELIBSCN)" },
+    { -ELIBBAD,         "Accessing a corrupted shared library (-ELIBBAD)" },
+    { -ELIBACC,         "Can not access a needed shared library (-ELIBACC)" },
+    { -EREMCHG,         "Remote address changed (-EREMCHG)" },
+    { -EBADFD,          "File descriptor in bad state (-EBADFD)" },
+    { -ENOTUNIQ,        "Name not unique on network (-ENOTUNIQ)" },
+    { -EOVERFLOW,       "Value too large for defined data type (-EOVERFLOW)" },
+    { -EBADMSG,         "Not a data message (-EBADMSG)" },
+    { -EDOTDOT,         "RFS specific error (-EDOTDOT)" },
+    { -EMULTIHOP,       "Multihop attempted (-EMULTIHOP)" },
+    { -EPROTO,          "Protocol error (-EPROTO)" },
+    { -ECOMM,           "Communication error on send (-ECOMM)" },
+    { -ESRMNT,          "Srmount error (-ESRMNT)" },
+    { -EADV,            "Advertise error (-EADV)" },
+    { -ENOLINK,         "Link has been severed (-ENOLINK)" },
+    { -EREMOTE,         "Object is remote (-EREMOTE)" },
+    { -ENOPKG,          "Package not installed (-ENOPKG)" },
+    { -ENONET,          "Machine is not on the network (-ENONET)" },
+    { -ENOSR,           "Out of streams resources (-ENOSR)" },
+    { -ETIME,           "Timer expired (-ETIME)" },
+    { -ENODATA,         "No data available (-ENODATA)" },
+    { -ENOSTR,          "Device not a stream (-ENOSTR)" },
+    { -EBFONT,          "Bad font file format (-EBFONT)" },
+    { -58,              "(-58 \?\?\?)" },   /* dummy so that there are no "gaps" */
+    { -EBADSLT,         "Invalid slot (-EBADSLT)" },
+    { -EBADRQC,         "Invalid request code (-EBADRQC)" },
+    { -ENOANO,          "No anode (-ENOANO)" },
+    { -EXFULL,          "Exchange full (-EXFULL)" },
+    { -EBADR,           "Invalid request descriptor (-EBADR)" },
+    { -EBADE,           "Invalid exchange (-EBADE)" },
+    { -EL2HLT,          "Level 2 halted (-EL2HLT)" },
+    { -ENOCSI,          "No CSI structure available (-ENOCSI)" },
+    { -EUNATCH,         "Protocol driver not attached (-EUNATCH)" },
+    { -ELNRNG,          "Link number out of range (-ELNRNG)" },
+    { -EL3RST,          "Level 3 reset (-EL3RST)" },
+    { -EL3HLT,          "Level 3 halted (-EL3HLT)" },
+    { -EL2NSYNC,        "Level 2 not synchronized (-EL2NSYNC)" },
+    { -ECHRNG,          "Channel number out of range (-ECHRNG)" },
+    { -EIDRM,           "Identifier removed (-EIDRM)" },
+    { -ENOMSG,          "No message of desired type (-ENOMSG)" },
+    { -41,              "(-41 \?\?\?)" },   /* dummy so that there are no "gaps" */
+    { -ELOOP,           "Too many symbolic links encountered (-ELOOP)" },
+    { -ENOTEMPTY,       "Directory not empty (-ENOTEMPTY)" },
+    { -ENOSYS,          "Function not implemented (-ENOSYS)" },
+    { -ENOLCK,          "No record locks available (-ENOLCK)" },
+    { -ENAMETOOLONG,    "File name too long (-ENAMETOOLONG)" },
+    { -EDEADLK,         "Resource deadlock would occur (-EDEADLK)" },
+    { -ERANGE,          "Math result not representable (-ERANGE)" },
+    { -EDOM,            "Math argument out of domain of func (-EDOM)" },
+    { -EPIPE,           "Broken pipe (-EPIPE)" },
+    { -EMLINK,          "Too many links (-EMLINK)" },
+    { -EROFS,           "Read-only file system (-EROFS)" },
+    { -ESPIPE,          "Illegal seek (-ESPIPE)" },
+    { -ENOSPC,          "No space left on device (-ENOSPC)" },
+    { -EFBIG,           "File too large (-EFBIG)" },
+    { -ETXTBSY,         "Text file busy (-ETXTBSY)" },
+    { -ENOTTY,          "Not a typewriter (-ENOTTY)" },
+    { -EMFILE,          "Too many open files (-EMFILE)" },
+    { -ENFILE,          "File table overflow (-ENFILE)" },
+    { -EINVAL,          "Invalid argument (-EINVAL)" },
+    { -EISDIR,          "Is a directory (-EISDIR)" },
+    { -ENOTDIR,         "Not a directory (-ENOTDIR)" },
+    { -ENODEV,          "No such device (-ENODEV)" },
+    { -EXDEV,           "Cross-device link (-EXDEV)" },
+    { -EEXIST,          "File exists (-EEXIST)" },
+    { -EBUSY,           "Device or resource busy (-EBUSY)" },
+    { -ENOTBLK,         "Block device required (-ENOTBLK)" },
+    { -EFAULT,          "Bad address (-EFAULT)" },
+    { -EACCES,          "Permission denied (-EACCES)" },
+    { -ENOMEM,          "Out of memory (-ENOMEM)" },
+    { -EAGAIN,          "Try again (-EAGAIN)" },
+    { -ECHILD,          "No child processes (-ECHILD)" },
+    { -EBADF,           "Bad file number (-EBADF)" },
+    { -ENOEXEC,         "Exec format error (-ENOEXEC)" },
+    { -E2BIG,           "Argument list too long (-E2BIG)" },
+    { -ENXIO,           "No such device or address (-ENXIO)" },
+    { -EIO,             "I/O error (-EIO)" },
+    { -EINTR,           "Interrupted system call (-EINTR)" },
+    { -ESRCH,           "No such process (-ESRCH)" },
+    { -ENOENT,          "No such file or directory (-ENOENT)" },
+    { -EPERM,           "Operation not permitted (-EPERM)" },
+    { 0,                "Success"},
     { 0, NULL }
 };
+static value_string_ext usb_urb_status_vals_ext = VALUE_STRING_EXT_INIT(usb_urb_status_vals);
 
 
 static usb_conv_info_t *
@@ -759,7 +825,7 @@ get_usb_conv_info(conversation_t *conversation)
 
     /* do we have conversation specific data ? */
     usb_conv_info = conversation_get_proto_data(conversation, proto_usb);
-    if(!usb_conv_info){
+    if (!usb_conv_info) {
         /* no not yet so create some */
         usb_conv_info = se_alloc0(sizeof(usb_conv_info_t));
         usb_conv_info->interfaceClass = IF_CLASS_UNKNOWN;
@@ -773,7 +839,9 @@ get_usb_conv_info(conversation_t *conversation)
 }
 
 static conversation_t *
-get_usb_conversation(packet_info *pinfo, address *src_addr, address *dst_addr, guint32 src_endpoint, guint32 dst_endpoint)
+get_usb_conversation(packet_info *pinfo,
+                     address *src_addr, address *dst_addr,
+                     guint32 src_endpoint, guint32 dst_endpoint)
 {
     conversation_t *conversation;
 
@@ -784,7 +852,7 @@ get_usb_conversation(packet_info *pinfo, address *src_addr, address *dst_addr, g
                                src_addr, dst_addr,
                                pinfo->ptype,
                                src_endpoint, dst_endpoint, 0);
-    if(conversation){
+    if (conversation) {
         return conversation;
     }
 
@@ -809,7 +877,11 @@ get_usb_conversation(packet_info *pinfo, address *src_addr, address *dst_addr, g
 
 /* 9.4.1 */
 static int
-dissect_usb_setup_clear_feature_request(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_clear_feature_request(packet_info *pinfo _U_, proto_tree *tree,
+                                        tvbuff_t *tvb, int offset,
+                                        usb_trans_info_t *usb_trans_info _U_,
+                                        usb_conv_info_t  *usb_conv_info _U_,
+                                        guint bus_id _U_, guint device_address _U_)
 {
     /* feature selector */
     proto_tree_add_item(tree, hf_usb_wFeatureSelector, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -828,7 +900,11 @@ dissect_usb_setup_clear_feature_request(packet_info *pinfo _U_, proto_tree *tree
 }
 
 static int
-dissect_usb_setup_clear_feature_response(packet_info *pinfo _U_, proto_tree *tree _U_, tvbuff_t *tvb _U_, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_clear_feature_response(packet_info *pinfo _U_, proto_tree *tree _U_,
+                                         tvbuff_t *tvb _U_, int offset,
+                                         usb_trans_info_t *usb_trans_info _U_,
+                                         usb_conv_info_t  *usb_conv_info _U_,
+                                         guint bus_id _U_, guint device_address _U_)
 {
     return offset;
 }
@@ -842,7 +918,11 @@ dissect_usb_setup_clear_feature_response(packet_info *pinfo _U_, proto_tree *tre
 
 /* 9.4.2 */
 static int
-dissect_usb_setup_get_configuration_response(packet_info *pinfo _U_, proto_tree *tree _U_, tvbuff_t *tvb _U_, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_get_configuration_response(packet_info *pinfo _U_, proto_tree *tree _U_,
+                                             tvbuff_t *tvb _U_, int offset,
+                                             usb_trans_info_t *usb_trans_info _U_,
+                                             usb_conv_info_t  *usb_conv_info _U_,
+                                             guint bus_id _U_, guint device_address _U_)
 {
     proto_tree_add_item(tree, hf_usb_bConfigurationValue, tvb, offset, 1, ENC_LITTLE_ENDIAN);
     offset += 1;
@@ -856,10 +936,13 @@ dissect_usb_setup_get_configuration_response(packet_info *pinfo _U_, proto_tree 
  * for URB_CONTROL_INPUT / GET DESCRIPTOR
  */
 
-void dissect_usb_descriptor_header(proto_tree *tree, tvbuff_t *tvb, int offset)
+void dissect_usb_descriptor_header(proto_tree *tree,
+                                   tvbuff_t *tvb, int offset)
 {
     /* bLength */
-    proto_tree_add_item(tree, hf_usb_bLength, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(tree,
+                        hf_usb_bLength,
+                        tvb, offset, 1,  ENC_LITTLE_ENDIAN);
 
     /* bDescriptorType */
     proto_tree_add_item(tree, hf_usb_bDescriptorType, tvb, offset+1, 1, ENC_LITTLE_ENDIAN);
@@ -867,13 +950,20 @@ void dissect_usb_descriptor_header(proto_tree *tree, tvbuff_t *tvb, int offset)
 
 /* 9.6.2 */
 static int
-dissect_usb_device_qualifier_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_device_qualifier_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree,
+                                        tvbuff_t *tvb, int offset,
+                                        usb_trans_info_t *usb_trans_info _U_,
+                                        usb_conv_info_t  *usb_conv_info _U_,
+                                        guint bus_id, guint device_address)
 {
     proto_item *item       = NULL;
     proto_tree *tree       = NULL;
+    proto_item *nitem      = NULL;
     int         old_offset = offset;
+    guint32     protocol;
+    const gchar *description;
 
-    if(parent_tree){
+    if (parent_tree) {
         item = proto_tree_add_text(parent_tree, tvb, offset, -1, "DEVICE QUALIFIER DESCRIPTOR");
         tree = proto_item_add_subtree(item, ett_descriptor_device);
     }
@@ -883,7 +973,10 @@ dissect_usb_device_qualifier_descriptor(packet_info *pinfo _U_, proto_tree *pare
 
     /* bcdUSB */
     proto_tree_add_item(tree, hf_usb_bcdUSB, tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset+=2;
+    offset += 2;
+
+    protocol = tvb_get_ntoh24(tvb, offset);
+    description = val_to_str_const(protocol, usb_protocols, "");
 
     /* bDeviceClass */
     proto_tree_add_item(tree, hf_usb_bDeviceClass, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -894,8 +987,37 @@ dissect_usb_device_qualifier_descriptor(packet_info *pinfo _U_, proto_tree *pare
     offset += 1;
 
     /* bDeviceProtocol */
-    proto_tree_add_item(tree, hf_usb_bDeviceProtocol, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+    nitem = proto_tree_add_item(tree, hf_usb_bDeviceProtocol, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+    if (*description)
+        proto_item_append_text(nitem, " (%s)", description);
     offset += 1;
+
+    if (!pinfo->fd->flags.visited) {
+        guint                   k_bus_id;
+        guint                   k_device_address;
+        guint                   k_frame_number;
+        emem_tree_key_t         key[4];
+        device_protocol_data_t  *device_protocol_data;
+
+        k_frame_number = pinfo->fd->num;
+        k_device_address = device_address;
+        k_bus_id = bus_id;
+
+        key[0].length = 1;
+        key[0].key    = &k_device_address;
+        key[1].length = 1;
+        key[1].key    = &k_bus_id;
+        key[2].length = 1;
+        key[2].key    = &k_frame_number;
+        key[3].length = 0;
+        key[3].key    = NULL;
+
+        device_protocol_data = se_alloc(sizeof(device_protocol_data_t));
+        device_protocol_data->protocol = protocol;
+        device_protocol_data->bus_id = bus_id;
+        device_protocol_data->device_address = device_address;
+        se_tree_insert32_array(device_to_protocol_table, key, device_protocol_data);
+    }
 
     /* bMaxPacketSize0 */
     proto_tree_add_item(tree, hf_usb_bMaxPacketSize0, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -908,7 +1030,7 @@ dissect_usb_device_qualifier_descriptor(packet_info *pinfo _U_, proto_tree *pare
     /* one reserved byte */
     offset += 1;
 
-    if(item){
+    if (item) {
         proto_item_set_len(item, offset-old_offset);
     }
 
@@ -917,13 +1039,23 @@ dissect_usb_device_qualifier_descriptor(packet_info *pinfo _U_, proto_tree *pare
 
 /* 9.6.1 */
 static int
-dissect_usb_device_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_device_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree,
+                              tvbuff_t *tvb, int offset,
+                              usb_trans_info_t *usb_trans_info _U_,
+                              usb_conv_info_t  *usb_conv_info _U_,
+                              guint bus_id, guint device_address)
 {
-    proto_item *item       = NULL;
-    proto_tree *tree       = NULL;
-    int         old_offset = offset;
+    proto_item      *item       = NULL;
+    proto_tree      *tree       = NULL;
+    proto_item      *nitem      = NULL;
+    int              old_offset = offset;
+    guint32          protocol;
+    const gchar     *description;
+    guint16          vendor_id;
+    guint32          product;
+    guint16          product_id;
 
-    if(parent_tree){
+    if (parent_tree) {
         item = proto_tree_add_text(parent_tree, tvb, offset, -1, "DEVICE DESCRIPTOR");
         tree = proto_item_add_subtree(item, ett_descriptor_device);
     }
@@ -933,7 +1065,10 @@ dissect_usb_device_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, t
 
     /* bcdUSB */
     proto_tree_add_item(tree, hf_usb_bcdUSB, tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset+=2;
+    offset += 2;
+
+    protocol = tvb_get_ntoh24(tvb, offset);
+    description = val_to_str_const(protocol, usb_protocols, "");
 
     /* bDeviceClass */
     proto_tree_add_item(tree, hf_usb_bDeviceClass, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -944,7 +1079,9 @@ dissect_usb_device_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, t
     offset += 1;
 
     /* bDeviceProtocol */
-    proto_tree_add_item(tree, hf_usb_bDeviceProtocol, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+    nitem = proto_tree_add_item(tree, hf_usb_bDeviceProtocol, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+    if (*description)
+        proto_item_append_text(nitem, " (%s)", description);
     offset += 1;
 
     /* bMaxPacketSize0 */
@@ -953,15 +1090,57 @@ dissect_usb_device_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, t
 
     /* idVendor */
     proto_tree_add_item(tree, hf_usb_idVendor, tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset+=2;
+    vendor_id = tvb_get_letohs(tvb, offset);
+    offset += 2;
 
     /* idProduct */
-    proto_tree_add_item(tree, hf_usb_idProduct, tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset+=2;
+    nitem = proto_tree_add_item(tree, hf_usb_idProduct, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+    product_id = tvb_get_letohs(tvb, offset);
+    product = vendor_id << 16 | product_id;
+    proto_item_set_text(nitem, "idProduct: %s (0x%04x)",
+            val_to_str_ext_const(product, &ext_usb_products_vals, "Unknown"),
+            product_id);
+    offset += 2;
+
+    if (!pinfo->fd->flags.visited) {
+        guint                   k_bus_id;
+        guint                   k_device_address;
+        guint                   k_frame_number;
+        emem_tree_key_t         key[4];
+        device_product_data_t   *device_product_data;
+        device_protocol_data_t  *device_protocol_data;
+
+        k_frame_number = pinfo->fd->num;
+        k_device_address = device_address;
+        k_bus_id = bus_id;
+
+        key[0].length = 1;
+        key[0].key    = &k_device_address;
+        key[1].length = 1;
+        key[1].key    = &k_bus_id;
+        key[2].length = 1;
+        key[2].key    = &k_frame_number;
+        key[3].length = 0;
+        key[3].key    = NULL;
+
+        device_product_data = se_alloc(sizeof(device_product_data_t));
+        device_product_data->vendor = vendor_id;
+        device_product_data->product = product_id;
+        device_product_data->bus_id = bus_id;
+        device_product_data->device_address = device_address;
+        se_tree_insert32_array(device_to_product_table, key, device_product_data);
+
+        device_protocol_data = se_alloc(sizeof(device_protocol_data_t));
+        device_protocol_data->protocol = protocol;
+        device_protocol_data->bus_id = bus_id;
+        device_protocol_data->device_address = device_address;
+
+        se_tree_insert32_array(device_to_protocol_table, key, device_protocol_data);
+    }
 
     /* bcdDevice */
     proto_tree_add_item(tree, hf_usb_bcdDevice, tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset+=2;
+    offset += 2;
 
     /* iManufacturer */
     proto_tree_add_item(tree, hf_usb_iManufacturer, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -979,7 +1158,7 @@ dissect_usb_device_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, t
     proto_tree_add_item(tree, hf_usb_bNumConfigurations, tvb, offset, 1, ENC_LITTLE_ENDIAN);
     offset += 1;
 
-    if(item){
+    if (item) {
         proto_item_set_len(item, offset-old_offset);
     }
 
@@ -988,14 +1167,17 @@ dissect_usb_device_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, t
 
 /* 9.6.7 */
 static int
-dissect_usb_string_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_string_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree,
+                              tvbuff_t *tvb, int offset,
+                              usb_trans_info_t *usb_trans_info,
+                              usb_conv_info_t  *usb_conv_info _U_)
 {
     proto_item *item       = NULL;
     proto_tree *tree       = NULL;
     int         old_offset = offset;
     guint8      len;
 
-    if(parent_tree){
+    if (parent_tree) {
         item = proto_tree_add_text(parent_tree, tvb, offset, -1, "STRING DESCRIPTOR");
         tree = proto_item_add_subtree(item, ett_descriptor_device);
     }
@@ -1019,9 +1201,9 @@ dissect_usb_string_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, t
 
     offset += 2;
 
-    if(!usb_trans_info->u.get_descriptor.index){
+    if (!usb_trans_info->u.get_descriptor.index) {
         /* list of languanges */
-        while(len>(offset-old_offset)){
+        while(len>(offset-old_offset)) {
             /* wLANGID */
             proto_tree_add_item(tree, hf_usb_wLANGID, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset+=2;
@@ -1042,7 +1224,7 @@ dissect_usb_string_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, t
         offset += len-2;
     }
 
-    if(item){
+    if (item) {
         proto_item_set_len(item, offset-old_offset);
     }
 
@@ -1053,7 +1235,10 @@ dissect_usb_string_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, t
 
 /* 9.6.5 */
 static int
-dissect_usb_interface_descriptor(packet_info *pinfo, proto_tree *parent_tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info, usb_conv_info_t *usb_conv_info)
+dissect_usb_interface_descriptor(packet_info *pinfo, proto_tree *parent_tree,
+                                 tvbuff_t *tvb, int offset,
+                                 usb_trans_info_t *usb_trans_info,
+                                 usb_conv_info_t  *usb_conv_info)
 {
     proto_item *item       = NULL;
     proto_tree *tree       = NULL;
@@ -1063,7 +1248,7 @@ dissect_usb_interface_descriptor(packet_info *pinfo, proto_tree *parent_tree, tv
     guint8      interface_num;
     guint8      alt_setting;
 
-    if(parent_tree){
+    if (parent_tree) {
         item = proto_tree_add_text(parent_tree, tvb, offset, -1, "INTERFACE DESCRIPTOR");
         tree = proto_item_add_subtree(item, ett_descriptor_device);
     }
@@ -1091,7 +1276,7 @@ dissect_usb_interface_descriptor(packet_info *pinfo, proto_tree *parent_tree, tv
     /* save the class so we can access it later in the endpoint descriptor */
     usb_conv_info->interfaceClass = tvb_get_guint8(tvb, offset);
 
-    class_str = val_to_str(usb_conv_info->interfaceClass, usb_class_vals, "unknown (0x%X)");
+    class_str = val_to_str_ext(usb_conv_info->interfaceClass, &usb_class_vals_ext, "unknown (0x%X)");
     proto_item_append_text(item, " (%u.%u): class %s", interface_num, alt_setting, class_str);
 
     if (!pinfo->fd->flags.visited && (alt_setting == 0)) {
@@ -1125,7 +1310,7 @@ dissect_usb_interface_descriptor(packet_info *pinfo, proto_tree *parent_tree, tv
     proto_tree_add_item(tree, hf_usb_iInterface, tvb, offset, 1, ENC_LITTLE_ENDIAN);
     offset += 1;
 
-    if(item){
+    if (item) {
         proto_item_set_len(item, len);
     }
     if (offset < old_offset+len) {
@@ -1148,7 +1333,7 @@ void dissect_usb_endpoint_address(proto_tree *tree, tvbuff_t *tvb, int offset)
     proto_tree *endpoint_tree = NULL;
     guint8      endpoint;
 
-    if(tree){
+    if (tree) {
         endpoint_item = proto_tree_add_item(tree, hf_usb_bEndpointAddress, tvb, offset, 1, ENC_LITTLE_ENDIAN);
         endpoint_tree = proto_item_add_subtree(endpoint_item, ett_configuration_bEndpointAddress);
     }
@@ -1160,7 +1345,10 @@ void dissect_usb_endpoint_address(proto_tree *tree, tvbuff_t *tvb, int offset)
 }
 
 static int
-dissect_usb_endpoint_descriptor(packet_info *pinfo, proto_tree *parent_tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_endpoint_descriptor(packet_info *pinfo, proto_tree *parent_tree,
+                                tvbuff_t *tvb, int offset,
+                                usb_trans_info_t *usb_trans_info _U_,
+                                usb_conv_info_t  *usb_conv_info _U_)
 {
     proto_item *item           = NULL;
     proto_tree *tree           = NULL;
@@ -1173,7 +1361,7 @@ dissect_usb_endpoint_descriptor(packet_info *pinfo, proto_tree *parent_tree, tvb
     guint8      ep_type;
     guint8      len;
 
-    if(parent_tree){
+    if (parent_tree) {
         item = proto_tree_add_text(parent_tree, tvb, offset, -1, "ENDPOINT DESCRIPTOR");
         tree = proto_item_add_subtree(item, ett_descriptor_device);
     }
@@ -1194,10 +1382,10 @@ dissect_usb_endpoint_descriptor(packet_info *pinfo, proto_tree *parent_tree, tvb
      * All endpoints for the same interface descriptor share the same
      * usb_conv_info structure.
      */
-    if((!pinfo->fd->flags.visited)&&usb_trans_info->interface_info){
+    if ((!pinfo->fd->flags.visited)&&usb_trans_info->interface_info) {
         conversation_t *conversation;
 
-        if(pinfo->destport==NO_ENDPOINT){
+        if (pinfo->destport == NO_ENDPOINT) {
             static address tmp_addr;
             static usb_address_t usb_addr;
 
@@ -1250,7 +1438,7 @@ dissect_usb_endpoint_descriptor(packet_info *pinfo, proto_tree *parent_tree, tvb
     proto_tree_add_item(tree, hf_usb_bInterval, tvb, offset, 1, ENC_LITTLE_ENDIAN);
     offset += 1;
 
-    if(item){
+    if (item) {
         proto_item_set_len(item, len);
     }
     if (offset < old_offset+len) {
@@ -1264,14 +1452,15 @@ dissect_usb_endpoint_descriptor(packet_info *pinfo, proto_tree *parent_tree, tvb
 /* ECN */
 static int
 dissect_usb_interface_assn_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree,
-        tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_,
-        usb_conv_info_t *usb_conv_info _U_)
+                                      tvbuff_t *tvb, int offset,
+                                      usb_trans_info_t *usb_trans_info _U_,
+                                      usb_conv_info_t  *usb_conv_info _U_)
 {
     proto_item *item       = NULL;
     proto_tree *tree       = NULL;
     int         old_offset = offset;
 
-    if(parent_tree){
+    if (parent_tree) {
         item = proto_tree_add_text(parent_tree, tvb, offset, -1, "INTERFACE ASSOCIATION DESCRIPTOR");
         tree = proto_item_add_subtree(item, ett_descriptor_device);
     }
@@ -1303,7 +1492,7 @@ dissect_usb_interface_assn_descriptor(packet_info *pinfo _U_, proto_tree *parent
     proto_tree_add_item(tree, hf_usb_iFunction, tvb, offset, 1, ENC_LITTLE_ENDIAN);
     offset += 1;
 
-    if(item){
+    if (item) {
         proto_item_set_len(item, offset-old_offset);
     }
 
@@ -1311,14 +1500,17 @@ dissect_usb_interface_assn_descriptor(packet_info *pinfo _U_, proto_tree *parent
 }
 
 static int
-dissect_usb_unknown_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_unknown_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree,
+                               tvbuff_t *tvb, int offset,
+                               usb_trans_info_t *usb_trans_info _U_,
+                               usb_conv_info_t  *usb_conv_info _U_)
 {
     proto_item *item       = NULL;
     proto_tree *tree       = NULL;
     int         old_offset = offset;
     guint8      bLength;
 
-    if(parent_tree){
+    if (parent_tree) {
         item = proto_tree_add_text(parent_tree, tvb, offset, -1, "UNKNOWN DESCRIPTOR");
         tree = proto_item_add_subtree(item, ett_descriptor_device);
     }
@@ -1328,7 +1520,7 @@ dissect_usb_unknown_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, 
     bLength = tvb_get_guint8(tvb, offset);
     offset += 1;
     if (bLength < 3) {
-        if(item){
+        if (item) {
             proto_item_set_len(item, offset-old_offset);
         }
 
@@ -1346,7 +1538,7 @@ dissect_usb_unknown_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, 
 
     offset += bLength - 2;
 
-    if(item){
+    if (item) {
         proto_item_set_len(item, offset-old_offset);
     }
 
@@ -1367,7 +1559,10 @@ static const true_false_string tfs_remotewakeup = {
     "This device does NOT support remote wakeup"
 };
 static int
-dissect_usb_configuration_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info, usb_conv_info_t *usb_conv_info)
+dissect_usb_configuration_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree,
+                                     tvbuff_t *tvb, int offset,
+                                     usb_trans_info_t *usb_trans_info,
+                                     usb_conv_info_t  *usb_conv_info)
 {
     proto_item *item       = NULL;
     proto_tree *tree       = NULL;
@@ -1382,7 +1577,7 @@ dissect_usb_configuration_descriptor(packet_info *pinfo _U_, proto_tree *parent_
     usb_conv_info->interfaceClass    = IF_CLASS_UNKNOWN;
     usb_conv_info->interfaceSubclass = IF_SUBCLASS_UNKNOWN;
 
-    if(parent_tree){
+    if (parent_tree) {
         item = proto_tree_add_text(parent_tree, tvb, offset, -1, "CONFIGURATION DESCRIPTOR");
         tree = proto_item_add_subtree(item, ett_descriptor_device);
     }
@@ -1408,7 +1603,7 @@ dissect_usb_configuration_descriptor(packet_info *pinfo _U_, proto_tree *parent_
     offset += 1;
 
     /* bmAttributes */
-    if(tree){
+    if (tree) {
         flags_item = proto_tree_add_item(tree, hf_usb_configuration_bmAttributes, tvb, offset, 1, ENC_LITTLE_ENDIAN);
         flags_tree = proto_item_add_subtree(flags_item, ett_configuration_bmAttributes);
     }
@@ -1430,15 +1625,15 @@ dissect_usb_configuration_descriptor(packet_info *pinfo _U_, proto_tree *parent_
     usb_trans_info->interface_info = NULL;
 
     /* decode any additional interface and endpoint descriptors */
-    while(len>(offset-old_offset)){
+    while(len>(offset-old_offset)) {
         guint8 next_type;
         tvbuff_t *next_tvb = NULL;
 
-        if(tvb_length_remaining(tvb, offset)<2){
+        if (tvb_length_remaining(tvb, offset)<2) {
             break;
         }
         next_type = tvb_get_guint8(tvb, offset+1);
-        switch(next_type){
+        switch(next_type) {
         case USB_DT_INTERFACE:
             offset = dissect_usb_interface_descriptor(pinfo, parent_tree, tvb, offset, usb_trans_info, usb_conv_info);
             break;
@@ -1450,7 +1645,7 @@ dissect_usb_configuration_descriptor(packet_info *pinfo _U_, proto_tree *parent_
             break;
         default:
             next_tvb = tvb_new_subset_remaining(tvb, offset);
-            if (dissector_try_uint(usb_descriptor_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent_tree)){
+            if (dissector_try_uint(usb_descriptor_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent_tree)) {
                 offset += tvb_get_guint8(next_tvb, 0);
             } else {
                 offset = dissect_usb_unknown_descriptor(pinfo, parent_tree, tvb, offset, usb_trans_info, usb_conv_info);
@@ -1460,7 +1655,7 @@ dissect_usb_configuration_descriptor(packet_info *pinfo _U_, proto_tree *parent_
         }
     }
 
-    if(item){
+    if (item) {
         proto_item_set_len(item, offset-old_offset);
     }
 
@@ -1480,7 +1675,11 @@ dissect_usb_configuration_descriptor(packet_info *pinfo _U_, proto_tree *parent_
 
 /* 9.4.3 */
 static int
-dissect_usb_setup_get_descriptor_request(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_get_descriptor_request(packet_info *pinfo, proto_tree *tree,
+                                         tvbuff_t *tvb, int offset,
+                                         usb_trans_info_t *usb_trans_info,
+                                         usb_conv_info_t  *usb_conv_info _U_,
+                                         guint bus_id _U_, guint device_address _U_)
 {
     /* descriptor index */
     proto_tree_add_item(tree, hf_usb_descriptor_index, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -1493,7 +1692,7 @@ dissect_usb_setup_get_descriptor_request(packet_info *pinfo, proto_tree *tree, t
     offset += 1;
     if (check_col(pinfo->cinfo, COL_INFO)) {
         col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
-            val_to_str(usb_trans_info->u.get_descriptor.type, descriptor_type_vals, "Unknown type %u"));
+            val_to_str_ext(usb_trans_info->u.get_descriptor.type, &descriptor_type_vals_ext, "Unknown type %u"));
     }
 
     /* language id */
@@ -1508,16 +1707,20 @@ dissect_usb_setup_get_descriptor_request(packet_info *pinfo, proto_tree *tree, t
 }
 
 static int
-dissect_usb_setup_get_descriptor_response(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info, usb_conv_info_t *usb_conv_info)
+dissect_usb_setup_get_descriptor_response(packet_info *pinfo, proto_tree *tree,
+                                          tvbuff_t *tvb, int offset,
+                                          usb_trans_info_t *usb_trans_info,
+                                          usb_conv_info_t  *usb_conv_info,
+                                          guint bus_id, guint device_address)
 {
 
     if (check_col(pinfo->cinfo, COL_INFO)) {
         col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
-            val_to_str(usb_trans_info->u.get_descriptor.type, descriptor_type_vals, "Unknown type %u"));
+            val_to_str_ext(usb_trans_info->u.get_descriptor.type, &descriptor_type_vals_ext, "Unknown type %u"));
     }
-    switch(usb_trans_info->u.get_descriptor.type){
+    switch(usb_trans_info->u.get_descriptor.type) {
     case USB_DT_DEVICE:
-        offset = dissect_usb_device_descriptor(pinfo, tree, tvb, offset, usb_trans_info, usb_conv_info);
+        offset = dissect_usb_device_descriptor(pinfo, tree, tvb, offset, usb_trans_info, usb_conv_info, bus_id, device_address);
         break;
     case USB_DT_CONFIG:
         offset = dissect_usb_configuration_descriptor(pinfo, tree, tvb, offset, usb_trans_info, usb_conv_info);
@@ -1532,7 +1735,7 @@ dissect_usb_setup_get_descriptor_response(packet_info *pinfo, proto_tree *tree, 
         offset = dissect_usb_endpoint_descriptor(pinfo, tree, tvb, offset, usb_trans_info, usb_conv_info);
         break;
     case USB_DT_DEVICE_QUALIFIER:
-        offset = dissect_usb_device_qualifier_descriptor(pinfo, tree, tvb, offset, usb_trans_info, usb_conv_info);
+        offset = dissect_usb_device_qualifier_descriptor(pinfo, tree, tvb, offset, usb_trans_info, usb_conv_info, bus_id, device_address);
         break;
     case USB_DT_RPIPE:
         if (usb_conv_info->interfaceClass == IF_CLASS_HID) {
@@ -1542,7 +1745,7 @@ dissect_usb_setup_get_descriptor_response(packet_info *pinfo, proto_tree *tree, 
         /* else fall through as default/unknown */
     default:
         /* XXX dissect the descriptor coming back from the device */
-        proto_tree_add_text(tree, tvb, offset, -1, "GET DESCRIPTOR data (unknown descriptor type %u)",usb_trans_info->u.get_descriptor.type);
+        proto_tree_add_text(tree, tvb, offset, -1, "GET DESCRIPTOR data (unknown descriptor type %u)", usb_trans_info->u.get_descriptor.type);
         offset = tvb_length(tvb);
         break;
     }
@@ -1559,7 +1762,11 @@ dissect_usb_setup_get_descriptor_response(packet_info *pinfo, proto_tree *tree, 
 
 /* 9.4.4 */
 static int
-dissect_usb_setup_get_interface_request(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_get_interface_request(packet_info *pinfo _U_, proto_tree *tree,
+                                        tvbuff_t *tvb, int offset,
+                                        usb_trans_info_t *usb_trans_info _U_,
+                                        usb_conv_info_t  *usb_conv_info _U_,
+                                        guint bus_id _U_, guint device_address _U_)
 {
     /* zero */
     proto_tree_add_item(tree, hf_usb_value, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -1577,7 +1784,11 @@ dissect_usb_setup_get_interface_request(packet_info *pinfo _U_, proto_tree *tree
 }
 
 static int
-dissect_usb_setup_get_interface_response(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_get_interface_response(packet_info *pinfo _U_, proto_tree *tree,
+                                         tvbuff_t *tvb, int offset,
+                                         usb_trans_info_t *usb_trans_info _U_,
+                                         usb_conv_info_t  *usb_conv_info _U_,
+                                         guint bus_id _U_, guint device_address _U_)
 {
     /* alternate setting */
     proto_tree_add_item(tree, hf_usb_bAlternateSetting, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -1595,7 +1806,11 @@ dissect_usb_setup_get_interface_response(packet_info *pinfo _U_, proto_tree *tre
 
 /* 9.4.5 */
 static int
-dissect_usb_setup_get_status_request(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_get_status_request(packet_info *pinfo _U_, proto_tree *tree,
+                                     tvbuff_t *tvb, int offset,
+                                     usb_trans_info_t *usb_trans_info _U_,
+                                     usb_conv_info_t  *usb_conv_info _U_,
+                                     guint bus_id _U_, guint device_address _U_)
 {
     /* zero */
     proto_tree_add_item(tree, hf_usb_value, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -1614,7 +1829,11 @@ dissect_usb_setup_get_status_request(packet_info *pinfo _U_, proto_tree *tree, t
 }
 
 static int
-dissect_usb_setup_get_status_response(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_get_status_response(packet_info *pinfo _U_, proto_tree *tree,
+                                      tvbuff_t *tvb, int offset,
+                                      usb_trans_info_t *usb_trans_info _U_,
+                                      usb_conv_info_t  *usb_conv_info _U_,
+                                      guint bus_id _U_, guint device_address _U_)
 {
     /* status */
     /* XXX - show bits */
@@ -1633,7 +1852,11 @@ dissect_usb_setup_get_status_response(packet_info *pinfo _U_, proto_tree *tree, 
 
 /* 9.4.6 */
 static int
-dissect_usb_setup_set_address_request(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_set_address_request(packet_info *pinfo _U_, proto_tree *tree,
+                                      tvbuff_t *tvb, int offset,
+                                      usb_trans_info_t *usb_trans_info _U_,
+                                      usb_conv_info_t  *usb_conv_info _U_,
+                                      guint bus_id _U_, guint device_address _U_)
 {
     /* device address */
     proto_tree_add_item(tree, hf_usb_device_address, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -1651,7 +1874,11 @@ dissect_usb_setup_set_address_request(packet_info *pinfo _U_, proto_tree *tree, 
 }
 
 static int
-dissect_usb_setup_set_address_response(packet_info *pinfo _U_, proto_tree *tree _U_, tvbuff_t *tvb _U_, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_set_address_response(packet_info *pinfo _U_, proto_tree *tree _U_,
+                                       tvbuff_t *tvb _U_, int offset,
+                                       usb_trans_info_t *usb_trans_info _U_,
+                                       usb_conv_info_t  *usb_conv_info _U_,
+                                       guint bus_id _U_, guint device_address _U_)
 {
     return offset;
 }
@@ -1665,7 +1892,11 @@ dissect_usb_setup_set_address_response(packet_info *pinfo _U_, proto_tree *tree 
 
 /* 9.4.7 */
 static int
-dissect_usb_setup_set_configuration_request(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_set_configuration_request(packet_info *pinfo _U_, proto_tree *tree,
+                                            tvbuff_t *tvb, int offset,
+                                            usb_trans_info_t *usb_trans_info _U_,
+                                            usb_conv_info_t  *usb_conv_info _U_,
+                                            guint bus_id _U_, guint device_address _U_)
 {
     /* configuration value */
     proto_tree_add_item(tree, hf_usb_bConfigurationValue, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -1683,7 +1914,11 @@ dissect_usb_setup_set_configuration_request(packet_info *pinfo _U_, proto_tree *
 }
 
 static int
-dissect_usb_setup_set_configuration_response(packet_info *pinfo _U_, proto_tree *tree _U_, tvbuff_t *tvb _U_, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_set_configuration_response(packet_info *pinfo _U_, proto_tree *tree _U_,
+                                             tvbuff_t *tvb _U_, int offset,
+                                             usb_trans_info_t *usb_trans_info _U_,
+                                             usb_conv_info_t  *usb_conv_info _U_,
+                                             guint bus_id _U_, guint device_address _U_)
 {
     return offset;
 }
@@ -1697,7 +1932,11 @@ dissect_usb_setup_set_configuration_response(packet_info *pinfo _U_, proto_tree 
 
 /* 9.4.9 */
 static int
-dissect_usb_setup_set_feature_request(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_set_feature_request(packet_info *pinfo _U_, proto_tree *tree,
+                                      tvbuff_t *tvb, int offset,
+                                      usb_trans_info_t *usb_trans_info _U_,
+                                      usb_conv_info_t  *usb_conv_info _U_,
+                                      guint bus_id _U_, guint device_address _U_)
 {
     /* feature selector */
     proto_tree_add_item(tree, hf_usb_wFeatureSelector, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -1716,7 +1955,11 @@ dissect_usb_setup_set_feature_request(packet_info *pinfo _U_, proto_tree *tree, 
 }
 
 static int
-dissect_usb_setup_set_feature_response(packet_info *pinfo _U_, proto_tree *tree _U_, tvbuff_t *tvb _U_, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_set_feature_response(packet_info *pinfo _U_, proto_tree *tree _U_,
+                                       tvbuff_t *tvb _U_, int offset,
+                                       usb_trans_info_t *usb_trans_info _U_,
+                                       usb_conv_info_t  *usb_conv_info _U_,
+                                       guint bus_id _U_, guint device_address _U_)
 {
     return offset;
 }
@@ -1730,7 +1973,11 @@ dissect_usb_setup_set_feature_response(packet_info *pinfo _U_, proto_tree *tree 
 
 /* 9.4.10 */
 static int
-dissect_usb_setup_set_interface_request(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_set_interface_request(packet_info *pinfo _U_, proto_tree *tree,
+                                        tvbuff_t *tvb, int offset,
+                                        usb_trans_info_t *usb_trans_info _U_,
+                                        usb_conv_info_t  *usb_conv_info _U_,
+                                        guint bus_id _U_, guint device_address _U_)
 {
     /* alternate setting */
     proto_tree_add_item(tree, hf_usb_bAlternateSetting, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -1748,7 +1995,11 @@ dissect_usb_setup_set_interface_request(packet_info *pinfo _U_, proto_tree *tree
 }
 
 static int
-dissect_usb_setup_set_interface_response(packet_info *pinfo _U_, proto_tree *tree _U_, tvbuff_t *tvb _U_, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_set_interface_response(packet_info *pinfo _U_, proto_tree *tree _U_,
+                                         tvbuff_t *tvb _U_, int offset,
+                                         usb_trans_info_t *usb_trans_info _U_,
+                                         usb_conv_info_t  *usb_conv_info _U_,
+                                         guint bus_id _U_, guint device_address _U_)
 {
     return offset;
 }
@@ -1762,7 +2013,11 @@ dissect_usb_setup_set_interface_response(packet_info *pinfo _U_, proto_tree *tre
 
 /* 9.4.11 */
 static int
-dissect_usb_setup_synch_frame_request(packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_synch_frame_request(packet_info *pinfo _U_, proto_tree *tree,
+                                      tvbuff_t *tvb, int offset,
+                                      usb_trans_info_t *usb_trans_info _U_,
+                                      usb_conv_info_t  *usb_conv_info _U_,
+                                      guint bus_id _U_, guint device_address _U_)
 {
     /* zero */
     proto_tree_add_item(tree, hf_usb_value, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -1781,7 +2036,11 @@ dissect_usb_setup_synch_frame_request(packet_info *pinfo _U_, proto_tree *tree, 
 }
 
 static int
-dissect_usb_setup_synch_frame_response(packet_info *pinfo _U_, proto_tree *tree _U_, tvbuff_t *tvb _U_, int offset, usb_trans_info_t *usb_trans_info _U_, usb_conv_info_t *usb_conv_info _U_)
+dissect_usb_setup_synch_frame_response(packet_info *pinfo _U_, proto_tree *tree _U_,
+                                       tvbuff_t *tvb _U_, int offset,
+                                       usb_trans_info_t *usb_trans_info _U_,
+                                       usb_conv_info_t  *usb_conv_info _U_,
+                                       guint bus_id _U_, guint device_address _U_)
 {
     /* frame number */
     proto_tree_add_item(tree, hf_usb_wFrameNumber, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -1791,11 +2050,16 @@ dissect_usb_setup_synch_frame_response(packet_info *pinfo _U_, proto_tree *tree 
 }
 
 
-typedef int (*usb_setup_dissector)(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int offset, usb_trans_info_t *usb_trans_info, usb_conv_info_t *usb_conv_info);
+typedef int (*usb_setup_dissector)(packet_info *pinfo, proto_tree *tree,
+                                   tvbuff_t *tvb, int offset,
+                                   usb_trans_info_t *usb_trans_info,
+                                   usb_conv_info_t  *usb_conv_info,
+                                   guint bus_id, guint device_address);
 
 typedef struct _usb_setup_dissector_table_t {
     guint8 request;
     usb_setup_dissector dissector;
+
 } usb_setup_dissector_table_t;
 #define USB_SETUP_GET_STATUS             0
 #define USB_SETUP_CLEAR_FEATURE          1
@@ -1808,6 +2072,8 @@ typedef struct _usb_setup_dissector_table_t {
 #define USB_SETUP_GET_INTERFACE         10
 #define USB_SETUP_SET_INTERFACE         11
 #define USB_SETUP_SYNCH_FRAME           12
+#define USB_SETUP_SET_SEL               48
+#define USB_SETUP_SET_ISOCH_DELAY       49
 
 static const usb_setup_dissector_table_t setup_request_dissectors[] = {
     {USB_SETUP_GET_STATUS,        dissect_usb_setup_get_status_request},
@@ -1836,7 +2102,6 @@ static const usb_setup_dissector_table_t setup_response_dissectors[] = {
     {0, NULL}
 };
 
-/* bRequest values but only when bmRequestType.type == 0 (Device) */
 static const value_string setup_request_names_vals[] = {
     {USB_SETUP_GET_STATUS,              "GET STATUS"},
     {USB_SETUP_CLEAR_FEATURE,           "CLEAR FEATURE"},
@@ -1849,6 +2114,8 @@ static const value_string setup_request_names_vals[] = {
     {USB_SETUP_GET_INTERFACE,           "GET INTERFACE"},
     {USB_SETUP_SET_INTERFACE,           "SET INTERFACE"},
     {USB_SETUP_SYNCH_FRAME,             "SYNCH FRAME"},
+    {USB_SETUP_SET_SEL,                 "SET SEL"},
+    {USB_SETUP_SET_ISOCH_DELAY,         "SET ISOCH DELAY"},
     {0, NULL}
 };
 
@@ -1874,13 +2141,12 @@ static const value_string bmrequesttype_recipient_vals[] = {
 };
 
 static int
-dissect_usb_bmrequesttype(proto_tree *parent_tree, tvbuff_t *tvb, int offset,
-    int *type)
+dissect_usb_bmrequesttype(proto_tree *parent_tree, tvbuff_t *tvb, int offset, int *type)
 {
     proto_item *item = NULL;
     proto_tree *tree = NULL;
 
-    if(parent_tree){
+    if (parent_tree) {
         item = proto_tree_add_item(parent_tree, hf_usb_bmRequestType, tvb, offset, 1, ENC_LITTLE_ENDIAN);
         tree = proto_item_add_subtree(item, ett_usb_setup_bmrequesttype);
     }
@@ -1900,7 +2166,8 @@ dissect_usb_bmrequesttype(proto_tree *parent_tree, tvbuff_t *tvb, int offset,
  *       the reason for the tvb_memcpy() and proto_tree_add_uint[64]()
  *       pairs below. */
 static void
-dissect_linux_usb_pseudo_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_linux_usb_pseudo_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+        guint *bus_id, guint *device_address)
 {
     guint8  transfer_type;
     guint8  endpoint_number;
@@ -1931,9 +2198,11 @@ dissect_linux_usb_pseudo_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 
     proto_tree_add_bitmask(tree, tvb, 10, hf_usb_endpoint_number, ett_usb_endpoint, usb_endpoint_fields, ENC_BIG_ENDIAN);
     proto_tree_add_item(tree, hf_usb_device_address, tvb, 11, 1, ENC_BIG_ENDIAN);
+    *device_address = tvb_get_guint8(tvb, 11);
 
     tvb_memcpy(tvb, (guint8 *)&val16, 12, 2);
     proto_tree_add_uint(tree, hf_usb_bus_id, tvb, 12, 2, val16);
+    *bus_id = tvb_get_letohs(tvb, 12);
 
     /* Right after the pseudo header we always have
      * sizeof(struct usb_device_setup_hdr) bytes. The content of these
@@ -2009,29 +2278,48 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
     guint32               tmp_addr;
     static usb_address_t  src_addr, dst_addr; /* has to be static due to SET_ADDRESS */
     guint32               src_endpoint, dst_endpoint;
-    gboolean              is_request     = FALSE;
-    usb_conv_info_t      *usb_conv_info  = NULL;
+    gboolean              is_request;
+    usb_conv_info_t      *usb_conv_info;
     usb_trans_info_t     *usb_trans_info = NULL;
     conversation_t       *conversation;
-    usb_tap_data_t       *tap_data       = NULL;
+    usb_tap_data_t       *tap_data;
+    guint                bus_id = 0;
+    guint                device_address = 0;
+    usb_data_t           *usb_data;
+    void                 *pd_save;
+    tvbuff_t             *next_tvb = NULL;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "USB");
 
     /* add usb hdr*/
     if (parent) {
-      proto_item *ti = NULL;
-      ti = proto_tree_add_protocol_format(parent, proto_usb, tvb, 0,
-          header_len_64_bytes ? 64 : 48, "USB URB");
-      tree = proto_item_add_subtree(ti, usb_hdr);
+        proto_item *ti;
+        ti = proto_tree_add_protocol_format(parent, proto_usb, tvb, 0,
+                                            header_len_64_bytes ? 64 : 48, "USB URB");
+        tree = proto_item_add_subtree(ti, usb_hdr);
     }
 
-    dissect_linux_usb_pseudo_header(tvb, pinfo, tree);
+    dissect_linux_usb_pseudo_header(tvb, pinfo, tree, &bus_id, &device_address);
     is_request  = (tvb_get_guint8(tvb, 8) == URB_SUBMIT) ? TRUE : FALSE;
     type        = tvb_get_guint8(tvb, 9);
     endpoint    = tvb_get_guint8(tvb, 10) & (~URB_TRANSFER_IN);
     tmp_addr    = tvb_get_guint8(tvb, 11);
     setup_flag  = tvb_get_guint8(tvb, 14);
     offset     += 40;           /* skip first part of the pseudo-header */
+
+    usb_data = se_alloc(sizeof(usb_data_t));
+    usb_data->bus_id = bus_id;
+    usb_data->device_address = device_address;
+    usb_data->endpoint = endpoint;
+
+    if (tvb_get_guint8(tvb, 10) & URB_TRANSFER_IN) {
+        usb_data->direction = P2P_DIR_RECV;
+    } else {
+        usb_data->direction = P2P_DIR_SENT;
+    }
+
+    pd_save = pinfo->private_data;
+    pinfo->private_data = usb_data;
 
     /* Set up addresses and ports. */
     if (is_request) {
@@ -2063,10 +2351,10 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
     /* request/response matching so we can keep track of transaction specific
      * data.
      */
-    if(is_request){
+    if (is_request) {
         /* this is a request */
         usb_trans_info = se_tree_lookup32(usb_conv_info->transactions, pinfo->fd->num);
-        if(!usb_trans_info){
+        if (!usb_trans_info) {
             usb_trans_info                = se_alloc0(sizeof(usb_trans_info_t));
             usb_trans_info->request_in    = pinfo->fd->num;
             usb_trans_info->req_time      = pinfo->fd->abs_ts;
@@ -2076,7 +2364,7 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
         }
         usb_conv_info->usb_trans_info = usb_trans_info;
 
-        if(usb_trans_info->response_in){
+        if (usb_trans_info->response_in) {
             proto_item *ti;
 
             ti = proto_tree_add_uint(tree, hf_usb_response_in, tvb, 0, 0, usb_trans_info->response_in);
@@ -2084,20 +2372,20 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
         }
     } else {
         /* this is a response */
-        if(pinfo->fd->flags.visited){
+        if (pinfo->fd->flags.visited) {
             usb_trans_info = se_tree_lookup32(usb_conv_info->transactions, pinfo->fd->num);
         } else {
             usb_trans_info = se_tree_lookup32_le(usb_conv_info->transactions, pinfo->fd->num);
-            if(usb_trans_info){
+            if (usb_trans_info) {
                 usb_trans_info->response_in = pinfo->fd->num;
                 se_tree_insert32(usb_conv_info->transactions, pinfo->fd->num, usb_trans_info);
             }
         }
         usb_conv_info->usb_trans_info = usb_trans_info;
 
-        if(usb_trans_info && usb_trans_info->request_in){
+        if (usb_trans_info && usb_trans_info->request_in) {
             proto_item *ti;
-            nstime_t t, deltat;
+            nstime_t    t, deltat;
 
             ti = proto_tree_add_uint(tree, hf_usb_request_in, tvb, 0, 0, usb_trans_info->request_in);
             PROTO_ITEM_SET_GENERATED(ti);
@@ -2119,7 +2407,7 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
         tap_queue_packet(usb_tap, pinfo, tap_data);
     }
 
-    switch(type){
+    switch(type) {
     case URB_BULK:
         {
         proto_item *item;
@@ -2137,15 +2425,13 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
         if (header_len_64_bytes)
             offset = dissect_linux_usb_pseudo_header_ext(tvb, offset, pinfo, tree);
 
-        if(tvb_reported_length_remaining(tvb, offset)){
-            tvbuff_t *next_tvb;
-
+        if (tvb_reported_length_remaining(tvb, offset)) {
             pinfo->usb_conv_info = usb_conv_info;
             next_tvb = tvb_new_subset_remaining(tvb, offset);
             if (try_heuristics && dissector_try_heuristic(heur_bulk_subdissector_list, next_tvb, pinfo, parent, NULL)) {
                 return;
             }
-            else if(dissector_try_uint(usb_bulk_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent)){
+            else if (dissector_try_uint(usb_bulk_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent)) {
                 return;
             }
         }
@@ -2168,15 +2454,13 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
         if (header_len_64_bytes)
             offset = dissect_linux_usb_pseudo_header_ext(tvb, offset, pinfo, tree);
 
-        if(tvb_reported_length_remaining(tvb, offset)){
-            tvbuff_t *next_tvb;
-
+        if (tvb_reported_length_remaining(tvb, offset)) {
             pinfo->usb_conv_info = usb_conv_info;
             next_tvb = tvb_new_subset_remaining(tvb, offset);
             if (try_heuristics && dissector_try_heuristic(heur_interrupt_subdissector_list, next_tvb, pinfo, parent, NULL)) {
                 return;
             }
-            else if(dissector_try_uint(usb_interrupt_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent)){
+            else if (dissector_try_uint(usb_interrupt_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent)) {
                 return;
             }
         }
@@ -2190,10 +2474,8 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
         proto_tree *setup_tree = NULL;
         int type_2;
 
-        if(is_request){
+        if (is_request) {
             if (setup_flag == 0) {
-                tvbuff_t *next_tvb;
-
                 /* this is a request */
 
                 /* Dissect the setup header - it's applicable */
@@ -2231,15 +2513,16 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
                     }
 
                     dissector = NULL;
-                    for(tmp = setup_request_dissectors;tmp->dissector;tmp++){
-                        if (tmp->request == usb_trans_info->setup.request){
+                    for(tmp = setup_request_dissectors;tmp->dissector;tmp++) {
+                        if (tmp->request == usb_trans_info->setup.request) {
                             dissector = tmp->dissector;
                             break;
                         }
                     }
 
-                    if(dissector){
-                        offset = dissector(pinfo, setup_tree, tvb, offset, usb_trans_info, usb_conv_info);
+                    if (dissector) {
+                        offset = dissector(pinfo, setup_tree, tvb, offset, usb_trans_info,
+                                usb_conv_info, bus_id, device_address);
                     } else {
                         proto_tree_add_item(setup_tree, hf_usb_value, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                         offset += 2;
@@ -2284,7 +2567,7 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
                     if (try_heuristics && dissector_try_heuristic(heur_control_subdissector_list, next_tvb, pinfo, setup_tree, NULL)) {
                         return;
                     }
-                    if(dissector_try_uint(usb_control_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, setup_tree)){
+                    if (dissector_try_uint(usb_control_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, setup_tree)) {
                         return;
                     }
                     /* Else no class dissector, just display generic fields */
@@ -2321,19 +2604,15 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
                 offset = dissect_linux_usb_pseudo_header_ext(tvb, offset, pinfo, tree);
 
             if (tvb_reported_length_remaining(tvb, offset) != 0) {
-                tvbuff_t *next_tvb;
-
                 next_tvb = tvb_new_subset_remaining(tvb, offset);
                 if (try_heuristics && dissector_try_heuristic(heur_control_subdissector_list, next_tvb, pinfo, parent, NULL)) {
                     return;
                 }
-                if(dissector_try_uint(usb_control_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent)){
+                if (dissector_try_uint(usb_control_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent)) {
                     return;
                 }
             }
         } else {
-            tvbuff_t *next_tvb;
-
             /* this is a response */
 
             /* Skip setup header - it's never applicable for responses */
@@ -2366,7 +2645,6 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
             tap_data->conv_info  = usb_conv_info;
             tap_data->trans_info = usb_trans_info;
             tap_queue_packet(usb_tap, pinfo, tap_data);
-
             ti = proto_tree_add_uint(tree, hf_usb_bInterfaceClass, tvb, 0, 0, usb_conv_info->interfaceClass);
             PROTO_ITEM_SET_GENERATED(ti);
 
@@ -2377,13 +2655,13 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
             if (header_len_64_bytes)
                 offset = dissect_linux_usb_pseudo_header_ext(tvb, offset, pinfo, tree);
 
-            if(usb_trans_info){
+            if (usb_trans_info) {
                 /* Try to find a class specific dissector */
                 next_tvb = tvb_new_subset_remaining(tvb, offset);
                 if (try_heuristics && dissector_try_heuristic(heur_control_subdissector_list, next_tvb, pinfo, parent, NULL)) {
                     return;
                 }
-                if(dissector_try_uint(usb_control_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent)){
+                if (dissector_try_uint(usb_control_dissector_table, usb_conv_info->interfaceClass, next_tvb, pinfo, parent)) {
                     return;
                 }
 
@@ -2402,15 +2680,16 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
                     }
 
                     dissector = NULL;
-                    for(tmp = setup_response_dissectors;tmp->dissector;tmp++){
-                        if (tmp->request == usb_conv_info->usb_trans_info->setup.request){
+                    for(tmp = setup_response_dissectors;tmp->dissector;tmp++) {
+                        if (tmp->request == usb_conv_info->usb_trans_info->setup.request) {
                             dissector = tmp->dissector;
                             break;
                         }
                     }
 
-                    if(dissector){
-                        offset = dissector(pinfo, parent, tvb, offset, usb_conv_info->usb_trans_info, usb_conv_info);
+                    if (dissector) {
+                        offset = dissector(pinfo, parent, tvb, offset, usb_conv_info->usb_trans_info,
+                                usb_conv_info, bus_id, device_address);
                     } else {
                         if (tvb_reported_length_remaining(tvb, offset) != 0) {
                             proto_tree_add_text(parent, tvb, offset, -1, "CONTROL response data");
@@ -2438,10 +2717,9 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
     case URB_ISOCHRONOUS:
         {
         guint32 iso_numdesc = 0;
-        proto_item *ti = NULL;
-        ti = proto_tree_add_uint(tree, hf_usb_bInterfaceClass, tvb, offset, 0, usb_conv_info->interfaceClass);
-        PROTO_ITEM_SET_GENERATED(ti);
-
+        proto_item *tii;
+        tii = proto_tree_add_uint(tree, hf_usb_bInterfaceClass, tvb, offset, 0, usb_conv_info->interfaceClass);
+        PROTO_ITEM_SET_GENERATED(tii);
         /* All fields which belong to Linux usbmon headers are in host-endian
          * byte order. The fields coming from the USB communication are in little
          * endian format (see usb_20.pdf, chapter 8.1 Byte/Bit ordering).
@@ -2452,7 +2730,8 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
          */
 
         if (setup_flag == 0) {
-            proto_tree *setup_tree = NULL;
+            proto_item *ti;
+            proto_tree *setup_tree;
             int         type_2;
 
             /* Dissect the setup header - it's applicable */
@@ -2503,7 +2782,7 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
         }
 
         if (setup_flag != 0) {
-            proto_tree   *urb_tree = NULL;
+            proto_tree   *urb_tree;
             guint32       i;
             unsigned int  data_base;
             guint32       iso_status;
@@ -2522,14 +2801,14 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
                 tvb_memcpy(tvb, (guint8 *)&iso_len, offset+8,  4);
 
                 if (parent) {
-                    proto_item *ti = NULL;
+                    proto_item *ti;
                     if (iso_len > 0) {
                         ti = proto_tree_add_protocol_format(urb_tree, proto_usb, tvb, offset,
                              16, "USB isodesc %u [%s]  (%u bytes)", i,
-                             val_to_str(iso_status, usb_urb_status_vals, "Error %d"), iso_len);
+                             val_to_str_ext(iso_status, &usb_urb_status_vals_ext, "Error %d"), iso_len);
                     } else {
                         ti = proto_tree_add_protocol_format(urb_tree, proto_usb, tvb, offset,
-                             16, "USB isodesc %u [%s]", i, val_to_str(iso_status, usb_urb_status_vals, "Error %d"));
+                             16, "USB isodesc %u [%s]", i, val_to_str_ext(iso_status, &usb_urb_status_vals_ext, "Error %d"));
                     }
                     tree = proto_item_add_subtree(ti, usb_isodesc);
                 }
@@ -2594,10 +2873,53 @@ dissect_linux_usb_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent,
         break;
     }
 
+    next_tvb = tvb_new_subset(tvb, offset, tvb_length_remaining(tvb, offset), tvb_length_remaining(tvb, offset));
+
+    if (!dissector_try_uint(device_to_dissector, (guint32) (bus_id << 8 | device_address), next_tvb, pinfo, parent)) {
+        emem_tree_key_t         key[4];
+        guint32                 k_frame_number;
+        guint32                 k_device_address;
+        guint32                 k_bus_id;
+        device_protocol_data_t  *device_protocol_data;
+
+        k_frame_number = pinfo->fd->num;
+        k_device_address = device_address;
+        k_bus_id = bus_id;
+
+        key[0].length = 1;
+        key[0].key    = &k_device_address;
+        key[1].length = 1;
+        key[1].key    = &k_bus_id;
+        key[2].length = 1;
+        key[2].key    = &k_frame_number;
+        key[3].length = 0;
+        key[3].key    = NULL;
+
+        device_protocol_data = se_tree_lookup32_array_le(device_to_protocol_table, key);
+        if (device_protocol_data && device_protocol_data->bus_id == bus_id &&
+                device_protocol_data->device_address == device_address &&
+                dissector_try_uint(protocol_to_dissector, (guint32) device_protocol_data->protocol, next_tvb, pinfo, parent)) {
+            offset += tvb_length_remaining(tvb, offset);
+        } else {
+            device_product_data_t   *device_product_data;
+
+            device_product_data = se_tree_lookup32_array_le(device_to_product_table, key);
+            if (device_product_data && device_product_data->bus_id == bus_id &&
+                    device_product_data->device_address == device_address &&
+                    dissector_try_uint(product_to_dissector, (guint32) (device_product_data->vendor << 16 | device_product_data->product), next_tvb, pinfo, parent)) {
+                offset += tvb_length_remaining(tvb, offset);
+            }
+        }
+    } else {
+        offset += tvb_length_remaining(tvb, offset);
+    }
+
     if (tvb_reported_length_remaining(tvb, offset) != 0) {
         /* There is leftover capture data to add (padding?) */
         proto_tree_add_item(parent, hf_usb_capdata, tvb, offset, -1, ENC_NA);
     }
+
+    pinfo->private_data = pd_save;
 }
 
 static void
@@ -2620,143 +2942,161 @@ proto_register_usb(void)
 
     /* USB packet pseudoheader members */
         { &hf_usb_urb_id,
-          { "URB id", "usb.urb_id", FT_UINT64, BASE_HEX,
-            NULL, 0x0,
+          { "URB id", "usb.urb_id",
+            FT_UINT64, BASE_HEX, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_urb_type,
-          { "URB type", "usb.urb_type", FT_UINT8, BASE_DEC,
-            VALS(usb_urb_type_vals), 0x0,
+          { "URB type", "usb.urb_type",
+            FT_UINT8, BASE_DEC, VALS(usb_urb_type_vals), 0x0,
             NULL, HFILL }},
 
         { &hf_usb_transfer_type,
-          { "URB transfer type", "usb.transfer_type", FT_UINT8, BASE_HEX,
-            VALS(usb_transfer_type_vals), 0x0,
+          { "URB transfer type", "usb.transfer_type",
+            FT_UINT8, BASE_HEX, VALS(usb_transfer_type_vals), 0x0,
             NULL, HFILL }},
 
         { &hf_usb_endpoint_number,
-          { "Endpoint", "usb.endpoint_number", FT_UINT8, BASE_HEX, NULL, 0x0,
+          { "Endpoint", "usb.endpoint_number",
+            FT_UINT8, BASE_HEX, NULL, 0x0,
             "USB endpoint number", HFILL }},
 
         { &hf_usb_endpoint_direction,
-          { "Direction", "usb.endpoint_number.direction", FT_UINT8, BASE_DEC,
-            VALS(usb_endpoint_direction_vals), 0x80,
+          { "Direction", "usb.endpoint_number.direction",
+            FT_UINT8, BASE_DEC, VALS(usb_endpoint_direction_vals), 0x80,
             "USB endpoint direction", HFILL }},
 
         { &hf_usb_endpoint_number_value,
-          { "Endpoint value", "usb.endpoint_number.endpoint", FT_UINT8, BASE_DEC,
-            NULL, 0x7F,
+          { "Endpoint value", "usb.endpoint_number.endpoint",
+            FT_UINT8, BASE_DEC, NULL, 0x7F,
             "USB endpoint value", HFILL }},
 
         { &hf_usb_device_address,
-          { "Device", "usb.device_address", FT_UINT8, BASE_DEC, NULL, 0x0,
+          { "Device", "usb.device_address",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
             "USB device address", HFILL }},
 
         { &hf_usb_bus_id,
-          { "URB bus id", "usb.bus_id", FT_UINT16, BASE_DEC,
-            NULL, 0x0,
+          { "URB bus id", "usb.bus_id",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_setup_flag,
-          { "Device setup request", "usb.setup_flag", FT_STRING, BASE_NONE,
-            NULL, 0x0,
+          { "Device setup request", "usb.setup_flag",
+            FT_STRING, BASE_NONE, NULL, 0x0,
             "USB device setup request is relevant (0) or not", HFILL }},
 
         { &hf_usb_data_flag,
-          { "Data", "usb.data_flag", FT_STRING, BASE_NONE,
-            NULL, 0x0,
+          { "Data", "usb.data_flag",
+            FT_STRING, BASE_NONE, NULL, 0x0,
             "USB data is present (0) or not", HFILL }},
 
         { &hf_usb_urb_ts_sec,
-          { "URB sec", "usb.urb_ts_sec", FT_UINT64, BASE_DEC,
-            NULL, 0x0,
+          { "URB sec", "usb.urb_ts_sec",
+            FT_UINT64, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_urb_ts_usec,
-          { "URB usec", "usb.urb_ts_usec", FT_UINT32, BASE_DEC,
-            NULL, 0x0,
+          { "URB usec", "usb.urb_ts_usec",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_urb_status,
-          { "URB status", "usb.urb_status", FT_INT32, BASE_DEC,
-            VALS(usb_urb_status_vals), 0x0,
+          { "URB status", "usb.urb_status",
+            FT_INT32, BASE_DEC|BASE_EXT_STRING, &usb_urb_status_vals_ext, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_urb_len,
-          { "URB length [bytes]", "usb.urb_len", FT_UINT32, BASE_DEC, NULL, 0x0,
+          { "URB length [bytes]", "usb.urb_len",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
             "URB length in bytes", HFILL }},
 
         { &hf_usb_urb_data_len,
-          { "Data length [bytes]", "usb.data_len", FT_UINT32, BASE_DEC, NULL, 0x0,
+          { "Data length [bytes]", "usb.data_len",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
             "URB data length in bytes", HFILL }},
 
-    /* Fields from usb20.pdf, Table 9-2 'Format of Setup Data' */
         { &hf_usb_bmRequestType,
-          { "bmRequestType", "usb.bmRequestType", FT_UINT8, BASE_HEX, NULL, 0x0,
+          { "bmRequestType", "usb.bmRequestType",
+            FT_UINT8, BASE_HEX, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_request,
-          { "bRequest", "usb.setup.bRequest", FT_UINT8, BASE_DEC, VALS(setup_request_names_vals), 0x0,
+          { "bRequest", "usb.setup.bRequest",
+            FT_UINT8, BASE_DEC, VALS(setup_request_names_vals), 0x0,
             NULL, HFILL }},
 
         /* Same as hf_usb_request but no descriptive text */
         { &hf_usb_request_unknown_class,
-          { "bRequest", "usb.setup.bRequest", FT_UINT8, BASE_DEC, NULL, 0x0,
+          { "bRequest", "usb.setup.bRequest",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_value,
-          { "wValue", "usb.setup.wValue", FT_UINT16, BASE_HEX, NULL, 0x0,
+          { "wValue", "usb.setup.wValue",
+            FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_index,
-          { "wIndex", "usb.setup.wIndex", FT_UINT16, BASE_DEC, NULL, 0x0,
+          { "wIndex", "usb.setup.wIndex",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_length,
-          { "wLength", "usb.setup.wLength", FT_UINT16, BASE_DEC, NULL, 0x0,
+          { "wLength", "usb.setup.wLength",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_wFeatureSelector,
-          { "wFeatureSelector", "usb.setup.wFeatureSelector", FT_UINT16, BASE_DEC,
-            VALS(usb_feature_selector_vals), 0x0, NULL, HFILL }},
+          { "wFeatureSelector", "usb.setup.wFeatureSelector",
+            FT_UINT16, BASE_DEC, VALS(usb_feature_selector_vals), 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_wInterface,
-          { "wInterface", "usb.setup.wInterface", FT_UINT16, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "wInterface", "usb.setup.wInterface",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_wStatus,
-          { "wStatus", "usb.setup.wStatus", FT_UINT16, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "wStatus", "usb.setup.wStatus",
+            FT_UINT16, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_wFrameNumber,
-          { "wFrameNumber", "usb.setup.wFrameNumber", FT_UINT16, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "wFrameNumber", "usb.setup.wFrameNumber",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
     /* --------------------------------- */
         { &hf_usb_iso_error_count,                /* host endian byte order */
-          { "ISO error count", "usb.iso.error_count", FT_UINT16, BASE_DEC, NULL, 0x0,
+          { "ISO error count", "usb.iso.error_count",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
 
         { &hf_usb_iso_numdesc,                    /* host endian byte order */
-          { "Number of ISO descriptors", "usb.iso.numdesc", FT_UINT16, BASE_DEC, NULL, 0x0,
+          { "Number of ISO descriptors", "usb.iso.numdesc",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
 
         /* fields of struct mon_bin_isodesc from linux/drivers/usb/mon/mon_bin.c */
         { &hf_usb_iso_status,                     /* host endian byte order */
-          { "Status", "usb.iso.iso_status", FT_INT32, BASE_DEC,
-            VALS(usb_urb_status_vals), 0x0,
+          { "Status", "usb.iso.iso_status",
+            FT_INT32, BASE_DEC|BASE_EXT_STRING, &usb_urb_status_vals_ext, 0x0,
             "ISO descriptor status", HFILL }},
 
         { &hf_usb_iso_off,                        /* host endian byte order */
-          { "Offset [bytes]", "usb.iso.iso_off", FT_UINT32, BASE_DEC, NULL, 0x0,
+          { "Offset [bytes]", "usb.iso.iso_off",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
             "ISO data offset in bytes starting from the end of the last ISO descriptor", HFILL }},
 
         { &hf_usb_iso_len,                        /* host endian byte order */
-          { "Length [bytes]", "usb.iso.iso_len", FT_UINT32, BASE_DEC, NULL, 0x0,
+          { "Length [bytes]", "usb.iso.iso_len",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
             "ISO data length in bytes", HFILL }},
 
         { &hf_usb_iso_pad,                        /* host endian byte order */
-          { "Padding", "usb.iso.pad", FT_UINT32, BASE_HEX, NULL, 0x0,
+          { "Padding", "usb.iso.pad",
+            FT_UINT32, BASE_HEX, NULL, 0x0,
             "Padding field of ISO descriptor structure", HFILL }},
 
         { &hf_usb_iso_data,
@@ -2775,231 +3115,285 @@ proto_register_usb(void)
            "Padding added by the USB capture system", HFILL }},
 
         { &hf_usb_bmRequestType_direction,
-          { "Direction", "usb.bmRequestType.direction", FT_BOOLEAN, 8,
-            TFS(&tfs_bmrequesttype_direction), USB_DIR_IN, NULL, HFILL }},
+          { "Direction", "usb.bmRequestType.direction",
+            FT_BOOLEAN, 8, TFS(&tfs_bmrequesttype_direction), USB_DIR_IN,
+            NULL, HFILL }},
 
         { &hf_usb_bmRequestType_type,
-          { "Type", "usb.bmRequestType.type", FT_UINT8, BASE_HEX,
-            VALS(bmrequesttype_type_vals), USB_TYPE_MASK, NULL, HFILL }},
+          { "Type", "usb.bmRequestType.type",
+            FT_UINT8, BASE_HEX, VALS(bmrequesttype_type_vals), USB_TYPE_MASK,
+            NULL, HFILL }},
 
         { &hf_usb_bmRequestType_recipient,
-          { "Recipient", "usb.bmRequestType.recipient", FT_UINT8, BASE_HEX,
-            VALS(bmrequesttype_recipient_vals), 0x1f, NULL, HFILL }},
+          { "Recipient", "usb.bmRequestType.recipient",
+            FT_UINT8, BASE_HEX, VALS(bmrequesttype_recipient_vals), 0x1f,
+            NULL, HFILL }},
 
         { &hf_usb_bDescriptorType,
-          { "bDescriptorType", "usb.bDescriptorType", FT_UINT8, BASE_DEC,
-            VALS(descriptor_type_vals), 0x0, NULL, HFILL }},
+          { "bDescriptorType", "usb.bDescriptorType",
+            FT_UINT8, BASE_DEC|BASE_EXT_STRING, &descriptor_type_vals_ext, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_descriptor_index,
-          { "Descriptor Index", "usb.DescriptorIndex", FT_UINT8, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "Descriptor Index", "usb.DescriptorIndex",
+            FT_UINT8, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_language_id,
-          { "Language Id", "usb.LanguageId", FT_UINT16, BASE_HEX|BASE_EXT_STRING,
-            &usb_langid_vals_ext, 0x0, NULL, HFILL }},
+          { "Language Id", "usb.LanguageId",
+            FT_UINT16, BASE_HEX|BASE_EXT_STRING,&usb_langid_vals_ext, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bLength,
-          { "bLength", "usb.bLength", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bLength", "usb.bLength",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bcdUSB,
-          { "bcdUSB", "usb.bcdUSB", FT_UINT16, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "bcdUSB", "usb.bcdUSB",
+            FT_UINT16, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bDeviceClass,
-          { "bDeviceClass", "usb.bDeviceClass", FT_UINT8, BASE_HEX,
-            VALS(usb_class_vals), 0x0, NULL, HFILL }},
+          { "bDeviceClass", "usb.bDeviceClass",
+            FT_UINT8, BASE_HEX|BASE_EXT_STRING, &usb_class_vals_ext, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bDeviceSubClass,
-          { "bDeviceSubClass", "usb.bDeviceSubClass", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bDeviceSubClass", "usb.bDeviceSubClass",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bDeviceProtocol,
-          { "bDeviceProtocol", "usb.bDeviceProtocol", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bDeviceProtocol", "usb.bDeviceProtocol",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bMaxPacketSize0,
-          { "bMaxPacketSize0", "usb.bMaxPacketSize0", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bMaxPacketSize0", "usb.bMaxPacketSize0",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_idVendor,
-          { "idVendor", "usb.idVendor", FT_UINT16, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "idVendor", "usb.idVendor",
+            FT_UINT16, BASE_HEX | BASE_EXT_STRING, &ext_usb_vendors_vals, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_idProduct,
-          { "idProduct", "usb.idProduct", FT_UINT16, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "idProduct", "usb.idProduct",
+            FT_UINT16, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bcdDevice,
-          { "bcdDevice", "usb.bcdDevice", FT_UINT16, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "bcdDevice", "usb.bcdDevice",
+            FT_UINT16, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_iManufacturer,
-          { "iManufacturer", "usb.iManufacturer", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "iManufacturer", "usb.iManufacturer",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_iProduct,
-          { "iProduct", "usb.iProduct", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "iProduct", "usb.iProduct",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_iSerialNumber,
-          { "iSerialNumber", "usb.iSerialNumber", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "iSerialNumber", "usb.iSerialNumber",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bNumConfigurations,
-          { "bNumConfigurations", "usb.bNumConfigurations", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bNumConfigurations", "usb.bNumConfigurations",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_wLANGID,
-          { "wLANGID", "usb.wLANGID", FT_UINT16, BASE_HEX|BASE_EXT_STRING,
-            &usb_langid_vals_ext, 0x0, NULL, HFILL }},
+          { "wLANGID", "usb.wLANGID",
+            FT_UINT16, BASE_HEX|BASE_EXT_STRING,&usb_langid_vals_ext, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bString,
-          { "bString", "usb.bString", FT_STRING, BASE_NONE,
-            NULL, 0x0, NULL, HFILL }},
+          { "bString", "usb.bString",
+            FT_STRING, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bInterfaceNumber,
-          { "bInterfaceNumber", "usb.bInterfaceNumber", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bInterfaceNumber", "usb.bInterfaceNumber",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bAlternateSetting,
-          { "bAlternateSetting","usb.bAlternateSetting", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bAlternateSetting", "usb.bAlternateSetting",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bNumEndpoints,
-          { "bNumEndpoints","usb.bNumEndpoints", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bNumEndpoints", "usb.bNumEndpoints",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bInterfaceClass,
-          { "bInterfaceClass", "usb.bInterfaceClass", FT_UINT8, BASE_HEX,
-            VALS(usb_class_vals), 0x0, NULL, HFILL }},
+          { "bInterfaceClass", "usb.bInterfaceClass",
+            FT_UINT8, BASE_HEX|BASE_EXT_STRING, &usb_class_vals_ext, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bInterfaceSubClass,
-          { "bInterfaceSubClass", "usb.bInterfaceSubClass", FT_UINT8, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "bInterfaceSubClass", "usb.bInterfaceSubClass",
+            FT_UINT8, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bInterfaceProtocol,
-          { "bInterfaceProtocol", "usb.bInterfaceProtocol", FT_UINT8, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "bInterfaceProtocol", "usb.bInterfaceProtocol",
+            FT_UINT8, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_iInterface,
-          { "iInterface", "usb.iInterface", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "iInterface", "usb.iInterface",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bEndpointAddress,
-          { "bEndpointAddress", "usb.bEndpointAddress", FT_UINT8, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "bEndpointAddress", "usb.bEndpointAddress",
+            FT_UINT8, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_configuration_bmAttributes,
-          { "Configuration bmAttributes", "usb.configuration.bmAttributes", FT_UINT8, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "Configuration bmAttributes", "usb.configuration.bmAttributes",
+            FT_UINT8, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bmAttributes,
-          { "bmAttributes", "usb.bmAttributes", FT_UINT8, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "bmAttributes", "usb.bmAttributes",
+            FT_UINT8, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bEndpointAttributeTransfer,
-          { "Transfertype", "usb.bmAttributes.transfer", FT_UINT8, BASE_HEX,
-            VALS(usb_bmAttributes_transfer_vals), 0x03, NULL, HFILL }},
+          { "Transfertype", "usb.bmAttributes.transfer",
+            FT_UINT8, BASE_HEX, VALS(usb_bmAttributes_transfer_vals), 0x03,
+            NULL, HFILL }},
 
         { &hf_usb_bEndpointAttributeSynchonisation,
-          { "Synchronisationtype", "usb.bmAttributes.sync", FT_UINT8, BASE_HEX,
-            VALS(usb_bmAttributes_sync_vals), 0x0c, NULL, HFILL }},
+          { "Synchronisationtype", "usb.bmAttributes.sync",
+            FT_UINT8, BASE_HEX, VALS(usb_bmAttributes_sync_vals), 0x0c,
+            NULL, HFILL }},
 
         { &hf_usb_bEndpointAttributeBehaviour,
-          { "Behaviourtype", "usb.bmAttributes.behaviour", FT_UINT8, BASE_HEX,
-            VALS(usb_bmAttributes_behaviour_vals), 0x30, NULL, HFILL }},
+          { "Behaviourtype", "usb.bmAttributes.behaviour",
+            FT_UINT8, BASE_HEX, VALS(usb_bmAttributes_behaviour_vals), 0x30,
+            NULL, HFILL }},
 
         { &hf_usb_wMaxPacketSize,
-          { "wMaxPacketSize", "usb.wMaxPacketSize", FT_UINT16, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "wMaxPacketSize", "usb.wMaxPacketSize",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_wMaxPacketSize_size,
-          { "Maximum Packet Size", "usb.wMaxPacketSize.size", FT_UINT16, BASE_DEC,
-            NULL, 0x3FF, NULL, HFILL }},
+          { "Maximum Packet Size", "usb.wMaxPacketSize.size",
+            FT_UINT16, BASE_DEC, NULL, 0x3FF,
+            NULL, HFILL }},
 
         { &hf_usb_wMaxPacketSize_slots,
-          { "Transactions per microframe", "usb.wMaxPacketSize.slots", FT_UINT16, BASE_DEC,
-            VALS(usb_wMaxPacketSize_slots_vals), (3<<11), NULL, HFILL }},
+          { "Transactions per microframe", "usb.wMaxPacketSize.slots",
+            FT_UINT16, BASE_DEC, VALS(usb_wMaxPacketSize_slots_vals), (3<<11),
+            NULL, HFILL }},
 
         { &hf_usb_bInterval,
-          { "bInterval", "usb.bInterval", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bInterval", "usb.bInterval",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_wTotalLength,
-          { "wTotalLength", "usb.wTotalLength", FT_UINT16, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "wTotalLength", "usb.wTotalLength",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bNumInterfaces,
-          { "bNumInterfaces", "usb.bNumInterfaces", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bNumInterfaces", "usb.bNumInterfaces",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bConfigurationValue,
-          { "bConfigurationValue", "usb.bConfigurationValue", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bConfigurationValue", "usb.bConfigurationValue",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_iConfiguration,
-          { "iConfiguration", "usb.iConfiguration", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "iConfiguration", "usb.iConfiguration",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_bMaxPower,
-          { "bMaxPower", "usb.bMaxPower", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bMaxPower", "usb.bMaxPower",
+            FT_UINT8, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
 
         { &hf_usb_configuration_legacy10buspowered,
-          { "Must be 1", "usb.configuration.legacy10buspowered", FT_BOOLEAN, 8,
-            TFS(&tfs_mustbeone), 0x80, "Legacy USB 1.0 bus powered", HFILL }},
+          { "Must be 1", "usb.configuration.legacy10buspowered",
+            FT_BOOLEAN, 8, TFS(&tfs_mustbeone), 0x80,
+            "Legacy USB 1.0 bus powered", HFILL }},
 
         { &hf_usb_configuration_selfpowered,
-          { "Self-Powered", "usb.configuration.selfpowered", FT_BOOLEAN, 8,
-            TFS(&tfs_selfpowered), 0x40, NULL, HFILL }},
+          { "Self-Powered", "usb.configuration.selfpowered",
+            FT_BOOLEAN, 8, TFS(&tfs_selfpowered), 0x40,
+            NULL, HFILL }},
 
         { &hf_usb_configuration_remotewakeup,
-          { "Remote Wakeup", "usb.configuration.remotewakeup", FT_BOOLEAN, 8,
-            TFS(&tfs_remotewakeup), 0x20, NULL, HFILL }},
+          { "Remote Wakeup", "usb.configuration.remotewakeup",
+            FT_BOOLEAN, 8, TFS(&tfs_remotewakeup), 0x20,
+            NULL, HFILL }},
 
         { &hf_usb_bEndpointAddress_number,
-          { "Endpoint Number", "usb.bEndpointAddress.number", FT_UINT8, BASE_HEX,
-            NULL, 0x0f, NULL, HFILL }},
+          { "Endpoint Number", "usb.bEndpointAddress.number",
+            FT_UINT8, BASE_HEX, NULL, 0x0f,
+            NULL, HFILL }},
 
         { &hf_usb_bEndpointAddress_direction,
-          { "Direction", "usb.bEndpointAddress.direction", FT_BOOLEAN, 8,
-            TFS(&tfs_endpoint_direction), 0x80, NULL, HFILL }},
+          { "Direction", "usb.bEndpointAddress.direction",
+            FT_BOOLEAN, 8, TFS(&tfs_endpoint_direction), 0x80,
+            NULL, HFILL }},
 
         { &hf_usb_request_in,
-          { "Request in", "usb.request_in", FT_FRAMENUM, BASE_NONE,
-            NULL, 0, "The request to this packet is in this packet", HFILL }},
+          { "Request in", "usb.request_in",
+            FT_FRAMENUM, BASE_NONE,  NULL, 0,
+            "The request to this packet is in this packet", HFILL }},
 
         { &hf_usb_time,
-          { "Time from request", "usb.time", FT_RELATIVE_TIME, BASE_NONE,
-            NULL, 0, "Time between Request and Response for USB cmds", HFILL }},
+          { "Time from request", "usb.time",
+            FT_RELATIVE_TIME, BASE_NONE,  NULL, 0,
+            "Time between Request and Response for USB cmds", HFILL }},
 
         { &hf_usb_response_in,
-          { "Response in", "usb.response_in", FT_FRAMENUM, BASE_NONE,
-            NULL, 0, "The response to this packet is in this packet", HFILL }},
+          { "Response in", "usb.response_in",
+            FT_FRAMENUM, BASE_NONE,  NULL, 0,
+            "The response to this packet is in this packet", HFILL }},
 
         { &hf_usb_bFirstInterface,
-          { "bFirstInterface", "usb.bFirstInterface", FT_UINT8, BASE_DEC,
-            NULL, 0x0, NULL, HFILL }},
+          { "bFirstInterface", "usb.bFirstInterface",
+            FT_UINT8, BASE_DEC,  NULL, 0x0, NULL, HFILL }},
 
         { &hf_usb_bInterfaceCount,
-          { "bInterfaceCount", "usb.bInterfaceCount", FT_UINT8, BASE_DEC,
+          { "bInterfaceCount",
+            "usb.bInterfaceCount", FT_UINT8, BASE_DEC,
             NULL, 0x0, NULL, HFILL }},
 
         { &hf_usb_bFunctionClass,
-          { "bFunctionClass", "usb.bFunctionClass", FT_UINT8, BASE_HEX,
-            VALS(usb_class_vals), 0x0, NULL, HFILL }},
+          { "bFunctionClass", "usb.bFunctionClass",
+            FT_UINT8, BASE_HEX|BASE_EXT_STRING,  &usb_class_vals_ext, 0x0, NULL, HFILL }},
 
         { &hf_usb_bFunctionSubClass,
-          { "bFunctionSubClass", "usb.bFunctionSubClass", FT_UINT8, BASE_HEX,
+          { "bFunctionSubClass",
+            "usb.bFunctionSubClass", FT_UINT8, BASE_HEX,
             NULL, 0x0, NULL, HFILL }},
 
         { &hf_usb_bFunctionProtocol,
-          { "bFunctionProtocol", "usb.bFunctionProtocol", FT_UINT8, BASE_HEX,
-            NULL, 0x0, NULL, HFILL }},
+          { "bFunctionProtocol", "usb.bFunctionProtocol",
+            FT_UINT8, BASE_HEX,  NULL, 0x0, NULL, HFILL }},
 
         { &hf_usb_iFunction,
-          { "iFunction", "usb.iFunction", FT_UINT8, BASE_DEC,
+          { "iFunction",
+            "usb.iFunction", FT_UINT8, BASE_DEC,
             NULL, 0x0, NULL, HFILL }},
    };
 
@@ -3016,6 +3410,11 @@ proto_register_usb(void)
         &ett_endpoint_wMaxPacketSize
     };
 
+    device_to_product_table = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "usb device_address, bus_id and frame number to vendor_product");
+    device_to_protocol_table = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "usb device_address, bus_id and frame number to class_subclass_protocol");
+    device_to_dissector = register_dissector_table("usb.device",     "USB device",   FT_UINT32, BASE_HEX);
+    protocol_to_dissector = register_dissector_table("usb.protocol", "USB protocol", FT_UINT32, BASE_HEX);
+    product_to_dissector = register_dissector_table("usb.product",   "USB product",  FT_UINT32, BASE_HEX);
 
     proto_usb = proto_register_protocol("USB", "USB", "usb");
     proto_register_field_array(proto_usb, hf, array_length(hf));
@@ -3038,8 +3437,8 @@ proto_register_usb(void)
     prefs_register_bool_preference(usb_module, "try_heuristics",
         "Try heuristic sub-dissectors",
         "Try to decode a packet using a heuristic sub-dissector before "
-        "attempting to dissect the packet using the \"usb.bulk\", \"usb.interrupt\" or "
-        "\"usb.control\" dissector tables.", &try_heuristics);
+         "attempting to dissect the packet using the \"usb.bulk\", \"usb.interrupt\" or "
+         "\"usb.control\" dissector tables.", &try_heuristics);
 
     usb_tap = register_tap("usb");
 }
@@ -3047,7 +3446,8 @@ proto_register_usb(void)
 void
 proto_reg_handoff_usb(void)
 {
-    dissector_handle_t linux_usb_handle, linux_usb_mmapped_handle;
+    dissector_handle_t  linux_usb_handle;
+    dissector_handle_t  linux_usb_mmapped_handle;
 
     linux_usb_handle = create_dissector_handle(dissect_linux_usb, proto_usb);
     linux_usb_mmapped_handle = create_dissector_handle(dissect_linux_usb_mmapped,

@@ -807,6 +807,9 @@ static gboolean global_mac_lte_attempt_srb_decode = TRUE;
 /* Whether should attempt to decode MCH LCID 0 as MCCH */
 static gboolean global_mac_lte_attempt_mcch_decode = FALSE;
 
+/* Whether should call RLC dissector to decode MTCH LCIDs */
+static gboolean global_mac_lte_call_rlc_for_mtch = FALSE;
+
 /* Where to take LCID -> DRB mappings from */
 enum lcid_drb_source {
     FromStaticTable, FromConfigurationProtocol
@@ -1323,6 +1326,28 @@ static void write_pdu_label_and_info(proto_item *ti1, proto_item *ti2,
         proto_item_append_text(ti2, "%s", info_buffer);
     }
 }
+
+/* Version of function above, where no g_vsnprintf() call needed */
+static void write_pdu_label_and_info_literal(proto_item *ti1, proto_item *ti2,
+                                             packet_info *pinfo, const char *info_buffer)
+{
+    if ((ti1 == NULL) && (ti2 == NULL) && (pinfo == NULL)) {
+        return;
+    }
+
+    /* Add to indicated places */
+    if (pinfo != NULL) {
+        col_append_str(pinfo->cinfo, COL_INFO, info_buffer);
+    }
+    if (ti1 != NULL) {
+        proto_item_append_text(ti1, "%s", info_buffer);
+    }
+    if (ti2 != NULL) {
+        proto_item_append_text(ti2, "%s", info_buffer);
+    }
+}
+
+
 
 /* Show extra PHY parameters (if present) */
 static void show_extra_phy_parameters(packet_info *pinfo, tvbuff_t *tvb, proto_tree *tree,
@@ -1911,7 +1936,7 @@ static void call_rlc_dissector(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
         }
         else {
             /* Add a separator and protect column contents here */
-            write_pdu_label_and_info(pdu_ti, NULL, pinfo, "   ||   ");
+            write_pdu_label_and_info_literal(pdu_ti, NULL, pinfo, "   ||   ");
             col_set_fence(pinfo->cinfo, COL_INFO);
         }
     }
@@ -2858,10 +2883,10 @@ static void dissect_ulsch_or_dlsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         /* Close off description in info column */
         switch (pdu_lengths[number_of_headers]) {
             case 0:
-                write_pdu_label_and_info(pdu_ti, NULL, pinfo, ") ");
+                write_pdu_label_and_info_literal(pdu_ti, NULL, pinfo, ") ");
                 break;
             case -1:
-                write_pdu_label_and_info(pdu_ti, NULL, pinfo, ":remainder) ");
+                write_pdu_label_and_info_literal(pdu_ti, NULL, pinfo, ":remainder) ");
                 break;
             default:
                 write_pdu_label_and_info(pdu_ti, NULL, pinfo, ":%u bytes) ",
@@ -3748,9 +3773,7 @@ static void dissect_mch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, pro
     gboolean   expecting_body_data = FALSE;
     volatile   guint32    is_truncated = FALSE;
 
-    write_pdu_label_and_info(pdu_ti, NULL, pinfo,
-                             "MCH: ",
-                             p_mac_lte_info->subframeNumber);
+    write_pdu_label_and_info_literal(pdu_ti, NULL, pinfo, "MCH: ");
 
     /* Add hidden item to filter on */
     hidden_root_ti = proto_tree_add_string_format(tree, hf_mac_lte_mch, tvb,
@@ -3897,10 +3920,10 @@ static void dissect_mch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, pro
         /* Close off description in info column */
         switch (pdu_lengths[number_of_headers]) {
             case 0:
-                write_pdu_label_and_info(pdu_ti, NULL, pinfo, ") ");
+                write_pdu_label_and_info_literal(pdu_ti, NULL, pinfo, ") ");
                 break;
             case -1:
-                write_pdu_label_and_info(pdu_ti, NULL, pinfo, ":remainder) ");
+                write_pdu_label_and_info_literal(pdu_ti, NULL, pinfo, ":remainder) ");
                 break;
             default:
                 write_pdu_label_and_info(pdu_ti, NULL, pinfo, ":%u bytes) ",
@@ -4078,6 +4101,11 @@ static void dissect_mch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, pro
             call_rlc_dissector(tvb, pinfo, tree, pdu_ti, offset, data_length,
                                RLC_UM_MODE, DIRECTION_DOWNLINK, 0,
                                CHANNEL_TYPE_MCCH, 0, 5, 0);
+        } else if ((lcids[n] <= 28) && global_mac_lte_call_rlc_for_mtch) {
+            /* Call RLC dissector */
+            call_rlc_dissector(tvb, pinfo, tree, pdu_ti, offset, data_length,
+                               RLC_UM_MODE, DIRECTION_DOWNLINK, 0,
+                               CHANNEL_TYPE_MTCH, 0, 5, 0);
         } else {
             /* Dissect SDU as raw bytes */
             sdu_ti = proto_tree_add_bytes_format(tree, hf_mac_lte_mch_sdu, tvb, offset, pdu_lengths[n],
@@ -5741,14 +5769,14 @@ void proto_register_mac_lte(void)
         &ett_mac_lte_oob
     };
 
-    static enum_val_t show_info_col_vals[] = {
+    static const enum_val_t show_info_col_vals[] = {
         {"show-phy", "PHY Info", ShowPHYLayer},
         {"show-mac", "MAC Info", ShowMACLayer},
         {"show-rlc", "RLC Info", ShowRLCLayer},
         {NULL, NULL, -1}
     };
 
-    static enum_val_t lcid_drb_source_vals[] = {
+    static const enum_val_t lcid_drb_source_vals[] = {
         {"from-static-stable",          "From static table",           FromStaticTable},
         {"from-configuration-protocol", "From configuration protocol", FromConfigurationProtocol},
         {NULL, NULL, -1}
@@ -5816,6 +5844,11 @@ void proto_register_mac_lte(void)
         "Attempt to dissect MCH LCID 0 as MCCH",
         "Will call LTE RLC dissector for MCH LCID 0",
         &global_mac_lte_attempt_mcch_decode);
+
+    prefs_register_bool_preference(mac_lte_module, "call_rlc_for_mtch",
+        "Call RLC dissector MTCH LCIDs",
+        "Call RLC dissector MTCH LCIDs",
+        &global_mac_lte_call_rlc_for_mtch);
 
     prefs_register_enum_preference(mac_lte_module, "lcid_to_drb_mapping_source",
         "Source of LCID -> drb channel settings",

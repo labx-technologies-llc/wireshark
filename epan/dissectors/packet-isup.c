@@ -2,13 +2,14 @@
  * Routines for ISUP dissection
  * Copyright 2001, Martina Obermeier <martina.obermeier@icn.siemens.de>
  *
- * Copyright 2004-2005, Anders Broman <anders.broman@ericsson.com>
  * Modified 2003-09-10 by Anders Broman
  *          <anders.broman@ericsson.com>
  * Inserted routines for BICC dissection according to Q.765.5 Q.1902 Q.1970 Q.1990,
  * calling SDP dissector for RFC2327 decoding.
  * Modified 2004-01-10 by Anders Broman to add abillity to dissect
  * Content type application/ISUP RFC 3204 used in SIP-T
+ *
+ * Copyright 2004-2005, Anders Broman <anders.broman@ericsson.com>
  *
  * $Id$
  *
@@ -41,7 +42,7 @@
  * French ISUP Specification: SPIROU 1998 - 002-005 edition 1 ( Info found here http://www.icg-corp.com/docs/ISUP.pdf ).
  * Israeli ISUP Specification: excertp (for BCM messsage) found in https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=4231 .
  * Russian national ISUP-R 2000: RD 45.217-2001 book 4
- * Japan ISUP http://www.ttc.or.jp/jp/document_list/sum/sum_JT-Q763v21.1.pdf 
+ * Japan ISUP http://www.ttc.or.jp/jp/document_list/sum/sum_JT-Q763v21.1.pdf
  */
 
 #include "config.h"
@@ -568,7 +569,7 @@ static const value_string japan_isup_message_type_value[] = {
   { MESSAGE_TYPE_APPLICATION_TRANS,           "Application transport"},
   { MESSAGE_TYPE_PRE_RELEASE_INFO,            "Pre-release information"},
   { MESSAGE_TYPE_SUBSEQUENT_DIR_NUM,          "Subsequent Directory Number (national use)"},
-  { MESSAGE_TYPE_JAPAN_CHARG_INF,            "Charge information"},
+  { MESSAGE_TYPE_JAPAN_CHARG_INF,             "Charge information"},
   { 0,                                  NULL}};
 static value_string_ext japan_isup_message_type_value_ext = VALUE_STRING_EXT_INIT(japan_isup_message_type_value);
 
@@ -1120,285 +1121,443 @@ static const value_string ansi_isup_message_type_value_acro[] = {
 static value_string_ext ansi_isup_message_type_value_acro_ext = VALUE_STRING_EXT_INIT(ansi_isup_message_type_value_acro);
 
 const value_string isup_parameter_type_value[] = {
-  { PARAM_TYPE_END_OF_OPT_PARAMS,         "End of optional parameters"},
-  { PARAM_TYPE_CALL_REF,                  "Call Reference (national use)"},
-  { PARAM_TYPE_TRANSM_MEDIUM_REQU,        "Transmission medium requirement"},
-  { PARAM_TYPE_ACC_TRANSP,                "Access transport"},
-  { PARAM_TYPE_CALLED_PARTY_NR,           "Called party number"},
-  { PARAM_TYPE_SUBSQT_NR,                 "Subsequent number"},
-  { PARAM_TYPE_NATURE_OF_CONN_IND,        "Nature of connection indicators"},
-  { PARAM_TYPE_FORW_CALL_IND,             "Forward call indicators"},
-  { PARAM_TYPE_OPT_FORW_CALL_IND,         "Optional forward call indicators"},
-  { PARAM_TYPE_CALLING_PRTY_CATEG,        "Calling party's category"},
-  { PARAM_TYPE_CALLING_PARTY_NR,          "Calling party number"},
-  { PARAM_TYPE_REDIRECTING_NR,            "Redirecting number"},
-  { PARAM_TYPE_REDIRECTION_NR,            "Redirection number"},
-  { PARAM_TYPE_CONNECTION_REQ,            "Connection request"},
-  { PARAM_TYPE_INFO_REQ_IND,              "Information request indicators (national use)"},
-  { PARAM_TYPE_INFO_IND,                  "Information indicators (national use)"},
-  { PARAM_TYPE_CONTINUITY_IND,            "Continuity request"},
-  { PARAM_TYPE_BACKW_CALL_IND,            "Backward call indicators"},
-  { PARAM_TYPE_CAUSE_INDICATORS,          "Cause indicators"},
-  { PARAM_TYPE_REDIRECTION_INFO,          "Redirection information"},
-  { PARAM_TYPE_CIRC_GRP_SV_MSG_TYPE,      "Circuit group supervision message type"},
-  { PARAM_TYPE_RANGE_AND_STATUS,          "Range and Status"},
-  { PARAM_TYPE_FACILITY_IND,              "Facility indicator"},
-  { PARAM_TYPE_CLSD_USR_GRP_ILOCK_CD,     "Closed user group interlock code"},
-  { PARAM_TYPE_USER_SERVICE_INFO,         "User service information"},
-  { PARAM_TYPE_SIGNALLING_POINT_CODE,     "Signalling point code (national use)"},
-  { PARAM_TYPE_USER_TO_USER_INFO,         "User-to-user information"},
-  { PARAM_TYPE_CONNECTED_NR,              "Connected number"},
-  { PARAM_TYPE_SUSP_RESUME_IND,           "Suspend/Resume indicators"},
-  { PARAM_TYPE_TRANSIT_NETW_SELECT,       "Transit network selection (national use)"},
-  { PARAM_TYPE_EVENT_INFO,                "Event information"},
-  { PARAM_TYPE_CIRC_ASSIGN_MAP,           "Circuit assignment map"},
-  { PARAM_TYPE_CIRC_STATE_IND,            "Circuit state indicator (national use)"},
-  { PARAM_TYPE_AUTO_CONG_LEVEL,           "Automatic congestion level"},
-  { PARAM_TYPE_ORIG_CALLED_NR,            "Original called number"},
-  { PARAM_TYPE_OPT_BACKW_CALL_IND,        "Backward call indicators"},
-  { PARAM_TYPE_USER_TO_USER_IND,          "User-to-user indicators"},
-  { PARAM_TYPE_ORIG_ISC_POINT_CODE,       "Origination ISC point code"},
-  { PARAM_TYPE_GENERIC_NOTIF_IND,         "Generic notification indicator"},
-  { PARAM_TYPE_CALL_HIST_INFO,            "Call history information"},
-  { PARAM_TYPE_ACC_DELIV_INFO,            "Access delivery information"},
-  { PARAM_TYPE_NETW_SPECIFIC_FACLTY,      "Network specific facility (national use)"},
-  { PARAM_TYPE_USER_SERVICE_INFO_PR,      "User service information prime"},
-  { PARAM_TYPE_PROPAG_DELAY_COUNTER,      "Propagation delay counter"},
-  { PARAM_TYPE_REMOTE_OPERATIONS,         "Remote operations (national use)"},
-  { PARAM_TYPE_SERVICE_ACTIVATION,        "Service activation"},
-  { PARAM_TYPE_USER_TELESERV_INFO,        "User teleservice information"},
-  { PARAM_TYPE_TRANSM_MEDIUM_USED,        "Transmission medium used"},
-  { PARAM_TYPE_CALL_DIV_INFO,             "Call diversion information"},
-  { PARAM_TYPE_ECHO_CTRL_INFO,            "Echo control information"},
-  { PARAM_TYPE_MSG_COMPAT_INFO,           "Message compatibility information"},
-  { PARAM_TYPE_PARAM_COMPAT_INFO,         "Parameter compatibility information"},
-  { PARAM_TYPE_MLPP_PRECEDENCE,           "MLPP precedence"},
-  { PARAM_TYPE_MCID_REQ_IND,              "MCID request indicators"},
-  { PARAM_TYPE_MCID_RSP_IND,              "MCID response indicators"},
-  { PARAM_TYPE_HOP_COUNTER,               "Hop counter"},
-  { PARAM_TYPE_TRANSM_MEDIUM_RQUR_PR,     "Transmission medium requirement prime"},
-  { PARAM_TYPE_LOCATION_NR,               "Location number"},
-  { PARAM_TYPE_REDIR_NR_RSTRCT,           "Redirection number restriction"},
-  { PARAM_TYPE_CALL_TRANS_REF,            "Call transfer reference"},
-  { PARAM_TYPE_LOOP_PREV_IND,             "Loop prevention indicators"},
-  { PARAM_TYPE_CALL_TRANS_NR,             "Call transfer number"},
-  { PARAM_TYPE_CCSS,                      "CCSS"},
-  { PARAM_TYPE_FORW_GVNS,                 "Forward GVNS"},
-  { PARAM_TYPE_BACKW_GVNS,                "Backward GVNS"},
-  { PARAM_TYPE_REDIRECT_CAPAB,            "Redirect capability (reserved for national use)"},
-  { PARAM_TYPE_NETW_MGMT_CTRL,            "Network management controls"},
-  { PARAM_TYPE_CORRELATION_ID,            "Correlation id"},
-  { PARAM_TYPE_SCF_ID,                    "SCF id"},
-  { PARAM_TYPE_CALL_DIV_TREAT_IND,        "Call diversion treatment indicators"},
-  { PARAM_TYPE_CALLED_IN_NR,              "Called IN number"},
-  { PARAM_TYPE_CALL_OFF_TREAT_IND,        "Call offering treatment indicators"},
-  { PARAM_TYPE_CHARGED_PARTY_IDENT,       "Charged party identification (national use)"},
-  { PARAM_TYPE_CONF_TREAT_IND,            "Conference treatment indicators"},
-  { PARAM_TYPE_DISPLAY_INFO,              "Display information"},
-  { PARAM_TYPE_UID_ACTION_IND,            "UID action indicators"},
-  { PARAM_TYPE_UID_CAPAB_IND,             "UID capability indicators"},
-  { PARAM_TYPE_REDIRECT_COUNTER,          "Redirect counter (reserved for national use)"},
-  { PARAM_TYPE_APPLICATON_TRANS,          "Application transport"},
-  { PARAM_TYPE_COLLECT_CALL_REQ,          "Collect call request"},
-  { PARAM_TYPE_GENERIC_NR,                "Generic number"},
-  { PARAM_TYPE_GENERIC_DIGITS,            "Generic digits (national use)"},
+/*   0 */  { PARAM_TYPE_END_OF_OPT_PARAMS,         "End of optional parameters"},
+/*   1 */  { PARAM_TYPE_CALL_REF,                  "Call Reference (national use)"},
+/*   2 */  { PARAM_TYPE_TRANSM_MEDIUM_REQU,        "Transmission medium requirement"},
+/*   3 */  { PARAM_TYPE_ACC_TRANSP,                "Access transport"},
+/*   4 */  { PARAM_TYPE_CALLED_PARTY_NR,           "Called party number"},
+/*   5 */  { PARAM_TYPE_SUBSQT_NR,                 "Subsequent number"},
+/*   6 */  { PARAM_TYPE_NATURE_OF_CONN_IND,        "Nature of connection indicators"},
+/*   7 */  { PARAM_TYPE_FORW_CALL_IND,             "Forward call indicators"},
+/*   8 */  { PARAM_TYPE_OPT_FORW_CALL_IND,         "Optional forward call indicators"},
+/*   9 */  { PARAM_TYPE_CALLING_PRTY_CATEG,        "Calling party's category"},
+/*  10 */  { PARAM_TYPE_CALLING_PARTY_NR,          "Calling party number"},
+/*  11 */  { PARAM_TYPE_REDIRECTING_NR,            "Redirecting number"},
+/*  12 */  { PARAM_TYPE_REDIRECTION_NR,            "Redirection number"},
+/*  13 */  { PARAM_TYPE_CONNECTION_REQ,            "Connection request"},
+/*  14 */  { PARAM_TYPE_INFO_REQ_IND,              "Information request indicators (national use)"},
+/*  15 */  { PARAM_TYPE_INFO_IND,                  "Information indicators (national use)"},
+/*  16 */  { PARAM_TYPE_CONTINUITY_IND,            "Continuity request"},
+/*  17 */  { PARAM_TYPE_BACKW_CALL_IND,            "Backward call indicators"},
+/*  18 */  { PARAM_TYPE_CAUSE_INDICATORS,          "Cause indicators"},
+/*  19 */  { PARAM_TYPE_REDIRECTION_INFO,          "Redirection information"},
+/*  20 */  { 20,                                   "Not used"},
+/*  21 */  { PARAM_TYPE_CIRC_GRP_SV_MSG_TYPE,      "Circuit group supervision message type"},
+/*  22 */  { PARAM_TYPE_RANGE_AND_STATUS,          "Range and Status"},
+/*  23 */  { 23,                                   "Not used"},
+/*  24 */  { PARAM_TYPE_FACILITY_IND,              "Facility indicator"},
+/*  25 */  { 25,                                   "Not used"},
+/*  27 */  { 27,                                   "Not used"},
+/*  26 */  { PARAM_TYPE_CLSD_USR_GRP_ILOCK_CD,     "Closed user group interlock code"},
+/*  27 */  { 27,                                   "Not used"},
+/*  28 */  { 28,                                   "Not used"},
+/*  29 */  { PARAM_TYPE_USER_SERVICE_INFO,         "User service information"},
+/*  30 */  { PARAM_TYPE_SIGNALLING_POINT_CODE,     "Signalling point code (national use)"},
+/*  31 */  { 31,                                   "Not used"},
+/*  32 */  { PARAM_TYPE_USER_TO_USER_INFO,         "User-to-user information"},
+/*  33 */  { PARAM_TYPE_CONNECTED_NR,              "Connected number"},
+/*  34 */  { PARAM_TYPE_SUSP_RESUME_IND,           "Suspend/Resume indicators"},
+/*  35 */  { PARAM_TYPE_TRANSIT_NETW_SELECT,       "Transit network selection (national use)"},
+/*  36 */  { PARAM_TYPE_EVENT_INFO,                "Event information"},
+/*  37 */  { PARAM_TYPE_CIRC_ASSIGN_MAP,           "Circuit assignment map"},
+/*  38 */  { PARAM_TYPE_CIRC_STATE_IND,            "Circuit state indicator (national use)"},
+/*  39 */  { PARAM_TYPE_AUTO_CONG_LEVEL,           "Automatic congestion level"},
+/*  40 */  { PARAM_TYPE_ORIG_CALLED_NR,            "Original called number"},
+/*  41 */  { PARAM_TYPE_OPT_BACKW_CALL_IND,        "Backward call indicators"},
+/*  42 */  { PARAM_TYPE_USER_TO_USER_IND,          "User-to-user indicators"},
+/*  43 */  { PARAM_TYPE_ORIG_ISC_POINT_CODE,       "Origination ISC point code"},
+/*  44 */  { PARAM_TYPE_GENERIC_NOTIF_IND,         "Generic notification indicator"},
+/*  45 */  { PARAM_TYPE_CALL_HIST_INFO,            "Call history information"},
+/*  46 */  { PARAM_TYPE_ACC_DELIV_INFO,            "Access delivery information"},
+/*  47 */  { PARAM_TYPE_NETW_SPECIFIC_FACLTY,      "Network specific facility (national use)"},
+/*  48 */  { PARAM_TYPE_USER_SERVICE_INFO_PR,      "User service information prime"},
+/*  49 */  { PARAM_TYPE_PROPAG_DELAY_COUNTER,      "Propagation delay counter"},
+/*  50 */  { PARAM_TYPE_REMOTE_OPERATIONS,         "Remote operations (national use)"},
+/*  51 */  { PARAM_TYPE_SERVICE_ACTIVATION,        "Service activation"},
+/*  52 */  { PARAM_TYPE_USER_TELESERV_INFO,        "User teleservice information"},
+/*  53 */  { PARAM_TYPE_TRANSM_MEDIUM_USED,        "Transmission medium used"},
+/*  54 */  { PARAM_TYPE_CALL_DIV_INFO,             "Call diversion information"},
+/*  55 */  { PARAM_TYPE_ECHO_CTRL_INFO,            "Echo control information"},
+/*  56 */  { PARAM_TYPE_MSG_COMPAT_INFO,           "Message compatibility information"},
+/*  57 */  { PARAM_TYPE_PARAM_COMPAT_INFO,         "Parameter compatibility information"},
+/*  58 */  { PARAM_TYPE_MLPP_PRECEDENCE,           "MLPP precedence"},
+/*  59 */  { PARAM_TYPE_MCID_REQ_IND,              "MCID request indicators"},
+/*  60 */  { PARAM_TYPE_MCID_RSP_IND,              "MCID response indicators"},
+/*  61 */  { PARAM_TYPE_HOP_COUNTER,               "Hop counter"},
+/*  62 */  { PARAM_TYPE_TRANSM_MEDIUM_RQUR_PR,     "Transmission medium requirement prime"},
+/*  63 */  { PARAM_TYPE_LOCATION_NR,               "Location number"},
+/*  64 */  { PARAM_TYPE_REDIR_NR_RSTRCT,           "Redirection number restriction"},
+/*  65 */  { 65,                                   "Not used"},
+/*  66 */  { 66,                                   "Not used"},
+/*  67 */  { PARAM_TYPE_CALL_TRANS_REF,            "Call transfer reference"},
+/*  68 */  { PARAM_TYPE_LOOP_PREV_IND,             "Loop prevention indicators"},
+/*  69 */  { PARAM_TYPE_CALL_TRANS_NR,             "Call transfer number"},
+/*  70 */  { 70,                                   "Not used"},
+/*  71 */  { 71,                                   "Not used"},
+/*  72 */  { 72,                                   "Not used"},
+/*  73 */  { 73,                                   "Not used"},
+/*  74 */  { 74,                                   "Not used"},
+/*  75 */  { PARAM_TYPE_CCSS,                      "CCSS"},
+/*  76 */  { PARAM_TYPE_FORW_GVNS,                 "Forward GVNS"},
+/*  77 */  { PARAM_TYPE_BACKW_GVNS,                "Backward GVNS"},
+/*  78 */  { PARAM_TYPE_REDIRECT_CAPAB,            "Redirect capability (reserved for national use)"},
+/*  79 */  { 79,                                   "Not used"},
+/*  80 */  { 80,                                   "Not used"},
+/*  81 */  { 81,                                   "Not used"},
+/*  82 */  { 82,                                   "Not used"},
+/*  83 */  { 83,                                   "Not used"},
+/*  84 */  { 84,                                   "Not used"},
+/*  85 */  { 85,                                   "Not used"},
+/*  86 */  { 86,                                   "Not used"},
+/*  87 */  { 87,                                   "Not used"},
+/*  88 */  { 88,                                   "Not used"},
+/*  89 */  { 89,                                   "Not used"},
+/*  90 */  { 90,                                   "Not used"},
+/*  91 */  { PARAM_TYPE_NETW_MGMT_CTRL,            "Network management controls"},
+/*  92 */  { 92,                                   "Not used"},
+/*  93 */  { 93,                                   "Not used"},
+/*  94 */  { 94,                                   "Not used"},
+/*  95 */  { 95,                                   "Not used"},
+/*  96 */  { 96,                                   "Not used"},
+/*  97 */  { 97,                                   "Not used"},
+/*  98 */  { 98,                                   "Not used"},
+/*  99 */  { 99,                                   "Not used"},
+/* 100 */  { 100,                                  "Not used"},
+/* 101 */  { PARAM_TYPE_CORRELATION_ID,            "Correlation id"},
+/* 102 */  { PARAM_TYPE_SCF_ID,                    "SCF id"},
+/* 103 */  { 103,                                  "Not used"},
+/* 104 */  { 104,                                  "Not used"},
+/* 105 */  { 105,                                  "Not used"},
+/* 106 */  { 106,                                  "Not used"},
+/* 107 */  { 107,                                  "Not used"},
+/* 108 */  { 108,                                  "Not used"},
+/* 109 */  { 109,                                  "Not used"},
+/* 110 */  { PARAM_TYPE_CALL_DIV_TREAT_IND,        "Call diversion treatment indicators"},
+/* 111 */  { PARAM_TYPE_CALLED_IN_NR,              "Called IN number"},
+/* 112 */  { PARAM_TYPE_CALL_OFF_TREAT_IND,        "Call offering treatment indicators"},
+/* 113 */  { PARAM_TYPE_CHARGED_PARTY_IDENT,       "Charged party identification (national use)"},
+/* 114 */  { PARAM_TYPE_CONF_TREAT_IND,            "Conference treatment indicators"},
+/* 115 */  { PARAM_TYPE_DISPLAY_INFO,              "Display information"},
+/* 116 */  { PARAM_TYPE_UID_ACTION_IND,            "UID action indicators"},
+/* 117 */  { PARAM_TYPE_UID_CAPAB_IND,             "UID capability indicators"},
+/* 119 */  { PARAM_TYPE_REDIRECT_COUNTER,          "Redirect counter (reserved for national use)"},
+/* 120 */  { PARAM_TYPE_APPLICATON_TRANS,          "Application transport"},
+/* 121 */  { PARAM_TYPE_COLLECT_CALL_REQ,          "Collect call request"},
+/* 122 */  { 122,                                  "Not used"},
+/* 123 */  { 123,                                  "Not used"},
+/* 124 */  { 124,                                  "Not used"},
+/* 125 */  { 125,                                  "Not used"},
+/* 126 */  { 126,                                  "Not used"},
+/* 127 */  { 127,                                  "Not used"},
+/* 128 */  { 128,                                  "Not used"},
+/* 129 */  { 129,                                  "Not used"},
+/* 130 */  { 130,                                  "Not used"},
+/* 192 */  { PARAM_TYPE_GENERIC_NR,                "Generic number"},
+/* 193 */  { PARAM_TYPE_GENERIC_DIGITS,            "Generic digits (national use)"},
   { 0,                                 NULL}};
 static value_string_ext isup_parameter_type_value_ext = VALUE_STRING_EXT_INIT(isup_parameter_type_value);
 
+#define JAPAN_ISUP_PARAM_CALLED_DIRECTORY_NUMBER         125 /* 7D */
+#define JAPAN_ISUP_PARAM_REDIRECT_FORWARD_INF            139 /* 8B */
+#define JAPAN_ISUP_PARAM_REDIRECT_BACKWARD_INF           140 /* 8C */
+#define JAPAN_ISUP_PARAM_EMERGENCY_CALL_INF_IND          236 /* EC */
+#define JAPAN_ISUP_PARAM_NETWORK_POI_CA                  238 /* EE */
 #define JAPAN_ISUP_PARAM_TYPE_CARRIER_INFO               241 /* F1 */
+#define JAPAN_ISUP_PARAM_CHARGE_INF_DELAY                242 /* F2 */
+
 #define JAPAN_ISUP_PARAM_TYPE_ADDITONAL_USER_CAT         243 /* F3 */
+#define JAPAN_ISUP_PARAM_REASON_FOR_CLIP_FAIL            245 /* F5 */
+#define JAPAN_ISUP_PARAM_TYPE_CONTRACTOR_NUMBER          249 /* F9 */
 #define JAPAN_ISUP_PARAM_TYPE_CHARGE_INF_TYPE            250 /* FA */
 #define JAPAN_ISUP_PARAM_TYPE_CHARGE_INF                 251 /* FB */
 #define JAPAN_ISUP_PARAM_TYPE_CHARGE_AREA_INFO           253 /* FD */
 
 static const value_string japan_isup_parameter_type_value[] = {
-  { PARAM_TYPE_END_OF_OPT_PARAMS,         "End of optional parameters"},
-  { PARAM_TYPE_CALL_REF,                  "Call Reference (national use)"},
-  { PARAM_TYPE_TRANSM_MEDIUM_REQU,        "Transmission medium requirement"},
-  { PARAM_TYPE_ACC_TRANSP,                "Access transport"},
-  { PARAM_TYPE_CALLED_PARTY_NR,           "Called party number"},
-  { PARAM_TYPE_SUBSQT_NR,                 "Subsequent number"},
-  { PARAM_TYPE_NATURE_OF_CONN_IND,        "Nature of connection indicators"},
-  { PARAM_TYPE_FORW_CALL_IND,             "Forward call indicators"},
-  { PARAM_TYPE_OPT_FORW_CALL_IND,         "Optional forward call indicators"},
-  { PARAM_TYPE_CALLING_PRTY_CATEG,        "Calling party's category"},
-  { PARAM_TYPE_CALLING_PARTY_NR,          "Calling party number"},
-  { PARAM_TYPE_REDIRECTING_NR,            "Redirecting number"},
-  { PARAM_TYPE_REDIRECTION_NR,            "Redirection number"},
-  { PARAM_TYPE_CONNECTION_REQ,            "Connection request"},
-  { PARAM_TYPE_INFO_REQ_IND,              "Information request indicators (national use)"},
-  { PARAM_TYPE_INFO_IND,                  "Information indicators (national use)"},
-  { PARAM_TYPE_CONTINUITY_IND,            "Continuity request"},
-  { PARAM_TYPE_BACKW_CALL_IND,            "Backward call indicators"},
-  { PARAM_TYPE_CAUSE_INDICATORS,          "Cause indicators"},
-  { PARAM_TYPE_REDIRECTION_INFO,          "Redirection information"},
-  { PARAM_TYPE_CIRC_GRP_SV_MSG_TYPE,      "Circuit group supervision message type"},
-  { PARAM_TYPE_RANGE_AND_STATUS,          "Range and Status"},
-  { PARAM_TYPE_FACILITY_IND,              "Facility indicator"},
-  { PARAM_TYPE_CLSD_USR_GRP_ILOCK_CD,     "Closed user group interlock code"},
-  { PARAM_TYPE_USER_SERVICE_INFO,         "User service information"},
-  { PARAM_TYPE_SIGNALLING_POINT_CODE,     "Signalling point code (national use)"},
-  { PARAM_TYPE_USER_TO_USER_INFO,         "User-to-user information"},
-  { PARAM_TYPE_CONNECTED_NR,              "Connected number"},
-  { PARAM_TYPE_SUSP_RESUME_IND,           "Suspend/Resume indicators"},
-  { PARAM_TYPE_TRANSIT_NETW_SELECT,       "Transit network selection (national use)"},
-  { PARAM_TYPE_EVENT_INFO,                "Event information"},
-  { PARAM_TYPE_CIRC_ASSIGN_MAP,           "Circuit assignment map"},
-  { PARAM_TYPE_CIRC_STATE_IND,            "Circuit state indicator (national use)"},
-  { PARAM_TYPE_AUTO_CONG_LEVEL,           "Automatic congestion level"},
-  { PARAM_TYPE_ORIG_CALLED_NR,            "Original called number"},
-  { PARAM_TYPE_OPT_BACKW_CALL_IND,        "Backward call indicators"},
-  { PARAM_TYPE_USER_TO_USER_IND,          "User-to-user indicators"},
-  { PARAM_TYPE_ORIG_ISC_POINT_CODE,       "Origination ISC point code"},
-  { PARAM_TYPE_GENERIC_NOTIF_IND,         "Generic notification indicator"},
-  { PARAM_TYPE_CALL_HIST_INFO,            "Call history information"},
-  { PARAM_TYPE_ACC_DELIV_INFO,            "Access delivery information"},
-  { PARAM_TYPE_NETW_SPECIFIC_FACLTY,      "Network specific facility (national use)"},
-  { PARAM_TYPE_USER_SERVICE_INFO_PR,      "User service information prime"},
-  { PARAM_TYPE_PROPAG_DELAY_COUNTER,      "Propagation delay counter"},
-  { PARAM_TYPE_REMOTE_OPERATIONS,         "Remote operations (national use)"},
-  { PARAM_TYPE_SERVICE_ACTIVATION,        "Service activation"},
-  { PARAM_TYPE_USER_TELESERV_INFO,        "User teleservice information"},
-  { PARAM_TYPE_TRANSM_MEDIUM_USED,        "Transmission medium used"},
-  { PARAM_TYPE_CALL_DIV_INFO,             "Call diversion information"},
-  { PARAM_TYPE_ECHO_CTRL_INFO,            "Echo control information"},
-  { PARAM_TYPE_MSG_COMPAT_INFO,           "Message compatibility information"},
-  { PARAM_TYPE_PARAM_COMPAT_INFO,         "Parameter compatibility information"},
-  { PARAM_TYPE_MLPP_PRECEDENCE,           "MLPP precedence"},
-  { PARAM_TYPE_MCID_REQ_IND,              "MCID request indicators"},
-  { PARAM_TYPE_MCID_RSP_IND,              "MCID response indicators"},
-  { PARAM_TYPE_HOP_COUNTER,               "Hop counter"},
-  { PARAM_TYPE_TRANSM_MEDIUM_RQUR_PR,     "Transmission medium requirement prime"},
-  { PARAM_TYPE_LOCATION_NR,               "Location number"},
-  { PARAM_TYPE_REDIR_NR_RSTRCT,           "Redirection number restriction"},
-  { PARAM_TYPE_CALL_TRANS_REF,            "Call transfer reference"},
-  { PARAM_TYPE_LOOP_PREV_IND,             "Loop prevention indicators"},
-  { PARAM_TYPE_CALL_TRANS_NR,             "Call transfer number"},
-  { PARAM_TYPE_CCSS,                      "CCSS"},
-  { PARAM_TYPE_FORW_GVNS,                 "Forward GVNS"},
-  { PARAM_TYPE_BACKW_GVNS,                "Backward GVNS"},
-  { PARAM_TYPE_REDIRECT_CAPAB,            "Redirect capability (reserved for national use)"},
-  { PARAM_TYPE_NETW_MGMT_CTRL,            "Network management controls"},
-  { PARAM_TYPE_CORRELATION_ID,            "Correlation id"},
-  { PARAM_TYPE_SCF_ID,                    "SCF id"},
-  { PARAM_TYPE_CALL_DIV_TREAT_IND,        "Call diversion treatment indicators"},
-  { PARAM_TYPE_CALLED_IN_NR,              "Called IN number"},
-  { PARAM_TYPE_CALL_OFF_TREAT_IND,        "Call offering treatment indicators"},
-  { PARAM_TYPE_CHARGED_PARTY_IDENT,       "Charged party identification (national use)"},
-  { PARAM_TYPE_CONF_TREAT_IND,            "Conference treatment indicators"},
-  { PARAM_TYPE_DISPLAY_INFO,              "Display information"},
-  { PARAM_TYPE_UID_ACTION_IND,            "UID action indicators"},
-  { PARAM_TYPE_UID_CAPAB_IND,             "UID capability indicators"},
-  { PARAM_TYPE_REDIRECT_COUNTER,          "Redirect counter (reserved for national use)"},
-  { PARAM_TYPE_APPLICATON_TRANS,          "Application transport"},
-  { PARAM_TYPE_COLLECT_CALL_REQ,          "Collect call request"},
-  { PARAM_TYPE_GENERIC_NR,                "Generic number"},
-  { PARAM_TYPE_GENERIC_DIGITS,            "Generic digits (national use)"},
-  { JAPAN_ISUP_PARAM_TYPE_CARRIER_INFO,       "Carrier Information transfer"},      /* 241 F1 */
-  { JAPAN_ISUP_PARAM_TYPE_ADDITONAL_USER_CAT, "Additional party's category"},       /* 243 F3 */
-  { JAPAN_ISUP_PARAM_TYPE_CHARGE_INF_TYPE,    "Charge information type"},           /* 250 FA */
-  { JAPAN_ISUP_PARAM_TYPE_CHARGE_INF,         "Charge information"},                /* 250 FA */
-  { JAPAN_ISUP_PARAM_TYPE_CHARGE_AREA_INFO,   "Charge area information"},           /* 253 FD */
+/*   0 */  { PARAM_TYPE_END_OF_OPT_PARAMS,         "End of optional parameters"},
+/*   1 */  { PARAM_TYPE_CALL_REF,                  "Call Reference (national use)"},
+/*   2 */  { PARAM_TYPE_TRANSM_MEDIUM_REQU,        "Transmission medium requirement"},
+/*   3 */  { PARAM_TYPE_ACC_TRANSP,                "Access transport"},
+/*   4 */  { PARAM_TYPE_CALLED_PARTY_NR,           "Called party number"},
+/*   5 */  { PARAM_TYPE_SUBSQT_NR,                 "Subsequent number"},
+/*   6 */  { PARAM_TYPE_NATURE_OF_CONN_IND,        "Nature of connection indicators"},
+/*   7 */  { PARAM_TYPE_FORW_CALL_IND,             "Forward call indicators"},
+/*   8 */  { PARAM_TYPE_OPT_FORW_CALL_IND,         "Optional forward call indicators"},
+/*   9 */  { PARAM_TYPE_CALLING_PRTY_CATEG,        "Calling party's category"},
+/*  10 */  { PARAM_TYPE_CALLING_PARTY_NR,          "Calling party number"},
+/*  11 */  { PARAM_TYPE_REDIRECTING_NR,            "Redirecting number"},
+/*  12 */  { PARAM_TYPE_REDIRECTION_NR,            "Redirection number"},
+/*  13 */  { PARAM_TYPE_CONNECTION_REQ,            "Connection request"},
+/*  14 */  { PARAM_TYPE_INFO_REQ_IND,              "Information request indicators (national use)"},
+/*  15 */  { PARAM_TYPE_INFO_IND,                  "Information indicators (national use)"},
+/*  16 */  { PARAM_TYPE_CONTINUITY_IND,            "Continuity request"},
+/*  17 */  { PARAM_TYPE_BACKW_CALL_IND,            "Backward call indicators"},
+/*  18 */  { PARAM_TYPE_CAUSE_INDICATORS,          "Cause indicators"},
+/*  19 */  { PARAM_TYPE_REDIRECTION_INFO,          "Redirection information"},
+/*  20 */  { 20,                                   "Not used"},
+/*  21 */  { PARAM_TYPE_CIRC_GRP_SV_MSG_TYPE,      "Circuit group supervision message type"},
+/*  22 */  { PARAM_TYPE_RANGE_AND_STATUS,          "Range and Status"},
+/*  23 */  { 23,                                   "Not used"},
+/*  24 */  { PARAM_TYPE_FACILITY_IND,              "Facility indicator"},
+/*  25 */  { 25,                                   "Not used"},
+/*  27 */  { 27,                                   "Not used"},
+/*  26 */  { PARAM_TYPE_CLSD_USR_GRP_ILOCK_CD,     "Closed user group interlock code"},
+/*  27 */  { 27,                                   "Not used"},
+/*  28 */  { 28,                                   "Not used"},
+/*  29 */  { PARAM_TYPE_USER_SERVICE_INFO,         "User service information"},
+/*  30 */  { PARAM_TYPE_SIGNALLING_POINT_CODE,     "Signalling point code (national use)"},
+/*  31 */  { 31,                                   "Not used"},
+/*  32 */  { PARAM_TYPE_USER_TO_USER_INFO,         "User-to-user information"},
+/*  33 */  { PARAM_TYPE_CONNECTED_NR,              "Connected number"},
+/*  34 */  { PARAM_TYPE_SUSP_RESUME_IND,           "Suspend/Resume indicators"},
+/*  35 */  { PARAM_TYPE_TRANSIT_NETW_SELECT,       "Transit network selection (national use)"},
+/*  36 */  { PARAM_TYPE_EVENT_INFO,                "Event information"},
+/*  37 */  { PARAM_TYPE_CIRC_ASSIGN_MAP,           "Circuit assignment map"},
+/*  38 */  { PARAM_TYPE_CIRC_STATE_IND,            "Circuit state indicator (national use)"},
+/*  39 */  { PARAM_TYPE_AUTO_CONG_LEVEL,           "Automatic congestion level"},
+/*  40 */  { PARAM_TYPE_ORIG_CALLED_NR,            "Original called number"},
+/*  41 */  { PARAM_TYPE_OPT_BACKW_CALL_IND,        "Backward call indicators"},
+/*  42 */  { PARAM_TYPE_USER_TO_USER_IND,          "User-to-user indicators"},
+/*  43 */  { PARAM_TYPE_ORIG_ISC_POINT_CODE,       "Origination ISC point code"},
+/*  44 */  { PARAM_TYPE_GENERIC_NOTIF_IND,         "Generic notification indicator"},
+/*  45 */  { PARAM_TYPE_CALL_HIST_INFO,            "Call history information"},
+/*  46 */  { PARAM_TYPE_ACC_DELIV_INFO,            "Access delivery information"},
+/*  47 */  { PARAM_TYPE_NETW_SPECIFIC_FACLTY,      "Network specific facility (national use)"},
+/*  48 */  { PARAM_TYPE_USER_SERVICE_INFO_PR,      "User service information prime"},
+/*  49 */  { PARAM_TYPE_PROPAG_DELAY_COUNTER,      "Propagation delay counter"},
+/*  50 */  { PARAM_TYPE_REMOTE_OPERATIONS,         "Remote operations (national use)"},
+/*  51 */  { PARAM_TYPE_SERVICE_ACTIVATION,        "Service activation"},
+/*  52 */  { PARAM_TYPE_USER_TELESERV_INFO,        "User teleservice information"},
+/*  53 */  { PARAM_TYPE_TRANSM_MEDIUM_USED,        "Transmission medium used"},
+/*  54 */  { PARAM_TYPE_CALL_DIV_INFO,             "Call diversion information"},
+/*  55 */  { PARAM_TYPE_ECHO_CTRL_INFO,            "Echo control information"},
+/*  56 */  { PARAM_TYPE_MSG_COMPAT_INFO,           "Message compatibility information"},
+/*  57 */  { PARAM_TYPE_PARAM_COMPAT_INFO,         "Parameter compatibility information"},
+/*  58 */  { PARAM_TYPE_MLPP_PRECEDENCE,           "MLPP precedence"},
+/*  59 */  { PARAM_TYPE_MCID_REQ_IND,              "MCID request indicators"},
+/*  60 */  { PARAM_TYPE_MCID_RSP_IND,              "MCID response indicators"},
+/*  61 */  { PARAM_TYPE_HOP_COUNTER,               "Hop counter"},
+/*  62 */  { PARAM_TYPE_TRANSM_MEDIUM_RQUR_PR,     "Transmission medium requirement prime"},
+/*  63 */  { PARAM_TYPE_LOCATION_NR,               "Location number"},
+/*  64 */  { PARAM_TYPE_REDIR_NR_RSTRCT,           "Redirection number restriction"},
+/*  65 */  { 65,                                   "Not used"},
+/*  66 */  { 66,                                   "Not used"},
+/*  67 */  { PARAM_TYPE_CALL_TRANS_REF,            "Call transfer reference"},
+/*  68 */  { PARAM_TYPE_LOOP_PREV_IND,             "Loop prevention indicators"},
+/*  69 */  { PARAM_TYPE_CALL_TRANS_NR,             "Call transfer number"},
+/*  70 */  { 70,                                   "Not used"},
+/*  71 */  { 71,                                   "Not used"},
+/*  72 */  { 72,                                   "Not used"},
+/*  73 */  { 73,                                   "Not used"},
+/*  74 */  { 74,                                   "Not used"},
+/*  75 */  { PARAM_TYPE_CCSS,                      "CCSS"},
+/*  76 */  { PARAM_TYPE_FORW_GVNS,                 "Forward GVNS"},
+/*  77 */  { PARAM_TYPE_BACKW_GVNS,                "Backward GVNS"},
+/*  78 */  { PARAM_TYPE_REDIRECT_CAPAB,            "Redirect capability (reserved for national use)"},
+/*  79 */  { 79,                                   "Not used"},
+/*  80 */  { 80,                                   "Not used"},
+/*  81 */  { 81,                                   "Not used"},
+/*  82 */  { 82,                                   "Not used"},
+/*  83 */  { 83,                                   "Not used"},
+/*  84 */  { 84,                                   "Not used"},
+/*  85 */  { 85,                                   "Not used"},
+/*  86 */  { 86,                                   "Not used"},
+/*  87 */  { 87,                                   "Not used"},
+/*  88 */  { 88,                                   "Not used"},
+/*  89 */  { 89,                                   "Not used"},
+/*  90 */  { 90,                                   "Not used"},
+/* 101 */  { PARAM_TYPE_CORRELATION_ID,            "Correlation id"},
+/* 102 */  { PARAM_TYPE_SCF_ID,                    "SCF id"},
+/* 103 */  { 103,                                  "Not used"},
+/* 104 */  { 104,                                  "Not used"},
+/* 105 */  { 105,                                  "Not used"},
+/* 106 */  { 106,                                  "Not used"},
+/* 107 */  { 107,                                  "Not used"},
+/* 108 */  { 108,                                  "Not used"},
+/* 109 */  { 109,                                  "Not used"},
+/* 110 */  { PARAM_TYPE_CALL_DIV_TREAT_IND,        "Call diversion treatment indicators"},
+/* 111 */  { PARAM_TYPE_CALLED_IN_NR,              "Called IN number"},
+/* 112 */  { PARAM_TYPE_CALL_OFF_TREAT_IND,        "Call offering treatment indicators"},
+/* 113 */  { PARAM_TYPE_CHARGED_PARTY_IDENT,       "Charged party identification (national use)"},
+/* 114 */  { PARAM_TYPE_CONF_TREAT_IND,            "Conference treatment indicators"},
+/* 115 */  { PARAM_TYPE_DISPLAY_INFO,              "Display information"},
+/* 116 */  { PARAM_TYPE_UID_ACTION_IND,            "UID action indicators"},
+/* 117 */  { PARAM_TYPE_UID_CAPAB_IND,             "UID capability indicators"},
+/* 119 */  { PARAM_TYPE_REDIRECT_COUNTER,          "Redirect counter (reserved for national use)"},
+/* 120 */  { PARAM_TYPE_APPLICATON_TRANS,          "Application transport"},
+/* 121 */  { PARAM_TYPE_COLLECT_CALL_REQ,          "Collect call request"},
+/* 122 */  { 122,                                  "Not used"},
+/* 123 */  { 123,                                  "Not used"},
+/* 124 */  { 124,                                  "Not used"},
+/* 125 */  { JAPAN_ISUP_PARAM_CALLED_DIRECTORY_NUMBER, "Called Directory Number"},     /* 125 7D */
+/* 126 */  { 126,                                  "Not used"},
+/* 127 */  { 127,                                  "Not used"},
+/* 128 */  { 128,                                  "Not used"},
+/* 129 */  { 129,                                  "Not used"},
+/* 130 */  { 130,                                  "Not used"},
+/* 131 */  { 131,                                  "Not used"},
+/* 132 */  { 132,                                  "Not used"},
+/* 133 */  { 133,                                  "Not used"},
+/* 134 */  { 134,                                  "Not used"},
+/* 135 */  { 135,                                  "Not used"},
+/* 136 */  { 136,                                  "Not used"},
+/* 137 */  { 137,                                  "Not used"},
+/* 138 */  { 138,                                  "Not used"},
+/* 139 */  { JAPAN_ISUP_PARAM_REDIRECT_FORWARD_INF,    "Redirect forward information"},         /* 8B */
+/* 140 */  { JAPAN_ISUP_PARAM_REDIRECT_BACKWARD_INF,   "Redirect Backward information"},        /* 8C */
+
+/* 192 */  { PARAM_TYPE_GENERIC_NR,                "Generic number"},
+/* 193 */  { PARAM_TYPE_GENERIC_DIGITS,            "Generic digits (national use)"},
+  { JAPAN_ISUP_PARAM_EMERGENCY_CALL_INF_IND,  "Emergency Call Information indicator"}, /* 236 EC */
+  { JAPAN_ISUP_PARAM_NETWORK_POI_CA,          "Network POI-CA"},                       /* 238 EE */
+  { JAPAN_ISUP_PARAM_TYPE_CARRIER_INFO,       "Carrier Information transfer"},         /* 241 F1 */
+  { JAPAN_ISUP_PARAM_CHARGE_INF_DELAY,        "Charge Information Delay"},             /* 242 F2 */
+  { JAPAN_ISUP_PARAM_TYPE_ADDITONAL_USER_CAT, "Additional party's category"},          /* 243 F3 */
+  { JAPAN_ISUP_PARAM_REASON_FOR_CLIP_FAIL,    "Reason For CLIP Failure"},              /* 245 F5 */
+  { JAPAN_ISUP_PARAM_TYPE_CONTRACTOR_NUMBER,  "Contractor Number"},                    /* 249 F9 */
+  { JAPAN_ISUP_PARAM_TYPE_CHARGE_INF_TYPE,    "Charge information type"},              /* 250 FA */
+  { JAPAN_ISUP_PARAM_TYPE_CHARGE_INF,         "Charge information"},                   /* 250 FA */
+  { JAPAN_ISUP_PARAM_TYPE_CHARGE_AREA_INFO,   "Charge area information"},              /* 253 FD */
 
   { 0,                                 NULL}};
 static value_string_ext japan_isup_parameter_type_value_ext = VALUE_STRING_EXT_INIT(japan_isup_parameter_type_value);
 
 static const value_string ansi_isup_parameter_type_value[] = {
-  { PARAM_TYPE_END_OF_OPT_PARAMS,         "End of optional parameters"},
-  { PARAM_TYPE_CALL_REF,                  "Call Reference (national use)"},
-  { PARAM_TYPE_TRANSM_MEDIUM_REQU,        "Transmission medium requirement"},
-  { PARAM_TYPE_ACC_TRANSP,                "Access transport"},
-  { PARAM_TYPE_CALLED_PARTY_NR,           "Called party number"},
-  { PARAM_TYPE_SUBSQT_NR,                 "Subsequent number"},
-  { PARAM_TYPE_NATURE_OF_CONN_IND,        "Nature of connection indicators"},
-  { PARAM_TYPE_FORW_CALL_IND,             "Forward call indicators"},
-  { PARAM_TYPE_OPT_FORW_CALL_IND,         "Optional forward call indicators"},
-  { PARAM_TYPE_CALLING_PRTY_CATEG,        "Calling party's category"},
-  { PARAM_TYPE_CALLING_PARTY_NR,          "Calling party number"},
-  { PARAM_TYPE_REDIRECTING_NR,            "Redirecting number"},
-  { PARAM_TYPE_REDIRECTION_NR,            "Redirection number"},
-  { PARAM_TYPE_CONNECTION_REQ,            "Connection request"},
-  { PARAM_TYPE_INFO_REQ_IND,              "Information request indicators (national use)"},
-  { PARAM_TYPE_INFO_IND,                  "Information indicators (national use)"},
-  { PARAM_TYPE_CONTINUITY_IND,            "Continuity request"},
-  { PARAM_TYPE_BACKW_CALL_IND,            "Backward call indicators"},
-  { PARAM_TYPE_CAUSE_INDICATORS,          "Cause indicators"},
-  { PARAM_TYPE_REDIRECTION_INFO,          "Redirection information"},
-  { PARAM_TYPE_CIRC_GRP_SV_MSG_TYPE,      "Circuit group supervision message type"},
-  { PARAM_TYPE_RANGE_AND_STATUS,          "Range and Status"},
-  { PARAM_TYPE_FACILITY_IND,              "Facility indicator"},
-  { PARAM_TYPE_CLSD_USR_GRP_ILOCK_CD,     "Closed user group interlock code"},
-  { PARAM_TYPE_USER_SERVICE_INFO,         "User service information"},
-  { PARAM_TYPE_SIGNALLING_POINT_CODE,     "Signalling point code (national use)"},
-  { PARAM_TYPE_USER_TO_USER_INFO,         "User-to-user information"},
-  { PARAM_TYPE_CONNECTED_NR,              "Connected number"},
-  { PARAM_TYPE_SUSP_RESUME_IND,           "Suspend/Resume indicators"},
-  { PARAM_TYPE_TRANSIT_NETW_SELECT,       "Transit network selection (national use)"},
-  { PARAM_TYPE_EVENT_INFO,                "Event information"},
-  { PARAM_TYPE_CIRC_ASSIGN_MAP,           "Circuit assignment map"},
-  { PARAM_TYPE_CIRC_STATE_IND,            "Circuit state indicator (national use)"},
-  { PARAM_TYPE_AUTO_CONG_LEVEL,           "Automatic congestion level"},
-  { PARAM_TYPE_ORIG_CALLED_NR,            "Original called number"},
-  { PARAM_TYPE_OPT_BACKW_CALL_IND,        "Backward call indicators"},
-  { PARAM_TYPE_USER_TO_USER_IND,          "User-to-user indicators"},
-  { PARAM_TYPE_ORIG_ISC_POINT_CODE,       "Origination ISC point code"},
-  { PARAM_TYPE_GENERIC_NOTIF_IND,         "Generic notification indicator"},
-  { PARAM_TYPE_CALL_HIST_INFO,            "Call history information"},
-  { PARAM_TYPE_ACC_DELIV_INFO,            "Access delivery information"},
-  { PARAM_TYPE_NETW_SPECIFIC_FACLTY,      "Network specific facility (national use)"},
-  { PARAM_TYPE_USER_SERVICE_INFO_PR,      "User service information prime"},
-  { PARAM_TYPE_PROPAG_DELAY_COUNTER,      "Propagation delay counter"},
-  { PARAM_TYPE_REMOTE_OPERATIONS,         "Remote operations (national use)"},
-  { PARAM_TYPE_SERVICE_ACTIVATION,        "Service activation"},
-  { PARAM_TYPE_USER_TELESERV_INFO,        "User teleservice information"},
-  { PARAM_TYPE_TRANSM_MEDIUM_USED,        "Transmission medium used"},
-  { PARAM_TYPE_CALL_DIV_INFO,             "Call diversion information"},
-  { PARAM_TYPE_ECHO_CTRL_INFO,            "Echo control information"},
-  { PARAM_TYPE_MSG_COMPAT_INFO,           "Message compatibility information"},
-  { PARAM_TYPE_PARAM_COMPAT_INFO,         "Parameter compatibility information"},
-  { PARAM_TYPE_MLPP_PRECEDENCE,           "MLPP precedence"},
-  { PARAM_TYPE_MCID_REQ_IND,              "MCID request indicators"},
-  { PARAM_TYPE_MCID_RSP_IND,              "MCID response indicators"},
-  { PARAM_TYPE_HOP_COUNTER,               "Hop counter"},
-  { PARAM_TYPE_TRANSM_MEDIUM_RQUR_PR,     "Transmission medium requirement prime"},
-  { PARAM_TYPE_LOCATION_NR,               "Location number"},
-  { PARAM_TYPE_REDIR_NR_RSTRCT,           "Redirection number restriction"},
-  { PARAM_TYPE_CALL_TRANS_REF,            "Call transfer reference"},
-  { PARAM_TYPE_LOOP_PREV_IND,             "Loop prevention indicators"},
-  { PARAM_TYPE_CALL_TRANS_NR,             "Call transfer number"},
-  { PARAM_TYPE_CCSS,                      "CCSS"},
-  { PARAM_TYPE_FORW_GVNS,                 "Forward GVNS"},
-  { PARAM_TYPE_BACKW_GVNS,                "Backward GVNS"},
-  { PARAM_TYPE_REDIRECT_CAPAB,            "Redirect capability (reserved for national use)"},
-  { PARAM_TYPE_NETW_MGMT_CTRL,            "Network management controls"},
-  { PARAM_TYPE_CORRELATION_ID,            "Correlation id"},
-  { PARAM_TYPE_SCF_ID,                    "SCF id"},
-  { PARAM_TYPE_CALL_DIV_TREAT_IND,        "Call diversion treatment indicators"},
-  { PARAM_TYPE_CALLED_IN_NR,              "Called IN number"},
-  { PARAM_TYPE_CALL_OFF_TREAT_IND,        "Call offering treatment indicators"},
-  { PARAM_TYPE_CHARGED_PARTY_IDENT,       "Charged party identification (national use)"},
-  { PARAM_TYPE_CONF_TREAT_IND,            "Conference treatment indicators"},
-  { PARAM_TYPE_DISPLAY_INFO,              "Display information"},
-  { PARAM_TYPE_UID_ACTION_IND,            "UID action indicators"},
-  { PARAM_TYPE_UID_CAPAB_IND,             "UID capability indicators"},
-  { PARAM_TYPE_REDIRECT_COUNTER,          "Redirect counter (reserved for national use)"},
-  { PARAM_TYPE_APPLICATON_TRANS,          "Application transport"},
-  { PARAM_TYPE_COLLECT_CALL_REQ,          "Collect call request"},
-  { PARAM_TYPE_CALLING_GEODETIC_LOCATION, "Calling geodetic location"},
-  { PARAM_TYPE_GENERIC_NR,                "Generic number"},
-  { PARAM_TYPE_GENERIC_DIGITS,            "Generic digits (national use)"},
+/*   0 */  { PARAM_TYPE_END_OF_OPT_PARAMS,         "End of optional parameters"},
+/*   1 */  { PARAM_TYPE_CALL_REF,                  "Call Reference (national use)"},
+/*   2 */  { PARAM_TYPE_TRANSM_MEDIUM_REQU,        "Transmission medium requirement"},
+/*   3 */  { PARAM_TYPE_ACC_TRANSP,                "Access transport"},
+/*   4 */  { PARAM_TYPE_CALLED_PARTY_NR,           "Called party number"},
+/*   5 */  { PARAM_TYPE_SUBSQT_NR,                 "Subsequent number"},
+/*   6 */  { PARAM_TYPE_NATURE_OF_CONN_IND,        "Nature of connection indicators"},
+/*   7 */  { PARAM_TYPE_FORW_CALL_IND,             "Forward call indicators"},
+/*   8 */  { PARAM_TYPE_OPT_FORW_CALL_IND,         "Optional forward call indicators"},
+/*   9 */  { PARAM_TYPE_CALLING_PRTY_CATEG,        "Calling party's category"},
+/*  10 */  { PARAM_TYPE_CALLING_PARTY_NR,          "Calling party number"},
+/*  11 */  { PARAM_TYPE_REDIRECTING_NR,            "Redirecting number"},
+/*  12 */  { PARAM_TYPE_REDIRECTION_NR,            "Redirection number"},
+/*  13 */  { PARAM_TYPE_CONNECTION_REQ,            "Connection request"},
+/*  14 */  { PARAM_TYPE_INFO_REQ_IND,              "Information request indicators (national use)"},
+/*  15 */  { PARAM_TYPE_INFO_IND,                  "Information indicators (national use)"},
+/*  16 */  { PARAM_TYPE_CONTINUITY_IND,            "Continuity request"},
+/*  17 */  { PARAM_TYPE_BACKW_CALL_IND,            "Backward call indicators"},
+/*  18 */  { PARAM_TYPE_CAUSE_INDICATORS,          "Cause indicators"},
+/*  19 */  { PARAM_TYPE_REDIRECTION_INFO,          "Redirection information"},
+/*  20 */  { 20,                                   "Not used"},
+/*  21 */  { PARAM_TYPE_CIRC_GRP_SV_MSG_TYPE,      "Circuit group supervision message type"},
+/*  22 */  { PARAM_TYPE_RANGE_AND_STATUS,          "Range and Status"},
+/*  23 */  { 23,                                   "Not used"},
+/*  24 */  { PARAM_TYPE_FACILITY_IND,              "Facility indicator"},
+/*  25 */  { 25,                                   "Not used"},
+/*  27 */  { 27,                                   "Not used"},
+/*  26 */  { PARAM_TYPE_CLSD_USR_GRP_ILOCK_CD,     "Closed user group interlock code"},
+/*  27 */  { 27,                                   "Not used"},
+/*  28 */  { 28,                                   "Not used"},
+/*  29 */  { PARAM_TYPE_USER_SERVICE_INFO,         "User service information"},
+/*  30 */  { PARAM_TYPE_SIGNALLING_POINT_CODE,     "Signalling point code (national use)"},
+/*  31 */  { 31,                                   "Not used"},
+/*  32 */  { PARAM_TYPE_USER_TO_USER_INFO,         "User-to-user information"},
+/*  33 */  { PARAM_TYPE_CONNECTED_NR,              "Connected number"},
+/*  34 */  { PARAM_TYPE_SUSP_RESUME_IND,           "Suspend/Resume indicators"},
+/*  35 */  { PARAM_TYPE_TRANSIT_NETW_SELECT,       "Transit network selection (national use)"},
+/*  36 */  { PARAM_TYPE_EVENT_INFO,                "Event information"},
+/*  37 */  { PARAM_TYPE_CIRC_ASSIGN_MAP,           "Circuit assignment map"},
+/*  38 */  { PARAM_TYPE_CIRC_STATE_IND,            "Circuit state indicator (national use)"},
+/*  39 */  { PARAM_TYPE_AUTO_CONG_LEVEL,           "Automatic congestion level"},
+/*  40 */  { PARAM_TYPE_ORIG_CALLED_NR,            "Original called number"},
+/*  41 */  { PARAM_TYPE_OPT_BACKW_CALL_IND,        "Backward call indicators"},
+/*  42 */  { PARAM_TYPE_USER_TO_USER_IND,          "User-to-user indicators"},
+/*  43 */  { PARAM_TYPE_ORIG_ISC_POINT_CODE,       "Origination ISC point code"},
+/*  44 */  { PARAM_TYPE_GENERIC_NOTIF_IND,         "Generic notification indicator"},
+/*  45 */  { PARAM_TYPE_CALL_HIST_INFO,            "Call history information"},
+/*  46 */  { PARAM_TYPE_ACC_DELIV_INFO,            "Access delivery information"},
+/*  47 */  { PARAM_TYPE_NETW_SPECIFIC_FACLTY,      "Network specific facility (national use)"},
+/*  48 */  { PARAM_TYPE_USER_SERVICE_INFO_PR,      "User service information prime"},
+/*  49 */  { PARAM_TYPE_PROPAG_DELAY_COUNTER,      "Propagation delay counter"},
+/*  50 */  { PARAM_TYPE_REMOTE_OPERATIONS,         "Remote operations (national use)"},
+/*  51 */  { PARAM_TYPE_SERVICE_ACTIVATION,        "Service activation"},
+/*  52 */  { PARAM_TYPE_USER_TELESERV_INFO,        "User teleservice information"},
+/*  53 */  { PARAM_TYPE_TRANSM_MEDIUM_USED,        "Transmission medium used"},
+/*  54 */  { PARAM_TYPE_CALL_DIV_INFO,             "Call diversion information"},
+/*  55 */  { PARAM_TYPE_ECHO_CTRL_INFO,            "Echo control information"},
+/*  56 */  { PARAM_TYPE_MSG_COMPAT_INFO,           "Message compatibility information"},
+/*  57 */  { PARAM_TYPE_PARAM_COMPAT_INFO,         "Parameter compatibility information"},
+/*  58 */  { PARAM_TYPE_MLPP_PRECEDENCE,           "MLPP precedence"},
+/*  59 */  { PARAM_TYPE_MCID_REQ_IND,              "MCID request indicators"},
+/*  60 */  { PARAM_TYPE_MCID_RSP_IND,              "MCID response indicators"},
+/*  61 */  { PARAM_TYPE_HOP_COUNTER,               "Hop counter"},
+/*  62 */  { PARAM_TYPE_TRANSM_MEDIUM_RQUR_PR,     "Transmission medium requirement prime"},
+/*  63 */  { PARAM_TYPE_LOCATION_NR,               "Location number"},
+/*  64 */  { PARAM_TYPE_REDIR_NR_RSTRCT,           "Redirection number restriction"},
+/*  65 */  { 65,                                   "Not used"},
+/*  66 */  { 66,                                   "Not used"},
+/*  67 */  { PARAM_TYPE_CALL_TRANS_REF,            "Call transfer reference"},
+/*  68 */  { PARAM_TYPE_LOOP_PREV_IND,             "Loop prevention indicators"},
+/*  69 */  { PARAM_TYPE_CALL_TRANS_NR,             "Call transfer number"},
+/*  70 */  { 70,                                   "Not used"},
+/*  71 */  { 71,                                   "Not used"},
+/*  72 */  { 72,                                   "Not used"},
+/*  73 */  { 73,                                   "Not used"},
+/*  74 */  { 74,                                   "Not used"},
+/*  75 */  { PARAM_TYPE_CCSS,                      "CCSS"},
+/*  76 */  { PARAM_TYPE_FORW_GVNS,                 "Forward GVNS"},
+/*  77 */  { PARAM_TYPE_BACKW_GVNS,                "Backward GVNS"},
+/*  78 */  { PARAM_TYPE_REDIRECT_CAPAB,            "Redirect capability (reserved for national use)"},
+/*  79 */  { 79,                                   "Not used"},
+/*  80 */  { 80,                                   "Not used"},
+/*  81 */  { 81,                                   "Not used"},
+/*  82 */  { 82,                                   "Not used"},
+/*  83 */  { 83,                                   "Not used"},
+/*  84 */  { 84,                                   "Not used"},
+/*  85 */  { 85,                                   "Not used"},
+/*  86 */  { 86,                                   "Not used"},
+/*  87 */  { 87,                                   "Not used"},
+/*  88 */  { 88,                                   "Not used"},
+/*  89 */  { 89,                                   "Not used"},
+/*  90 */  { 90,                                   "Not used"},
+/* 101 */  { PARAM_TYPE_CORRELATION_ID,            "Correlation id"},
+/* 102 */  { PARAM_TYPE_SCF_ID,                    "SCF id"},
+/* 103 */  { 103,                                  "Not used"},
+/* 104 */  { 104,                                  "Not used"},
+/* 105 */  { 105,                                  "Not used"},
+/* 106 */  { 106,                                  "Not used"},
+/* 107 */  { 107,                                  "Not used"},
+/* 108 */  { 108,                                  "Not used"},
+/* 109 */  { 109,                                  "Not used"},
+/* 110 */  { PARAM_TYPE_CALL_DIV_TREAT_IND,        "Call diversion treatment indicators"},
+/* 111 */  { PARAM_TYPE_CALLED_IN_NR,              "Called IN number"},
+/* 112 */  { PARAM_TYPE_CALL_OFF_TREAT_IND,        "Call offering treatment indicators"},
+/* 113 */  { PARAM_TYPE_CHARGED_PARTY_IDENT,       "Charged party identification (national use)"},
+/* 114 */  { PARAM_TYPE_CONF_TREAT_IND,            "Conference treatment indicators"},
+/* 115 */  { PARAM_TYPE_DISPLAY_INFO,              "Display information"},
+/* 116 */  { PARAM_TYPE_UID_ACTION_IND,            "UID action indicators"},
+/* 117 */  { PARAM_TYPE_UID_CAPAB_IND,             "UID capability indicators"},
+/* 119 */  { PARAM_TYPE_REDIRECT_COUNTER,          "Redirect counter (reserved for national use)"},
+/* 120 */  { PARAM_TYPE_APPLICATON_TRANS,          "Application transport"},
+/* 121 */  { PARAM_TYPE_COLLECT_CALL_REQ,          "Collect call request"},
+/* 122 */  { 122,                                  "Not used"},
+/* 123 */  { 123,                                  "Not used"},
+/* 124 */  { 124,                                  "Not used"},
+/* 125 */  { 125,                                  "Not used"},
+/* 126 */  { 126,                                  "Not used"},
+/* 127 */  { 127,                                  "Not used"},
+/* 128 */  { 128,                                  "Not used"},
+/* 129 */  { PARAM_TYPE_CALLING_GEODETIC_LOCATION, "Calling geodetic location"},
+/* 130 */  { 130,                                  "Not used"},
+
+/* 192 */  { PARAM_TYPE_GENERIC_NR,                "Generic number"},
+/* 193 */  { PARAM_TYPE_GENERIC_DIGITS,            "Generic digits (national use)"},
 #if 0 /* XXX: Dups of below */
   { PARAM_TYPE_JURISDICTION,              "Jurisdiction"},
   { PARAM_TYPE_GENERIC_NAME,              "Generic name"},
   { PARAM_TYPE_ORIG_LINE_INFO,            "Originating line info"},
 #endif
-  { ANSI_ISUP_PARAM_TYPE_OPER_SERV_INF,   "Operator Services information"},
-  { ANSI_ISUP_PARAM_TYPE_EGRESS,          "Egress"},
-  { ANSI_ISUP_PARAM_TYPE_JURISDICTION,    "Jurisdiction"},
-  { ANSI_ISUP_PARAM_TYPE_CARRIER_ID,      "Carrier identification"},
-  { ANSI_ISUP_PARAM_TYPE_BUSINESS_GRP,    "Business group"},
-  { ANSI_ISUP_PARAM_TYPE_GENERIC_NAME,    "Generic name"},
-  { ANSI_ISUP_PARAM_TYPE_NOTIF_IND,       "Notification indicator"},
+/* 194 */  { ANSI_ISUP_PARAM_TYPE_OPER_SERV_INF,   "Operator Services information"},
+/* 195 */  { ANSI_ISUP_PARAM_TYPE_EGRESS,          "Egress"},
+/* 196 */  { ANSI_ISUP_PARAM_TYPE_JURISDICTION,    "Jurisdiction"},
+/* 197 */  { ANSI_ISUP_PARAM_TYPE_CARRIER_ID,      "Carrier identification"},
+/* 198 */  { ANSI_ISUP_PARAM_TYPE_BUSINESS_GRP,    "Business group"},
+/* 199 */  { ANSI_ISUP_PARAM_TYPE_GENERIC_NAME,    "Generic name"},
+/* 225 */  { ANSI_ISUP_PARAM_TYPE_NOTIF_IND,       "Notification indicator"},
   { ANSI_ISUP_PARAM_TYPE_CG_CHAR_IND,     "Circuit group characteristic indicator"},
   { ANSI_ISUP_PARAM_TYPE_CVR_RESP_IND,    "Circuit validation response indicator"},
   { ANSI_ISUP_PARAM_TYPE_OUT_TRK_GRP_NM,  "Outgoing trunk group number"},
@@ -2136,67 +2295,6 @@ static const value_string isup_charge_area_info_nat_of_info_value[] = {
   { CHARGE_AREA_NAT_INFO_CA, "CA code"},
   { 0,NULL}};
 
-/*******************************/
-/*    ADDITIONAL USER CATEGORY */
-/*******************************/
-#define ADD_USER_CAT_TYPE3                     0xFB
-#define ADD_USER_CAT_TYPE2                     0xFC
-#define ADD_USER_CAT_TYPE1                     0xFD
-#define ADD_USER_CAT_TYPE1_FIXED               0xFE
-static const value_string isup_add_user_cat_type_value[] = {
-  { ADD_USER_CAT_TYPE3, "Type 3 mobile service information"},
-  { ADD_USER_CAT_TYPE2, "Type 2 mobile service information"},
-  { ADD_USER_CAT_TYPE1, "Type 1 mobile service information"},
-  { ADD_USER_CAT_TYPE1_FIXED, "Type 1 fixed user information"},
-  { 0,NULL}};
-
-#define ADD_USER_CAT_TYPE1_FIXED_SPARE            0
-#define ADD_USER_CAT_TYPE1_FIXED_TRAIN            1
-#define ADD_USER_CAT_TYPE1_FIXED_PINK             2
-static const value_string isup_add_user_cat_type1_fixed_value[] = {
-  { ADD_USER_CAT_TYPE1_FIXED_SPARE,"Spare"},
-  { ADD_USER_CAT_TYPE1_FIXED_TRAIN,"Train payphone"},
-  { ADD_USER_CAT_TYPE1_FIXED_PINK, "Pink (non|NTT payphone)"},
-  { 0,NULL}};
-
-#define ADD_USER_CAT_TYPE1_SPARE                  0
-#define ADD_USER_CAT_TYPE1_CELL                   1
-#define ADD_USER_CAT_TYPE1_MARITIME               2
-#define ADD_USER_CAT_TYPE1_AIRPLANE               3
-#define ADD_USER_CAT_TYPE1_PAGING                 4
-#define ADD_USER_CAT_TYPE1_PHS                    5
-static const value_string isup_add_user_cat_type1_value[] = {
-  { ADD_USER_CAT_TYPE1_SPARE,"Spare"},
-  { ADD_USER_CAT_TYPE1_CELL,"Cellular telephone service"},
-  { ADD_USER_CAT_TYPE1_MARITIME, "Maritime telephone service"},
-  { ADD_USER_CAT_TYPE1_AIRPLANE, "Airplane telephone service"},
-  { ADD_USER_CAT_TYPE1_PAGING, "Paging service"},
-  { ADD_USER_CAT_TYPE1_PHS, "PHS service"},
-  { 0,NULL}};
-
-#define ADD_USER_CAT_TYPE2_SPARE                  0
-#define ADD_USER_CAT_TYPE2_HICAP                  1
-#define ADD_USER_CAT_TYPE2_TACS                   2
-#define ADD_USER_CAT_TYPE2_PDC800                 3
-#define ADD_USER_CAT_TYPE2_PDC1500                4
-#define ADD_USER_CAT_TYPE2_STARSAT                5
-#define ADD_USER_CAT_TYPE2_CDMA1                  6
-#define ADD_USER_CAT_TYPE2_IRID                   7
-#define ADD_USER_CAT_TYPE2_IMT                    8
-#define ADD_USER_CAT_TYPE2_PHS                    9
-static const value_string isup_add_user_cat_type2_value[] = {
-  { ADD_USER_CAT_TYPE2_SPARE,"Spare"},
-  { ADD_USER_CAT_TYPE2_HICAP,"HiCap method (analog)"},
-  { ADD_USER_CAT_TYPE2_TACS, "N/J|TACS"},
-  { ADD_USER_CAT_TYPE2_PDC800, "PDC 800 MHz"},
-  { ADD_USER_CAT_TYPE2_PDC1500, "PDC 1500 MHz"},
-  { ADD_USER_CAT_TYPE2_STARSAT, "N|STAR satellite"},
-  { ADD_USER_CAT_TYPE2_CDMA1, "cdmaOne 800 MHz"},
-  { ADD_USER_CAT_TYPE2_IRID, "Iridium satellite"},
-  { ADD_USER_CAT_TYPE2_IMT, "IMT|2000"},
-  { ADD_USER_CAT_TYPE2_PHS, "PHS (fixed network dependent)"},
-  { 0,NULL}};
-
 static const true_false_string isup_calling_party_address_request_ind_value = {
   "calling party address requested",
   "calling party address not requested"
@@ -2868,10 +2966,27 @@ static int hf_isup_israeli_current_rate = -1;
 static int hf_isup_israeli_time_indicator = -1;
 static int hf_isup_israeli_next_rate = -1;
 
+static int hf_japan_isup_redirect_capability = -1;
+static int hf_japan_isup_redirect_counter = -1;
+static int hf_japan_isup_rfi_info_type = -1;
+static int hf_japan_isup_rfi_info_len = -1;
+static int hf_japan_isup_perf_redir_reason = -1;
+static int hf_japan_isup_redir_pos_ind = -1;
+static int hf_japan_isup_inv_redir_reason = -1;
+static int hf_japan_isup_bwd_info_type = -1;
+static int hf_japan_isup_tag_len = -1;
+static int hf_japan_isup_hold_at_emerg_call_disc_ind = -1;
+static int hf_japan_isup_add_user_cat_type = -1;
+static int hf_japan_isup_type_1_add_fixed_serv_inf = -1;
+static int hf_japan_isup_type_1_add_mobile_serv_inf = -1;
+static int hf_japan_isup_type_2_add_mobile_serv_inf = -1;
+static int hf_japan_isup_type_3_add_mobile_serv_inf = -1;
+static int hf_japan_isup_reason_for_clip_fail = -1;
+
 static int hf_isup_carrier_info_iec = -1;
 /*static int hf_isup_carrier_info_cat_of_carrier = -1;*/
-/*static int hf_isup_carrier_info_length_of_carrierX = -1;*/
 /*static int hf_isup_carrier_info_type_of_carrier_info = -1;*/
+static int hf_japan_isup_carrier_info_length = -1;
 static int hf_isup_carrier_info_odd_no_digits = -1;
 static int hf_isup_carrier_info_even_no_digits = -1;
 static int hf_isup_carrier_info_ca_odd_no_digits = -1;
@@ -2879,6 +2994,7 @@ static int hf_isup_carrier_info_ca_even_no_digits = -1;
 static int hf_isup_carrier_info_poi_entry_HEI = -1;
 static int hf_isup_carrier_info_poi_exit_HEI = -1;
 
+static int hf_japan_isup_charge_delay_type = -1;
 static int hf_japan_isup_charge_info_type = -1;
 static int hf_japan_isup_sig_elem_type = -1;
 static int hf_japan_isup_activation_id = -1;
@@ -2893,12 +3009,6 @@ static int hf_japan_isup_charging_info_nc_odd_digits = -1;
 static int hf_japan_isup_charging_info_nc_even_digits = -1;
 static int hf_isup_charging_info_maca_odd_digits = -1;
 static int hf_isup_charging_info_maca_even_digits = -1;
-
-static int hf_isup_add_user_cat_type_of_info = -1;
-static int hf_isup_add_user_cat_type1 = -1;
-static int hf_isup_add_user_cat_type1_fixed = -1;
-static int hf_isup_add_user_cat_type2 = -1;
-static int hf_isup_add_user_cat_type3 = -1;
 
 /* Initialize the subtree pointers */
 static gint ett_isup                            = -1;
@@ -2916,6 +3026,7 @@ static gint ett_scs                             = -1;
 
 static gint ett_isup_apm_msg_fragment = -1;
 static gint ett_isup_apm_msg_fragments = -1;
+static gint ett_isup_range = -1;
 
 
 static dissector_handle_t sdp_handle = NULL;
@@ -3719,16 +3830,27 @@ dissect_isup_suspend_resume_indicators_parameter(tvbuff_t *parameter_tvb, proto_
 static void
 dissect_isup_range_and_status_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
+  proto_item *item;
+  proto_tree *range_tree;
+  int offset = 0;
   guint8 range, actual_status_length;
 
-  range = tvb_get_guint8(parameter_tvb, 0);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_range_indicator, parameter_tvb, 0, RANGE_LENGTH, range, "Range: %u", range);
-  actual_status_length = tvb_reported_length_remaining(parameter_tvb, RANGE_LENGTH);
-  if (actual_status_length > 0)
-    proto_tree_add_text(parameter_tree, parameter_tvb , RANGE_LENGTH, -1, "Status subfield");
-  else
-    proto_tree_add_text(parameter_tree, parameter_tvb , 0, 0, "Status subfield is not present with this message type");
+  range = tvb_get_guint8(parameter_tvb, 0) + 1;
+  proto_tree_add_uint_format(parameter_tree, hf_isup_range_indicator, parameter_tvb, offset, RANGE_LENGTH, range, "Range: %u", range);
+  offset = offset + RANGE_LENGTH;
 
+  actual_status_length = tvb_reported_length_remaining(parameter_tvb, offset);
+  if (actual_status_length > 0){
+    item = proto_tree_add_text(parameter_tree, parameter_tvb , offset, -1, "Status subfield");
+	range_tree = proto_item_add_subtree(item, ett_isup_range);
+	if(range<9){
+		proto_tree_add_text(range_tree, parameter_tvb , offset, 1, "Bit %u %s bit 1",
+			range, 
+			decode_bits_in_field(8-range, range, tvb_get_guint8(parameter_tvb,offset)));
+	}
+  }else{
+    proto_tree_add_text(parameter_tree, parameter_tvb , 0, 0, "Status subfield is not present with this message type");
+  }
 
   proto_item_set_text(parameter_item, "Range (%u) and status", range);
 }
@@ -5305,7 +5427,7 @@ dissect_isup_closed_user_group_interlock_code_parameter(tvbuff_t *parameter_tvb,
   NI_digits[4] = '\0';
   proto_tree_add_text(parameter_tree, parameter_tvb, 0, 2, "Network Identity: %s", NI_digits);
   bin_code = tvb_get_ntohs(parameter_tvb, 2);
-  proto_tree_add_text(parameter_tree, parameter_tvb, 3, 2, "Binary Code: 0x%x", bin_code);
+  proto_tree_add_text(parameter_tree, parameter_tvb, 2, 2, "Binary Code: 0x%x", bin_code);
   proto_item_set_text(parameter_item, "Closed user group interlock code: NI = %s, Binary code = 0x%x", NI_digits, bin_code);
 }
 /* ------------------------------------------------------------------
@@ -6322,11 +6444,36 @@ dissect_isup_forward_gvns_parameter(tvbuff_t *parameter_tvb, proto_tree *paramet
 /* ------------------------------------------------------------------
  Parameter Redirect capability
  */
+
+static const value_string isup_jpn_redirect_capabilit_vals[] = {
+  { 0,   "Reserved" },
+  { 1,   "Redirect possible before ACM" },
+  { 2,   "Reserved" },
+  { 3,   "Reserved" },
+  { 4,   "Spare" },
+  { 5,   "Spare" },
+  { 6,   "Spare" },
+  { 7,   "Spare" },
+  { 0,   NULL}
+};
+
 static void
-dissect_isup_redirect_capability_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
-{ guint length = tvb_length(parameter_tvb);
-  proto_tree_add_text(parameter_tree, parameter_tvb, 0, length, "Redirect capability (format is a national matter)");
+dissect_isup_redirect_capability_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item, guint8 itu_isup_variant)
+{
+  guint length = tvb_length(parameter_tvb);
+
+  switch(itu_isup_variant) {
+        case ISUP_JAPAN_VARIANT:
+			proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
+			proto_tree_add_item(parameter_tree, hf_japan_isup_redirect_capability, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
+			break;
+		default:
+            proto_tree_add_text(parameter_tree, parameter_tvb, 0, length, "Redirect capability (format is a national matter)");
+			break;
+  }
+
   proto_item_set_text(parameter_item, "Redirect Capability (%u Byte%s)", length , plurality(length, "", "s"));
+
 }
 /* ------------------------------------------------------------------
   Dissector Parameter Backward GVNS
@@ -6528,9 +6675,19 @@ dissect_isup_uid_capability_indicators_parameter(tvbuff_t *parameter_tvb, proto_
  Parameter Redirect counter
  */
 static void
-dissect_isup_redirect_counter_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
-{ guint length = tvb_length(parameter_tvb);
-  proto_tree_add_text(parameter_tree, parameter_tvb, 0, length, "Redirect counter (format is a national matter)");
+dissect_isup_redirect_counter_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item, guint8 itu_isup_variant)
+{ 
+  guint length = tvb_length(parameter_tvb);
+
+  switch(itu_isup_variant) {
+        case ISUP_JAPAN_VARIANT:
+			proto_tree_add_item(parameter_tree, hf_japan_isup_redirect_counter, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
+			break;
+		default:
+            proto_tree_add_text(parameter_tree, parameter_tvb, 0, length, "Redirect counter (format is a national matter)");
+			break;
+  }
+  
   proto_item_set_text(parameter_item, "Redirect counter (%u Byte%s)", length , plurality(length, "", "s"));
 }
 /* ------------------------------------------------------------------
@@ -6826,6 +6983,523 @@ dissect_isup_unknown_parameter(tvbuff_t *parameter_tvb, proto_item *parameter_it
 
 /* Japan ISUP */
 
+/*
+8 7 6 5 4 3 2 1
+O/E Nature of address indicator 1
+INN NAPI Spare 2
+2nd address signal 1st address signal 3
+... ... :
+Filler (if necessary) nth address signal 15
+*/
+static void
+dissect_japan_isup_called_dir_num(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+    int offset = 0;
+	int parameter_length;
+
+    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+
+	proto_tree_add_item(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(parameter_tree, hf_isup_called_party_nature_of_address_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+	offset++;
+
+	proto_tree_add_item(parameter_tree, hf_isup_inn_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(parameter_tree, hf_isup_numbering_plan_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+	offset++;
+
+	proto_tree_add_text(parameter_tree, parameter_tvb, offset, parameter_length-offset, "Number not dissected yet");
+
+    proto_item_set_text(parameter_item, "Called Directory Number");
+
+}
+
+
+/*
+   8     7     6     5     4     3     2    1
++-----+-----+-----+-----+-----+-----+-----+-----+
+-            Information Type Tag               -  1
++-----------------------------------------------+
+-           Information Type Length             -  2
++-----------------------------------------------+
+-           Information Type Value              -  3
++-----------------------------------------------+
+ .                                              .
+ .                                              .
+ .                                              .
++-----------------------------------------------+
+-            Information Type Tag               -  n+1
++-----------------------------------------------+
+-           Information Type Length             -  n+2
++-----------------------------------------------+
+-           Information Type Value              -  n+3
+|-----------------------------------------------/
+
+Information Type Tag
+
+00000000  Reserved (Note)
+00000001  Reserved
+00000010  Reserved
+00000011  Performing redirect indicator
+00000100  Invoking redirect reason
+00000101
+   to     Spare
+11111111
+
+Note: In standard this value is marked as -Not used-,
+      here is treated as reserved.
+
+Performing redirect indicator
+
+   8     7     6     5     4     3     2     1
++-----+-----+-----+-----+-----+-----+-----+-----+
+- ext -      Performing redirect reason         -  1
++-----+-----------------------------------------+
+-                             -Redirect possible-
+-          Spare              -  indicator at   -  2
+-                             -   performing    -
+-                             -    exchange     -
++-----------------------------+-----------------+
+:                       :                       :  :
+:                       :                       :
++-----------------------------------------------+
+- ext -      Performing redirect reason         -  2n|1
++-----+-----------------------|-----------------+    Reason n
+-                             -Redirect possible-
+-          Spare              -  indicator at   -  2n
+-                             -   performing    -
+-                             -    exchange     -
+|-----------------------------+-----------------/
+
+
+Redirect possible indicator at performing exchange
+000      No indication
+001      Redirect possible before ACM
+010      Reserved
+011      Reserved
+100
+to       Spare
+111
+
+Invoking redirect reason
+
+   8     7     6     5     4     3     2    1
++-----+-----+-----+-----+-----+-----+-----+-----+
+- ext -        Invoking redirect reason         -  1
++-----+-----------------------------------------+
+:     :                                         :
+:     :                                         :
++-----------------------------------------------+
+- ext -        Invoking redirect reason         -  n
+|-----+-----------------------------------------/
+
+Extension indicator (ext)
+
+0        Information continues in next octet
+1        Last octet
+
+Invoking redirect reason
+
+0000000  Unknown / not available
+0000001  Service provider portability (national use)
+0000010  Reserved for location portability
+0000011  Reserved for service portability
+0000100
+to       Spare
+0111111
+1000000
+to       Reserved for national use
+1111101
+1111110  Local number portability / Mobile number
+         portability
+1111111  Reserved for national use
+
+
+*/
+
+static const value_string isup_rfi_info_type_values[] = {
+  { 0,   "Reserved" },
+  { 1,   "Reserved" },
+  { 2,   "Reserved" },
+  { 3,   "Performing redirect indicator" },
+  { 4,   "Invoking redirect reason" },
+  { 0,   NULL}
+};
+
+/* Performing redirect reason */
+static const value_string perf_redir_reason_vals[] = {
+  { 0,   "Unkown/not available" },
+  { 1,   "Service provider portability (national use)" },
+  { 2,   "Reserved for location portability" },
+  { 3,   "Reserved for service portability" },
+/*
+0000100
+to       Spare
+0111111
+1000000
+to       Reserved for national use
+1111101
+*/
+  { 0x7e,   "Local number portability / Mobile number portability" },
+  { 0x7f,   "Reserved for national use" },
+  { 0,   NULL}
+};
+
+
+static const value_string redir_pos_ind_vals[] = {
+  { 0,   "No indication" },
+  { 1,   "Redirect possible before ACM" },
+  { 2,   "Reserved" },
+  { 3,   "Reserved" },
+  { 4,   "Reserved" },
+  { 5,   "Reserved" },
+  { 6,   "Reserved" },
+  { 7,   "Reserved" },
+  { 0,   NULL}
+};
+
+
+static void
+dissect_japan_isup_redirect_fwd_inf(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+    int offset = 0;
+    guint8 tag, tag_len, ext_ind;
+    int parameter_length;
+
+    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+
+    while(offset<parameter_length){
+        /* Information Type Tag */
+        tag = tvb_get_guint8(parameter_tvb,offset);
+        proto_tree_add_item(parameter_tree, hf_japan_isup_rfi_info_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        offset++;
+        /* Information Type Length */
+        tag_len = tvb_get_guint8(parameter_tvb,offset);
+        proto_tree_add_item(parameter_tree, hf_japan_isup_rfi_info_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        offset++;
+        switch(tag){
+        case 3: /* Performing redirect indicator */
+            /* Performing redirect reason oct 1 */
+            ext_ind = 0;
+            while(ext_ind==0){
+                ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
+                proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(parameter_tree, hf_japan_isup_perf_redir_reason, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+                offset++;
+                /* Redirect possible indicator at performing exchange */
+                proto_tree_add_item(parameter_tree, hf_japan_isup_redir_pos_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+                offset++;
+            }
+            break;
+        case 4:
+            /* Invoking redirect reason */
+            ext_ind = 0;
+            while(ext_ind==0){
+                ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
+                proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(parameter_tree, hf_japan_isup_inv_redir_reason, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+                offset++;
+            }
+            break;
+        default:
+            /* Information Type Value */
+            proto_tree_add_text(parameter_tree, parameter_tvb, offset, tag_len, "Unknown(not dissected) tag");
+            offset = offset + tag_len;
+            break;
+        }
+    }
+
+    proto_item_set_text(parameter_item, "Redirect forward information");
+
+}
+
+
+static const value_string japan_isup_bwd_info_type_vals[] = {
+  { 0,   "Reserved" },
+  { 1,   "Reserved" },
+  { 2,   "Reserved" },
+  { 3,   "invoking redirect reason" },
+  { 0,   NULL}
+};
+
+static void
+dissect_japan_isup_redirect_backw_inf(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+    int offset = 0;
+    guint8 tag, tag_len, ext_ind;
+    int parameter_length;
+
+    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+
+    while(offset<parameter_length){
+        /* Information Type Tag */
+        tag = tvb_get_guint8(parameter_tvb,offset);
+        proto_tree_add_item(parameter_tree, hf_japan_isup_bwd_info_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        offset++;
+        /* Information Type Length */
+        tag_len = tvb_get_guint8(parameter_tvb,offset);
+        proto_tree_add_item(parameter_tree, hf_japan_isup_tag_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        offset++;
+        switch(tag){
+        case 3: /* invoking redirect reason */
+            /* invoking redirect reason oct 1 */
+            ext_ind = 0;
+            while(ext_ind==0){
+                ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
+                proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(parameter_tree, hf_japan_isup_inv_redir_reason, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+                offset++;
+            }
+            break;
+        default:
+            /* Information Type Value */
+            proto_tree_add_text(parameter_tree, parameter_tvb, offset, tag_len, "Unknown(not dissected) tag");
+            offset = offset + tag_len;
+            break;
+        }
+    }
+
+    proto_item_set_text(parameter_item, "Redirect backward information");
+
+}
+static const value_string hold_at_emerg_call_disc_ind_vals[] = {
+  { 0,   "No indication" },
+  { 1,   "Emergency Call is holding" },
+  { 2,   "Call Back from the Emergency Center" },
+  { 3,   "Re-answer to an Emergency call" },
+  { 0,   NULL}
+};
+
+static void
+dissect_japan_isup_emergency_call_inf_ind(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+    int offset = 0;
+
+
+    proto_tree_add_item(parameter_tree, hf_japan_isup_hold_at_emerg_call_disc_ind, parameter_tvb, offset, 2, ENC_BIG_ENDIAN);
+    proto_item_set_text(parameter_item, "Emergency Call Information Indicator");
+
+}
+
+static void
+dissect_japan_isup_network_poi_cad(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+    proto_item *digits_item;
+    proto_tree *digits_tree;
+    int offset = 0;
+    guint8 octet;
+    guint8 odd_even;
+    guint8 carrier_info_length;
+    gint num_octets_with_digits=0;
+    gint digit_index=0;
+    char ca_number[MAXDIGITS + 1]="";
+
+	/* POI Hierarchy information
+
+        8     7     6     5     4     3     2    1
+    +-----------------------|-----------------------+
+    |  Entry POI Hierarchy  |  Exit POI Hierarchy   |  1
+    |                       |                       |
+    \-----------------------------------------------|
+
+    */
+
+    /* POI Hierarchy information */
+    proto_tree_add_item(parameter_tree, hf_isup_carrier_info_poi_entry_HEI, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(parameter_tree, hf_isup_carrier_info_poi_exit_HEI, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset++;
+
+	/* length of CA information (in octets) */
+	carrier_info_length = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_item(parameter_tree, hf_japan_isup_carrier_info_length, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset++;
+
+    /* POI|CA information (Charge Area)
+
+        8     7     6     5     4     3     2     1
+    +-----|-----------------------------------------+
+    |Odd/ |                Spare                    |  1
+    |even |                                         |
+    +-----------------------------------------------+
+    |   2nd CA code digit   |   1st CA code digit   |  2
+    |                       |                       |
+    +-----------------------+-----------------------+
+        .                      .                       .
+    .                      .                       .
+    .                      .                       .
+    +-----------------------+-----------------------+
+    |         Filler        |   5|th CA code digit  |  m
+    |                       |                       |
+    \-----------------------------------------------|
+    */
+
+    digits_item = proto_tree_add_text(parameter_tree, parameter_tvb,offset, -1,"Charge Area:");
+    digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
+
+    /* Odd.Even Indicator*/
+    odd_even = tvb_get_guint8(parameter_tvb,offset);
+    proto_tree_add_boolean(digits_tree, hf_isup_odd_even_indicator, parameter_tvb, 0, 1, odd_even);
+
+    /* Number of Octets containing digits*/
+    num_octets_with_digits = carrier_info_length - 1;
+
+    /* Lets now load up the digits.*/
+    /* If the odd indicator is set... drop the Filler from the last octet.*/
+    /* This loop also loads up ca_number with the digits for display*/
+    digit_index=0;
+    while(num_octets_with_digits>0){
+        offset++;
+        octet = tvb_get_guint8(parameter_tvb,offset);
+        proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_odd_no_digits, parameter_tvb, 0, 1, octet);
+        ca_number[digit_index++] = number_to_char(octet & ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK);
+        if(num_octets_with_digits==1){
+            if(odd_even==0){
+                proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
+                ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
+            }
+        }
+        else{
+            proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
+            ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
+        }
+
+        num_octets_with_digits --;
+    }
+    ca_number[digit_index++] = '\0';
+    proto_item_set_text(digits_item, "Charge Area Number : %s", ca_number);
+
+    proto_item_set_text(parameter_item, "Network POI-CA");
+
+}
+
+static const range_string jpn_isup_add_user_cat_type_vals[] = {
+    {  0,    0,			"Spare" },
+    {  1,    0x80,		"Reserved for network specific use" },
+    {  0x81, 0xfa,		"Spare" },
+    {  0xfb, 0xfb,		"Type 3 of additional mobile service information" },
+    {  0xfc, 0xfc,		"Type 2 of additional mobile service information" },
+    {  0xfd, 0xfd,		"Type 1 of additional mobile service information" },
+    {  0xfe, 0xfe,		"Type 1 of additional fixed service information" },
+    {  0xff, 0xff,		"Spare" },
+    {  0,0,             NULL } };
+
+static const value_string jpn_isup_type_1_add_fixed_serv_inf_vals[] = {
+  { 0,   "Spare" },
+  { 1,   "Train payphone" },
+  { 2,   "Pink (non-NTT payphone)" },
+  { 0,   NULL}
+};
+
+static const value_string jpn_isup_type_1_add_mobile_serv_inf_vals[] = {
+  { 0,   "Spare" },
+  { 1,   "Cellular telephone service" },
+  { 2,   "Maritime telephone service" },
+  { 3,   "Airplane telephone service" },
+  { 4,   "Paging service" },
+  { 5,   "PHS service" },
+  { 6,   "Spare" },
+  { 0,   NULL}
+};
+static const value_string jpn_isup_type_2_add_mobile_serv_inf_vals[] = {
+  { 0,   "Spare" },
+  { 1,   "HiCap method (analog)" },
+  { 2,   "N/J-TACS" },
+  { 3,   "PDC 800 MHz" },
+  { 4,   "PDC 1500 MHz" },
+  { 5,   "N-STAR satellite" },
+  { 6,   "cdmaOne 800 MHz" },
+  { 7,   "Iridium satellite" },
+  { 8,   "IMT-2000" },
+  { 9,   "PHS (fixed network dependent)" },
+  { 10,   "Spare" },
+  { 0,   NULL}
+};
+
+
+static void
+dissect_japan_isup_additonal_user_cat(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+    int offset = 0;
+    guint8 type;
+    int parameter_length;
+
+    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+
+    while(offset<parameter_length){
+		/* Type of Additional User/Service Information */
+		type = tvb_get_guint8(parameter_tvb,offset);
+		proto_tree_add_item(parameter_tree, hf_japan_isup_add_user_cat_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+		offset++;
+		/* Additional User/Service Information  */
+		switch(type){
+		case 0xfe:
+			/* Type 1 of additional fixed service information */
+			proto_tree_add_item(parameter_tree, hf_japan_isup_type_1_add_fixed_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+			break;
+		case 0xfd:
+			/* Type 1 of additional mobile service information */
+			proto_tree_add_item(parameter_tree, hf_japan_isup_type_1_add_mobile_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+			break;
+		case 0xfc:
+			/* Type 2 of additional mobile service information */
+			proto_tree_add_item(parameter_tree, hf_japan_isup_type_2_add_mobile_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+			break;
+		case 0xfb:
+			/* Type 3 of additional mobile service information */
+			proto_tree_add_item(parameter_tree, hf_japan_isup_type_3_add_mobile_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+			break;
+		default:
+			proto_tree_add_text(parameter_tree, parameter_tvb, offset, 1, "Unknown(not dissected) Additional User/Service Information");
+			break;
+		}
+		offset++;
+	}
+    /* Write to top of tree */
+    proto_item_set_text(parameter_item, "Additional User Category");
+
+}
+
+
+static const value_string jpn_isup_reason_for_clip_fail_vals[] = {
+  { 0,   "Spare" },
+  { 1,   "User's request" },
+  { 2,   "Interaction with other service" },
+  { 3,   "Public telephone origination" },
+  { 4,   "Spare" },
+  { 0,   NULL}
+};
+static void
+dissect_japan_isup_reason_for_clip_fail(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+    int offset = 0;
+
+
+    proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(parameter_tree, hf_japan_isup_reason_for_clip_fail, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+
+    proto_item_set_text(parameter_item, "Reason for CLIP failure");
+
+}
+
+static void
+dissect_japan_isup_contractor_number(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+    int offset = 0;
+    int parameter_length;
+
+    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+
+    proto_tree_add_item(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(parameter_tree, hf_isup_called_party_nature_of_address_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset++;
+
+    proto_tree_add_item(parameter_tree, hf_isup_numbering_plan_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset++;
+
+    proto_tree_add_text(parameter_tree, parameter_tvb, offset, parameter_length-offset, "Number not dissected yet");
+
+    proto_item_set_text(parameter_item, "Contractor Number");
+
+}
 /* ------------------------------------------------------------------
   Dissector Parameter Optional .Carrier Information
 
@@ -7069,6 +7743,34 @@ dissect_japan_isup_carrier_information(tvbuff_t *parameter_tvb, proto_tree *para
 }
 
 
+static const range_string japan_isup_charge_delay_type_value[] = {
+    {  0,    0,			"Spare" },
+    {  1,    0xfc,		"Reserved for network specific use" },
+    {  0x81, 0xfa,		"Spare" },
+    {  0xfd, 0xfd,		"Charge rate transfer" },
+    {  0xfe, 0xfe,		"Terminating charge area information" },
+    {  0xff, 0xff,		"Spare" },
+    {  0,0,             NULL } };
+
+static void
+dissect_japan_isup_charge_inf_delay(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+
+    int offset = 0;
+    int parameter_length;
+
+    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+
+    while(offset<parameter_length){
+		proto_tree_add_item(parameter_tree, hf_japan_isup_charge_delay_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+		offset++;
+	}
+
+    /* Write to top of tree */
+    proto_item_set_text(parameter_item, "Carrier Information");
+
+}
+
 /* ----------------------------------------------------
   Dissector Parameter Optional .Additional User Information
 
@@ -7092,48 +7794,6 @@ dissect_japan_isup_carrier_information(tvbuff_t *parameter_tvb, proto_tree *para
 \------------------------------------------------
 */
 
-static void
-dissect_japan_isup_add_user_cat(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
-{
-    guint8 octet;
-
-    gint offset=0;
-    gint length=0;
-
-    length = tvb_length_remaining(parameter_tvb, offset);
-
-    while(length>0){
-        /*Octet 1 : Indicator*/
-        octet = tvb_get_guint8(parameter_tvb, offset);
-        proto_tree_add_uint(parameter_tree, hf_isup_add_user_cat_type_of_info, parameter_tvb, 0, 1, octet);
-
-        if(octet==ADD_USER_CAT_TYPE1){
-            offset++;
-            octet = tvb_get_guint8(parameter_tvb, offset);
-            proto_tree_add_uint(parameter_tree, hf_isup_add_user_cat_type1, parameter_tvb, 0, 1, octet);
-        }
-        if(octet==ADD_USER_CAT_TYPE1_FIXED){
-            offset++;
-            octet = tvb_get_guint8(parameter_tvb, offset);
-            proto_tree_add_uint(parameter_tree, hf_isup_add_user_cat_type1_fixed, parameter_tvb, 0, 1, octet);
-        }
-        if(octet==ADD_USER_CAT_TYPE2){
-            offset++;
-            octet = tvb_get_guint8(parameter_tvb, offset);
-            proto_tree_add_uint(parameter_tree, hf_isup_add_user_cat_type2, parameter_tvb, 0, 1, octet);
-        }
-        if(octet==ADD_USER_CAT_TYPE3){
-            offset++;
-            octet = tvb_get_guint8(parameter_tvb, offset);
-            proto_tree_add_uint(parameter_tree, hf_isup_add_user_cat_type3, parameter_tvb, 0, 1, octet);
-        }
-        offset++;
-        length = tvb_length_remaining(parameter_tvb, offset);
-    }
-
-    /* Write to top of tree */
-    proto_item_set_text(parameter_item, "Additional User Category");
-}
 
 
 /* ----------------------------------------------------
@@ -7269,6 +7929,16 @@ dissect_japan_chg_inf_type(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, 
 	proto_tree_add_item(parameter_tree, hf_japan_isup_charge_info_type, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
 
 	proto_item_set_text(parameter_item, "Charge information type");
+
+}
+
+static void
+dissect_japan_chg_inf_param(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
+{
+
+	proto_tree_add_text(parameter_tree, parameter_tvb, 0, -1, "Charge information data");
+
+	proto_item_set_text(parameter_item, "Charge information");
 
 }
 
@@ -7595,7 +8265,7 @@ dissect_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_info *p
             dissect_isup_backward_gvns_parameter(parameter_tvb, parameter_tree, parameter_item);
             break;
           case PARAM_TYPE_REDIRECT_CAPAB:
-            dissect_isup_redirect_capability_parameter(parameter_tvb, parameter_tree, parameter_item);
+            dissect_isup_redirect_capability_parameter(parameter_tvb, parameter_tree, parameter_item, itu_isup_variant);
             break;
           case PARAM_TYPE_NETW_MGMT_CTRL:
             dissect_isup_network_management_controls_parameter(parameter_tvb, parameter_tree, parameter_item);
@@ -7631,7 +8301,7 @@ dissect_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_info *p
             dissect_isup_uid_capability_indicators_parameter(parameter_tvb, parameter_tree, parameter_item);
             break;
           case PARAM_TYPE_REDIRECT_COUNTER:
-            dissect_isup_redirect_counter_parameter(parameter_tvb, parameter_tree, parameter_item);
+            dissect_isup_redirect_counter_parameter(parameter_tvb, parameter_tree, parameter_item, itu_isup_variant);
             break;
           case PARAM_TYPE_COLLECT_CALL_REQ:
             dissect_isup_collect_call_request_parameter(parameter_tvb, parameter_tree, parameter_item);
@@ -7650,11 +8320,41 @@ dissect_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_info *p
             switch(itu_isup_variant) {
             case ISUP_JAPAN_VARIANT:
                 switch (parameter_type) {
-                case JAPAN_ISUP_PARAM_TYPE_CARRIER_INFO:
+                case JAPAN_ISUP_PARAM_CALLED_DIRECTORY_NUMBER:
+                    dissect_japan_isup_called_dir_num(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_REDIRECT_FORWARD_INF: /* 0x8B */
+                    dissect_japan_isup_redirect_fwd_inf(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_REDIRECT_BACKWARD_INF:  /* 0x8C */
+                    dissect_japan_isup_redirect_backw_inf(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_EMERGENCY_CALL_INF_IND: /* EC */
+                    dissect_japan_isup_emergency_call_inf_ind(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_NETWORK_POI_CA: /* EE */
+                    dissect_japan_isup_network_poi_cad(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_TYPE_CARRIER_INFO: /* 241 F1 */
                     dissect_japan_isup_carrier_information(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_TYPE_ADDITONAL_USER_CAT:
-                    dissect_japan_isup_add_user_cat(parameter_tvb, parameter_tree, parameter_item);
+                case JAPAN_ISUP_PARAM_CHARGE_INF_DELAY:  /* 242 F2 */
+                    dissect_japan_isup_charge_inf_delay(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_TYPE_ADDITONAL_USER_CAT: /* F3 */
+                    dissect_japan_isup_additonal_user_cat(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_REASON_FOR_CLIP_FAIL: /* F5 */
+                    dissect_japan_isup_reason_for_clip_fail(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_TYPE_CONTRACTOR_NUMBER: /* F9 */
+                    dissect_japan_isup_contractor_number(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_TYPE_CHARGE_INF_TYPE: /* FA */
+                    dissect_japan_chg_inf_type(parameter_tvb, parameter_tree, parameter_item);
+                    break;
+                case JAPAN_ISUP_PARAM_TYPE_CHARGE_INF:
+                    dissect_japan_chg_inf_param(parameter_tvb, parameter_tree, parameter_item);
                     break;
                 case JAPAN_ISUP_PARAM_TYPE_CHARGE_AREA_INFO:
                     dissect_japan_isup_charge_area_info(parameter_tvb, parameter_tree, parameter_item);
@@ -7927,7 +8627,7 @@ dissect_ansi_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_in
             dissect_isup_backward_gvns_parameter(parameter_tvb, parameter_tree, parameter_item);
             break;
           case PARAM_TYPE_REDIRECT_CAPAB:
-            dissect_isup_redirect_capability_parameter(parameter_tvb, parameter_tree, parameter_item);
+            dissect_isup_redirect_capability_parameter(parameter_tvb, parameter_tree, parameter_item, itu_isup_variant);
             break;
           case PARAM_TYPE_NETW_MGMT_CTRL:
             dissect_isup_network_management_controls_parameter(parameter_tvb, parameter_tree, parameter_item);
@@ -7963,7 +8663,7 @@ dissect_ansi_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_in
             dissect_isup_uid_capability_indicators_parameter(parameter_tvb, parameter_tree, parameter_item);
             break;
           case PARAM_TYPE_REDIRECT_COUNTER:
-            dissect_isup_redirect_counter_parameter(parameter_tvb, parameter_tree, parameter_item);
+            dissect_isup_redirect_counter_parameter(parameter_tvb, parameter_tree, parameter_item, itu_isup_variant);
             break;
           case PARAM_TYPE_COLLECT_CALL_REQ:
             dissect_isup_collect_call_request_parameter(parameter_tvb, parameter_tree, parameter_item);
@@ -10992,6 +11692,72 @@ proto_register_isup(void)
         FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
     /* Japan ISUP */
+    { &hf_japan_isup_redirect_capability,
+      {"Redirect possible indicator",  "isup.jpn.redirect_capability",
+       FT_UINT8, BASE_DEC, VALS(isup_jpn_redirect_capabilit_vals), 0x07,
+       NULL, HFILL }},
+    { &hf_japan_isup_redirect_counter,
+      {"Redirect counter",  "isup.jpn.redirect_counter",
+       FT_UINT8, BASE_DEC, NULL, 0x0f,
+       NULL, HFILL }},
+    { &hf_japan_isup_rfi_info_type,
+      {"Information Type Tag",  "isup.rfi.info_type",
+       FT_UINT8, BASE_DEC, VALS(isup_rfi_info_type_values), 0x0,
+       NULL, HFILL }},
+    { &hf_japan_isup_rfi_info_len,
+      {"Length",  "isup.rfi.info_len",
+       FT_UINT8, BASE_DEC, NULL, 0x0,
+       NULL, HFILL }},
+    { &hf_japan_isup_perf_redir_reason,
+      {"Performing redirect reason",  "isup.rfi.perf_redir_reason",
+       FT_UINT8, BASE_DEC, VALS(perf_redir_reason_vals), 0x7f,
+       NULL, HFILL }},
+    { &hf_japan_isup_redir_pos_ind,
+      {"Redirect possible indicator at performing exchange",  "isup.rfi.redir_pos_ind",
+       FT_UINT8, BASE_DEC, VALS(redir_pos_ind_vals), 0x07,
+       NULL, HFILL }},
+    { &hf_japan_isup_hold_at_emerg_call_disc_ind,
+      {"Hold at emergency Call Disconnection Indicators",  "isup.jpn.hold_at_emerg_call_disc_ind",
+       FT_UINT16, BASE_DEC, VALS(hold_at_emerg_call_disc_ind_vals), 0x0300,
+       NULL, HFILL }},
+    /* Value string values the same as perf_redir_reason_vals */
+    { &hf_japan_isup_inv_redir_reason,
+      {"Invoking redirect reason",  "isup.rfi.inv_redir_reason",
+       FT_UINT8, BASE_DEC, VALS(perf_redir_reason_vals), 0x7f,
+       NULL, HFILL }},
+    { &hf_japan_isup_bwd_info_type,
+      {"Information Type Tag",  "isup.jpn.bwd_info_type",
+       FT_UINT8, BASE_DEC, VALS(japan_isup_bwd_info_type_vals), 0x0,
+       NULL, HFILL }},
+    { &hf_japan_isup_tag_len,
+      {"Length",  "isup.jpn.tag_len",
+       FT_UINT8, BASE_DEC, NULL, 0x0,
+       NULL, HFILL }},
+
+    { &hf_japan_isup_add_user_cat_type,
+      {"Type of Additional User/Service Information",  "isup.jpn.add_user_cat_type",
+       FT_UINT8, BASE_DEC|BASE_RANGE_STRING, RVALS(jpn_isup_add_user_cat_type_vals), 0x0,
+       NULL, HFILL }},
+    { &hf_japan_isup_type_1_add_fixed_serv_inf,
+      {"Type 1 of additional fixed service information",  "isup.jpn.type_1_add_fixed_serv_inf",
+       FT_UINT8, BASE_DEC, VALS(jpn_isup_type_1_add_fixed_serv_inf_vals), 0x0,
+       NULL, HFILL }},
+    { &hf_japan_isup_type_1_add_mobile_serv_inf,
+      {"Type 1 of additional mobile service information",  "isup.jpn.type_1_add_mobile_serv_inf",
+       FT_UINT8, BASE_DEC, VALS(jpn_isup_type_1_add_mobile_serv_inf_vals), 0x0,
+       NULL, HFILL }},
+    { &hf_japan_isup_type_2_add_mobile_serv_inf,
+      {"Type 2 of additional mobile service information (Communication Method)",  "isup.jpn.type_2_add_mobile_serv_inf",
+       FT_UINT8, BASE_DEC, VALS(jpn_isup_type_2_add_mobile_serv_inf_vals), 0x0,
+       NULL, HFILL }},
+    { &hf_japan_isup_type_3_add_mobile_serv_inf,
+      {"Type 3 of additional mobile service information (Charging Method)",  "isup.jpn.type_3_add_mobile_serv_inf",
+       FT_UINT8, BASE_DEC, NULL, 0x0,
+       NULL, HFILL }},
+    { &hf_japan_isup_reason_for_clip_fail,
+      {"Reason for CLIP failure",  "isup.jpn.reason_for_clip_fail",
+       FT_UINT8, BASE_DEC, VALS(jpn_isup_reason_for_clip_fail_vals), 0x0,
+       NULL, HFILL }},
 
     /* CHARGE AREA INFORMATION */
 
@@ -11019,32 +11785,6 @@ proto_register_isup(void)
       {"MA/CA", "isup.charg_area_info.maca_even_digit",
       FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0xF0,NULL, HFILL }},
 
-    /* ADDITIONAL USER CATEGORY */
-    { &hf_isup_add_user_cat_type_of_info,
-      {"Info Type", "isup.add_user_cat.type_of_info",
-      FT_UINT8, BASE_DEC, VALS(isup_add_user_cat_type_value), 0x00,
-      NULL, HFILL }},
-
-    { &hf_isup_add_user_cat_type1,
-      {"Type1 Info", "isup.add_user_cat.type1_info",
-      FT_UINT8, BASE_DEC, VALS(isup_add_user_cat_type1_value), 0xFF,
-      NULL, HFILL }},
-
-    { &hf_isup_add_user_cat_type1_fixed,
-      {"Type 1 Fixed", "isup.add_user_cat.type1_fixed_info",
-      FT_UINT8, BASE_DEC, VALS(isup_add_user_cat_type1_fixed_value), 0xFF,
-      NULL, HFILL }},
-
-    { &hf_isup_add_user_cat_type2,
-      {"Type2 Info", "isup.add_user_cat.type2_info",
-      FT_UINT8, BASE_DEC, VALS(isup_add_user_cat_type2_value), 0xFF,
-      NULL, HFILL }},
-
-    { &hf_isup_add_user_cat_type3,
-      {"Type3 Info", "isup.add_user_cat.type3_info",
-      FT_UINT8, BASE_DEC, NULL, 0xFF,
-      NULL, HFILL }},
-
     /* CARRIER INFORMATION */
 
     { &hf_isup_carrier_info_iec,
@@ -11057,16 +11797,17 @@ proto_register_isup(void)
       FT_UINT8, BASE_HEX, VALS(isup_carrier_info_category_value), 0x00,
       NULL,HFILL }},
 
-    { &hf_isup_carrier_info_length_of_carrierX,
-      {"Length of Category Information","isup.carrier_info.length_of_cat",
-      FT_UINT8, BASE_DEC, NULL, 0xFF,
-      NULL,HFILL }},
 
     { &hf_isup_carrier_info_type_of_carrier_info,
       {"Type of Carrier","isup.carrier_info.type_of_carrier",
       FT_UINT8, BASE_HEX, VALS(isup_carrier_info_type_of_carrier_value), 0x00,
       NULL,HFILL }},
 #endif
+    { &hf_japan_isup_carrier_info_length,
+      {"Length of Carrier Information","isup.jpn.arrier_info_length",
+      FT_UINT8, BASE_DEC, NULL, 0x0,
+      NULL,HFILL }},
+
     { &hf_isup_carrier_info_odd_no_digits,
       {"CID", "isup.carrier_info.cid_odd_digit",
       FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0x0F,
@@ -11095,6 +11836,11 @@ proto_register_isup(void)
     { &hf_isup_carrier_info_poi_entry_HEI,
       {"Entry POI Hierarchy", "isup.carrier_info_entry_hierarchy",
       FT_UINT8, BASE_DEC, VALS(isup_carrier_info_poihie_value), 0xF0,
+      NULL, HFILL }},
+
+    { &hf_japan_isup_charge_delay_type,
+      {"Type of delayed charging information", "isup.japan.charge_delay_type",
+      FT_UINT8, BASE_DEC|BASE_RANGE_STRING, RVALS(japan_isup_charge_delay_type_value), 0x0,
       NULL, HFILL }},
 
     { &hf_japan_isup_charge_info_type,
@@ -11153,9 +11899,10 @@ proto_register_isup(void)
     &ett_acs,
     &ett_isup_apm_msg_fragment,
     &ett_isup_apm_msg_fragments,
+	&ett_isup_range,
   };
 
-  static enum_val_t isup_variants[] = {
+  static const enum_val_t isup_variants[] = {
     {"ITU Standard",              "ITU Standard",              ISUP_ITU_STANDARD_VARIANT},
     {"French National Standard",  "French National Standard",  ISUP_FRENCH_VARIANT},
     {"Israeli National Standard", "Israeli National Standard", ISUP_ISRAELI_VARIANT},

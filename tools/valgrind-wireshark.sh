@@ -30,12 +30,12 @@ BIN_DIR=.
 
 # Use tshark by default
 COMMAND=tshark
-COMMAND_ARGS="-nVxr"
+COMMAND_ARGS="-nr"
 COMMAND_ARGS2=
 VALID=0
 PCAP=""
 
-while getopts ":2b:C:lntwce" OPTCHAR ; do
+while getopts ":2b:C:lnrtTwce" OPTCHAR ; do
     case $OPTCHAR in
         2) COMMAND_ARGS="-2 $COMMAND_ARGS" ;;
         b) BIN_DIR=$OPTARG ;;
@@ -43,7 +43,9 @@ while getopts ":2b:C:lntwce" OPTCHAR ; do
         l) LEAK_CHECK="--leak-check=full" ;;
         n) COMMAND_ARGS="-v"
            VALID=1 ;;
+        r) REACHABLE="--show-reachable=yes" ;;
         t) TRACK_ORIGINS="--track-origins=yes" ;;
+        T) COMMAND_ARGS="-Vx $COMMAND_ARGS" ;; # "build the Tree"
         w) COMMAND=wireshark
            COMMAND_ARGS="-nr" ;;
         c) COMMAND=capinfos
@@ -52,6 +54,8 @@ while getopts ":2b:C:lntwce" OPTCHAR ; do
            COMMAND_ARGS="-E 0.02"
            # We don't care about the output of editcap
            COMMAND_ARGS2="/dev/null" ;;
+        *) printf "Unknown option -$OPTARG!\n"
+           exit ;;
     esac
 done
 shift $(($OPTIND - 1))
@@ -64,7 +68,7 @@ fi
 
 if [ $VALID -eq 0 ]
 then
-    printf "Usage: $0 [-2] [-b bin_dir] [-C config_profile] [-l] [-n] [-t] [-w] /path/to/file.pcap\n"
+    printf "Usage: $0 [-2] [-b bin_dir] [-C config_profile] [-l] [-n] [-r] [-t] [-w] /path/to/file.pcap\n"
     exit 1
 fi
 
@@ -74,6 +78,7 @@ fi
 
 export WIRESHARK_DEBUG_EP_NO_CHUNKS=
 export WIRESHARK_DEBUG_SE_NO_CHUNKS=
+export WIRESHARK_DEBUG_WMEM_PACKET_NO_CHUNKS=
 export G_SLICE=always-malloc # or debug-blocks
 
-libtool --mode=execute valgrind $LEAK_CHECK $TRACK_ORIGINS $BIN_DIR/$COMMAND $COMMAND_ARGS $PCAP $COMMAND_ARGS2 > /dev/null
+libtool --mode=execute valgrind $LEAK_CHECK $REACHABLE $TRACK_ORIGINS $BIN_DIR/$COMMAND $COMMAND_ARGS $PCAP $COMMAND_ARGS2 > /dev/null

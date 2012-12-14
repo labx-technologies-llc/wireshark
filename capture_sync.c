@@ -430,6 +430,10 @@ sync_pipe_start(capture_options *capture_opts) {
         argv = sync_pipe_add_arg(argv, &argc, sautostop_duration);
     }
 
+    if (capture_opts->group_read_access) {
+        argv = sync_pipe_add_arg(argv, &argc, "-g");
+    }
+
     for (j = 0; j < capture_opts->ifaces->len; j++) {
         interface_opts = g_array_index(capture_opts->ifaces, interface_options, j);
 
@@ -1715,12 +1719,12 @@ sync_pipe_input_cb(gint source, gpointer user_data)
         break;
     case SP_BAD_FILTER: {
         char *ch;
-        int index;
+        int indx;
 
         ch = strtok(buffer, ":");
-        index = (int)strtol(ch, NULL, 10);
+        indx = (int)strtol(ch, NULL, 10);
         ch = strtok(NULL, ":");
-        capture_input_cfilter_error_message(capture_opts, index, ch);
+        capture_input_cfilter_error_message(capture_opts, indx, ch);
          /* the capture child will close the sync_pipe, nothing to do for now */
          break;
         }

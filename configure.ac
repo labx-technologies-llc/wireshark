@@ -411,10 +411,6 @@ AC_ARG_ENABLE(extra-gcc-checks,
 		AC_WIRESHARK_GCC_CFLAGS_CHECK(-Wmissing-prototypes)
 		AC_WIRESHARK_GCC_CFLAGS_CHECK(-Wmissing-declarations)
 		#
-		# epan/dissectors/packet-afs.c blocks this one for now.
-		#
-		AC_WIRESHARK_GCC_CFLAGS_CHECK(-Wshadow)
-		#
 		# More cleanup needed for this on LP64.
 		#
 		AC_WIRESHARK_GCC_CFLAGS_CHECK(-Wshorten-64-to-32)
@@ -430,6 +426,29 @@ AC_WIRESHARK_GCC_CFLAGS_CHECK(-Warray-bounds)
 AC_WIRESHARK_GCC_CFLAGS_CHECK(-Wcast-align)
 AC_WIRESHARK_GCC_CFLAGS_CHECK(-Wformat-security)
 AC_WIRESHARK_GCC_CFLAGS_CHECK(-Wold-style-definition, C)
+#
+# XXX - OK for C++?
+#
+# Make sure -Wshadow doesn't complain about variables in function and
+# function pointer declarations shadowing other variables; if not, don't
+# turn it on, as some versions of GCC (including the one in at least
+# some Xcode versions that came with Mac OS X 10.5) complain about
+# that.
+#
+AC_WIRESHARK_GCC_CFLAGS_CHECK(-Wshadow, C,
+  [
+extern int bar(int a);
+extern int foo(int);
+
+int
+foo(int a)
+{
+	int (*fptr)(int a) = bar;
+
+	return fptr(a) * 2;
+}
+  ],
+  [warns about variables in function declarations shadowing other variables])
 AC_WIRESHARK_GCC_CFLAGS_CHECK(-Wno-error=unused-but-set-variable)    ##  for now
 #
 # Use the faster pre gcc 4.5 floating point precision if available;
@@ -591,64 +610,44 @@ AC_SUBST(LDFLAGS_SHAREDLIB)
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([no])])
 
 #
-# On OS X, if we find the headers for Core Foundation, Launch Services,
-# and Core Services, add -framework options to link with Application
-# Services (of which Launch Services is a subframework), Core Foundation
-# (required by the Launch Services APIs), and Core Services, so we can
-# use them to launch a Web browser from the Help menu and to use
-# Gestalt() to get the Mac OS X version number.
+# On "Darwin", which we assume to mean "OS X" rather than "iOS" or
+# "just Darwin" (as we don't currently support iOS, and as I don't
+# think you can build and run "just Darwin" as an OS for PCs), we
+# arrange to build some programs with Application Services so they
+# can launch Web browsers and Finder windows, arrange to build some
+# programs with System Configuration so they can get "friendly names"
+# and other information about interfaces, and build any programs that
+# use either of those frameworks or that report version information
+# with Core Foundation as the frameworks in question use it and as we
+# get version information from plists and thus need Core Foundation
+# to process those plists.
 #
 case "$host_os" in
 
 darwin*)
-	AC_MSG_CHECKING([whether we can build with Core Foundation, Launch Services, and Core Services])
+	AC_DEFINE(HAVE_OS_X_FRAMEWORKS, 1, [Define to 1 if you have OS X frameworks])
+	APPLICATIONSERVICES_FRAMEWORKS="-framework ApplicationServices"
+	SYSTEMCONFIGURATION_FRAMEWORKS="-framework SystemConfiguration"
+	COREFOUNDATION_FRAMEWORKS="-framework CoreFoundation"
+
+	#
+	# OK, so we have the OS X frameworks; do they include
+	# CFPropertyListCreateWithStream, or do we have
+	# to fall back on CFPropertyListCreateFromStream?
+	# (They only differ in the error return, which we
+	# don't care about.  And, no, we shouldn't just
+	# use CFPropertyListCreateFromStream, because it's
+	# deprecated in newer releases.)
+	#
 	ac_save_LIBS="$LIBS"
-	ac_coreservices_frameworks="-framework CoreServices"
-	ac_launchservices_frameworks="-framework ApplicationServices -framework CoreFoundation $ac_coreservices_frameworks"
-	LIBS="$LIBS $ac_launchservices_frameworks $ac_coreservices_frameworks"
-	AC_TRY_LINK(
-	   [
-#       include <CoreFoundation/CFBase.h>
-#       include <CoreFoundation/CFString.h>
-#       include <CoreFoundation/CFURL.h>
-#       include <ApplicationServices/ApplicationServices.h>
-	   ],
-	   [
-	CFStringRef url_CFString;
-	CFURLRef url_CFURL;
-	OSStatus status;
-
-	url_CFString = CFStringCreateWithCString(NULL, "", kCFStringEncodingASCII);
-	url_CFURL = CFURLCreateWithString(NULL, url_CFString, NULL);
-	status = LSOpenCFURLRef(url_CFURL, NULL);
-	   ],
-	   ac_cv_can_use_osx_frameworks=yes,
-	   ac_cv_can_use_osx_frameworks=no,
-	   [echo $ac_n "cross compiling; assumed OK... $ac_c"])
-	if test "$ac_cv_can_use_osx_frameworks" = yes ; then
-		AC_DEFINE(HAVE_OS_X_FRAMEWORKS, 1, [Define to 1 if you have OS X frameworks])
-		CORESERVICES_FRAMEWORKS="$ac_coreservices_frameworks"
-		LAUNCHSERVICES_FRAMEWORKS="$ac_launchservices_frameworks"
-		AC_MSG_RESULT(yes)
-
-		#
-		# OK, so we have the OS X frameworks; do they include
-		# CFPropertyListCreateWithStream, or do we have
-		# to fall back on CFPropertyListCreateFromStream?
-		# (They only differ in the error return, which we
-		# don't care about.  And, no, we shouldn't just
-		# use CFPropertyListCreateFromStream, because it's
-		# deprecated in newer releases.)
-		#
-		AC_CHECK_FUNCS(CFPropertyListCreateWithStream)
-	else
-		AC_MSG_RESULT(no)
-	fi
+	LIBS="$LIBS $COREFOUNDATION_FRAMEWORKS"
+	AC_CHECK_FUNCS(CFPropertyListCreateWithStream)
 	LIBS="$ac_save_LIBS"
 	;;
 esac
-AC_SUBST(CORESERVICES_FRAMEWORKS)
-AC_SUBST(LAUNCHSERVICES_FRAMEWORKS)
+AC_SUBST(APPLICATIONSERVICES_FRAMEWORKS)
+AC_SUBST(SYSTEMCONFIGURATION_FRAMEWORKS)
+AC_SUBST(COREFOUNDATION_FRAMEWORKS)
 
 #
 # If using $prefix we add "$prefix/include" to the include search path
@@ -853,6 +852,31 @@ if test "x$enable_wireshark" = "xyes"; then
 		[
 			AC_MSG_ERROR([Qt is not available])
 		])
+
+		#
+		# Qt 5.0 appears to move the widgets out of Qt GUI
+		# to Qt Widgets; look for QtWidgets and, if we find
+		# it, add its flags to CFLAGS and CXXFLAGS, so that
+		# we find the include files for the widgets.  (If
+		# we don't find it, we assume it's Qt 4.)
+		#
+		PKG_CHECK_MODULES([QtWidgets], [QtWidgets],
+		[
+			CFLAGS="$CFLAGS $QtWidgets_CFLAGS"
+			CXXFLAGS="$CXXFLAGS $QtWidgets_CFLAGS"
+		],
+		[])
+
+		#
+		# It also appears to move the printing support into
+		# the QtPrintSupport module.
+		#
+		PKG_CHECK_MODULES([QtPrintSupport], [QtPrintSupport],
+		[
+			CFLAGS="$CFLAGS $QtPrintSupport_CFLAGS"
+			CXXFLAGS="$CXXFLAGS $QtPrintSupport_CFLAGS"
+		],
+		[])
 
 		#
 		# We don't know whether we have GTK+, but we

@@ -52,7 +52,7 @@ CFLAGS=$(WARNINGS_ARE_ERRORS) $(GENERATED_CFLAGS)
 .c.obj::
 	$(CC) $(CFLAGS) -Fd.\ -c $<
 
-PLATFORM_SRC = capture-wpcap.c capture_wpcap_packet.c
+PLATFORM_SRC = capture-wpcap.c capture_wpcap_packet.c capture_win_ifnames.c
 
 WTAP_PLUGIN_SOURCES = \
        epan/plugins.c \
@@ -79,6 +79,7 @@ wireshark_LIBS= wiretap\wiretap-$(WTAP_VERSION).lib \
 	wsutil\libwsutil.lib \
 	$(GNUTLS_LIBS) \
 	$(PYTHON_LIBS) \
+	$(ZLIB_LIBS) \
 !IFDEF ENABLE_LIBWIRESHARK
 	epan\libwireshark.lib \
 !ELSE
@@ -88,8 +89,7 @@ wireshark_LIBS= wiretap\wiretap-$(WTAP_VERSION).lib \
 	epan\dfilter\dfilter.lib \
 	epan\ftypes\ftypes.lib \
 	$(C_ARES_LIBS) \
-	$(ADNS_LIBS) \
-	$(ZLIB_LIBS)
+	$(ADNS_LIBS)
 !ENDIF
 
 tshark_LIBS= wiretap\wiretap-$(WTAP_VERSION).lib \
@@ -938,7 +938,7 @@ process_libs:
 !ENDIF
 !IFDEF HHC_DIR
 	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
-		user-guide user-guide-37310.zip
+		user-guide user-guide-46501.zip
 !ENDIF
 !IFDEF UPX
 	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
@@ -974,8 +974,11 @@ clean_setup:
     rm -r -f gnutls-2.8.5-*-win??ws
     rm -r -f gnutls-2.10.3-*-win??ws
     rm -r -f gnutls-2.12.18-*-win??ws
+!IF "$(GTK_NAME)" == "gtk2"
     rm -r -f gtk2
+!ELSE
     rm -r -f gtk3
+!ENDIF
     rm -r -f gtk+
     rm -r -f gtk-wimp
     rm -r -f kfw-2.5

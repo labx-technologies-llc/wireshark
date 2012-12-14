@@ -974,21 +974,21 @@ dissect_diameter_common(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree)
 	}
 
 	if (!pinfo->fd->flags.visited) {
-		if (flags_bits & 0x80) {
+		if (flags_bits & DIAM_FLAGS_R) {
 			/* This is a request */
 			diameter_pair = se_alloc(sizeof(diameter_req_ans_pair_t));
 			diameter_pair->hop_by_hop_id = hop_by_hop_id;
 			diameter_pair->cmd_code = cmd;
 			diameter_pair->result_code = 0;
 			diameter_pair->cmd_str = cmd_str;
-			diameter_pair->req_frame = pinfo->fd->num;
+			diameter_pair->req_frame = PINFO_FD_NUM(pinfo);
 			diameter_pair->ans_frame = 0;
 			diameter_pair->req_time = pinfo->fd->abs_ts;
 			se_tree_insert32(diameter_conv_info->pdus, hop_by_hop_id, (void *)diameter_pair);
 		} else {
 			diameter_pair = se_tree_lookup32(diameter_conv_info->pdus, hop_by_hop_id);
 			if (diameter_pair) {
-				diameter_pair->ans_frame = pinfo->fd->num;
+				diameter_pair->ans_frame = PINFO_FD_NUM(pinfo);
 			}
 		}
 	} else {
@@ -1006,12 +1006,12 @@ dissect_diameter_common(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree)
 		diameter_pair->ans_frame = 0;
 		diameter_pair->req_time = pinfo->fd->abs_ts;
 	}
-	diameter_pair->processing_request=(flags_bits & 0x80)!=0;
+	diameter_pair->processing_request=(flags_bits & DIAM_FLAGS_R)!=0;
 
 	if (!tree) return;
 
 	/* print state tracking info in the tree */
-	if (flags_bits & 0x80) {
+	if (flags_bits & DIAM_FLAGS_R) {
 		/* This is a request */
 		if (diameter_pair->ans_frame) {
 			it = proto_tree_add_uint(diam_tree, hf_diameter_answer_in,
@@ -1623,8 +1623,12 @@ sctp_range_add_callback(guint32 port)
 /* registration with the filtering engine */
 void proto_reg_handoff_diameter(void);
 
-void
-proto_register_diameter(void)
+/*
+ * This does most of the registration work; see proto_register_diameter()
+ * for the reason why we split it off.
+ */
+static void
+real_proto_register_diameter(void)
 {
 	module_t *diameter_module;
 	guint i, ett_length;
@@ -1649,7 +1653,7 @@ proto_register_diameter(void)
 		  { "Error","diameter.flags.error", FT_BOOLEAN, 8, TFS(&tfs_set_notset), DIAM_FLAGS_E,
 			  NULL, HFILL }},
 	{ &hf_diameter_flags_T,
-		  { "T(Potentially re-transmitted message)","diameter.flags.T", FT_BOOLEAN, 8, TFS(&tfs_set_notset),DIAM_FLAGS_T,
+		  { "T(Potentially re-transmitted message)","diameter.flags.T", FT_BOOLEAN, 8, TFS(&tfs_set_notset), DIAM_FLAGS_T,
 			  NULL, HFILL }},
 	{ &hf_diameter_flags_reserved4,
 		  { "Reserved","diameter.flags.reserved4", FT_BOOLEAN, 8, TFS(&tfs_set_notset),
@@ -1665,10 +1669,10 @@ proto_register_diameter(void)
 			  DIAM_FLAGS_RESERVED7, NULL, HFILL }},
 	{ &hf_diameter_vendor_id,
 		  { "VendorId",	"diameter.vendorId", FT_UINT32, BASE_DEC|BASE_EXT_STRING, &sminmpec_values_ext,
-			  0x0,NULL, HFILL }},
+			  0x0, NULL, HFILL }},
 	{ &hf_diameter_application_id,
-		  { "ApplicationId",	"diameter.applicationId", FT_UINT32, BASE_DEC, dictionary.applications,
-			  0x0,NULL, HFILL }},
+		  { "ApplicationId", "diameter.applicationId", FT_UINT32, BASE_DEC, VALS(dictionary.applications),
+			  0x0, NULL, HFILL }},
 	{ &hf_diameter_hopbyhopid,
 		  { "Hop-by-Hop Identifier", "diameter.hopbyhopid", FT_UINT32,
 			  BASE_HEX, NULL, 0x0, NULL, HFILL }},
@@ -1758,12 +1762,9 @@ proto_register_diameter(void)
 		&(unknown_avp.ett)
 	};
 
-	dictionary_load();
-
 	g_array_append_vals(build_dict.hf, hf_base, array_length(hf_base));
 	ett_length = array_length(ett_base);
-	for (i = 0; i < ett_length; i++)
-	{
+	for (i = 0; i < ett_length; i++) {
 		g_ptr_array_add(build_dict.ett, ett_base[i]);
 	}
 
@@ -1824,7 +1825,22 @@ proto_register_diameter(void)
 
 	/* Register tap */
 	diameter_tap = register_tap("diameter");
+}
 
+void
+proto_register_diameter(void)
+{
+	/*
+	 * The hf_base[] array for Diameter refers to a variable
+	 * that is set by dictionary_load(), so we need to call
+	 * dictionary_load() before hf_base[] is initialized.
+	 *
+	 * To ensure that, we call dictionary_load() and then
+	 * call a routine that defines hf_base[] and does all
+	 * the registration work.
+	 */
+	dictionary_load();
+	real_proto_register_diameter();
 } /* proto_register_diameter */
 
 void

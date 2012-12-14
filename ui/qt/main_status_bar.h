@@ -24,11 +24,14 @@
 #ifndef MAIN_STATUS_BAR_H
 #define MAIN_STATUS_BAR_H
 
+#include "wireshark_application.h"
 #include "label_stack.h"
 #include "progress_bar.h"
 
 #include <QStatusBar>
 #include <QLabel>
+
+#include "cfile.h"
 
 class MainStatusBar : public QStatusBar
 {
@@ -44,12 +47,14 @@ private:
     ProgressBar progress_bar_;
     LabelStack packet_status_;
     LabelStack profile_status_;
+    capture_file *cap_file_;
 
     void expertUpdate();
 
 signals:
 
 public slots:
+    void setCaptureFile(capture_file *cf);
     void pushTemporaryStatus(QString &message);
     void popTemporaryStatus();
     void pushFileStatus(QString &message);
@@ -62,6 +67,10 @@ public slots:
     void popPacketStatus();
     void pushProfileStatus(QString &message);
     void popProfileStatus();
+    void updateCaptureStatistics(capture_options * capture_opts);
+
+private slots:
+    void toggleBackground(bool enabled);
 };
 
 #endif // MAIN_STATUS_BAR_H

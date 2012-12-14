@@ -23,6 +23,8 @@
  *                     Nikitha Malgi       <malgi.nikitha@ipinfusion.com>
  *     - Identification of BFD CC, BFD CV and ON-Demand CV ACH types as per RFC 6428, RFC 6426
  *       respectively and the corresponding decoding of messages
+ *     - Decoding support for MPLS-TP Lock Instruct as per RFC 6435
+ *     - Decoding support for MPLS-TP Fault-Management as per RFC 6427
  *
  * (c) Copyright 2012, Aditya Ambadkar and Diana Chris <arambadk,dvchris@ncsu.edu>
  *   -  Added preference to select BOS label as flowlabel as per RFC 6391
@@ -98,6 +100,9 @@ static dissector_handle_t dissector_mpls_pm_dm;
 static dissector_handle_t dissector_mpls_pm_dlm_dm;
 static dissector_handle_t dissector_mpls_pm_ilm_dm;
 static dissector_handle_t dissector_mpls_psc;
+static dissector_handle_t dissector_mplstp_lock;
+static dissector_handle_t dissector_mplstp_fm;
+static dissector_handle_t dissector_pw_oam;
 static dissector_handle_t dissector_pw_eth_heuristic;
 static dissector_handle_t dissector_pw_fr;
 static dissector_handle_t dissector_pw_hdlc_nocw_fr;
@@ -134,7 +139,7 @@ enum mpls_default_dissector_t {
  * this way, mpls_default_payload will be automatically filled up when
  * new mpls-specific dissector added.
  */
-static enum_val_t mpls_default_payload_defs[] = {
+static const enum_val_t mpls_default_payload_defs[] = {
     {
         "pw satop"
         ,pwc_longname_pw_satop
@@ -294,6 +299,7 @@ static const value_string mpls_pwac_types[] = {
     { 0x0024, "Protection State Coordination Protocol (PSC)"},
     { 0x0025, "On-Demand CV"},
     { 0x0026, "LI"},
+    { 0x0027, "Pseudo-Wire OAM"},
     { 0x0057, "IPv6 packet" },
     { 0x0058, "Fault OAM"},
     { 0x7FF8, "Reserved for Experimental Use"},
@@ -384,7 +390,7 @@ dissect_pw_ach(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         case ACH_TYPE_BFD_CV:
             call_dissector(dissector_bfd, next_tvb, pinfo, tree);  /* bfd_control() */
-            dissect_bfd_mep(next_tvb, tree);
+            dissect_bfd_mep(next_tvb, tree, 0);
             break;
 
         case ACH_TYPE_ONDEMAND_CV:
@@ -425,6 +431,18 @@ dissect_pw_ach(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         case 0x0024: /* FF: PSC, RFC 6378 */
             call_dissector(dissector_mpls_psc, next_tvb, pinfo, tree);
+            break;
+
+        case 0x0026: /* KM: MPLSTP LOCK, RFC 6435 */
+            call_dissector(dissector_mplstp_lock, next_tvb, pinfo, tree);
+            break;
+
+        case 0x0027: /* KM: MPLSTP PW-OAM, RFC 6478 */
+            call_dissector(dissector_pw_oam, next_tvb, pinfo, tree);
+            break;
+
+        case 0x0058: /* KM: MPLSTP FM, RFC 6427 */
+            call_dissector(dissector_mplstp_fm, next_tvb, pinfo, tree);
             break;
 
         default:
@@ -797,6 +815,9 @@ proto_reg_handoff_mpls(void)
     dissector_mpls_pm_dlm_dm        = find_dissector("mpls_pm_dlm_dm");
     dissector_mpls_pm_ilm_dm        = find_dissector("mpls_pm_ilm_dm");
     dissector_mpls_psc              = find_dissector("mpls_psc");
+    dissector_mplstp_lock           = find_dissector("mplstp_lock");
+    dissector_mplstp_fm             = find_dissector("mplstp_fm");
+    dissector_pw_oam                = find_dissector("pw_oam");
     dissector_pw_eth_heuristic      = find_dissector("pw_eth_heuristic");
     dissector_pw_fr                 = find_dissector("pw_fr");
     dissector_pw_hdlc_nocw_fr       = find_dissector("pw_hdlc_nocw_fr");

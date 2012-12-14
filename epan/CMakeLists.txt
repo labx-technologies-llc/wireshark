@@ -706,6 +706,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-hazelcast.c
 	dissectors/packet-hci_h1.c
 	dissectors/packet-hci_h4.c
+	dissectors/packet-hci_usb.c
 	dissectors/packet-hclnfsd.c
 	dissectors/packet-hdcp.c
 	dissectors/packet-hdcp2.c
@@ -887,6 +888,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-mpls-echo.c
 	dissectors/packet-mpls-pm.c
 	dissectors/packet-mpls-psc.c
+	dissectors/packet-mplstp-oam.c
 	dissectors/packet-mpls-y1711.c
 	dissectors/packet-mpls.c
 	dissectors/packet-mq-pcf.c
@@ -1007,6 +1009,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-pw-eth.c
 	dissectors/packet-pw-fr.c
 	dissectors/packet-pw-hdlc.c
+	dissectors/packet-pw-oam.c
 	dissectors/packet-pw-satop.c
 	dissectors/packet-q2931.c
 	dissectors/packet-q708.c
@@ -1297,6 +1300,7 @@ set(IPMI_SUBPARSERS
 set(DISSECTOR_SUPPORT_SRC
 	${IPMI_SUBPARSERS}
 	dissectors/packet-dcerpc-nt.c
+	dissectors/usb.c
 	register.c
 )
 
@@ -1348,6 +1352,7 @@ set(FTYPE_FILES
 set(WMEM_FILES
 	wmem/wmem_core.c
 	wmem/wmem_allocator_glib.c
+	wmem/wmem_allocator_block.c
 	wmem/wmem_scopes.c
 	wmem/wmem_slab.c
 	wmem/wmem_stack.c

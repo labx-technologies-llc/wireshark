@@ -47,89 +47,89 @@
 char *
 capture_dev_user_descr_find(const gchar *if_name)
 {
-	char	*p;
-	char	*p2 = NULL;
-	char	*descr = NULL;
-	int	lp = 0;
-	int	ct = 0;
+  char *p;
+  char *p2 = NULL;
+  char *descr = NULL;
+  int lp = 0;
+  int ct = 0;
 
-	if ((prefs.capture_devices_descr == NULL) ||
-        (*prefs.capture_devices_descr == '\0')) {
-		/* There are no descriptions. */
-		return NULL;
-	}
+  if ((prefs.capture_devices_descr == NULL) ||
+      (*prefs.capture_devices_descr == '\0')) {
+    /* There are no descriptions. */
+    return NULL;
+  }
 
-	if ((p = strstr(prefs.capture_devices_descr, if_name)) == NULL) {
-		/* There are, but there isn't one for this interface. */
-		return NULL;
-	}
+  if ((p = strstr(prefs.capture_devices_descr, if_name)) == NULL) {
+    /* There are, but there isn't one for this interface. */
+    return NULL;
+  }
 
-	while (*p != '\0') {
-		/* error: ran into next interface description */
-		if (*p == ',')
-			return NULL;
-		/* found left parenthesis, start of description */
-		else if (*p == '(') {
-			ct = 0;
-			lp++;
-			/* skip over left parenthesis */
-			p++;
-			/* save pointer to beginning of description */
-			p2 = p;
-			continue;
-		}
-		else if (*p == ')') {
-			/* end of description */
-			break;
-		}
-		else {
-			p++;
-			ct++;
-		}
-	}
+  while (*p != '\0') {
+    /* error: ran into next interface description */
+    if (*p == ',')
+      return NULL;
+    /* found left parenthesis, start of description */
+    else if (*p == '(') {
+      ct = 0;
+      lp++;
+      /* skip over left parenthesis */
+      p++;
+      /* save pointer to beginning of description */
+      p2 = p;
+      continue;
+    }
+    else if (*p == ')') {
+      /* end of description */
+      break;
+    }
+    else {
+        p++;
+        ct++;
+    }
+  }
 
-	if ((lp == 1) && (ct > 0) && (p2 != NULL)) {
-		/* Allocate enough space to return the string,
-		   which runs from p2 to p, plus a terminating
-		   '\0'. */
-		descr = g_malloc(p - p2 + 1);
-		memcpy(descr, p2, p - p2);
-		descr[p - p2] = '\0';
-		return descr;
-	}
-	else
-		return NULL;
+  if ((lp == 1) && (ct > 0) && (p2 != NULL)) {
+    /* Allocate enough space to return the string,
+       which runs from p2 to p, plus a terminating
+       '\0'. */
+    descr = g_malloc(p - p2 + 1);
+    memcpy(descr, p2, p - p2);
+    descr[p - p2] = '\0';
+    return descr;
+  }
+  else
+    return NULL;
 }
 
 gint
 capture_dev_user_linktype_find(const gchar *if_name)
 {
-	gchar *p, *next;
-	long linktype;
+  gchar *p, *next;
+  long linktype;
 
-	if ((prefs.capture_devices_linktypes == NULL) ||
-        (*prefs.capture_devices_linktypes == '\0')) {
-		/* There are no link-layer header types */
-		return -1;
-	}
+  if ((prefs.capture_devices_linktypes == NULL) ||
+      (*prefs.capture_devices_linktypes == '\0')) {
+    /* There are no link-layer header types */
+    return -1;
+  }
 
-	if ((p = strstr(prefs.capture_devices_linktypes, if_name)) == NULL) {
-	  	/* There are, but there isn't one for this interface. */
-		return -1;
-	}
+  if ((p = strstr(prefs.capture_devices_linktypes, if_name)) == NULL) {
+    /* There are, but there isn't one for this interface. */
+    return -1;
+  }
 
-	p += strlen(if_name) + 1;
-	linktype = strtol(p, &next, 10);
-	if (next == p || *next != ')' || linktype < 0) {
-		/* Syntax error */
-		return -1;
-	}
-	if (linktype > G_MAXINT) {
-		/* Value doesn't fit in a gint */
-		return -1;
-	}
+  p += strlen(if_name) + 1;
+  linktype = strtol(p, &next, 10);
+  if (next == p || *next != ')' || linktype < 0) {
+    /* Syntax error */
+    return -1;
+  }
+  if (linktype > G_MAXINT) {
+    /* Value doesn't fit in a gint */
+    return -1;
+  }
 
-	return (gint)linktype;
+  return (gint)linktype;
 }
 
 /*
@@ -180,11 +180,18 @@ get_interface_descriptive_name(const char *if_name)
       do {
         if_info = if_entry->data;
         if (strcmp(if_info->name, if_name) == 0) {
-          if (if_info->description != NULL) {
-            /* Return a copy of that - when we free the interface
-               list, that'll also free up the strings to which
-               it refers. */
-            descr = g_strdup(if_info->description);
+          if (if_info->friendly_name != NULL) {
+              /* We have a "friendly name"; return a copy of that
+                 as the description - when we free the interface
+                 list, that'll also free up the strings to which
+                 it refers. */
+              descr = g_strdup(if_info->friendly_name);
+          } else if (if_info->vendor_description != NULL) {
+            /* We have no "friendly name", but we have a vendor
+               description; return a copy of that - when we free
+               the interface list, that'll also free up the strings
+               to which it refers. */
+            descr = g_strdup(if_info->vendor_description);
           }
           break;
         }
@@ -240,9 +247,9 @@ build_capture_combo_name(GList *if_list, gchar *if_name)
     /* No, we don't have a user-supplied description; did we get
      one from the OS or libpcap? */
     if_info = search_info(if_list, if_name);
-    if (if_info != NULL && if_info->description != NULL) {
+    if (if_info != NULL && if_info->vendor_description != NULL) {
       /* Yes - use it. */
-      if_string = g_strdup_printf("%s: %s", if_info->description,
+      if_string = g_strdup_printf("%s: %s", if_info->vendor_description,
                                   if_info->name);
     } else {
       /* No. */
@@ -267,7 +274,7 @@ build_capture_combo_list(GList *if_list, gboolean do_hide)
   if (if_list != NULL) {
     /* Scan through the list and build a list of strings to display. */
     for (if_entry = if_list; if_entry != NULL;
-	 if_entry = g_list_next(if_entry)) {
+         if_entry = g_list_next(if_entry)) {
       if_info = if_entry->data;
 
       /* Is this interface hidden and, if so, should we include it
@@ -278,16 +285,17 @@ build_capture_combo_list(GList *if_list, gboolean do_hide)
         /* Do we have a user-supplied description? */
         descr = capture_dev_user_descr_find(if_info->name);
         if (descr != NULL) {
-	      /* Yes, we have a user-supplied description; use it. */
-	      if_string = g_strdup_printf("%s: %s", descr, if_info->name);
+          /* Yes, we have a user-supplied description; use it. */
+          if_string = g_strdup_printf("%s: %s", descr, if_info->name);
           g_free(descr);
         } else {
           /* No, we don't have a user-supplied description; did we get
-	         one from the OS or libpcap? */
-          if (if_info->description != NULL) {
+             one from the OS or libpcap? */
+          if (if_info->vendor_description != NULL) {
             /* Yes - use it. */
-	        if_string = g_strdup_printf("%s: %s", if_info->description,
-					if_info->name);
+            if_string = g_strdup_printf("%s: %s",
+                                        if_info->vendor_description,
+                                        if_info->name);
           } else {
             /* No. */
             if_string = g_strdup(if_info->name);
