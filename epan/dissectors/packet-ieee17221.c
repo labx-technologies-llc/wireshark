@@ -3943,7 +3943,7 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
                AECP_OFFSET_SAMPLING_RATE_DESCRIPTOR_INDEX, 2, ENC_BIG_ENDIAN);
          if ((mess_type == AECP_AEM_RESPONSE_MESSAGE) || (c_type == AECP_COMMAND_SET_SAMPLING_RATE)) {
             proto_tree_add_item(aecp_tree, hf_aecp_sampling_rate, tvb,
-                  AECP_OFFSET_SAMPLING_RATE_SAMPLING_RATE, 64, ENC_BIG_ENDIAN);
+                  AECP_OFFSET_SAMPLING_RATE_SAMPLING_RATE, 4, ENC_BIG_ENDIAN);
          }
          break;
       case AECP_COMMAND_SET_CLOCK_SOURCE:
