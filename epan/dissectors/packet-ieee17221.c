@@ -1,6 +1,6 @@
 /* packet-ieee17221.c
  * Dissector for IEEE P1722.1
- * Copyright 2011-2012, Thomas Bottom <tom.bottom@labxtechnologies.com>
+ * Copyright 2011-2013, Thomas Bottom <tom.bottom@labxtechnologies.com>
  *                      Chris Pane <chris.pane@labxtechnologies.com>
  *                      Chris Wulff <chris.wulff@labxtechnologies.com>
  *
@@ -344,6 +344,8 @@
 #define AECP_OFFSET_AVB_INFO_DESCRIPTOR_INDEX        26
 #define AECP_OFFSET_AVB_INFO_AS_GRANDMASTER_ID       28
 #define AECP_OFFSET_AVB_INFO_PROPAGATION_DELAY       36
+#define AECP_OFFSET_AVB_INFO_AS_DOMAIN_NUMBER        40
+#define AECP_OFFSET_AVB_INFO_FLAGS                   41
 #define AECP_OFFSET_AVB_INFO_MSRP_MAPPINGS_COUNT     42
 #define AECP_OFFSET_AVB_INFO_MSRP_MAPPINGS           44
 
@@ -1308,6 +1310,10 @@
 #define AECP_STREAM_ID_VALID_FLAG_MASK          0x10000000
 #define AECP_UNLOCK_FLAG_MASK                   0x00000001
 #define AECP_U_FLAG_MASK                        0x80
+#define AECP_MSRP_MAPPINGS_COUNT_MASK           0x00
+#define AECP_AS_CAPABLE_FLAG_MASK               0x01
+#define AECP_GPTP_ENABLED_FLAG_MASK             0x02 
+#define AECP_SRP_ENABLED_FLAG_MASK              0x04
 
 /* key permission flag masks */
 #define AECP_PRIVATE_KEY_READ_FLAG_MASK         0x80000000
@@ -2100,6 +2106,19 @@ static int hf_aecp_backup_talker_unique_id_1 = -1;
 static int hf_aecp_backup_talker_unique_id_2 = -1;
 static int hf_aecp_backedup_talker_entity_id = -1;
 static int hf_aecp_backedup_talker_unique_id = -1;
+static int hf_aecp_avb_info_ptp_grandmaster_id = -1;
+static int hf_aecp_avb_info_propegation_delay = -1;
+static int hf_aecp_avb_info_gptp_domain_number = -1;
+static int hf_aecp_avb_info_flags = -1;
+static int hf_aecp_as_capable_flag = -1;
+static int hf_aecp_gptp_enabled_flag = -1;
+static int hf_aecp_srp_enabled_flag = -1;
+static int hf_aecp_avb_info_msrp_mappings_count = -1;
+static int hf_aecp_avb_info_msrp_mappings = -1;
+static int hf_aecp_avb_info_msrp_mapping_traffic_class = -1;
+static int hf_aecp_avb_info_msrp_mapping_priority = -1;
+
+static int hf_aecp_get_avb_info_msrp_vlan_id = -1;
 
 /* ***************************************************************** */
 /*                   AVDECC Entity Model (AEM)                       */
@@ -2256,11 +2275,7 @@ static int hf_aem_mf_height = -1;
 static int hf_aem_mf_width = -1;
 static int hf_aem_mfd_type = -1;
 static int hf_aem_model_name_string = -1;
-static int hf_aem_msrp_mapping_priority = -1;
-static int hf_aem_msrp_mapping_traffic_class = -1;
 static int hf_aem_msrp_mappings = -1;
-static int hf_aem_msrp_mappings_count = -1;
-static int hf_aem_msrp_mappings_offset = -1;
 static int hf_aem_avb_interface_flags = -1;
 static int hf_aem_avb_clock_identity = -1;
 static int hf_aem_avb_priority1 = -1;
@@ -2271,7 +2286,6 @@ static int hf_aem_avb_priority2 = -1;
 static int hf_aem_avb_domain_number = -1;
 static int hf_aem_avb_log_sync_interval = -1;
 static int hf_aem_avb_propagation_delay = -1;
-static int hf_aem_msrp_vlan_id = -1;
 static int hf_aem_nb_flag = -1;
 static int hf_aem_number_audio_maps = -1;
 static int hf_aem_number_destinations = -1;
@@ -2378,7 +2392,7 @@ static int ett_aem_clock_sources = -1;
 static int ett_aem_stream_formats = -1;
 static int ett_aem_jack_flags = -1;
 static int ett_aem_port_flags = -1;
-static int ett_aem_msrp_mappings = -1;
+static int ett_aecp_get_avb_info_msrp_mappings = -1;
 static int ett_aem_clock_source_flags = -1;
 static int ett_aem_mappings = -1;
 static int ett_aem_ctrl_vals = -1;
@@ -3396,6 +3410,7 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
                AUDIO_MAP_OFFSET_MAPPINGS_OFFSET, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_number_of_mappings, tvb,
                AUDIO_MAP_OFFSET_NUMBER_OF_MAPPINGS, 2, ENC_BIG_ENDIAN);
+
          /* prepare mappings subtree */
          mr_item = proto_tree_add_item(aem_tree, hf_aem_mappings, tvb,
                0, 0, ENC_NA);
@@ -3760,9 +3775,10 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
    guint16 mess_status;
    guint16 mess_type;
    guint16 mr_counter;
-   /*proto_item *mr_subtree;*/
-   /*proto_item *mr_item;*/
-   /*int i;*/
+   guint32 mr_offset;
+   proto_item *mr_subtree;
+   proto_item *mr_item;
+   int i;
    /* next tvb for use in subdissection */
    tvbuff_t *next_tvb;
    proto_tree *flags_tree;
@@ -4036,9 +4052,7 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
                   AECP_OFFSET_MATRIX_MATRIX_ROW, 2, ENC_BIG_ENDIAN);
             proto_tree_add_item(aecp_tree, hf_aecp_matrix_region_width, tvb,
                   AECP_OFFSET_MATRIX_REGION_WIDTH, 2, ENC_BIG_ENDIAN);
-            proto_tree_add_item(aecp_tree, hf_aecp_matrix_region_height, tvb,
-                  AECP_OFFSET_MATRIX_REGION_HEIGHT, 2, ENC_BIG_ENDIAN);
-            proto_tree_add_item(aecp_tree, hf_aecp_matrix_rep, tvb,
+            proto_tree_add_item(aecp_tree, hf_aecp_matrix_region_height, tvb, AECP_OFFSET_MATRIX_REGION_HEIGHT, 2, ENC_BIG_ENDIAN); proto_tree_add_item(aecp_tree, hf_aecp_matrix_rep, tvb,
                   AECP_OFFSET_MATRIX_REP, 1, ENC_BIG_ENDIAN);
             proto_tree_add_item(aecp_tree, hf_aecp_matrix_direction, tvb,
                   AECP_OFFSET_MATRIX_DIRECTION, 1, ENC_BIG_ENDIAN);
@@ -4075,7 +4089,39 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
             proto_tree_add_item(aecp_tree, hf_aecp_descriptor_index, tvb,
                   AECP_OFFSET_AVB_INFO_DESCRIPTOR_INDEX, 2, ENC_BIG_ENDIAN);
             if (mess_type == AECP_AEM_RESPONSE_MESSAGE) {
-               /* TODO: dissect AVB INFO */
+                proto_tree_add_item(aecp_tree, hf_aecp_avb_info_ptp_grandmaster_id, tvb,
+                        AECP_OFFSET_AVB_INFO_AS_GRANDMASTER_ID, 8, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_aecp_avb_info_propegation_delay, tvb,
+                        AECP_OFFSET_AVB_INFO_PROPAGATION_DELAY, 4, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_aecp_avb_info_gptp_domain_number, tvb,
+                        AECP_OFFSET_AVB_INFO_AS_DOMAIN_NUMBER, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_aecp_as_capable_flag, tvb,
+                        AECP_OFFSET_AVB_INFO_FLAGS, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_aecp_gptp_enabled_flag, tvb,
+                        AECP_OFFSET_AVB_INFO_FLAGS, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_aecp_srp_enabled_flag, tvb,
+                        AECP_OFFSET_AVB_INFO_FLAGS, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_aecp_avb_info_msrp_mappings_count, tvb,
+                        AECP_OFFSET_AVB_INFO_MSRP_MAPPINGS_COUNT, 2, ENC_BIG_ENDIAN);
+
+                /* prepare msrp mappings subtree */
+                mr_item = proto_tree_add_item(aecp_tree, hf_aecp_avb_info_msrp_mappings, tvb,
+                               0, 0, ENC_NA);
+                mr_subtree = proto_item_add_subtree(mr_item, ett_aecp_get_avb_info_msrp_mappings);
+                mr_counter = tvb_get_ntohs(tvb, AECP_OFFSET_AVB_INFO_MSRP_MAPPINGS_COUNT);
+
+                mr_offset = AECP_OFFSET_AVB_INFO_MSRP_MAPPINGS;
+                for (i = 0; i < mr_counter; i++) {
+                    proto_tree_add_item(mr_subtree, hf_aecp_avb_info_msrp_mapping_traffic_class, tvb,
+                       mr_offset, 1, ENC_BIG_ENDIAN);
+                    mr_offset += 1;
+                    proto_tree_add_item(mr_subtree, hf_aecp_avb_info_msrp_mapping_priority, tvb,
+                       mr_offset, 1, ENC_BIG_ENDIAN);
+                    mr_offset += 1;
+                    proto_tree_add_item(mr_subtree, hf_aecp_get_avb_info_msrp_vlan_id, tvb,
+                       mr_offset, 2, ENC_BIG_ENDIAN);
+                    mr_offset += 2;
+                }
             }
             break;
          case AECP_COMMAND_GET_AS_PATH:
@@ -5268,11 +5314,62 @@ proto_register_17221(void)
 
       /* STOP_STREAMING */
 
+      /* GET_AVB_INFO */
+      { &hf_aecp_avb_info_ptp_grandmaster_id,
+         {"gPTP Grandmaster ID", "ieee17221.avb_info_gptp_grandmaster_id",
+            FT_UINT64, BASE_HEX, NULL, 0x00, NULL, HFILL }
+      },
+      { &hf_aecp_avb_info_propegation_delay,
+         {"Progagation Delay", "ieee17221.avb_info_propegation_delay",
+            FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL }
+      },
+      { &hf_aecp_avb_info_gptp_domain_number,
+         {"gPTP Domain Number", "ieee17221.avb_info_gptp_domain_number",
+            FT_UINT8, BASE_DEC, NULL, 0x00, NULL, HFILL }
+      },
+      { &hf_aecp_avb_info_flags,
+         {"Flags", "ieee17221.avbinfo_flags",
+            FT_UINT8, BASE_HEX, NULL, 0x00, NULL, HFILL }
+      },
+      
+      { &hf_aecp_as_capable_flag,
+         { "AS Capable Flag", "ieee17221.as_capable_flag",
+            FT_BOOLEAN, 8, NULL, AECP_AS_CAPABLE_FLAG_MASK, NULL, HFILL }
+      },
 
-      { &hf_aecp_as_path_count,
-         {"AS Path Count", "ieee17221.as_path_count",
+      { &hf_aecp_gptp_enabled_flag,
+         { "gPTP Enabled Flag", "ieee17221.gptp_enabled_flag",
+            FT_BOOLEAN, 8, NULL, AECP_GPTP_ENABLED_FLAG_MASK, NULL, HFILL }
+      },
+
+      { &hf_aecp_srp_enabled_flag,
+         { "SRP Enabled Flag", "ieee17221.srp_enabled_flag",
+            FT_BOOLEAN, 8, NULL, AECP_SRP_ENABLED_FLAG_MASK, NULL, HFILL }
+      },
+ 
+      { &hf_aecp_avb_info_msrp_mappings_count,
+         {"MSRP Mappings Count", "ieee17221.msrp_mappings",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
+
+      { &hf_aecp_avb_info_msrp_mappings,
+         {"MSRP Mappings", "ieee17221.msrp_mappings",
+            FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL }
+      },
+
+      { &hf_aecp_avb_info_msrp_mapping_traffic_class,
+         {"MSRP Mapping Traffic Class", "ieee17221.msrp_mapping_traffic_class",
+            FT_UINT8, BASE_DEC, NULL, 0x00, NULL, HFILL }
+      },
+      { &hf_aecp_avb_info_msrp_mapping_priority,
+         {"MSRP Mapping Priority", "ieee17221.msrp_mapping_priority",
+            FT_UINT8, BASE_DEC, NULL, 0x00, NULL, HFILL }
+      },
+      { &hf_aecp_get_avb_info_msrp_vlan_id,
+         {"MSRP VLAN ID", "ieee17221.msrp_vlan_id",
+            FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
+      },
+ 
       { &hf_aecp_map_index,
          {"Map Index", "ieee17221.map_index",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
@@ -6244,31 +6341,7 @@ proto_register_17221(void)
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
       /* AVB_INTERFACE */
-      { &hf_aem_msrp_mappings_offset,
-         {"MSRP Mappings Offset", "ieee17221.msrp_mappings_offset",
-            FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_msrp_mappings_count,
-         {"MSRP Mappings Count", "ieee17221.msrp_mappings_count",
-            FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_msrp_mappings,
-         {"MSRP Mappings", "ieee17221.msrp_mappings",
-            FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_msrp_mapping_traffic_class,
-         {"MSRP Mapping Traffic Class", "ieee17221.msrp_mapping_traffic_class",
-            FT_UINT8, BASE_DEC, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_msrp_mapping_priority,
-         {"MSRP Mapping Priority", "ieee17221.msrp_mapping_priority",
-            FT_UINT8, BASE_DEC, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_msrp_vlan_id,
-         {"MSRP VLAN ID", "ieee17221.msrp_vlan_id",
-            FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_avb_interface_flags,
+     { &hf_aem_avb_interface_flags,
          {"Interface Flags", "ieee17221.interface_flags",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
@@ -6842,7 +6915,7 @@ proto_register_17221(void)
       &ett_aem_stream_formats,
       &ett_aem_jack_flags,
       &ett_aem_port_flags,
-      &ett_aem_msrp_mappings,
+      &ett_aecp_get_avb_info_msrp_mappings,
       &ett_aem_clock_source_flags,
       &ett_aem_mappings,
       &ett_aem_ctrl_vals,
@@ -6850,7 +6923,7 @@ proto_register_17221(void)
       &ett_aem_media_format,
       &ett_aecp_descriptors,
       &ett_aecp_flags_32,
-      &ett_aem_stream_format
+      &ett_aem_stream_format,
    };
 
    /* Register the protocol name and description */
