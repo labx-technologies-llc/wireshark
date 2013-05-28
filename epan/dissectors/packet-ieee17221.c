@@ -1955,6 +1955,9 @@ static int hf_aecp_aa_tlv_address = -1;
 static int hf_aecp_address_type = -1;
 static int hf_aecp_association_id = -1;
 static int hf_aecp_as_path_count = -1;
+static int hf_aecp_as_path_sequences = -1;
+static int ett_aecp_get_as_path_sequences = -1;
+static int hf_aecp_get_as_info_clock_id = -1;
 static int hf_aecp_auth_token = -1;
 static int hf_aecp_avb_interface_gptp_gm_changed_valid = -1;
 static int hf_aecp_avb_interface_gptp_gm_changed = -1;
@@ -4128,9 +4131,20 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
             proto_tree_add_item(aecp_tree, hf_aecp_descriptor_index, tvb,
                   AECP_OFFSET_AS_PATH_DESCRIPTOR_INDEX, 2, ENC_BIG_ENDIAN);
             if (mess_type == AECP_AEM_RESPONSE_MESSAGE) {
-               proto_tree_add_item(aecp_tree, hf_aecp_as_path_count, tvb,
-                     AECP_OFFSET_AS_PATH_COUNT, 2, ENC_BIG_ENDIAN);
-               /* TODO: dissect AS path entries */
+                proto_tree_add_item(aecp_tree, hf_aecp_as_path_count, tvb,
+                    AECP_OFFSET_AS_PATH_COUNT, 2, ENC_BIG_ENDIAN);
+
+                mr_item = proto_tree_add_item(aecp_tree, hf_aecp_as_path_sequences, tvb,
+                               0, 0, ENC_NA);
+                mr_subtree = proto_item_add_subtree(mr_item, ett_aecp_get_as_path_sequences);
+                mr_counter = tvb_get_ntohs(tvb, AECP_OFFSET_AS_PATH_COUNT);
+
+                mr_offset = AECP_OFFSET_AS_PATH_PATH_SEQUENCE;
+                for (i = 0; i < mr_counter; i++) {
+                    proto_tree_add_item(mr_subtree, hf_aecp_get_as_info_clock_id, tvb,
+                       mr_offset, 8, ENC_BIG_ENDIAN);
+                    mr_offset += 8;
+                }
             }
             break;
          case AECP_COMMAND_GET_COUNTERS:
@@ -5430,6 +5444,22 @@ proto_register_17221(void)
             FT_UINT64, BASE_HEX, NULL, 0x00, NULL, HFILL }
       },
 
+      /* GET_AS_PATH */
+      { &hf_aecp_as_path_count,
+         {"Count", "ieee17221.as_path_count",
+            FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
+      },
+      
+      { &hf_aecp_as_path_sequences,
+         {"Path Sequence", "ieee17221.as_path_sequences",
+            FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL }
+      },
+
+      { &hf_aecp_get_as_info_clock_id,
+         { "ClockId", "ieee17221.get_as_info_clock_id",
+            FT_UINT64, BASE_HEX, NULL, 0x00, NULL, HFILL }
+      },
+ 
       /* AUTH_ADD_KEY */
       { &hf_aecp_keychain_id,
          {"Keychain ID", "ieee17221.keychain_id",
@@ -6916,6 +6946,7 @@ proto_register_17221(void)
       &ett_aem_jack_flags,
       &ett_aem_port_flags,
       &ett_aecp_get_avb_info_msrp_mappings,
+      &ett_aecp_get_as_path_sequences,
       &ett_aem_clock_source_flags,
       &ett_aem_mappings,
       &ett_aem_ctrl_vals,
