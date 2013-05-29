@@ -4133,12 +4133,10 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
             if (mess_type == AECP_AEM_RESPONSE_MESSAGE) {
                 proto_tree_add_item(aecp_tree, hf_aecp_as_path_count, tvb,
                     AECP_OFFSET_AS_PATH_COUNT, 2, ENC_BIG_ENDIAN);
-
                 mr_item = proto_tree_add_item(aecp_tree, hf_aecp_as_path_sequences, tvb,
                                0, 0, ENC_NA);
                 mr_subtree = proto_item_add_subtree(mr_item, ett_aecp_get_as_path_sequences);
                 mr_counter = tvb_get_ntohs(tvb, AECP_OFFSET_AS_PATH_COUNT);
-
                 mr_offset = AECP_OFFSET_AS_PATH_PATH_SEQUENCE;
                 for (i = 0; i < mr_counter; i++) {
                     proto_tree_add_item(mr_subtree, hf_aecp_get_as_info_clock_id, tvb,
