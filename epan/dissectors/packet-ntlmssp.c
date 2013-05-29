@@ -35,20 +35,20 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-
-#include "packet-windows-common.h"
-#include "packet-smb-common.h"
-#include "packet-frame.h"
 #include <epan/asn1.h>
-#include "packet-kerberos.h"
 #include <epan/prefs.h>
 #include <epan/emem.h>
 #include <epan/tap.h>
 #include <epan/expert.h>
+#include <epan/show_exception.h>
 #include <epan/crypt/rc4.h>
 #include <epan/crypt/md4.h>
 #include <epan/crypt/md5.h>
 #include <epan/crypt/des.h>
+
+#include "packet-windows-common.h"
+#include "packet-smb-common.h"
+#include "packet-kerberos.h"
 #include "packet-dcerpc.h"
 #include "packet-gssapi.h"
 #include <wsutil/crc32.h>
@@ -96,7 +96,7 @@ static GHashTable* hash_packet = NULL;
  * "Request Non-NT Session Key", rather than those values shifted
  * right one having those interpretations.
  *
- * UPDATE: Further information obtained from [MS-NLMP]:
+ * UPDATE: Further information obtained from [MS-NLMP] 2.2.2.5:
  * NT LAN Manager (NTLM) Authentication Protocol Specification
  * http://msdn2.microsoft.com/en-us/library/cc236621.aspx
  *
@@ -112,7 +112,7 @@ static GHashTable* hash_packet = NULL;
 #define NTLMSSP_NEGOTIATE_00000100                 0x00000100
 #define NTLMSSP_NEGOTIATE_NTLM                     0x00000200
 #define NTLMSSP_NEGOTIATE_NT_ONLY                  0x00000400
-#define NTLMSSP_NEGOTIATE_00000800                 0x00000800
+#define NTLMSSP_NEGOTIATE_ANONYMOUS                0x00000800
 #define NTLMSSP_NEGOTIATE_OEM_DOMAIN_SUPPLIED      0x00001000
 #define NTLMSSP_NEGOTIATE_OEM_WORKSTATION_SUPPLIED 0x00002000
 #define NTLMSSP_NEGOTIATE_00004000                 0x00004000
@@ -170,13 +170,13 @@ static int hf_ntlmssp_negotiate_flags_10000000 = -1;
 static int hf_ntlmssp_negotiate_flags_20000000 = -1;
 static int hf_ntlmssp_negotiate_flags_40000000 = -1;
 static int hf_ntlmssp_negotiate_flags_80000000 = -1;
-static int hf_ntlmssp_negotiate_workstation_strlen = -1;
-static int hf_ntlmssp_negotiate_workstation_maxlen = -1;
-static int hf_ntlmssp_negotiate_workstation_buffer = -1;
+/* static int hf_ntlmssp_negotiate_workstation_strlen = -1; */
+/* static int hf_ntlmssp_negotiate_workstation_maxlen = -1; */
+/* static int hf_ntlmssp_negotiate_workstation_buffer = -1; */
 static int hf_ntlmssp_negotiate_workstation = -1;
-static int hf_ntlmssp_negotiate_domain_strlen = -1;
-static int hf_ntlmssp_negotiate_domain_maxlen = -1;
-static int hf_ntlmssp_negotiate_domain_buffer = -1;
+/* static int hf_ntlmssp_negotiate_domain_strlen = -1; */
+/* static int hf_ntlmssp_negotiate_domain_maxlen = -1; */
+/* static int hf_ntlmssp_negotiate_domain_buffer = -1; */
 static int hf_ntlmssp_negotiate_domain = -1;
 static int hf_ntlmssp_ntlm_server_challenge = -1;
 static int hf_ntlmssp_ntlm_client_challenge = -1;
@@ -243,15 +243,16 @@ static int hf_ntlmssp_verf_randompad = -1;
 static int hf_ntlmssp_verf_hmacmd5 = -1;
 static int hf_ntlmssp_verf_crc32 = -1;
 static int hf_ntlmssp_verf_sequence = -1;
-static int hf_ntlmssp_decrypted_payload = -1;
+/* static int hf_ntlmssp_decrypted_payload = -1; */
 
 static int hf_ntlmssp_ntlmv2_response = -1;
-static int hf_ntlmssp_ntlmv2_response_hmac = -1;
-static int hf_ntlmssp_ntlmv2_response_header = -1;
-static int hf_ntlmssp_ntlmv2_response_reserved = -1;
+static int hf_ntlmssp_ntlmv2_response_ntproofstr = -1;
+static int hf_ntlmssp_ntlmv2_response_rversion = -1;
+static int hf_ntlmssp_ntlmv2_response_hirversion = -1;
+static int hf_ntlmssp_ntlmv2_response_z = -1;
+static int hf_ntlmssp_ntlmv2_response_pad = -1;
 static int hf_ntlmssp_ntlmv2_response_time = -1;
 static int hf_ntlmssp_ntlmv2_response_chal = -1;
-static int hf_ntlmssp_ntlmv2_response_unknown = -1;
 
 static gint ett_ntlmssp = -1;
 static gint ett_ntlmssp_negotiate_flags = -1;
@@ -482,7 +483,7 @@ get_md4pass_list(md4_pass** p_pass_list, const char* nt_password)
   if ((nt_password[0] != '\0') && (strlen(nt_password) < 129)) {
     int password_len;
     nb_pass++;
-    password_len = strlen(nt_password);
+    password_len = (int)strlen(nt_password);
     str_to_unicode(nt_password, nt_password_unicode);
     crypt_md4(nt_password_hash, nt_password_unicode, password_len*2);
   }
@@ -491,7 +492,7 @@ get_md4pass_list(md4_pass** p_pass_list, const char* nt_password)
     return 0;
   }
   i = 0;
-  *p_pass_list = ep_alloc(nb_pass*sizeof(md4_pass));
+  *p_pass_list = (md4_pass *)ep_alloc(nb_pass*sizeof(md4_pass));
   pass_list = *p_pass_list;
 
   if (memcmp(nt_password_hash, gbl_zeros, NTLMSSP_KEY_LEN) != 0) {
@@ -1231,20 +1232,20 @@ static tif_t ntlmssp_ntlmv2_response_tif = {
   ntlmssp_hf_ntlmv2_response_hf_ptr_array
 };
 
-static void
+/** See [MS-NLMP] 2.2.2.1 */
+static int
 dissect_ntlmssp_target_info_list(tvbuff_t *tvb, proto_tree *tree,
                                  guint32 target_info_offset, guint16 target_info_length,
                                  tif_t *tif_p)
 {
   guint32 item_offset;
-  guint16 item_type;
+  guint16 item_type = ~0;
   guint16 item_length;
-
 
   /* Now enumerate through the individual items in the list */
   item_offset = target_info_offset;
 
-  while (item_offset < (target_info_offset + target_info_length)) {
+  while (item_offset < (target_info_offset + target_info_length) && (item_type != NTLM_TARGET_INFO_END)) {
     proto_item *target_info_tf;
     proto_tree *target_info_tree;
     guint32     content_offset;
@@ -1311,17 +1312,17 @@ dissect_ntlmssp_target_info_list(tvbuff_t *tvb, proto_tree *tree,
 
     item_offset += item_length;
   }
+
+  return item_offset;
 }
 
+/** See [MS-NLMP] 3.3.2 */
 int
 dissect_ntlmv2_response(tvbuff_t *tvb, proto_tree *tree, int offset, int len)
 {
   proto_item *ntlmv2_item = NULL;
   proto_tree *ntlmv2_tree = NULL;
-  int         orig_offset;
-
-  /* Dissect NTLMv2 bits&pieces */
-  orig_offset = offset;
+  const int   orig_offset = offset;
 
   if (tree) {
     ntlmv2_item = proto_tree_add_item(
@@ -1332,51 +1333,39 @@ dissect_ntlmv2_response(tvbuff_t *tvb, proto_tree *tree, int offset, int len)
   }
 
   proto_tree_add_item(
-    ntlmv2_tree, hf_ntlmssp_ntlmv2_response_hmac, tvb,
+    ntlmv2_tree, hf_ntlmssp_ntlmv2_response_ntproofstr, tvb,
     offset, 16, ENC_NA);
-
   offset += 16;
 
-  proto_tree_add_item(
-    ntlmv2_tree, hf_ntlmssp_ntlmv2_response_header, tvb,
-    offset, 4, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(ntlmv2_tree, hf_ntlmssp_ntlmv2_response_rversion, tvb, offset, 1, ENC_NA);
+  offset += 1;
 
-  offset += 4;
+  proto_tree_add_item(ntlmv2_tree, hf_ntlmssp_ntlmv2_response_hirversion, tvb, offset, 1, ENC_NA);
+  offset += 1;
 
-  proto_tree_add_item(
-    ntlmv2_tree, hf_ntlmssp_ntlmv2_response_reserved, tvb,
-    offset, 4, ENC_LITTLE_ENDIAN);
-
-  offset += 4;
+  proto_tree_add_item(ntlmv2_tree, hf_ntlmssp_ntlmv2_response_z, tvb, offset, 6, ENC_NA);
+  offset += 6;
 
   offset = dissect_nt_64bit_time(
     tvb, ntlmv2_tree, offset, hf_ntlmssp_ntlmv2_response_time);
-
   proto_tree_add_item(
     ntlmv2_tree, hf_ntlmssp_ntlmv2_response_chal, tvb,
     offset, 8, ENC_NA);
-
   offset += 8;
 
-  proto_tree_add_item(
-    ntlmv2_tree, hf_ntlmssp_ntlmv2_response_unknown, tvb,
-    offset, 4, ENC_LITTLE_ENDIAN);
-
+  proto_tree_add_item(ntlmv2_tree, hf_ntlmssp_ntlmv2_response_z, tvb, offset, 4, ENC_NA);
   offset += 4;
 
-  /* Variable length list of attributes */
-  /*
-   * XXX - Windows puts one or more sets of 4 bytes of additional stuff (all zeros ?)
-   *        at the end of the attributes.
-   * Samba's smbclient doesn't.
-   * Both of them appear to be able to connect to W2K SMB
-   * servers.
-   * The additional stuff will be dissected as extra "end" attributes.
-   *
-   */
-  dissect_ntlmssp_target_info_list(tvb, ntlmv2_tree,
-                                   offset, len - (offset - orig_offset),
-                                   &ntlmssp_ntlmv2_response_tif);
+  offset = dissect_ntlmssp_target_info_list(tvb, ntlmv2_tree, offset, len - (offset - orig_offset), &ntlmssp_ntlmv2_response_tif);
+
+  if ((offset - orig_offset) < len) {
+    proto_tree_add_item(ntlmv2_tree, hf_ntlmssp_ntlmv2_response_z, tvb, offset, 4, ENC_NA);
+    offset += 4;
+  }
+
+  if ((offset - orig_offset) < len) {
+    proto_tree_add_item(ntlmv2_tree, hf_ntlmssp_ntlmv2_response_pad, tvb, offset, len - (offset - orig_offset), ENC_NA);
+  }
 
   return offset+len;
 }
@@ -1515,13 +1504,13 @@ dissect_ntlmssp_challenge (tvbuff_t *tvb, packet_info *pinfo, int offset,
 
   tvb_memcpy(tvb, tmp, offset, 8); /* challenge */
   /* We can face more than one NTLM exchange over the same couple of IP and ports ...*/
-  conv_ntlmssp_info = conversation_get_proto_data(conversation, proto_ntlmssp);
+  conv_ntlmssp_info = (ntlmssp_info *)conversation_get_proto_data(conversation, proto_ntlmssp);
   /* XXX: The following code is (re)executed every time a particular frame is dissected
    *      (in whatever order). Thus it seems to me that "multiple exchanges" might not be
    *      handled well depending on the order that frames are visited after the initial dissection.
    */
   if (!conv_ntlmssp_info || memcmp(tmp, conv_ntlmssp_info->server_challenge, 8) != 0) {
-    conv_ntlmssp_info = se_alloc(sizeof(ntlmssp_info));
+    conv_ntlmssp_info = se_new(ntlmssp_info);
     /* Insert the flags into the conversation */
     conv_ntlmssp_info->flags = negotiate_flags;
     /* Insert the RC4 state information into the conversation */
@@ -1642,7 +1631,7 @@ dissect_ntlmssp_auth (tvbuff_t *tvb, packet_info *pinfo, int offset,
    *      - has the AUTHENTICATE message in a second TCP connection;
    *        (The authentication aparently succeeded).
    */
-  conv_ntlmssp_info = p_get_proto_data(pinfo->fd, proto_ntlmssp);
+  conv_ntlmssp_info = (ntlmssp_info *)p_get_proto_data(pinfo->fd, proto_ntlmssp, 0);
   if (conv_ntlmssp_info == NULL) {
     /*
      * There isn't any.  Is there any from this conversation?  If so,
@@ -1653,15 +1642,15 @@ dissect_ntlmssp_auth (tvbuff_t *tvb, packet_info *pinfo, int offset,
     /*      so we'll have a place to store flags.                        */
     /*      This is a bit brute-force but looks like it will be OK.      */
     conversation = find_or_create_conversation(pinfo);
-    conv_ntlmssp_info = conversation_get_proto_data(conversation, proto_ntlmssp);
+    conv_ntlmssp_info = (ntlmssp_info *)conversation_get_proto_data(conversation, proto_ntlmssp);
     if (conv_ntlmssp_info == NULL) {
-      conv_ntlmssp_info = se_alloc0(sizeof(ntlmssp_info));
+      conv_ntlmssp_info = se_new0(ntlmssp_info);
       conversation_add_proto_data(conversation, proto_ntlmssp, conv_ntlmssp_info);
     }
     /* XXX: The *conv_ntlmssp_info struct attached to the frame is the
             same as the one attached to the conversation. That is: *both* point to
             the exact same struct in memory.  Is this what is indended ?  */
-    p_add_proto_data(pinfo->fd, proto_ntlmssp, conv_ntlmssp_info);
+    p_add_proto_data(pinfo->fd, proto_ntlmssp, 0, conv_ntlmssp_info);
   }
 
   if (conv_ntlmssp_info != NULL) {
@@ -1849,7 +1838,7 @@ get_sign_key(packet_info *pinfo, int cryptpeer)
   }
   else {
     /* We have a conversation, check for encryption state */
-    conv_ntlmssp_info = conversation_get_proto_data(conversation,
+    conv_ntlmssp_info = (ntlmssp_info *)conversation_get_proto_data(conversation,
                                                     proto_ntlmssp);
     if (conv_ntlmssp_info == NULL) {
       /* No encryption state tied to the conversation.  Therefore, we
@@ -1889,7 +1878,7 @@ get_encrypted_state(packet_info *pinfo, int cryptpeer)
   }
   else {
     /* We have a conversation, check for encryption state */
-    conv_ntlmssp_info = conversation_get_proto_data(conversation,
+    conv_ntlmssp_info = (ntlmssp_info *)conversation_get_proto_data(conversation,
                                                     proto_ntlmssp);
     if (conv_ntlmssp_info == NULL) {
       /* No encryption state tied to the conversation.  Therefore, we
@@ -1989,15 +1978,13 @@ dissect_ntlmssp_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
     /* let's try to hook ourselves here */
 
     offset += 12;
-  } CATCH(BoundsError) {
-    RETHROW;
-  } CATCH(ReportedBoundsError) {
+  } CATCH_NONFATAL_ERRORS {
     /*  Restore the private_data structure in case one of the
      *  called dissectors modified it (and, due to the exception,
      *  was unable to restore it).
      */
     pinfo->private_data = pd_save;
-    show_reported_bounds_error(tvb, pinfo, tree);
+    show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
   } ENDTRY;
 
   return offset;
@@ -2012,11 +1999,11 @@ decrypt_data_payload(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
   ntlmssp_packet_info *stored_packet_ntlmssp_info = NULL;
 
   /* Check to see if we already have state for this packet */
-  packet_ntlmssp_info = p_get_proto_data(pinfo->fd, proto_ntlmssp);
+  packet_ntlmssp_info = (ntlmssp_packet_info *)p_get_proto_data(pinfo->fd, proto_ntlmssp, 0);
   if (packet_ntlmssp_info == NULL) {
     /* We don't have any packet state, so create one */
-    packet_ntlmssp_info = se_alloc0(sizeof(ntlmssp_packet_info));
-    p_add_proto_data(pinfo->fd, proto_ntlmssp, packet_ntlmssp_info);
+    packet_ntlmssp_info = se_new0(ntlmssp_packet_info);
+    p_add_proto_data(pinfo->fd, proto_ntlmssp, 0, packet_ntlmssp_info);
   }
   if (!packet_ntlmssp_info->payload_decrypted) {
     conversation_t *conversation;
@@ -2031,7 +2018,7 @@ decrypt_data_payload(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
       return ;
     }
 
-    conv_ntlmssp_info = conversation_get_proto_data(conversation,
+    conv_ntlmssp_info = (ntlmssp_info *)conversation_get_proto_data(conversation,
                                                     proto_ntlmssp);
     if (conv_ntlmssp_info == NULL) {
       /* There is no NTLMSSP state tied to the conversation */
@@ -2043,7 +2030,7 @@ decrypt_data_payload(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
       return;
     }
     if (key != NULL) {
-      stored_packet_ntlmssp_info = g_hash_table_lookup(hash_packet, key);
+      stored_packet_ntlmssp_info = (ntlmssp_packet_info *)g_hash_table_lookup(hash_packet, key);
     }
     if (stored_packet_ntlmssp_info != NULL && stored_packet_ntlmssp_info->payload_decrypted == TRUE) {
       /* Mat TBD (stderr, "Found a already decrypted packet\n");*/
@@ -2074,7 +2061,7 @@ decrypt_data_payload(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
 
       /* Store the decrypted contents in the packet state struct
          (of course at this point, they aren't decrypted yet) */
-      packet_ntlmssp_info->decrypted_payload = tvb_memdup(tvb, offset,
+      packet_ntlmssp_info->decrypted_payload = (guint8 *)tvb_memdup(tvb, offset,
                                                           encrypted_block_length);
       packet_ntlmssp_info->payload_len = encrypted_block_length;
       decrypted_payloads = g_slist_prepend(decrypted_payloads,
@@ -2090,11 +2077,11 @@ decrypt_data_payload(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
       /*printnchar(packet_ntlmssp_info->decrypted_payload, encrypted_block_length, "data: ", "\n");*/
       /* We setup a temporary buffer so we can re-encrypt the payload after
          decryption.  This is to update the opposite peer's RC4 state
-         it's usefull when we have only one key for both conversation
-         in case of KEY_EXCH we have independant key so this is not needed*/
+         it's useful when we have only one key for both conversation
+         in case of KEY_EXCH we have independent key so this is not needed*/
       if (!(NTLMSSP_NEGOTIATE_KEY_EXCH & conv_ntlmssp_info->flags)) {
         guint8 *peer_block;
-        peer_block = ep_memdup(packet_ntlmssp_info->decrypted_payload, encrypted_block_length);
+        peer_block = (guint8 *)ep_memdup(packet_ntlmssp_info->decrypted_payload, encrypted_block_length);
         crypt_rc4(rc4_state_peer, peer_block, encrypted_block_length);
       }
 
@@ -2121,7 +2108,7 @@ dissect_ntlmssp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   ntlmssp_header_t     *ntlmssph;
   void                 *pd_save;
 
-  ntlmssph = ep_alloc(sizeof(ntlmssp_header_t));
+  ntlmssph = ep_new(ntlmssp_header_t);
   ntlmssph->type = 0;
   ntlmssph->domain_name = NULL;
   ntlmssph->acct_name = NULL;
@@ -2189,15 +2176,13 @@ dissect_ntlmssp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                            "Unrecognized NTLMSSP Message");
       break;
     }
-  } CATCH(BoundsError) {
-    RETHROW;
-  } CATCH(ReportedBoundsError) {
+  } CATCH_NONFATAL_ERRORS {
     /*  Restore the private_data structure in case one of the
      *  called dissectors modified it (and, due to the exception,
      *  was unable to restore it).
      */
     pinfo->private_data = pd_save;
-    show_reported_bounds_error(tvb, pinfo, tree);
+    show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
   } ENDTRY;
 
   tap_queue_packet(ntlmssp_tap, pinfo, ntlmssph);
@@ -2238,7 +2223,7 @@ decrypt_verifier(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
   int                  sequence            = 0;
   ntlmssp_packet_info *stored_packet_ntlmssp_info = NULL;
 
-  packet_ntlmssp_info = p_get_proto_data(pinfo->fd, proto_ntlmssp);
+  packet_ntlmssp_info = (ntlmssp_packet_info *)p_get_proto_data(pinfo->fd, proto_ntlmssp, 0);
   if (packet_ntlmssp_info == NULL) {
     /* We don't have data for this packet */
     return;
@@ -2250,7 +2235,7 @@ decrypt_verifier(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
     /* There is no conversation, thus no encryption state */
     return;
   }
-  conv_ntlmssp_info = conversation_get_proto_data(conversation,
+  conv_ntlmssp_info = (ntlmssp_info *)conversation_get_proto_data(conversation,
                                                   proto_ntlmssp);
   if (conv_ntlmssp_info == NULL) {
   /* There is no NTLMSSP state tied to the conversation */
@@ -2258,7 +2243,7 @@ decrypt_verifier(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
   }
 
   if (key != NULL) {
-    stored_packet_ntlmssp_info = g_hash_table_lookup(hash_packet, key);
+    stored_packet_ntlmssp_info = (ntlmssp_packet_info *)g_hash_table_lookup(hash_packet, key);
   }
   if (stored_packet_ntlmssp_info != NULL && stored_packet_ntlmssp_info->verifier_decrypted == TRUE) {
       /* Mat TBD fprintf(stderr, "Found a already decrypted packet\n");*/
@@ -2291,7 +2276,7 @@ decrypt_verifier(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
 
       /* Setup the buffer to decrypt to */
       tvb_memcpy(tvb, packet_ntlmssp_info->verifier,
-                 offset, encrypted_block_length);
+                 offset, MIN(encrypted_block_length, sizeof(packet_ntlmssp_info->verifier)));
 
       /*if (!(NTLMSSP_NEGOTIATE_KEY_EXCH & packet_ntlmssp_info->flags)) {*/
       if (conv_ntlmssp_info->flags & NTLMSSP_NEGOTIATE_EXTENDED_SECURITY) {
@@ -2307,7 +2292,7 @@ decrypt_verifier(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
          * Some analysis need to be done ...
          */
         if (sign_key != NULL) {
-          check_buf = ep_alloc(packet_ntlmssp_info->payload_len+4);
+          check_buf = (guint8 *)ep_alloc(packet_ntlmssp_info->payload_len+4);
           tvb_memcpy(tvb, &sequence, offset+8, 4);
           memcpy(check_buf, &sequence, 4);
           memcpy(check_buf+4, packet_ntlmssp_info->decrypted_payload, packet_ntlmssp_info->payload_len);
@@ -2330,9 +2315,9 @@ decrypt_verifier(tvbuff_t *tvb, int offset, guint32 encrypted_block_length,
       /* We setup a temporary buffer so we can re-encrypt the payload after
          decryption.  This is to update the opposite peer's RC4 state
          This is not needed when we just have EXTENDED SECURITY because the signature is not crypted
-         and it's also not needed when we have key exchange because server and client have independant keys */
+         and it's also not needed when we have key exchange because server and client have independent keys */
       if (!(NTLMSSP_NEGOTIATE_KEY_EXCH & conv_ntlmssp_info->flags) && !(NTLMSSP_NEGOTIATE_EXTENDED_SECURITY & conv_ntlmssp_info->flags)) {
-        peer_block = ep_memdup(packet_ntlmssp_info->verifier, encrypted_block_length);
+        peer_block = (guint8 *)ep_memdup(packet_ntlmssp_info->verifier, encrypted_block_length);
         crypt_rc4(rc4_state_peer, peer_block, encrypted_block_length);
       }
 
@@ -2432,15 +2417,13 @@ dissect_ntlmssp_payload_only(tvbuff_t *tvb, packet_info *pinfo, _U_ proto_tree *
     decrypt_data_payload (tvb, offset, encrypted_block_length, pinfo, ntlmssp_tree, NULL);
     /* let's try to hook ourselves here */
 
-  } CATCH(BoundsError) {
-    RETHROW;
-  } CATCH(ReportedBoundsError) {
+  } CATCH_NONFATAL_ERRORS {
     /*  Restore the private_data structure in case one of the
      *  called dissectors modified it (and, due to the exception,
      *  was unable to restore it).
      */
     pinfo->private_data = pd_save;
-    show_reported_bounds_error(tvb, pinfo, tree);
+    show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
   } ENDTRY;
 
   return offset;
@@ -2507,15 +2490,13 @@ dissect_ntlmssp_verf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 
     offset += 12;
     offset += encrypted_block_length;
-  } CATCH(BoundsError) {
-    RETHROW;
-  } CATCH(ReportedBoundsError) {
+  } CATCH_NONFATAL_ERRORS {
     /*  Restore the private_data structure in case one of the
      *  called dissectors modified it (and, due to the exception,
      *  was unable to restore it).
      */
     pinfo->private_data = pd_save;
-    show_reported_bounds_error(tvb, pinfo, tree);
+    show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
   } ENDTRY;
 
   return offset;
@@ -2527,9 +2508,7 @@ wrap_dissect_ntlmssp_payload_only(tvbuff_t *tvb, tvbuff_t *auth_tvb _U_,
 {
   tvbuff_t *data_tvb;
 
-  data_tvb = tvb_new_subset(
-    tvb, offset, tvb_length_remaining(tvb, offset),
-    tvb_length_remaining(tvb, offset));
+  data_tvb = tvb_new_subset_remaining(tvb, offset);
   dissect_ntlmssp_payload_only(data_tvb, pinfo, NULL, NULL);
   return pinfo->gssapi_decrypted_tvb;
 }
@@ -2556,7 +2535,7 @@ dissect_ntlmssp_encrypted_payload(tvbuff_t *data_tvb,
 
   fprintf(stderr, "Called dissect_ntlmssp_encrypted_payload\n");
   /* Check to see if we already have state for this packet */
-  packet_ntlmssp_info = p_get_proto_data(pinfo->fd, proto_ntlmssp);
+  packet_ntlmssp_info = p_get_proto_data(pinfo->fd, proto_ntlmssp, 0);
   if (packet_ntlmssp_info == NULL) {
     /* We don't have any packet state, so create one */
     packet_ntlmssp_info = se_alloc0(sizeof(ntlmssp_packet_info));
@@ -2678,9 +2657,7 @@ wrap_dissect_ntlmssp(tvbuff_t *tvb, int offset, packet_info *pinfo,
 {
   tvbuff_t *auth_tvb;
 
-  auth_tvb = tvb_new_subset(
-    tvb, offset, tvb_length_remaining(tvb, offset),
-    tvb_length_remaining(tvb, offset));
+  auth_tvb = tvb_new_subset_remaining(tvb, offset);
 
   dissect_ntlmssp(auth_tvb, pinfo, tree);
 
@@ -2693,9 +2670,7 @@ wrap_dissect_ntlmssp_verf(tvbuff_t *tvb, int offset, packet_info *pinfo,
 {
   tvbuff_t *auth_tvb;
 
-  auth_tvb = tvb_new_subset(
-    tvb, offset, tvb_length_remaining(tvb, offset),
-    tvb_length_remaining(tvb, offset));
+  auth_tvb = tvb_new_subset_remaining(tvb, offset);
   return dissect_ntlmssp_verf(auth_tvb, pinfo, tree, NULL);
 }
 
@@ -2735,7 +2710,7 @@ proto_register_ntlmssp(void)
         NULL, HFILL }
     },
     { &hf_ntlmssp_negotiate_flags,
-      { "Flags", "ntlmssp.negotiateflags",
+      { "Negotiate Flags", "ntlmssp.negotiateflags",
         FT_UINT32, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     },
@@ -2795,8 +2770,8 @@ proto_register_ntlmssp(void)
         NULL, HFILL }
     },
     { &hf_ntlmssp_negotiate_flags_800,
-      { "Negotiate 0x00000800", "ntlmssp.negotiate00000800",
-        FT_BOOLEAN, 32, TFS (&tfs_set_notset), NTLMSSP_NEGOTIATE_00000800,
+      { "Negotiate Anonymous", "ntlmssp.negotiateanonymous",
+        FT_BOOLEAN, 32, TFS (&tfs_set_notset), NTLMSSP_NEGOTIATE_ANONYMOUS,
         NULL, HFILL }
     },
     { &hf_ntlmssp_negotiate_flags_1000,
@@ -2901,41 +2876,53 @@ proto_register_ntlmssp(void)
         FT_BOOLEAN, 32, TFS (&tfs_set_notset), NTLMSSP_NEGOTIATE_56,
         "56-bit encryption is supported", HFILL }
     },
+#if 0
     { &hf_ntlmssp_negotiate_workstation_strlen,
       { "Calling workstation name length", "ntlmssp.negotiate.callingworkstation.strlen",
         FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
+#if 0
     { &hf_ntlmssp_negotiate_workstation_maxlen,
       { "Calling workstation name max length", "ntlmssp.negotiate.callingworkstation.maxlen",
         FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
+#if 0
     { &hf_ntlmssp_negotiate_workstation_buffer,
       { "Calling workstation name buffer", "ntlmssp.negotiate.callingworkstation.buffer",
         FT_UINT32, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
     { &hf_ntlmssp_negotiate_workstation,
       { "Calling workstation name", "ntlmssp.negotiate.callingworkstation",
         FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
+#if 0
     { &hf_ntlmssp_negotiate_domain_strlen,
       { "Calling workstation domain length", "ntlmssp.negotiate.domain.strlen",
         FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
+#if 0
     { &hf_ntlmssp_negotiate_domain_maxlen,
       { "Calling workstation domain max length", "ntlmssp.negotiate.domain.maxlen",
         FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
+#if 0
     { &hf_ntlmssp_negotiate_domain_buffer,
       { "Calling workstation domain buffer", "ntlmssp.negotiate.domain.buffer",
         FT_UINT32, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
     { &hf_ntlmssp_negotiate_domain,
       { "Calling workstation domain", "ntlmssp.negotiate.domain",
         FT_STRING, BASE_NONE, NULL, 0x0,
@@ -3224,11 +3211,13 @@ proto_register_ntlmssp(void)
         FT_BYTES, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
+#if 0
     { &hf_ntlmssp_decrypted_payload,
       { "NTLM Decrypted Payload", "ntlmssp.decrypted_payload",
         FT_BYTES, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
     { &hf_ntlmssp_verf_randompad,
       { "Random Pad", "ntlmssp.verf.randompad",
         FT_UINT32, BASE_HEX, NULL, 0x0,
@@ -3255,36 +3244,41 @@ proto_register_ntlmssp(void)
         FT_BYTES, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
-    { &hf_ntlmssp_ntlmv2_response_hmac,
-      { "HMAC", "ntlmssp.ntlmv2_response.hmac",
+    { &hf_ntlmssp_ntlmv2_response_ntproofstr,
+      { "NTProofStr", "ntlmssp.ntlmv2_response.ntproofstr",
         FT_BYTES, BASE_NONE, NULL, 0x0,
-        NULL, HFILL }
+        "The HMAC-MD5 of the challenge", HFILL }
     },
-    { &hf_ntlmssp_ntlmv2_response_header,
-      { "Header", "ntlmssp.ntlmv2_response.header",
-        FT_UINT32, BASE_HEX, NULL, 0x0,
-        NULL, HFILL }
+    { &hf_ntlmssp_ntlmv2_response_rversion,
+      { "Response Version", "ntlmssp.ntlmv2_response.rversion",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        "The 1-byte response version, currently set to 1", HFILL }
     },
-    { &hf_ntlmssp_ntlmv2_response_reserved,
-      { "Reserved", "ntlmssp.ntlmv2_response.reserved",
-        FT_UINT32, BASE_HEX, NULL, 0x0,
+    { &hf_ntlmssp_ntlmv2_response_hirversion,
+      { "Hi Response Version", "ntlmssp.ntlmv2_response.hirversion",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        "The 1-byte highest response version understood by the client, currently set to 1", HFILL }
+    },
+    { &hf_ntlmssp_ntlmv2_response_z,
+      { "Z", "ntlmssp.ntlmv2_response.z",
+        FT_BYTES, BASE_NONE, NULL, 0x0,
+        "byte array of zero bytes", HFILL }
+    },
+    { &hf_ntlmssp_ntlmv2_response_pad,
+      { "padding", "ntlmssp.ntlmv2_response.pad",
+        FT_BYTES, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
     { &hf_ntlmssp_ntlmv2_response_time,
       { "Time", "ntlmssp.ntlmv2_response.time",
-        FT_ABSOLUTE_TIME, ABSOLUTE_TIME_LOCAL, NULL, 0,
-        NULL, HFILL }
+        FT_ABSOLUTE_TIME, ABSOLUTE_TIME_UTC, NULL, 0,
+        "The 8-byte little-endian time in UTC", HFILL }
     },
     { &hf_ntlmssp_ntlmv2_response_chal,
-      { "Client challenge", "ntlmssp.ntlmv2_response.chal",
+      { "Client Challenge", "ntlmssp.ntlmv2_response.chal",
         FT_BYTES, BASE_NONE, NULL, 0x0,
-        NULL, HFILL }
+        "The 8-byte challenge message generated by the client", HFILL }
     },
-    { &hf_ntlmssp_ntlmv2_response_unknown,
-      { "Unknown", "ntlmssp.ntlmv2_response.unknown",
-        FT_UINT32, BASE_HEX, NULL, 0x0,
-        NULL, HFILL }
-    }
   };
 
 

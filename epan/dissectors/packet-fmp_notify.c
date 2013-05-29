@@ -56,7 +56,7 @@ static int proto_fmp_notify = -1;
 static int hf_fmp_handleListLen = -1;
 static int hf_fmp_notify_procedure = -1;
 static int hf_fmp_fsID = -1;
-static int hf_fmp_fsBlkSz = -1;
+/* static int hf_fmp_fsBlkSz = -1; */
 static int hf_fmp_sessionHandle = -1;
 static int hf_fmp_fmpFHandle = -1;
 static int hf_fmp_msgNum = -1;
@@ -84,7 +84,7 @@ dissect_fmp_notify_status(tvbuff_t *tvb, int offset, proto_tree *tree, int *rval
 {
         fmpStat status;
 
-        status = tvb_get_ntohl(tvb, offset);
+        status = (fmpStat)tvb_get_ntohl(tvb, offset);
 
         switch (status) {
         case FMP_OK:
@@ -168,7 +168,7 @@ dissect_revokeHandleListReason(tvbuff_t *tvb, int offset, proto_tree *tree)
 	revokeHandleListReason reason;
 
   	if (tree) {
-		reason  = tvb_get_ntohl(tvb, offset);
+		reason  = (revokeHandleListReason)tvb_get_ntohl(tvb, offset);
 		switch (reason) {
 		case FMP_LIST_USER_QUOTA_EXCEEDED:
 			proto_tree_add_text(tree, tvb, offset, 4, "Reason: %s",
@@ -546,12 +546,30 @@ proto_register_fmp_notify(void)
                         "Status", "fmp_notify.status", FT_UINT32, BASE_DEC,
                         VALS(fmp_status_vals), 0, "Reply Status", HFILL }},
 
+		{ &hf_fmp_extentList_len, {
+			"Extent List length", "fmp_notify.extentListLength",
+			FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL }},
+
+		{ &hf_fmp_numBlks, {
+			"Number Blocks", "fmp_notify.numBlks", FT_UINT32,
+			BASE_DEC, NULL, 0, NULL, HFILL }},
+
+		{ &hf_fmp_volID, {
+			"Volume ID", "fmp_notify.volID", FT_UINT32,
+			BASE_DEC, NULL, 0, NULL, HFILL }},
+
+		{ &hf_fmp_startOffset, {
+			"Start Offset", "fmp_notify.startOffset", FT_UINT32,
+			BASE_DEC, NULL, 0, NULL, HFILL }},
+
+		{ &hf_fmp_extent_state, {
+			"Extent State", "fmp_notify.extentState", FT_UINT32,
+			BASE_DEC, NULL, 0, NULL, HFILL }},
 
 		{ &hf_fmp_handleListLen, {
 			"Number File Handles", "fmp_notify.handleListLength",
 			FT_UINT32, BASE_DEC, NULL, 0,
 			"Number of File Handles", HFILL }},
-
 
 		{ &hf_fmp_sessionHandle, {
                         "Session Handle", "fmp_notify.sessHandle", FT_BYTES, BASE_NONE,
@@ -562,9 +580,11 @@ proto_register_fmp_notify(void)
                         "File System ID", "fmp_notify.fsID", FT_UINT32, BASE_HEX,
                         NULL, 0, NULL, HFILL }},
 
+#if 0
                 { &hf_fmp_fsBlkSz, {
                         "FS Block Size", "fmp_notify.fsBlkSz", FT_UINT32, BASE_DEC,
                         NULL, 0, "File System Block Size", HFILL }},
+#endif
 
 
                 { &hf_fmp_numBlksReq, {

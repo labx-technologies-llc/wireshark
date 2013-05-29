@@ -32,6 +32,14 @@
 
 #include <epan/packet.h>
 
+/*
+ * See
+ *
+ *	http://web.archive.org/web/20050404125022/http://www.networkchemistry.com/support/appnotes/an001_tzsp.html
+ *
+ * for a description of the protocol.
+ */
+
 #define UDP_PORT_TZSP	0x9090
 
 static int proto_tzsp = -1;
@@ -39,14 +47,22 @@ static int hf_tzsp_version = -1;
 static int hf_tzsp_type = -1;
 static int hf_tzsp_encap = -1;
 
+/*
+ * Packet types.
+ */
+#define TZSP_RX_PACKET	0	/* Packet received from the sensor */
+#define TZSP_TX_PACKET	1	/* Packet for the sensor to transmit */
+#define TZSP_CONFIG	3	/* Configuration information for the sensor */
+#define TZSP_NULL	4	/* Null frame, used as a keepalive */
+#define TZSP_PORT	5	/* Port opener - opens a NAT tunnel */
+
 static const value_string tzsp_type[] = {
-	{0,     "Received tag list"},
-	{1,	"Packet for transmit"},
-	{2,     "Reserved"},
-	{3,     "Configuration"},
-	{4,     "Keepalive"},
-	{5,     "Port opener"},
-	{0,     NULL}
+	{TZSP_RX_PACKET,  "Received packet"},
+	{TZSP_TX_PACKET,  "Packet for transmit"},
+	{TZSP_CONFIG,     "Configuration"},
+	{TZSP_NULL,       "Keepalive"},
+	{TZSP_PORT,       "Port opener"},
+	{0,               NULL}
 };
 
 static gint ett_tzsp = -1;
@@ -58,10 +74,10 @@ static dissector_table_t encap_dissector_table;
 /*                WLAN radio header felds                                    */
 /* ************************************************************************* */
 
-static int hf_status_field = -1;
+/* static int hf_status_field = -1; */
 static int hf_status_msg_type = -1;
 static int hf_status_pcf = -1;
-static int hf_status_mac_port = -1;
+/* static int hf_status_mac_port = -1; */
 static int hf_status_undecrypted = -1;
 static int hf_status_fcs_error = -1;
 
@@ -80,6 +96,11 @@ static int hf_sensormac = -1;
 /* ************************************************************************* */
 
 #define TZSP_ENCAP_ETHERNET			1
+#define TZSP_ENCAP_TOKEN_RING			2
+#define TZSP_ENCAP_SLIP				3
+#define TZSP_ENCAP_PPP				4
+#define TZSP_ENCAP_FDDI				5
+#define TZSP_ENCAP_RAW				7	/* "Raw UO", presumably meaning "Raw IP" */
 #define TZSP_ENCAP_IEEE_802_11			18
 #define TZSP_ENCAP_IEEE_802_11_PRISM		119
 #define TZSP_ENCAP_IEEE_802_11_AVS		127
@@ -88,24 +109,27 @@ static int hf_sensormac = -1;
 /*                          Generic header options                           */
 /* ************************************************************************* */
 
-#define TZSP_HDR_PAD 0 /* Pad. */
-#define TZSP_HDR_END 1 /* End of the list. */
-#define TZSP_HDR_ORIGINAL_LENGTH 41 /* Length of the packet before slicing. 2 bytes. */
-#define TZSP_HDR_SENSOR 60 /* Sensor MAC address packet was received on, 6 byte ethernet address.*/
+#define TZSP_HDR_PAD			0	/* Pad. */
+#define TZSP_HDR_END			1	/* End of the list. */
+#define TZSP_WLAN_STA			30	/* Station statistics */
+#define TZSP_WLAN_PKT			31	/* Packet statistics */
+#define TZSP_PACKET_ID			40	/* Unique ID of the packet */
+#define TZSP_HDR_ORIGINAL_LENGTH	41	/* Length of the packet before slicing. 2 bytes. */
+#define TZSP_HDR_SENSOR			60	/* Sensor MAC address packet was received on, 6 byte ethernet address.*/
 
 /* ************************************************************************* */
 /*                          Options for 802.11 radios                        */
 /* ************************************************************************* */
 
-#define WLAN_RADIO_HDR_SIGNAL 10 /* Signal strength in dBm, signed byte. */
-#define WLAN_RADIO_HDR_NOISE 11 /* Noise level in dBm, signed byte. */
-#define WLAN_RADIO_HDR_RATE 12 /* Data rate, unsigned byte. */
-#define WLAN_RADIO_HDR_TIMESTAMP 13 /* Timestamp in us, unsigned 32-bits network byte order. */
-#define WLAN_RADIO_HDR_MSG_TYPE 14 /* Packet type, unsigned byte. */
-#define WLAN_RADIO_HDR_CF 15 /* Whether packet arrived during CF period, unsigned byte. */
-#define WLAN_RADIO_HDR_UN_DECR 16 /* Whether packet could not be decrypted by MAC, unsigned byte. */
-#define WLAN_RADIO_HDR_FCS_ERR 17 /* Whether packet contains an FCS error, unsigned byte. */
-#define WLAN_RADIO_HDR_CHANNEL 18 /* Channel number packet was received on, unsigned byte.*/
+#define WLAN_RADIO_HDR_SIGNAL		10	/* Signal strength in dBm, signed byte. */
+#define WLAN_RADIO_HDR_NOISE		11	/* Noise level in dBm, signed byte. */
+#define WLAN_RADIO_HDR_RATE		12	/* Data rate, unsigned byte. */
+#define WLAN_RADIO_HDR_TIMESTAMP	13	/* Timestamp in us, unsigned 32-bits network byte order. */
+#define WLAN_RADIO_HDR_MSG_TYPE		14	/* Packet type, unsigned byte. */
+#define WLAN_RADIO_HDR_CF		15	/* Whether packet arrived during CF period, unsigned byte. */
+#define WLAN_RADIO_HDR_UN_DECR		16	/* Whether packet could not be decrypted by MAC, unsigned byte. */
+#define WLAN_RADIO_HDR_FCS_ERR		17	/* Whether packet contains an FCS error, unsigned byte. */
+#define WLAN_RADIO_HDR_CHANNEL		18	/* Channel number packet was received on, unsigned byte.*/
 
 /* ************************************************************************* */
 /*                Add option information to the display                      */
@@ -125,7 +149,6 @@ add_option_info(tvbuff_t *tvb, int pos, proto_tree *tree, proto_item *ti)
 
 		switch (tag) {
 		case TZSP_HDR_PAD:
-			length = 0;
 			break;
 
 		case TZSP_HDR_END:
@@ -325,7 +348,22 @@ dissect_tzsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 					encap_name, encapsulation);
 	}
 
-	if (type != 4 && type != 5) {
+	/*
+	 * XXX - what about TZSP_CONFIG frames?
+	 *
+	 * The MIB at
+	 *
+	 *	http://web.archive.org/web/20021221195733/http://www.networkchemistry.com/support/appnotes/SENSOR-MIB
+	 *
+	 * seems to indicate that you can configure the probe using SNMP;
+	 * does TZSP_CONFIG also support that?  An old version of Kismet
+	 * included code to control a Network Chemistry WSP100 sensor:
+	 *
+	 *	https://www.kismetwireless.net/code-old/svn/tags/kismet-2004-02-R1/wsp100source.cc
+	 *
+	 * and it used SNMP to configure the probe.
+	 */
+	if (type != TZSP_NULL && type != TZSP_PORT) {
 		pos = add_option_info(tvb, 4, tzsp_tree, ti);
 
 		if (tree)
@@ -439,15 +477,19 @@ proto_register_tzsp(void)
 		{ &hf_tzsp_encap, {
 			"Encapsulation", "tzsp.encap", FT_UINT16, BASE_DEC,
 			NULL, 0, NULL, HFILL }},
+#if 0
 		{ &hf_status_field, {
 			"Status", "tzsp.wlan.status", FT_UINT16, BASE_HEX,
 				NULL, 0, NULL, HFILL }},
+#endif
 		{ &hf_status_msg_type, {
 			"Type", "tzsp.wlan.status.msg_type", FT_UINT8, BASE_HEX,
 			VALS(msg_type), 0, "Message type", HFILL }},
+#if 0
 		{ &hf_status_mac_port, {
 			"Port", "tzsp.wlan.status.mac_port", FT_UINT8, BASE_DEC,
 			NULL, 0, "MAC port", HFILL }},
+#endif
 		{ &hf_status_pcf, {
 			"PCF", "tzsp.wlan.status.pcf", FT_BOOLEAN, BASE_NONE,
 			TFS (&pcf_flag), 0x0, "Point Coordination Function", HFILL }},

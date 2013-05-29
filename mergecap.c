@@ -62,10 +62,10 @@
 static int
 get_natural_int(const char *string, const char *name)
 {
-  int number;
+  long number;
   char *p;
 
-  number = (int) strtol(string, &p, 10);
+  number = strtol(string, &p, 10);
   if (p == string || *p != '\0') {
     fprintf(stderr, "mergecap: The specified %s \"%s\" isn't a decimal number\n",
 	    name, string);
@@ -81,7 +81,7 @@ get_natural_int(const char *string, const char *name)
 	    name, INT_MAX);
     exit(1);
   }
-  return number;
+  return (int)number;
 }
 
 static int
@@ -159,7 +159,7 @@ list_capture_types(void) {
   struct string_elem *captypes;
   GSList *list = NULL;
 
-  captypes = g_malloc(sizeof(struct string_elem) * WTAP_NUM_FILE_TYPES);
+  captypes = g_new(struct string_elem,WTAP_NUM_FILE_TYPES);
 
   fprintf(stderr, "mergecap: The available capture file types for the \"-F\" flag are:\n");
   for (i = 0; i < WTAP_NUM_FILE_TYPES; i++) {
@@ -180,7 +180,7 @@ list_encap_types(void) {
     struct string_elem *encaps;
     GSList *list = NULL;
 
-    encaps = g_malloc(sizeof(struct string_elem) * WTAP_NUM_ENCAP_TYPES);
+    encaps = g_new(struct string_elem,WTAP_NUM_ENCAP_TYPES);
     fprintf(stderr, "mergecap: The available encapsulation types for the \"-T\" flag are:\n");
     for (i = 0; i < WTAP_NUM_ENCAP_TYPES; i++) {
         encaps[i].sstr = wtap_encap_short_string(i);
@@ -223,6 +223,7 @@ main(int argc, char *argv[])
 
 #ifdef _WIN32
   arg_list_utf_16to8(argc, argv);
+  create_app_running_mutex();
 #endif /* _WIN32 */
 
   /* Process the options first */

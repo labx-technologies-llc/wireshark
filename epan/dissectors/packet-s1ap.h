@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-s1ap.h                                                              */
 /* ../../tools/asn2wrs.py -p s1ap -c ./s1ap.cnf -s ./packet-s1ap-template -D . -O ../../epan/dissectors S1AP-CommonDataTypes.asn S1AP-Constants.asn S1AP-Containers.asn S1AP-IEs.asn S1AP-PDU-Contents.asn S1AP-PDU-Descriptions.asn S1AP-SonTransfer-IEs.asn */
 
@@ -36,11 +36,11 @@
 
 /*--- Included file: packet-s1ap-exp.h ---*/
 #line 1 "../../asn1/s1ap/packet-s1ap-exp.h"
-WS_VAR_IMPORT const value_string s1ap_CauseMisc_vals[];
-WS_VAR_IMPORT const value_string s1ap_CauseProtocol_vals[];
-WS_VAR_IMPORT const value_string s1ap_CauseRadioNetwork_vals[];
-WS_VAR_IMPORT const value_string s1ap_CauseTransport_vals[];
-WS_VAR_IMPORT const value_string s1ap_CauseNas_vals[];
+WS_DLL_PUBLIC const value_string s1ap_CauseMisc_vals[];
+WS_DLL_PUBLIC const value_string s1ap_CauseProtocol_vals[];
+WS_DLL_PUBLIC const value_string s1ap_CauseRadioNetwork_vals[];
+WS_DLL_PUBLIC const value_string s1ap_CauseTransport_vals[];
+WS_DLL_PUBLIC const value_string s1ap_CauseNas_vals[];
 extern const value_string s1ap_SONtransferRequestContainer_vals[];
 extern const value_string s1ap_SONtransferResponseContainer_vals[];
 int dissect_s1ap_Global_ENB_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);

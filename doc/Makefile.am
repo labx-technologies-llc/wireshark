@@ -62,16 +62,16 @@
 # the "man{section}_MANS" variables.
 #
 man1_MANS = \
-	@wireshark_man@	\
-	@tshark_man@	\
-	@text2pcap_man@	\
-	@mergecap_man@	\
+	@wireshark_man@		\
+	@tshark_man@		\
+	@text2pcap_man@		\
+	@mergecap_man@		\
 	@reordercap_man@	\
-	@capinfos_man@	\
-	@editcap_man@	\
-	@dumpcap_man@	\
-	@rawshark_man@	\
-	@dftest_man@	\
+	@capinfos_man@		\
+	@editcap_man@		\
+	@dumpcap_man@		\
+	@rawshark_man@		\
+	@dftest_man@		\
 	@randpkt_man@
 man4_MANS = @wiresharkfilter_man@
 man_MANS =
@@ -79,7 +79,7 @@ man_MANS =
 # Build these in case a developer wants to read them and for the Debian
 # development package.
 # (The former arguably should be in noinst_MANS but it didn't work for me.)
-noinst_DATA = idl2wrs.1 idl2wrs.html
+noinst_DATA = asn2deb.1 asn2deb.html idl2deb.1 idl2deb.html idl2wrs.1 idl2wrs.html
 
 pkgdata_DATA = AUTHORS-SHORT $(top_srcdir)/docbook/ws.css wireshark.html \
 	tshark.html wireshark-filter.html capinfos.html editcap.html \
@@ -90,12 +90,12 @@ pkgdata_DATA = AUTHORS-SHORT $(top_srcdir)/docbook/ws.css wireshark.html \
 # Build the short version of the authors file for the about dialog
 #
 AUTHORS-SHORT: $(top_srcdir)/AUTHORS $(srcdir)/make-authors-short.pl
-	$(PERL) $(srcdir)/perlnoutf.pl $(srcdir)/make-authors-short.pl < $(top_srcdir)/AUTHORS > AUTHORS-SHORT
+	$(AM_V_GEN)$(PERL) $(srcdir)/perlnoutf.pl $(srcdir)/make-authors-short.pl < $(top_srcdir)/AUTHORS > AUTHORS-SHORT
 
 # Put a copy in the top-level directory so Help->About, when run from the
 # build directory, can find it.
 ../AUTHORS-SHORT: AUTHORS-SHORT
-	cp AUTHORS-SHORT ..
+	$(AM_V_GEN)cp AUTHORS-SHORT ..
 
 #
 # Build the short version of the authors file with formatting codes for the
@@ -104,209 +104,134 @@ AUTHORS-SHORT: $(top_srcdir)/AUTHORS $(srcdir)/make-authors-short.pl
 # down there.)
 #
 AUTHORS-SHORT-FORMAT: ../AUTHORS-SHORT $(srcdir)/make-authors-format.pl
-	$(PERL) $(srcdir)/perlnoutf.pl $(srcdir)/make-authors-format.pl < AUTHORS-SHORT > AUTHORS-SHORT-FORMAT
+	$(AM_V_GEN)$(PERL) $(srcdir)/perlnoutf.pl $(srcdir)/make-authors-format.pl < AUTHORS-SHORT > AUTHORS-SHORT-FORMAT
 
 wireshark.pod: $(srcdir)/wireshark.pod.template AUTHORS-SHORT-FORMAT
-	cat $(srcdir)/wireshark.pod.template AUTHORS-SHORT-FORMAT > wireshark.pod
+	$(AM_V_GEN)cat $(srcdir)/wireshark.pod.template AUTHORS-SHORT-FORMAT > wireshark.pod
 
-wireshark.1: wireshark.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	wireshark.pod  > wireshark.1
+AM_V_POD2MAN = $(am__v_POD2MAN_@AM_V@)
+am__v_POD2MAN_ = $(am__v_POD2MAN_@AM_DEFAULT_V@)
+am__v_POD2MAN_0 = @echo "  POD2MAN " $@;
 
-wireshark.html: wireshark.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)						\
+AM_V_POD2HTML = $(am__v_POD2HTML_@AM_V@)
+am__v_POD2HTML_ = $(am__v_POD2HTML_@AM_DEFAULT_V@)
+am__v_POD2HTML_0 = @echo "  POD2HTML" $@;
+
+POD_CSS_URL ?= $(top_srcdir)/docbook/ws.css
+
+.pod.1: ../config.h
+	$(AM_V_POD2MAN)$(POD2MAN)                       \
+	--center="The Wireshark Network Analyzer"       \
+	--release=$(VERSION)                            \
+	$< > $@
+
+.pod.html: ../config.h $(top_srcdir)/docbook/ws.css
+	$(AM_V_POD2HTML)$(POD2HTML)                             \
 	--title="The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css			\
+	--css=$(POD_CSS_URL)					\
 	--noindex						\
-	wireshark.pod > wireshark.html
+	$< > $@
 
-tshark.1: tshark.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/tshark.pod > tshark.1
-
-tshark.html: tshark.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)							\
-	--title="tshark - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
-	--noindex							\
-	$(srcdir)/tshark.pod > tshark.html
-
+# This rule needs to stay separate because of the --section option.
 wireshark-filter.4: wireshark-filter.pod ../config.h
-	$(POD2MAN)					\
+	$(AM_V_POD2MAN)$(POD2MAN)			\
 	--section=4					\
 	--center="The Wireshark Network Analyzer"	\
 	--release=$(VERSION)				\
 	$(srcdir)/wireshark-filter.pod > wireshark-filter.4
 
+# These rules need to stay separate because each man page has a separate
+# title.  Using GNU make's pattern rules would allow these to be removed
+# but at the cost of portability.
+tshark.html: tshark.pod ../config.h $(top_srcdir)/docbook/ws.css
+	$(AM_V_POD2HTML)$(POD2HTML)					\
+	--title="tshark - The Wireshark Network Analyzer $(VERSION)"	\
+	--css=$(POD_CSS_URL)						\
+	--noindex							\
+	$(srcdir)/tshark.pod > tshark.html
+
 wireshark-filter.html: wireshark-filter.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)								\
+	$(AM_V_POD2HTML)$(POD2HTML)						\
 	--title="wireshark-filter - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css					\
+	--css=$(POD_CSS_URL)							\
 	--noindex								\
 	$(srcdir)/wireshark-filter.pod > wireshark-filter.html
 
-capinfos.1: capinfos.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/capinfos.pod > capinfos.1
-
 capinfos.html: capinfos.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)							\
+	$(AM_V_POD2HTML)$(POD2HTML)					\
 	--title="capinfos - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/capinfos.pod > capinfos.html
 
-editcap.1: editcap.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/editcap.pod > editcap.1
-
 editcap.html: editcap.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)							\
+	$(AM_V_POD2HTML)$(POD2HTML)					\
 	--title="editcap - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/editcap.pod > editcap.html
 
-idl2wrs.1: idl2wrs.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/idl2wrs.pod > idl2wrs.1
-
 idl2wrs.html: idl2wrs.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)							\
+	$(AM_V_POD2HTML)$(POD2HTML)					\
 	--title="idl2wrs - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/idl2wrs.pod > idl2wrs.html
 
-mergecap.1: mergecap.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/mergecap.pod > mergecap.1
-
 mergecap.html: mergecap.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)							\
+	$(AM_V_POD2HTML)$(POD2HTML)					\
 	--title="mergecap - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/mergecap.pod > mergecap.html
 
-reordercap.1: reordercap.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/reordercap.pod > reordercap.1
-
 reordercap.html: reordercap.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)							\
+	$(AM_V_POD2HTML)$(POD2HTML)					\
 	--title="reordercap - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/reordercap.pod > reordercap.html
 
-text2pcap.1: text2pcap.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/text2pcap.pod > text2pcap.1
-
 text2pcap.html: text2pcap.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)                     \
+	$(AM_V_POD2HTML)$(POD2HTML)                     \
 	--title="text2pcap - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/text2pcap.pod > text2pcap.html
 
-dumpcap.1: dumpcap.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/dumpcap.pod > dumpcap.1
-
 dumpcap.html: dumpcap.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)                     \
+	$(AM_V_POD2HTML)$(POD2HTML)                     \
 	--title="dumpcap - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/dumpcap.pod > dumpcap.html
 
-rawshark.1: rawshark.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/rawshark.pod > rawshark.1
-
 rawshark.html: rawshark.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)                     \
+	$(AM_V_POD2HTML)$(POD2HTML)                     \
 	--title="rawshark - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/rawshark.pod > rawshark.html
 
-dftest.1: dftest.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/dftest.pod > dftest.1
-
 dftest.html: dftest.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)                     \
+	$(AM_V_POD2HTML)$(POD2HTML)                     \
 	--title="dftest - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/dftest.pod > dftest.html
 
-randpkt.1: randpkt.pod ../config.h
-	$(POD2MAN)					\
-	--center="The Wireshark Network Analyzer"	\
-	--release=$(VERSION)				\
-	$(srcdir)/randpkt.pod > randpkt.1
-
 randpkt.html: randpkt.pod ../config.h $(top_srcdir)/docbook/ws.css
-	$(POD2HTML)                     \
+	$(AM_V_POD2HTML)$(POD2HTML)                     \
 	--title="randpkt - The Wireshark Network Analyzer $(VERSION)"	\
-	--css=$(top_srcdir)/docbook/ws.css				\
+	--css=$(POD_CSS_URL)						\
 	--noindex							\
 	$(srcdir)/randpkt.pod > randpkt.html
 
 CLEANFILES =		\
-	wireshark.pod \
-	wireshark-filter.4 \
-	wireshark-filter.html \
-	wireshark.1	\
-	wireshark.html	\
-	capinfos.1	\
-	capinfos.html	\
-	dftest.1	\
-	dftest.html	\
-	dumpcap.1	\
-	dumpcap.html	\
-	editcap.1	\
-	editcap.html	\
-	idl2wrs.1	\
-	idl2wrs.html	\
-	mergecap.1	\
-	mergecap.html	\
-	reordercap.1	\
-	reordercap.html	\
-	randpkt.1	\
-	randpkt.html	\
-	rawshark.1	\
-	rawshark.html	\
-	text2pcap.1	\
-	text2pcap.html	\
-	tshark.1	\
-	tshark.html
+	wireshark.pod	\
+	*.1		\
+	*.4		\
+	*.html
 
 DISTCLEANFILES =		\
 	pod2htmi.tmp		\
@@ -319,44 +244,47 @@ DISTCLEANFILES =		\
 MAINTAINERCLEANFILES = \
 	Makefile.in
 
-EXTRA_DIST = \
-	Makefile.nmake	\
-	README.binarytrees	\
-	README.capture	\
-	README.design	\
-	README.developer	\
-	README.display_filter	\
-	README.heuristic	\
-	README.idl2wrs	\
-	README.malloc	\
-	README.packaging	\
-	README.plugins	\
-	README.python \
-	README.regression   \
-	README.request_response_tracking	\
-	README.stats_tree	\
-	README.tapping	\
-	README.wmem	\
-	README.xml-output	\
-	doc.vcproj		\
-	make-authors-format.pl	\
-	make-authors-short.pl	\
-	perlnoutf.pl		\
-	capinfos.pod		\
-	dfilter2pod.pl		\
-	dftest.pod		\
-	dumpcap.pod		\
-	editcap.pod		\
-	eproto2sgml		\
-	idl2wrs.pod		\
-	mergecap.pod		\
-	randpkt.pod		\
-	randpkt.txt		\
-	rawshark.pod		\
-	reordercap.pod	\
-	sgml.doc.template	\
-	text2pcap.pod		\
-	tshark.pod		\
-	wireshark-filter.pod    \
+EXTRA_DIST =				\
+	Makefile.nmake			\
+	README.binarytrees		\
+	README.capture			\
+	README.design			\
+	README.developer		\
+	README.display_filter		\
+	README.heuristic		\
+	README.idl2wrs			\
+	README.malloc			\
+	README.packaging		\
+	README.plugins			\
+	README.python 			\
+	README.regression   		\
+	README.request_response_tracking\
+	README.stats_tree		\
+	README.tapping			\
+	README.wmem			\
+	README.xml-output		\
+	asn2deb.pod			\
+	capinfos.pod			\
+	dfilter2pod.pl			\
+	dftest.pod			\
+	doc.vcproj			\
+	dumpcap.pod			\
+	editcap.pod			\
+	eproto2sgml			\
+	idl2deb.pod			\
+	idl2wrs.pod			\
+	make-authors-format.pl		\
+	make-authors-short.pl		\
+	mergecap.pod			\
+	packet-PROTOABBREV.c		\
+	perlnoutf.pl			\
+	randpkt.pod			\
+	randpkt.txt			\
+	rawshark.pod			\
+	reordercap.pod			\
+	sgml.doc.template		\
+	text2pcap.pod			\
+	tshark.pod			\
+	wireshark-filter.pod    	\
 	wireshark.pod.template
 

@@ -56,6 +56,9 @@
 #include <epan/expert.h>
 #include "packet-tcp.h"
 
+void proto_register_drda(void);
+void proto_reg_handoff_drda(void);
+
 static int proto_drda = -1;
 static int hf_drda_ddm_length = -1;
 static int hf_drda_ddm_magic = -1;
@@ -79,6 +82,8 @@ static gint ett_drda = -1;
 static gint ett_drda_ddm = -1;
 static gint ett_drda_ddm_format = -1;
 static gint ett_drda_param = -1;
+
+static expert_field ei_drda_opcode_invalid_length = EI_INIT;
 
 static dissector_handle_t drda_tcp_handle;
 
@@ -696,7 +701,7 @@ dissect_drda(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         iCommand = tvb_get_ntohs(tvb, offset + 8);
         iLength = tvb_get_ntohs(tvb, offset + 0);
         if (iLength < 10) {
-            expert_add_info_format(pinfo, NULL, PI_MALFORMED, PI_ERROR, "Invalid length detected (%u): should be at least 10 bytes long", iLength);
+            expert_add_info_format_text(pinfo, NULL, &ei_drda_opcode_invalid_length, "Invalid length detected (%u): should be at least 10 bytes long", iLength);
             break;
         }
         /* iCommandEnd is the length of the packet up to the end of the current command */
@@ -923,11 +928,18 @@ proto_register_drda(void)
         &ett_drda_param
     };
 
+    static ei_register_info ei[] = {
+        { &ei_drda_opcode_invalid_length, { "drda.opcode.invalid_length", PI_MALFORMED, PI_ERROR, "Invalid length detected", EXPFILL }},
+    };
+
     module_t *drda_module;
+    expert_module_t* expert_drda;
 
     proto_drda = proto_register_protocol("DRDA", "DRDA", "drda");
     proto_register_field_array(proto_drda, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_drda = expert_register_protocol(proto_drda);
+    expert_register_field_array(expert_drda, ei, array_length(ei));
 
     drda_module = prefs_register_protocol(proto_drda, NULL);
     prefs_register_bool_preference(drda_module, "desegment",

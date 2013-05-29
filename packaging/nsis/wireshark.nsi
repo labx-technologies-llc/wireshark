@@ -10,6 +10,7 @@
 ; This unfortunately is unknown to NSIS prior to 2.07 and creates an error.
 ; So if you get an error here, please update to at least NSIS 2.07!
 SetCompressor /SOLID lzma
+SetCompressorDictSize 64 ; MB
 
 !include "common.nsh"
 !include 'LogicLib.nsh'
@@ -44,7 +45,7 @@ Icon "..\..\image\wiresharkinst.ico"
 !define MUI_COMPONENTSPAGE_SMALLDESC
 !define MUI_FINISHPAGE_NOAUTOCLOSE
 !define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of ${PROGRAM_NAME}.\r\n\r\nBefore starting the installation, make sure ${PROGRAM_NAME} is not running.\r\n\r\nClick 'Next' to continue."
-;!define MUI_FINISHPAGE_LINK "Install WinPcap to be able to capture packets from a network!"
+;!define MUI_FINISHPAGE_LINK "Install WinPcap to be able to capture packets from a network."
 ;!define MUI_FINISHPAGE_LINK_LOCATION "http://www.winpcap.org"
 
 ; NSIS shows Readme files by opening the Readme file with the default application for
@@ -205,10 +206,12 @@ Function .onInit
   !if ${WIRESHARK_TARGET_PLATFORM} == "win64"
     ; http://forums.winamp.com/printthread.php?s=16ffcdd04a8c8d52bee90c0cae273ac5&threadid=262873
     ${IfNot} ${RunningX64}
-      MessageBox MB_OK "This version of Wireshark only runs on x64 machines.\nTry installing the 32-bit version instead."
+      MessageBox MB_OK "This version of Wireshark only runs on x64 machines.\nTry installing the 32-bit version instead." /SD IDOK
       Abort
     ${EndIf}
   !endif
+
+!insertmacro IsWiresharkRunning
 
   ; Copied from http://nsis.sourceforge.net/Auto-uninstall_old_before_installing_new
   ReadRegStr $OLD_UNINSTALLER HKLM \
@@ -342,6 +345,9 @@ File "${STAGING_DIR}\libsmi-2.dll"
 !ifdef GEOIP_DIR
 File "${STAGING_DIR}\libGeoIP-1.dll"
 !endif
+!ifdef WINSPARKLE_DIR
+File "${STAGING_DIR}\WinSparkle.dll"
+!endif
 File "${STAGING_DIR}\COPYING.txt"
 File "${STAGING_DIR}\NEWS.txt"
 File "${STAGING_DIR}\README.txt"
@@ -382,14 +388,15 @@ IntCmp $0 3010 redistReboot redistNoReboot
 redistReboot:
 SetRebootFlag true
 redistNoReboot:
+Delete "$INSTDIR\vcredist_${TARGET_MACHINE}.exe"
 !else
 !ifdef MSVCR_DLL
 ; msvcr*.dll (MSVC V7 or V7.1) - simply copy the dll file
-!echo "IF YOU GET AN ERROR HERE, check the MSVC_VARIANT setting in config.nmake: MSVC2005 vs. MSVC2005EE!"
+!echo "IF YOU GET AN ERROR HERE, check the MSVC_VARIANT setting in config.nmake: MSVC2005 vs. MSVC2005EE."
 File "${MSVCR_DLL}"
 !else
 !if ${MSVC_VARIANT} != "MSVC6"
-!error "C-Runtime redistributable for this package not available / not redistributable!"
+!error "C-Runtime redistributable for this package not available / not redistributable."
 !endif
 !endif	; MSVCR_DLL
 !endif	; VCREDIST_EXE
@@ -417,6 +424,7 @@ File "..\..\smi_modules"
 SetOutPath $INSTDIR\diameter
 File "..\..\diameter\AlcatelLucent.xml"
 File "..\..\diameter\chargecontrol.xml"
+File "..\..\diameter\ChinaTelecom.xml"
 File "..\..\diameter\Cisco.xml"
 File "..\..\diameter\dictionary.dtd"
 File "..\..\diameter\dictionary.xml"
@@ -425,6 +433,7 @@ File "..\..\diameter\Ericsson.xml"
 File "..\..\diameter\etsie2e4.xml"
 File "..\..\diameter\gqpolicy.xml"
 File "..\..\diameter\imscxdx.xml"
+File "..\..\diameter\SKT.xml"
 File "..\..\diameter\mobileipv4.xml"
 File "..\..\diameter\mobileipv6.xml"
 File "..\..\diameter\nasreq.xml"
@@ -445,6 +454,7 @@ SetOutPath $INSTDIR
 ;
 SetOutPath $INSTDIR\radius
 File "..\..\radius\README.radius_dictionary"
+File "..\..\radius\custom.includes"
 File "..\..\radius\dictionary"
 File "..\..\radius\dictionary.3com"
 File "..\..\radius\dictionary.3gpp"
@@ -553,9 +563,12 @@ File "..\..\radius\dictionary.rfc4818"
 File "..\..\radius\dictionary.rfc4849"
 File "..\..\radius\dictionary.rfc5090"
 File "..\..\radius\dictionary.rfc5176"
+File "..\..\radius\dictionary.rfc5447"
 File "..\..\radius\dictionary.rfc5580"
 File "..\..\radius\dictionary.rfc5607"
 File "..\..\radius\dictionary.rfc5904"
+File "..\..\radius\dictionary.rfc6519"
+File "..\..\radius\dictionary.rfc6572"
 File "..\..\radius\dictionary.riverstone"
 File "..\..\radius\dictionary.roaringpenguin"
 File "..\..\radius\dictionary.shasta"
@@ -585,6 +598,7 @@ File "..\..\radius\dictionary.wimax.wichorus"
 File "..\..\radius\dictionary.wispr"
 File "..\..\radius\dictionary.xedia"
 File "..\..\radius\dictionary.zyxel"
+!include "custom_radius_dict.txt"
 SetOutPath $INSTDIR
 
 ;
@@ -825,7 +839,7 @@ File "..\..\doc\tshark.html"
 SectionEnd
 
 !ifdef QT_DIR
-Section /o "QtShark (Experimental)" SecQtshark
+Section "QtShark (Experimental)" SecQtshark
 ;-------------------------------------------
 ; by default, QtShark is not installed  
 SetOutPath $INSTDIR
@@ -873,6 +887,14 @@ SetOutPath '$INSTDIR\plugins\${VERSION}'
 File "${STAGING_DIR}\plugins\${VERSION}\mate.dll"
 SectionEnd
 
+Section "Configuration Profiles" SecProfiles
+;-------------------------------------------
+; This should be a function or macro
+SetOutPath '$INSTDIR\profiles\Bluetooth'
+File "${STAGING_DIR}\profiles\Bluetooth\colorfilters"
+SetOutPath '$INSTDIR\profiles\Classic'
+File "${STAGING_DIR}\profiles\Classic\colorfilters"
+SectionEnd
 
 !ifdef SMI_DIR
 Section "SNMP MIBs" SecMIBs
@@ -965,13 +987,18 @@ SectionEnd
 !ifdef QT_DIR
   !insertmacro MUI_DESCRIPTION_TEXT ${SecQtshark} "Qtshark is a new GUI network protocol analyzer. (Experimental)"
 !endif
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecPluginsGroup} "Some plugins and extensions for both ${PROGRAM_NAME} and TShark."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecPlugins} "Plugins with some extended dissections."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecStatsTree} "Plugin for some extended statistics."
+
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecPluginsGroup} "Plugins and extensions for both ${PROGRAM_NAME} and TShark."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecPlugins} "Additional protocol dissectors."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecStatsTree} "Extended statistics."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecMate} "Plugin - Meta Analysis and Tracing Engine (Experimental)."
+
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecProfiles} "Configuration profiles"
+
 !ifdef SMI_DIR
   !insertmacro MUI_DESCRIPTION_TEXT ${SecMIBs} "SNMP MIBs for better SNMP dissection."
 !endif
+
   !insertmacro MUI_DESCRIPTION_TEXT ${SecToolsGroup} "Additional command line based tools."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecEditCap} "Editcap is a program that reads a capture file and writes some or all of the packets into another capture file."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecText2Pcap} "Text2pcap is a program that reads in an ASCII hex dump and writes the data into a libpcap-style capture file."
@@ -979,6 +1006,7 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SecReordercap} "Reordercap is a program that copies frames from an input capture to an output capture after sorting by time."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecCapinfos} "Capinfos is a program that provides information on capture files."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecRawshark} "Rawshark is a raw packet filter."
+
 !ifdef HHC_DIR
   !insertmacro MUI_DESCRIPTION_TEXT ${SecUsersGuide} "Install the user's guide, so an internet connection is not required to read the help pages."
 !endif
@@ -1053,7 +1081,7 @@ lbl_winversion_unsupported_2000:
 
 lbl_winversion_supported:
 	; detect if WinPcap should be installed
-	WriteINIStr "$PLUGINSDIR\WinPcapPage.ini" "Field 4" "Text" "Install WinPcap ${PCAP_VERSION}"
+	WriteINIStr "$PLUGINSDIR\WinPcapPage.ini" "Field 4" "Text" "Install WinPcap ${PCAP_DISPLAY_VERSION}"
 	ReadRegStr $WINPCAP_NAME HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinPcapInst" "DisplayName"
 	IfErrors 0 lbl_winpcap_installed ;if RegKey is available, WinPcap is already installed
 	WriteINIStr "$PLUGINSDIR\WinPcapPage.ini" "Field 2" "Text" "WinPcap is currently not installed"
@@ -1066,7 +1094,7 @@ lbl_winpcap_installed:
 	; Compare the installed build against the one we have.
 	ReadRegStr $WINPCAP_VERSION HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinPcapInst" "DisplayVersion"
 	StrCmp $WINPCAP_VERSION "" lbl_winpcap_do_install ; WinPcap is really old(?) or installed improperly.
-	${VersionCompare} $WINPCAP_VERSION "4.1.0.2001" $1 ; WinPcap 4.1.2
+	${VersionCompare} $WINPCAP_VERSION "4.1.0.2980" $1 ; WinPcap 4.1.3
 	StrCmp $1 "2" lbl_winpcap_do_install
 
 ;lbl_winpcap_dont_install:
@@ -1079,7 +1107,7 @@ lbl_winpcap_installed:
 	; force the user to upgrade by hand
 	WriteINIStr "$PLUGINSDIR\WinPcapPage.ini" "Field 4" "State" "0"
 	WriteINIStr "$PLUGINSDIR\WinPcapPage.ini" "Field 4" "Flags" "DISABLED"
-	WriteINIStr "$PLUGINSDIR\WinPcapPage.ini" "Field 5" "Text" "If you wish to install WinPcap ${PCAP_VERSION}, please uninstall $WINPCAP_NAME manually first."
+	WriteINIStr "$PLUGINSDIR\WinPcapPage.ini" "Field 5" "Text" "If you wish to install WinPcap ${PCAP_DISPLAY_VERSION}, please uninstall $WINPCAP_NAME manually first."
 	WriteINIStr "$PLUGINSDIR\WinPcapPage.ini" "Field 5" "Flags" "DISABLED"
 	Goto lbl_winpcap_done
 
@@ -1116,3 +1144,16 @@ lbl_have_quicklaunchicon:
 lbl_wireshark_notinstalled:
 
 FunctionEnd
+
+;
+; Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+;
+; Local variables:
+; c-basic-offset: 4
+; tab-width: 8
+; indent-tabs-mode: nil
+; End:
+;
+; vi: set shiftwidth=4 tabstop=8 expandtab:
+; :indentSize=4:tabSize=8:noTabs=true:
+;

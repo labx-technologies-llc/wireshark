@@ -61,8 +61,7 @@
 #define FLAG_BIT6       0x40
 #define FLAG_BIT7       0x80
 
-static GHashTable *wai_fragment_table    = NULL;
-static GHashTable *wai_reassembled_table = NULL;
+static reassembly_table wai_reassembly_table;
 
 static int proto_wai = -1;
 
@@ -465,7 +464,7 @@ dissect_multiple_certificate(tvbuff_t * tvb, guint offset, proto_tree *tree)
     offset += dissect_certificate(tvb, offset, multicert_tree, "1 ");
     proto_tree_add_item(multicert_tree, hf_wai_ver_res, tvb, offset, 1, ENC_BIG_ENDIAN);
     offset += 1;
-    offset += dissect_certificate(tvb, offset, multicert_tree, "2 ");
+    dissect_certificate(tvb, offset, multicert_tree, "2 ");
 
     return length + 3;
 }
@@ -593,7 +592,7 @@ dissect_signature(tvbuff_t *tvb, guint offset, proto_tree *tree, const gchar *co
 
     offset += dissect_identity(tvb, offset, ss_tree, NULL);
     offset += dissect_signature_algorithm(tvb, offset, ss_tree);
-    offset += dissect_signature_value(tvb, offset, ss_tree);
+    dissect_signature_value(tvb, offset, ss_tree);
 
     return length + 3;
 }
@@ -697,7 +696,7 @@ dissect_wai_data(tvbuff_t *tvb, proto_tree *tree, guint8 subtype, guint16 lenx)
                 offset += dissect_multiple_certificate(tvb, offset, data_tree);
             }
 
-            offset += dissect_signature(tvb, offset, data_tree, "AE Signature");
+            dissect_signature(tvb, offset, data_tree, "AE Signature");
             break;
         }
         case WAI_SUB_CERT_AUTH_REQ:
@@ -711,7 +710,7 @@ dissect_wai_data(tvbuff_t *tvb, proto_tree *tree, guint8 subtype, guint16 lenx)
             offset += dissect_challenge(tvb, offset, data_tree, "ASUE ");
             offset += dissect_certificate(tvb, offset, data_tree, "STE ASUE ");
             offset += dissect_certificate(tvb, offset, data_tree, "STE AE ");
-            offset += dissect_multiple_certificate(tvb, offset, data_tree);
+            dissect_multiple_certificate(tvb, offset, data_tree);
             break;
         }
         case WAI_SUB_CERT_AUTH_RESP:
@@ -723,7 +722,7 @@ dissect_wai_data(tvbuff_t *tvb, proto_tree *tree, guint8 subtype, guint16 lenx)
             offset += 12;
             offset += dissect_multiple_certificate(tvb, offset, data_tree);
             offset += dissect_signature(tvb, offset, data_tree, "Server Signature trusted by ASUE");
-            offset += dissect_signature(tvb, offset, data_tree, "Server Signature trusted by AE");
+            dissect_signature(tvb, offset, data_tree, "Server Signature trusted by AE");
             break;
         }
         case WAI_SUB_UNICAST_KEY_REQ:
@@ -881,10 +880,11 @@ Figure 18 from [ref:1]
         proto_tree_add_item(wai_tree, hf_wai_flag,      tvb, 11, 1, ENC_BIG_ENDIAN);
     }
 
-    frag_msg =  fragment_add_seq_check (tvb, WAI_DATA_OFFSET, pinfo,
+    frag_msg =  fragment_add_seq_check (&wai_reassembly_table,
+                                        tvb, WAI_DATA_OFFSET,
+                                        pinfo,
                                         packet_num,
-                                        wai_fragment_table,
-                                        wai_reassembled_table,
+                                        NULL,
                                         fragment_num,
                                         length,
                                         flags);
@@ -926,8 +926,8 @@ Figure 18 from [ref:1]
 
 static void wai_reassemble_init (void)
 {
-    fragment_table_init(&wai_fragment_table);
-    reassembled_table_init(&wai_reassembled_table);
+    reassembly_table_init(&wai_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 void

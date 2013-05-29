@@ -102,10 +102,10 @@ dissect_rsync_encap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
     conversation = find_or_create_conversation(pinfo);
 
-    conversation_data = conversation_get_proto_data(conversation, proto_rsync);
+    conversation_data = (struct rsync_conversation_data *)conversation_get_proto_data(conversation, proto_rsync);
 
     if (conversation_data == NULL) {
-	conversation_data = se_alloc(sizeof(struct rsync_conversation_data));
+	conversation_data = se_new(struct rsync_conversation_data);
 	conversation_data->state = RSYNC_INIT;
 	conversation_add_proto_data(conversation, proto_rsync, conversation_data);
     }
@@ -116,12 +116,12 @@ dissect_rsync_encap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
     rsync_tree = proto_item_add_subtree(ti, ett_rsync);
 
-    rsync_frame_data_p = p_get_proto_data(pinfo->fd, proto_rsync);
+    rsync_frame_data_p = (struct rsync_frame_data *)p_get_proto_data(pinfo->fd, proto_rsync, 0);
     if (!rsync_frame_data_p) {
 	/* then we haven't seen this frame before */
-	rsync_frame_data_p = se_alloc(sizeof(struct rsync_frame_data));
+	rsync_frame_data_p = se_new(struct rsync_frame_data);
 	rsync_frame_data_p->state = conversation_data->state;
-	p_add_proto_data(pinfo->fd, proto_rsync, rsync_frame_data_p);
+	p_add_proto_data(pinfo->fd, proto_rsync, 0, rsync_frame_data_p);
     }
 
     switch (rsync_frame_data_p->state) {
@@ -130,7 +130,7 @@ dissect_rsync_encap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	offset += 8;
 	proto_tree_add_item(rsync_tree, hf_rsync_hdr_version, tvb, offset, 4, ENC_ASCII|ENC_NA);
 	tvb_get_nstringz0(tvb, offset, sizeof(version), version);
-	offset += 4;
+	/*offset += 4;*/
 
         if (check_col(pinfo->cinfo, COL_INFO)) {
             /* XXX - is this really a string? */
@@ -148,7 +148,7 @@ dissect_rsync_encap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	offset += 8;
 	proto_tree_add_item(rsync_tree, hf_rsync_hdr_version, tvb, offset, 4, ENC_ASCII|ENC_NA);
 	tvb_get_nstringz0(tvb, offset, sizeof(version), version);
-	offset += 4;
+	/*offset += 4;*/
 
         if (check_col(pinfo->cinfo, COL_INFO)) {
             /* XXX - is this really a string? */
@@ -181,7 +181,7 @@ dissect_rsync_encap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
         /* there are two cases - file list, or authentication */
         tvb_get_nstringz0(tvb, offset, sizeof(auth_string), auth_string);
 	if (0 == strncmp("@RSYNCD:", auth_string, 8)) {
-	  /* matches, so we assume its an authentication message */
+	  /* matches, so we assume it's an authentication message */
 	  /* needs to handle the AUTHREQD case, but doesn't - FIXME */
 	  proto_tree_add_item(rsync_tree, hf_rsync_rsyncdok_string, tvb, offset, -1, ENC_ASCII|ENC_NA);
 

@@ -59,6 +59,7 @@ static int hf_catapult_dct2000_direction = -1;
 static int hf_catapult_dct2000_encap = -1;
 static int hf_catapult_dct2000_unparsed_data = -1;
 static int hf_catapult_dct2000_comment = -1;
+static int hf_catapult_dct2000_sprint = -1;
 static int hf_catapult_dct2000_error_comment = -1;
 static int hf_catapult_dct2000_tty = -1;
 static int hf_catapult_dct2000_tty_line = -1;
@@ -135,6 +136,9 @@ static int ett_catapult_dct2000 = -1;
 static int ett_catapult_dct2000_ipprim = -1;
 static int ett_catapult_dct2000_sctpprim = -1;
 static int ett_catapult_dct2000_tty = -1;
+
+static expert_field ei_catapult_dct2000_lte_ccpri_status_error = EI_INIT;
+static expert_field ei_catapult_dct2000_error_comment_expert = EI_INIT;
 
 static const value_string direction_vals[] = {
     { 0,   "Sent" },
@@ -825,7 +829,7 @@ static void dissect_rlc_umts(tvbuff_t *tvb, gint offset,
 
         /* Call UMTS RLC dissector */
         if (rlc_umts_handle != 0) {
-            rlc_tvb = tvb_new_subset(tvb, offset, -1, tvb_length_remaining(tvb, offset));
+            rlc_tvb = tvb_new_subset_remaining(tvb, offset);
             call_dissector_only(rlc_umts_handle, rlc_tvb, pinfo, tree, NULL);
         }
     }
@@ -1024,7 +1028,7 @@ static void dissect_rrc_lte(tvbuff_t *tvb, gint offset,
 
     /* Send to RRC dissector, if got here, have sub-dissector and some data left */
     if ((protocol_handle != NULL) && (tvb_length_remaining(tvb, offset) > 0)) {
-        rrc_tvb = tvb_new_subset(tvb, offset, -1, tvb_length_remaining(tvb, offset));
+        rrc_tvb = tvb_new_subset_remaining(tvb, offset);
         call_dissector_only(protocol_handle, rrc_tvb, pinfo, tree, NULL);
     }
 }
@@ -1062,8 +1066,7 @@ static void dissect_ccpri_lte(tvbuff_t *tvb, gint offset,
         offset++;
 
         if (status != 0) {
-            expert_add_info_format(pinfo, ti, PI_SEQUENCE, PI_ERROR,
-                                   "CCPRI Indication has error status");
+            expert_add_info(pinfo, ti, &ei_catapult_dct2000_lte_ccpri_status_error);
 
         }
     }
@@ -1108,7 +1111,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, gint offset,
     guint8                channelId;
 
     /* Look this up so can update channel info */
-    p_pdcp_lte_info = p_get_proto_data(pinfo->fd, proto_pdcp_lte);
+    p_pdcp_lte_info = (struct pdcp_lte_info *)p_get_proto_data(pinfo->fd, proto_pdcp_lte, 0);
     if (p_pdcp_lte_info == NULL) {
         /* This really should be set...can't dissect anything without it */
         return;
@@ -1208,7 +1211,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, gint offset,
                     /* Logical channel type */
                     proto_tree_add_item(tree, hf_catapult_dct2000_lte_rlc_channel_type,
                                         tvb, offset, 1, ENC_BIG_ENDIAN);
-                    p_pdcp_lte_info->channelType = tvb_get_guint8(tvb, offset++);
+                    p_pdcp_lte_info->channelType = (LogicalChannelType)tvb_get_guint8(tvb, offset++);
                     col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
                                     val_to_str_const(p_pdcp_lte_info->channelType, rlc_logical_channel_vals,
                                                      "UNKNOWN-CHANNEL"));
@@ -1219,7 +1222,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, gint offset,
                             offset++;
 
                             /* Transport channel type */
-                            p_pdcp_lte_info->BCCHTransport = tvb_get_guint8(tvb, offset);
+                            p_pdcp_lte_info->BCCHTransport = (BCCHTransportType)tvb_get_guint8(tvb, offset);
                             proto_tree_add_item(tree, hf_catapult_dct2000_lte_bcch_transport,
                                                 tvb, offset, 1, ENC_BIG_ENDIAN);
                             offset++;
@@ -1282,7 +1285,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, gint offset,
             /* Should be at data tag now    */
 
             /* Call PDCP LTE dissector */
-            pdcp_lte_tvb = tvb_new_subset(tvb, offset, -1, tvb_length_remaining(tvb, offset));
+            pdcp_lte_tvb = tvb_new_subset_remaining(tvb, offset);
             call_dissector_only(pdcp_lte_handle, pdcp_lte_tvb, pinfo, tree, NULL);
 
             break;
@@ -1442,13 +1445,13 @@ static void attach_fp_info(packet_info *pinfo, gboolean received, const char *pr
     int  calculated_variant;
 
     /* Only need to set info once per session. */
-    struct fp_info *p_fp_info = p_get_proto_data(pinfo->fd, proto_fp);
+    struct fp_info *p_fp_info = (struct fp_info *)p_get_proto_data(pinfo->fd, proto_fp, 0);
     if (p_fp_info != NULL) {
         return;
     }
 
     /* Allocate struct */
-    p_fp_info = se_alloc0(sizeof(struct fp_info));
+    p_fp_info = se_new0(struct fp_info);
 
     /* Check that the number of outhdr values looks sensible */
     if (((strcmp(protocol_name, "fpiur_r5") == 0) && (outhdr_values_found != 2)) ||
@@ -1544,7 +1547,7 @@ static void attach_fp_info(packet_info *pinfo, gboolean received, const char *pr
     /* Division type introduced for R7 */
     if ((p_fp_info->release == 7) ||
         (p_fp_info->release == 8)) {
-        p_fp_info->division = outhdr_values[i++];
+        p_fp_info->division = (enum division_type)outhdr_values[i++];
     }
 
     /* HS-DSCH config */
@@ -1567,7 +1570,7 @@ static void attach_fp_info(packet_info *pinfo, gboolean received, const char *pr
     if (strcmp(protocol_name, "fpiur_r5") == 0) {
         /* Store info in packet */
         p_fp_info->iface_type = IuR_Interface;
-        p_add_proto_data(pinfo->fd, proto_fp, p_fp_info);
+        p_add_proto_data(pinfo->fd, proto_fp, 0, p_fp_info);
         return;
     }
 
@@ -1631,7 +1634,7 @@ static void attach_fp_info(packet_info *pinfo, gboolean received, const char *pr
     p_fp_info->iface_type = IuB_Interface;
 
     /* Store info in packet */
-    p_add_proto_data(pinfo->fd, proto_fp, p_fp_info);
+    p_add_proto_data(pinfo->fd, proto_fp, 0, p_fp_info);
 }
 
 
@@ -1641,7 +1644,7 @@ static void attach_rlc_info(packet_info *pinfo, guint32 urnti, guint8 rbid, gboo
 {
     /* Only need to set info once per session. */
     struct fp_info  *p_fp_info;
-    struct rlc_info *p_rlc_info = p_get_proto_data(pinfo->fd, proto_rlc);
+    struct rlc_info *p_rlc_info = (struct rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc, 0);
 
     if (p_rlc_info != NULL) {
         return;
@@ -1653,8 +1656,8 @@ static void attach_rlc_info(packet_info *pinfo, guint32 urnti, guint8 rbid, gboo
     }
 
     /* Allocate structs */
-    p_rlc_info = se_alloc0(sizeof(struct rlc_info));
-    p_fp_info = se_alloc0(sizeof(struct fp_info));
+    p_rlc_info = se_new(struct rlc_info);
+    p_fp_info = se_new(struct fp_info);
 
     /* Fill in struct fields for first (only) PDU in this frame */
 
@@ -1694,10 +1697,10 @@ static void attach_rlc_info(packet_info *pinfo, guint32 urnti, guint8 rbid, gboo
     p_rlc_info->rbid[0] = rbid;
 
     /* li_size */
-    p_rlc_info->li_size[0] = outhdr_values[0];
+    p_rlc_info->li_size[0] = (enum rlc_li_size)outhdr_values[0];
 
     /* Store info in packet */
-    p_add_proto_data(pinfo->fd, proto_rlc, p_rlc_info);
+    p_add_proto_data(pinfo->fd, proto_rlc, 0, p_rlc_info);
 
     /* Also store minimal FP info consulted by RLC dissector
        TODO: Don't really know direction, but use S/R flag to make
@@ -1705,7 +1708,7 @@ static void attach_rlc_info(packet_info *pinfo, guint32 urnti, guint8 rbid, gboo
        but RLC dissector seems to not use anyway... */
     p_fp_info->is_uplink = is_sent;
     p_fp_info->cur_tb = 0; /* Always the first/only one */
-    p_add_proto_data(pinfo->fd, proto_fp, p_fp_info);
+    p_add_proto_data(pinfo->fd, proto_fp, 0, p_fp_info);
 }
 
 
@@ -1723,10 +1726,10 @@ static void attach_mac_lte_info(packet_info *pinfo)
     }
 
     /* Allocate & zero struct */
-    p_mac_lte_info = se_alloc0(sizeof(struct mac_lte_info));
+    p_mac_lte_info = se_new0(struct mac_lte_info);
 
     /* Populate the struct from outhdr values */
-    p_mac_lte_info->crcStatusValid = FALSE;  /* not set yet */
+    p_mac_lte_info->crcStatusValid = crc_fail;  /* not set yet */
 
     p_mac_lte_info->radioType = outhdr_values[i++] + 1;
     p_mac_lte_info->rntiType = outhdr_values[i++];
@@ -1750,8 +1753,8 @@ static void attach_mac_lte_info(packet_info *pinfo)
     if (outhdr_values_found == 10) {
         /* CRC only valid for Downlink */
         if (p_mac_lte_info->direction == DIRECTION_DOWNLINK) {
-            p_mac_lte_info->crcStatusValid = TRUE;
-            p_mac_lte_info->detailed_phy_info.dl_info.crc_status = outhdr_values[i++];
+            p_mac_lte_info->crcStatusValid = crc_success;
+            p_mac_lte_info->detailed_phy_info.dl_info.crc_status = (mac_lte_crc_status)outhdr_values[i++];
         }
         else {
             i++;
@@ -1776,8 +1779,8 @@ static void attach_mac_lte_info(packet_info *pinfo)
                 p_mac_lte_info->dl_retx = dl_retx_no;
             }
             p_mac_lte_info->detailed_phy_info.dl_info.resource_block_length = outhdr_values[i++];
-            p_mac_lte_info->crcStatusValid = TRUE;
-            p_mac_lte_info->detailed_phy_info.dl_info.crc_status = outhdr_values[i++];
+            p_mac_lte_info->crcStatusValid = crc_success;
+            p_mac_lte_info->detailed_phy_info.dl_info.crc_status = (mac_lte_crc_status)outhdr_values[i++];
             if (outhdr_values_found > 18) {
                 p_mac_lte_info->detailed_phy_info.dl_info.harq_id = outhdr_values[i++];
                 p_mac_lte_info->detailed_phy_info.dl_info.ndi = outhdr_values[i++];
@@ -1839,13 +1842,13 @@ static void attach_rlc_lte_info(packet_info *pinfo)
     unsigned int         i = 0;
 
     /* Only need to set info once per session. */
-    p_rlc_lte_info = p_get_proto_data(pinfo->fd, proto_rlc_lte);
+    p_rlc_lte_info = (rlc_lte_info *)p_get_proto_data(pinfo->fd, proto_rlc_lte, 0);
     if (p_rlc_lte_info != NULL) {
         return;
     }
 
     /* Allocate & zero struct */
-    p_rlc_lte_info = se_alloc0(sizeof(struct rlc_lte_info));
+    p_rlc_lte_info = se_new0(rlc_lte_info);
 
     p_rlc_lte_info->rlcMode = outhdr_values[i++];
     p_rlc_lte_info->direction = outhdr_values[i++];
@@ -1857,7 +1860,7 @@ static void attach_rlc_lte_info(packet_info *pinfo)
     p_rlc_lte_info->pduLength = outhdr_values[i];
 
     /* Store info in packet */
-    p_add_proto_data(pinfo->fd, proto_rlc_lte, p_rlc_lte_info);
+    p_add_proto_data(pinfo->fd, proto_rlc_lte, 0, p_rlc_lte_info);
 }
 
 /* Fill in a PDCP LTE packet info struct and attach it to the packet for the PDCP LTE
@@ -1868,16 +1871,16 @@ static void attach_pdcp_lte_info(packet_info *pinfo)
     unsigned int          i = 0;
 
     /* Only need to set info once per session. */
-    p_pdcp_lte_info = p_get_proto_data(pinfo->fd, proto_pdcp_lte);
+    p_pdcp_lte_info = (pdcp_lte_info *)p_get_proto_data(pinfo->fd, proto_pdcp_lte, 0);
     if (p_pdcp_lte_info != NULL) {
         return;
     }
 
     /* Allocate & zero struct */
-    p_pdcp_lte_info = se_alloc0(sizeof(struct pdcp_lte_info));
+    p_pdcp_lte_info = se_new0(pdcp_lte_info);
 
     p_pdcp_lte_info->no_header_pdu = outhdr_values[i++];
-    p_pdcp_lte_info->plane = outhdr_values[i++];
+    p_pdcp_lte_info->plane = (enum pdcp_plane)outhdr_values[i++];
     if (p_pdcp_lte_info->plane != USER_PLANE) {
         p_pdcp_lte_info->plane = SIGNALING_PLANE;
     }
@@ -1887,15 +1890,15 @@ static void attach_pdcp_lte_info(packet_info *pinfo)
     p_pdcp_lte_info->rohc_ip_version = outhdr_values[i++];
     p_pdcp_lte_info->cid_inclusion_info = outhdr_values[i++];
     p_pdcp_lte_info->large_cid_present = outhdr_values[i++];
-    p_pdcp_lte_info->mode = outhdr_values[i++];
+    p_pdcp_lte_info->mode = (enum rohc_mode)outhdr_values[i++];
     p_pdcp_lte_info->rnd = outhdr_values[i++];
-    p_pdcp_lte_info->udp_checkum_present = outhdr_values[i++];
+    p_pdcp_lte_info->udp_checksum_present = outhdr_values[i++];
     p_pdcp_lte_info->profile = outhdr_values[i];
 
     /* Remaining 2 (fixed) fields are ah_length and gre_checksum */
 
     /* Store info in packet */
-    p_add_proto_data(pinfo->fd, proto_pdcp_lte, p_pdcp_lte_info);
+    p_add_proto_data(pinfo->fd, proto_pdcp_lte, 0, p_pdcp_lte_info);
 }
 
 
@@ -1931,7 +1934,7 @@ static void dissect_tty_lines(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
             char *hex_string;
             int tty_string_length = tvb_length_remaining(tvb, offset);
             int hex_string_length = 1+(2*tty_string_length)+1;
-            hex_string = ep_alloc(hex_string_length);
+            hex_string = (char *)ep_alloc(hex_string_length);
 
             idx = g_snprintf(hex_string, hex_string_length, "$");
 
@@ -2036,7 +2039,7 @@ static void check_for_oob_mac_lte_events(packet_info *pinfo, tvbuff_t *tvb, prot
     if (p_mac_lte_info == NULL) {
 
         /* Allocate & zero struct */
-        p_mac_lte_info = se_alloc0(sizeof(struct mac_lte_info));
+        p_mac_lte_info = se_new0(mac_lte_info);
 
         /* This indicates to MAC dissector that it has an oob event */
         p_mac_lte_info->length = 0;
@@ -2102,7 +2105,7 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     dissector_handle_t  heur_protocol_handle = 0;
     int                 sub_dissector_result = 0;
     const char         *protocol_name;
-    gboolean            is_comment;
+    gboolean            is_comment, is_sprint = FALSE;
 
     /* Set Protocol */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "DCT2000");
@@ -2155,12 +2158,15 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                             offset, protocol_length, ENC_ASCII|ENC_NA);
     }
     is_comment = (strcmp(protocol_name, "comment") == 0);
+    if (!is_comment) {
+        is_sprint = (strcmp(protocol_name, "sprint") == 0);
+    }
     offset += protocol_length;
 
 
     /* Protocol Variant */
     variant_string = tvb_get_const_stringz(tvb, offset, &variant_length);
-    if (!is_comment) {
+    if (!is_comment && !is_sprint) {
         proto_tree_add_item(dct2000_tree, hf_catapult_dct2000_variant, tvb,
                             offset, variant_length, ENC_ASCII|ENC_NA);
     }
@@ -2168,7 +2174,7 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* Outhdr (shown as string) */
     outhdr_string = tvb_get_const_stringz(tvb, offset, &outhdr_length);
-    if (!is_comment && (outhdr_length > 1)) {
+    if (!is_comment && !is_sprint && (outhdr_length > 1)) {
         proto_tree_add_item(dct2000_tree, hf_catapult_dct2000_outhdr, tvb,
                             offset, outhdr_length, ENC_ASCII|ENC_NA);
     }
@@ -2184,7 +2190,7 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     offset++;
 
     /* Read frame encapsulation set by wiretap */
-    if (!is_comment) {
+    if (!is_comment && !is_sprint) {
         proto_tree_add_item(dct2000_tree, hf_catapult_dct2000_encap, tvb, offset, 1, ENC_BIG_ENDIAN);
     }
     encap = tvb_get_guint8(tvb, offset);
@@ -2226,28 +2232,32 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* LTE MAC needs info attached */
     else if ((strcmp(protocol_name, "mac_r8_lte") == 0) ||
-             (strcmp(protocol_name, "mac_r9_lte") == 0)) {
+             (strcmp(protocol_name, "mac_r9_lte") == 0) ||
+             (strcmp(protocol_name, "mac_r10_lte") == 0)) {
         parse_outhdr_string(outhdr_string, outhdr_length);
         attach_mac_lte_info(pinfo);
     }
 
     /* LTE RLC needs info attached */
     else if ((strcmp(protocol_name, "rlc_r8_lte") == 0) ||
-             (strcmp(protocol_name, "rlc_r9_lte") == 0)) {
+             (strcmp(protocol_name, "rlc_r9_lte") == 0) ||
+             (strcmp(protocol_name, "rlc_r10_lte") == 0)) {
         parse_outhdr_string(outhdr_string, outhdr_length);
         attach_rlc_lte_info(pinfo);
     }
 
     /* LTE PDCP needs info attached */
     else if ((strcmp(protocol_name, "pdcp_r8_lte") == 0) ||
-             (strcmp(protocol_name, "pdcp_r9_lte") == 0)) {
+             (strcmp(protocol_name, "pdcp_r9_lte") == 0) ||
+             (strcmp(protocol_name, "pdcp_r10_lte") == 0)) {
         parse_outhdr_string(outhdr_string, outhdr_length);
         attach_pdcp_lte_info(pinfo);
     }
 
 
     else if ((strcmp(protocol_name, "nas_rrc_r8_lte") == 0) ||
-             (strcmp(protocol_name, "nas_rrc_r9_lte") == 0)) {
+             (strcmp(protocol_name, "nas_rrc_r9_lte") == 0) ||
+             (strcmp(protocol_name, "nas_rrc_r10_lte") == 0)) {
         gboolean nas_body_found = TRUE;
         guint8 opcode = tvb_get_guint8(tvb, offset);
         proto_tree_add_item(tree, hf_catapult_dct2000_lte_nas_rrc_opcode,
@@ -2410,19 +2420,22 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
             else
             if ((strcmp(protocol_name, "mac_r8_lte") == 0) ||
-                (strcmp(protocol_name, "mac_r9_lte") == 0)) {
+                (strcmp(protocol_name, "mac_r9_lte") == 0) ||
+                (strcmp(protocol_name, "mac_r10_lte") == 0)) {
                 protocol_handle = mac_lte_handle;
             }
 
             else
             if ((strcmp(protocol_name, "rlc_r8_lte") == 0) ||
-                (strcmp(protocol_name, "rlc_r9_lte") == 0)) {
+                (strcmp(protocol_name, "rlc_r9_lte") == 0) ||
+                (strcmp(protocol_name, "rlc_r10_lte") == 0)) {
                 protocol_handle = rlc_lte_handle;
             }
 
             else
             if ((strcmp(protocol_name, "pdcp_r8_lte") == 0) ||
-                (strcmp(protocol_name, "pdcp_r9_lte") == 0)) {
+                (strcmp(protocol_name, "pdcp_r9_lte") == 0) ||
+                (strcmp(protocol_name, "pdcp_r10_lte") == 0)) {
                 /* Dissect proprietary header, then pass remainder to PDCP */
                 dissect_pdcp_lte(tvb, offset, pinfo, tree);
                 return;
@@ -2469,9 +2482,22 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     proto_item *error_ti = proto_tree_add_item(dct2000_tree, hf_catapult_dct2000_error_comment, tvb,
                                                                offset, -1, ENC_NA);
                     PROTO_ITEM_SET_GENERATED(error_ti);
-                    expert_add_info_format(pinfo, string_ti, PI_SEQUENCE, PI_ERROR,
+                    expert_add_info_format_text(pinfo, string_ti, &ei_catapult_dct2000_error_comment_expert,
                                           "%s", string);
                 }
+
+                return;
+            }
+
+            else
+            if (strcmp(protocol_name, "sprint") == 0) {
+                /* Extract & add the string. */
+                char *string = (char*)tvb_get_ephemeral_string(tvb, offset, tvb_length_remaining(tvb, offset));
+
+                /* Show sprint string */
+                proto_tree_add_item(dct2000_tree, hf_catapult_dct2000_sprint, tvb,
+                                                offset, -1, ENC_ASCII|ENC_NA);
+                col_append_fstr(pinfo->cinfo, COL_INFO, "%s", string);
 
                 return;
             }
@@ -2482,7 +2508,8 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 ((strcmp(protocol_name, "rrc_r8_lte") == 0) ||
                  (strcmp(protocol_name, "rrcpdcpprim_r8_lte") == 0) ||
                  (strcmp(protocol_name, "rrc_r9_lte") == 0) ||
-                 (strcmp(protocol_name, "rrcpdcpprim_r9_lte") == 0))) {
+                 (strcmp(protocol_name, "rrcpdcpprim_r9_lte") == 0) ||
+                 (strcmp(protocol_name, "rrc_r10_lte") == 0))) {
 
                 /* Dissect proprietary header, then pass remainder
                    to RRC (depending upon direction and channel type) */
@@ -2806,7 +2833,7 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* Try appropriate dissector, if one has been selected */
     if (protocol_handle != 0) {
         /* Dissect the remainder of the frame using chosen protocol handle */
-        next_tvb = tvb_new_subset(tvb, offset, -1, tvb_reported_length(tvb)-offset);
+        next_tvb = tvb_new_subset_remaining(tvb, offset);
         sub_dissector_result = call_dissector_only(protocol_handle, next_tvb, pinfo, tree, NULL);
     }
 
@@ -2920,6 +2947,12 @@ void proto_register_catapult_dct2000(void)
         { &hf_catapult_dct2000_comment,
             { "Comment",
               "dct2000.comment", FT_STRING, BASE_NONE, NULL, 0x0,
+              NULL, HFILL
+            }
+        },
+        { &hf_catapult_dct2000_sprint,
+            { "Sprint text",
+              "dct2000.sprint", FT_STRING, BASE_NONE, NULL, 0x0,
               NULL, HFILL
             }
         },
@@ -3272,7 +3305,13 @@ void proto_register_catapult_dct2000(void)
         &ett_catapult_dct2000_tty
     };
 
+    static ei_register_info ei[] = {
+        { &ei_catapult_dct2000_lte_ccpri_status_error, { "dct2000.lte.ccpri.status.error", PI_SEQUENCE, PI_ERROR, "CCPRI Indication has error status", EXPFILL }},
+        { &ei_catapult_dct2000_error_comment_expert, { "dct2000.error-comment.expert", PI_SEQUENCE, PI_ERROR, "Formatted expert comment", EXPFILL }},
+    };
+
     module_t *catapult_dct2000_module;
+    expert_module_t* expert_catapult_dct2000;
 
     /* Register protocol. */
     proto_catapult_dct2000 = proto_register_protocol("Catapult DCT2000 packet",
@@ -3280,6 +3319,8 @@ void proto_register_catapult_dct2000(void)
                                                      "dct2000");
     proto_register_field_array(proto_catapult_dct2000, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_catapult_dct2000 = expert_register_protocol(proto_catapult_dct2000);
+    expert_register_field_array(expert_catapult_dct2000, ei, array_length(ei));
 
     /* Allow dissector to find be found by name. */
     register_dissector("dct2000", dissect_catapult_dct2000, proto_catapult_dct2000);
@@ -3292,22 +3333,22 @@ void proto_register_catapult_dct2000(void)
     prefs_register_obsolete_preference(catapult_dct2000_module, "board_ports_only");
 
     /* Determines whether for not-handled protocols we should try to parse it if:
-       - it looks like its embedded in an ipprim message, AND
+       - it looks like it's embedded in an ipprim message, AND
        - the DCT2000 protocol name can be matched to a Wireshark dissector name */
     prefs_register_bool_preference(catapult_dct2000_module, "ipprim_heuristic",
                                    "Use IP Primitive heuristic",
-                                   "If a payload looks like its embedded in an "
+                                   "If a payload looks like it's embedded in an "
                                    "IP primitive message, and there is a Wireshark "
                                    "dissector matching the DCT2000 protocol name, "
                                    "try parsing the payload using that dissector",
                                    &catapult_dct2000_try_ipprim_heuristic);
 
     /* Determines whether for not-handled protocols we should try to parse it if:
-       - it looks like its embedded in an sctpprim message, AND
+       - it looks like it's embedded in an sctpprim message, AND
        - the DCT2000 protocol name can be matched to a Wireshark dissector name */
     prefs_register_bool_preference(catapult_dct2000_module, "sctpprim_heuristic",
                                    "Use SCTP Primitive heuristic",
-                                   "If a payload looks like its embedded in an "
+                                   "If a payload looks like it's embedded in an "
                                    "SCTP primitive message, and there is a Wireshark "
                                    "dissector matching the DCT2000 protocol name, "
                                    "try parsing the payload using that dissector",

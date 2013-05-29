@@ -39,7 +39,6 @@
 
 #include "packet-per.h"
 #include "packet-e212.h"
-#include "packet-frame.h"
 #include "packet-lte-rrc.h"
 
 #ifdef _MSC_VER
@@ -50,6 +49,8 @@
 #define PNAME  "EUTRAN X2 Application Protocol (X2AP)"
 #define PSNAME "X2AP"
 #define PFNAME "x2ap"
+
+void proto_register_x2ap(void);
 
 /* Dissector will use SCTP PPID 27 or SCTP port. IANA assigned port = 36422 */
 #define SCTP_PORT_X2AP	36422

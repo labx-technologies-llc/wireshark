@@ -52,6 +52,7 @@
 #define __PACKET_GSM_A_COMMON_H__
 
 #include "packet-sccp.h"
+#include "ws_symbol_export.h"
 
 /* PROTOTYPES/FORWARDS */
 typedef guint16 (*elem_fcn)(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
@@ -82,80 +83,79 @@ extern const value_string gsm_a_pd_short_str_vals[];
 extern guint16 de_cld_party_bcd_num(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 
 /* Needed to share the packet-gsm_a_common.c functions */
-extern const value_string gsm_bssmap_elem_strings[];
+extern value_string_ext gsm_bssmap_elem_strings_ext;
 extern gint ett_gsm_bssmap_elem[];
 extern elem_fcn bssmap_elem_fcn[];
 extern int hf_gsm_a_bssmap_elem_id;
 
-extern const value_string gsm_dtap_elem_strings[];
+extern value_string_ext gsm_dtap_elem_strings_ext;
 extern gint ett_gsm_dtap_elem[];
 extern elem_fcn dtap_elem_fcn[];
 extern int hf_gsm_a_dtap_elem_id;
 
-extern const value_string gsm_rp_elem_strings[];
+extern value_string_ext gsm_rp_elem_strings_ext;
 extern gint ett_gsm_rp_elem[];
 extern elem_fcn rp_elem_fcn[];
 extern int hf_gsm_a_rp_elem_id;
 
-extern const value_string gsm_rr_elem_strings[];
+extern value_string_ext gsm_rr_elem_strings_ext;
 extern gint ett_gsm_rr_elem[];
 extern elem_fcn rr_elem_fcn[];
 extern int hf_gsm_a_rr_elem_id;
 extern void get_rr_msg_params(guint8 oct, const gchar **msg_str, int *ett_tree, int *hf_idx, msg_fcn *msg_fcn);
 
-extern const value_string gsm_common_elem_strings[];
+extern value_string_ext gsm_common_elem_strings_ext;
 extern gint ett_gsm_common_elem[];
 extern elem_fcn common_elem_fcn[];
 extern int hf_gsm_a_common_elem_id;
 
-extern const value_string gsm_gm_elem_strings[];
+extern value_string_ext gsm_gm_elem_strings_ext;
 extern gint ett_gsm_gm_elem[];
 extern elem_fcn gm_elem_fcn[];
 extern int hf_gsm_a_gm_elem_id;
 extern void get_gmm_msg_params(guint8 oct, const gchar **msg_str, int *ett_tree, int *hf_idx, msg_fcn *msg_fcn);
 extern void get_sm_msg_params(guint8 oct, const gchar **msg_str, int *ett_tree, int *hf_idx, msg_fcn *msg_fcn);
 
-extern const value_string gsm_bsslap_elem_strings[];
+extern value_string_ext gsm_bsslap_elem_strings_ext;
 extern gint ett_gsm_bsslap_elem[];
 extern elem_fcn bsslap_elem_fcn[];
 extern int hf_gsm_a_bsslap_elem_id;
 
-extern const value_string gsm_bssmap_le_elem_strings[];
+extern value_string_ext gsm_bssmap_le_elem_strings_ext;
 extern gint ett_gsm_bssmap_le_elem[];
 extern elem_fcn bssmap_le_elem_fcn[];
 extern int hf_gsm_bssmap_le_elem_id;
 
-extern const value_string nas_eps_common_elem_strings[];
+extern value_string_ext nas_eps_common_elem_strings_ext;
 extern gint ett_nas_eps_common_elem[];
 extern elem_fcn nas_eps_common_elem_fcn[];
 extern int hf_nas_eps_common_elem_id;
 
-extern const value_string nas_emm_elem_strings[];
+extern value_string_ext nas_emm_elem_strings_ext;
 extern gint ett_nas_eps_emm_elem[];
 extern elem_fcn emm_elem_fcn[];
 extern int hf_nas_eps_emm_elem_id;
 
-extern const value_string nas_esm_elem_strings[];
+extern value_string_ext nas_esm_elem_strings_ext;
 extern gint ett_nas_eps_esm_elem[];
 extern elem_fcn esm_elem_fcn[];
 extern int hf_nas_eps_esm_elem_id;
 
-extern const value_string sgsap_elem_strings[];
+extern value_string_ext sgsap_elem_strings_ext;
 extern gint ett_sgsap_elem[];
 extern elem_fcn sgsap_elem_fcn[];
 extern int hf_sgsap_elem_id;
 
-extern const value_string bssgp_elem_strings[];
+extern value_string_ext bssgp_elem_strings_ext;
 extern gint ett_bssgp_elem[];
 extern elem_fcn bssgp_elem_fcn[];
 extern int hf_bssgp_elem_id;
 
-extern const value_string gmr1_ie_common_strings[];
+extern value_string_ext gmr1_ie_common_strings_ext;
 extern elem_fcn gmr1_ie_common_func[];
 extern gint ett_gmr1_ie_common[];
-extern int hf_gmr1_elem_id;
 
-extern const value_string gmr1_ie_rr_strings[];
+extern value_string_ext gmr1_ie_rr_strings_ext;
 extern elem_fcn gmr1_ie_rr_func[];
 extern gint ett_gmr1_ie_rr[];
 
@@ -182,9 +182,6 @@ extern int hf_gsm_a_rr_t3212;
 extern int hf_gsm_a_gm_rac;
 extern int hf_gsm_a_spare_bits;
 extern int hf_gsm_a_lac;
-
-/* for the nasty hack below */
-#define GSM_BSSMAP_APDU_IE  0x49
 
 /* flags for the packet-gsm_a_common routines */
 #define GSM_A_PDU_TYPE_BSSMAP       0  /* BSSAP_PDU_TYPE_BSSMAP i.e. 0 - until split complete at least! */
@@ -264,81 +261,81 @@ extern const char* get_gsm_a_msg_string(int pdu_type, int idx);
 #define NO_MORE_DATA_CHECK(nmdc_len) \
     if ((nmdc_len) == (curr_offset - offset)) return(nmdc_len);
 
-#define SET_ELEM_VARS(SEV_pdu_type, SEV_elem_names, SEV_elem_ett, SEV_elem_funcs) \
+#define SET_ELEM_VARS(SEV_pdu_type, SEV_elem_names_ext, SEV_elem_ett, SEV_elem_funcs) \
     switch (SEV_pdu_type) \
     { \
     case GSM_A_PDU_TYPE_BSSMAP: \
-        SEV_elem_names = gsm_bssmap_elem_strings; \
+        SEV_elem_names_ext = gsm_bssmap_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_bssmap_elem; \
         SEV_elem_funcs = bssmap_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_DTAP: \
-        SEV_elem_names = gsm_dtap_elem_strings; \
+        SEV_elem_names_ext = gsm_dtap_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_dtap_elem; \
         SEV_elem_funcs = dtap_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_RP: \
-        SEV_elem_names = gsm_rp_elem_strings; \
+        SEV_elem_names_ext = gsm_rp_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_rp_elem; \
         SEV_elem_funcs = rp_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_RR: \
-        SEV_elem_names = gsm_rr_elem_strings; \
+        SEV_elem_names_ext = gsm_rr_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_rr_elem; \
         SEV_elem_funcs = rr_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_COMMON: \
-        SEV_elem_names = gsm_common_elem_strings; \
+        SEV_elem_names_ext = gsm_common_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_common_elem; \
         SEV_elem_funcs = common_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_GM: \
-        SEV_elem_names = gsm_gm_elem_strings; \
+        SEV_elem_names_ext = gsm_gm_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_gm_elem; \
         SEV_elem_funcs = gm_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_BSSLAP: \
-        SEV_elem_names = gsm_bsslap_elem_strings; \
+        SEV_elem_names_ext = gsm_bsslap_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_bsslap_elem; \
         SEV_elem_funcs = bsslap_elem_fcn; \
         break; \
     case GSM_PDU_TYPE_BSSMAP_LE: \
-        SEV_elem_names = gsm_bssmap_le_elem_strings; \
+        SEV_elem_names_ext = gsm_bssmap_le_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_bssmap_le_elem; \
         SEV_elem_funcs = bssmap_le_elem_fcn; \
         break; \
     case NAS_PDU_TYPE_COMMON: \
-        SEV_elem_names = nas_eps_common_elem_strings; \
+        SEV_elem_names_ext = nas_eps_common_elem_strings_ext; \
         SEV_elem_ett = ett_nas_eps_common_elem; \
         SEV_elem_funcs = nas_eps_common_elem_fcn; \
         break; \
     case NAS_PDU_TYPE_EMM: \
-        SEV_elem_names = nas_emm_elem_strings; \
+        SEV_elem_names_ext = nas_emm_elem_strings_ext; \
         SEV_elem_ett = ett_nas_eps_emm_elem; \
         SEV_elem_funcs = emm_elem_fcn; \
         break; \
     case NAS_PDU_TYPE_ESM: \
-        SEV_elem_names = nas_esm_elem_strings; \
+        SEV_elem_names_ext = nas_esm_elem_strings_ext; \
         SEV_elem_ett = ett_nas_eps_esm_elem; \
         SEV_elem_funcs = esm_elem_fcn; \
         break; \
     case SGSAP_PDU_TYPE: \
-        SEV_elem_names = sgsap_elem_strings; \
+        SEV_elem_names_ext = sgsap_elem_strings_ext; \
         SEV_elem_ett = ett_sgsap_elem; \
         SEV_elem_funcs = sgsap_elem_fcn; \
         break; \
     case BSSGP_PDU_TYPE: \
-        SEV_elem_names = bssgp_elem_strings; \
+        SEV_elem_names_ext = bssgp_elem_strings_ext; \
         SEV_elem_ett = ett_bssgp_elem; \
         SEV_elem_funcs = bssgp_elem_fcn; \
         break; \
     case GMR1_IE_COMMON: \
-        SEV_elem_names = gmr1_ie_common_strings; \
+        SEV_elem_names_ext = gmr1_ie_common_strings_ext; \
         SEV_elem_ett = ett_gmr1_ie_common; \
         SEV_elem_funcs = gmr1_ie_common_func; \
         break; \
     case GMR1_IE_RR: \
-        SEV_elem_names = gmr1_ie_rr_strings; \
+        SEV_elem_names_ext = gmr1_ie_rr_strings_ext; \
         SEV_elem_ett = ett_gmr1_ie_rr; \
         SEV_elem_funcs = gmr1_ie_rr_func; \
         break; \
@@ -352,17 +349,17 @@ extern const char* get_gsm_a_msg_string(int pdu_type, int idx);
 /*
  * Type Length Value (TLV) element dissector
  */
-extern guint16 elem_tlv(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
+WS_DLL_PUBLIC guint16 elem_tlv(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
 
 /*
  * Type Extendable Length Value (TLVE) element dissector
  */
-extern guint16 elem_telv(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
+guint16 elem_telv(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
 
 /*
  * Type Length Value (TLV-E) element dissector
  */
-extern guint16 elem_tlv_e(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
+guint16 elem_tlv_e(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
 
 /*
  * Type Value (TV) element dissector
@@ -370,7 +367,7 @@ extern guint16 elem_tlv_e(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, g
  * Length cannot be used in these functions, big problem if a element dissector
  * is not defined for these.
  */
-extern guint16 elem_tv(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, const gchar *name_add);
+WS_DLL_PUBLIC guint16 elem_tv(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, const gchar *name_add);
 
 /*
  * Type Value (TV) element dissector
@@ -379,22 +376,22 @@ extern guint16 elem_tv(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guin
  * Length cannot be used in these functions, big problem if a element dissector
  * is not defined for these.
  */
-extern guint16 elem_tv_short(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, const gchar *name_add);
+WS_DLL_PUBLIC guint16 elem_tv_short(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, const gchar *name_add);
 
 /*
  * Type (T) element dissector
  */
-extern guint16 elem_t(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, const gchar *name_add);
+WS_DLL_PUBLIC guint16 elem_t(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint8 iei, gint pdu_type, int idx, guint32 offset, const gchar *name_add);
 
 /*
  * Length Value (LV) element dissector
  */
-extern guint16 elem_lv(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
+WS_DLL_PUBLIC guint16 elem_lv(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
 
 /*
  * Length Value (LV-E) element dissector
  */
-extern guint16 elem_lv_e(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
+guint16 elem_lv_e(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint pdu_type, int idx, guint32 offset, guint len, const gchar *name_add);
 
 /*
  * Value (V) element dissector
@@ -402,7 +399,7 @@ extern guint16 elem_lv_e(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gi
  * Length cannot be used in these functions, big problem if a element dissector
  * is not defined for these.
  */
-extern guint16 elem_v(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint pdu_type, int idx, guint32 offset, const gchar *name_add);
+WS_DLL_PUBLIC guint16 elem_v(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint pdu_type, int idx, guint32 offset, const gchar *name_add);
 
 /*
  * Short Value (V_SHORT) element dissector
@@ -410,7 +407,7 @@ extern guint16 elem_v(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint 
  * nibble used in this functions to indicate left or right nibble of the octet 
  * This is expected to be used right nibble first, as the tables of 24.008.
  */
-extern guint16 elem_v_short(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint pdu_type, int idx, guint32 offset, guint32 nibble);
+WS_DLL_PUBLIC guint16 elem_v_short(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint pdu_type, int idx, guint32 offset, guint32 nibble);
 
 
 /* XXX: Most (if not all) the functions which make use of the following macros have the variables 'consumed',
@@ -664,8 +661,11 @@ guint16 be_cell_id_list(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 guint16 be_chan_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 be_prio(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 
+WS_DLL_PUBLIC
 guint16 de_lai(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_mid(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_cell_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_bearer_cap_uplink(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
@@ -677,38 +677,60 @@ guint16 de_cn_common_gsm_map_nas_sys_info(tvbuff_t *tvb, proto_tree *tree, packe
 guint16 de_cs_domain_spec_sys_info(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_ps_domain_spec_sys_info(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_plmn_list(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_ms_cm_1(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_ms_cm_2(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_ms_cm_3(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_serv_cat(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_sm_apn(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_sm_pco(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_sm_pflow_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_sm_tflow_temp(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_time_zone(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_gmm_drx_param(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_gmm_ms_net_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_gmm_rai(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_gmm_voice_domain_pref(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 
 guint16 de_sup_codec_list(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
  
 
+WS_DLL_PUBLIC
 guint16 de_rr_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_rr_cell_dsc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_rr_ch_dsc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_rr_ch_mode(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_rr_chnl_needed(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_rr_cip_mode_set(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_rr_cm_enq_mask(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_rr_meas_res(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_rr_multirate_conf(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_rr_sus_cau(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_rr_tlli(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 
+WS_DLL_PUBLIC
 guint16 de_rej_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+WS_DLL_PUBLIC
 guint16 de_d_gb_call_ref(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_spare_nibble(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_);
 
@@ -717,6 +739,7 @@ guint16 de_emm_trac_area_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
 guint16 de_emm_sec_par_from_eutra(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_);
 guint16 de_emm_sec_par_to_eutra(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_);
 guint16 de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_);
+void nas_esm_pdn_con_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len);
 
 void dtap_rr_ho_cmd(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len);
 void dtap_rr_cip_mode_cpte(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len);
@@ -732,17 +755,17 @@ void rp_data_n_ms(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 o
  * without having to duplicate it. With MSVC and a
  * libwireshark.dll, we need a special declaration.
  */
-WS_VAR_IMPORT const value_string gsm_a_bssmap_msg_strings[];
-WS_VAR_IMPORT const value_string gsm_a_dtap_msg_mm_strings[];
-WS_VAR_IMPORT const value_string gsm_a_dtap_msg_rr_strings[];
-WS_VAR_IMPORT const value_string gsm_a_dtap_msg_cc_strings[];
-WS_VAR_IMPORT const value_string gsm_a_dtap_msg_gmm_strings[];
-WS_VAR_IMPORT const value_string gsm_a_dtap_msg_sms_strings[];
-WS_VAR_IMPORT const value_string gsm_a_dtap_msg_sm_strings[];
-WS_VAR_IMPORT const value_string gsm_a_dtap_msg_ss_strings[];
-WS_VAR_IMPORT const value_string gsm_a_dtap_msg_tp_strings[];
-WS_VAR_IMPORT const value_string gsm_a_rr_short_pd_msg_strings[];
-WS_VAR_IMPORT const gchar *gsm_a_pd_str[];
+WS_DLL_PUBLIC const value_string gsm_a_bssmap_msg_strings[];
+WS_DLL_PUBLIC const value_string gsm_a_dtap_msg_mm_strings[];
+WS_DLL_PUBLIC const value_string gsm_a_dtap_msg_rr_strings[];
+WS_DLL_PUBLIC const value_string gsm_a_dtap_msg_cc_strings[];
+WS_DLL_PUBLIC const value_string gsm_a_dtap_msg_gmm_strings[];
+WS_DLL_PUBLIC const value_string gsm_a_dtap_msg_sms_strings[];
+WS_DLL_PUBLIC const value_string gsm_a_dtap_msg_sm_strings[];
+WS_DLL_PUBLIC const value_string gsm_a_dtap_msg_ss_strings[];
+WS_DLL_PUBLIC const value_string gsm_a_dtap_msg_tp_strings[];
+WS_DLL_PUBLIC const value_string gsm_a_rr_short_pd_msg_strings[];
+WS_DLL_PUBLIC const gchar *gsm_a_pd_str[];
 
 extern const value_string gsm_a_sm_qos_del_of_err_sdu_vals[];
 extern const value_string gsm_a_sm_qos_traffic_cls_vals[];
@@ -785,6 +808,7 @@ common_elem_idx_t;
 
 typedef enum
 {
+    BE_UDEF_0,                          /* Undefined */
     BE_CIC,                             /* Circuit Identity Code */
     BE_RSVD_1,                          /* Reserved */
     BE_RES_AVAIL,                       /* Resource Available */
@@ -835,8 +859,8 @@ typedef enum
     BE_RES_SIT,                         /* Resource Situation */
     BE_CURR_CHAN_1,                     /* Current Channel Type 1 */
     BE_QUE_IND,                         /* Queueing Indicator */
-    BE_SPEECH_VER,                      /* Speech Version */
     BE_ASS_REQ,                         /* Assignment Requirement */
+    BE_UDEF_52,                         /* Undefined */
     BE_TALKER_FLAG,                     /* Talker Flag */
     BE_CONN_REL_REQ,                    /* Connection Release Requested */
     BE_GROUP_CALL_REF,                  /* Group Call Reference */
@@ -848,6 +872,9 @@ typedef enum
     BE_LSA_INFO,                        /* LSA Information */
     BE_LCS_QOS,                         /* LCS QoS */
     BE_LSA_ACC_CTRL,                    /* LSA access control suppression */
+    BE_SPEECH_VER,                      /* Speech Version */
+    BE_UDEF_65,                         /* Undefined */
+    BE_UDEF_66,                         /* Undefined */
     BE_LCS_PRIO,                        /* LCS Priority */
     BE_LOC_TYPE,                        /* Location Type */
     BE_LOC_EST,                         /* Location Estimate */
@@ -866,14 +893,26 @@ typedef enum
     BE_SRC_RNC_TO_TAR_RNC_CDMA,         /* Source RNC to target RNC transparent information (cdma2000) */
     BE_GERAN_CLS_M,                     /* GERAN Classmark */
     BE_GERAN_BSC_CONT,                  /* GERAN BSC Container */
+    BE_VEL_EST,                         /* Velocity Estimate */
+    BE_UDEF_86,                         /* Undefined */
+    BE_UDEF_87,                         /* Undefined */
+    BE_UDEF_88,                         /* Undefined */
+    BE_UDEF_89,                         /* Undefined */
+    BE_UDEF_90,                         /* Undefined */
+    BE_UDEF_91,                         /* Undefined */
+    BE_UDEF_92,                         /* Undefined */
+    BE_UDEF_93,                         /* Undefined */
+    BE_UDEF_94,                         /* Undefined */
+    BE_UDEF_95,                         /* Undefined */
+    BE_UDEF_96,                         /* Undefined */
     BE_NEW_BSS_TO_OLD_BSS_INF,          /* New BSS to Old BSS Information */
+    BE_UDEF_98,                         /* Undefined */
     BE_INTER_SYS_INF,                   /* Inter-System Information */
     BE_SNA_ACC_INF,                     /* SNA Access Information */
     BE_VSTK_RAND_INF,                   /* VSTK_RAND Information */
     BE_VSTK_INF,                        /* VSTK Information */
     BE_PAGING_INF,                      /* Paging Information */
     BE_IMEI,                            /* IMEI */
-    BE_VEL_EST,                         /* Velocity Estimate */
     BE_VGCS_FEAT_FLG,                   /* VGCS Feature Flags */
     BE_TALKER_PRI,                      /* Talker Priority */
     BE_EMRG_SET_IND,                    /* Emergency Set Indication */
@@ -899,9 +938,10 @@ typedef enum
     BE_CALL_ID,                         /* Call Identifier */
     BE_CALL_ID_LST,                     /* Call Identifier List */
     BE_A_ITF_SEL_FOR_RESET,             /* A-Interface Selector for RESET */
+    BE_UDEF_130,                        /* Undefined */
     BE_KC128,                           /* Kc128 */
     BE_CSG_ID,                          /* CSG Identifier */
-    BE_NONE /* NONE */
+    BE_NONE                             /* NONE */
 }
 bssmap_elem_idx_t;
 
@@ -1359,8 +1399,8 @@ typedef enum
     DE_SGSAP_EPS_LOC_UPD_TYPE,                      /* 9.4.2 EPS location update type*/
     DE_SGSAP_GLOBAL_CN_ID,                          /* 9.4.4 Global CN-Id*/
 
+    DE_SGSAP_UDEF_11,                               /* Undefined */
     DE_SGSAP_UDEF_12,                               /* Undefined */
-    DE_SGSAP_UDEF_13,                               /* Undefined */
 
     DE_SGSAP_MID,                                   /* 9.4.14 Mobile identity*/
     DE_SGSAP_REJ_CAUSE,                             /* 9.4.16 Reject cause */
@@ -1371,9 +1411,9 @@ typedef enum
     DE_SGSAP_NAS_MSG_CONTAINER,                     /* 9.4.15 NAS message container*/
     DE_SGSAP_MM_INFO,                               /* 9.4.12 MM information*/
 
-    DE_SGSAP_UDEF_24,                               /* Undefined */
-    DE_SGSAP_UDEF_25,                               /* Undefined */
-    DE_SGSAP_UDEF_26,                               /* Undefined */
+    DE_SGSAP_UDEF_20,                               /* Undefined */
+    DE_SGSAP_UDEF_21,                               /* Undefined */
+    DE_SGSAP_UDEF_22,                               /* Undefined */
 
     DE_SGSAP_ERR_MSG,                               /* 9.4.3 Erroneous message*/
     DE_SGSAP_CLI,                                   /* 9.4.1 CLI */

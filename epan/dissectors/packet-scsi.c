@@ -125,14 +125,14 @@ static int hf_scsi_paramlen                     = -1;
 static int hf_scsi_paramlen16                   = -1;
 static int hf_scsi_modesel_flags                = -1;
 static int hf_scsi_modesns_pc                   = -1;
-static int hf_scsi_modepage_ps			= -1;
-static int hf_scsi_modepage_spf			= -1;
-static int hf_scsi_modepage_plen		= -1;
-static int hf_scsi_modepage_tcmos		= -1;
-static int hf_scsi_modepage_scsip		= -1;
-static int hf_scsi_modepage_ialuae		= -1;
-static int hf_scsi_modepage_icp			= -1;
-static int hf_scsi_modepage_msdl		= -1;
+static int hf_scsi_modepage_ps                  = -1;
+static int hf_scsi_modepage_spf                 = -1;
+static int hf_scsi_modepage_plen                = -1;
+static int hf_scsi_modepage_tcmos               = -1;
+static int hf_scsi_modepage_scsip               = -1;
+static int hf_scsi_modepage_ialuae              = -1;
+static int hf_scsi_modepage_icp                 = -1;
+static int hf_scsi_modepage_msdl                = -1;
 static int hf_scsi_spc_pagecode                 = -1;
 static int hf_scsi_spc_subpagecode              = -1;
 static int hf_scsi_sbcpagecode                  = -1;
@@ -305,7 +305,7 @@ static int hf_scsi_log_ta_aif                   = -1;
 static int hf_scsi_log_ta_fwf                   = -1;
 static int hf_scsi_log_ta_wmicf                 = -1;
 static int hf_scsi_log_ta_wmoa                  = -1;
-static int hf_scsi_sbc_treshold_exponent        = -1;
+static int hf_scsi_sbc_threshold_exponent       = -1;
 static int hf_scsi_sbc_lbpu                     = -1;
 static int hf_scsi_sbc_lbpws                    = -1;
 static int hf_scsi_sbc_lbpws10                  = -1;
@@ -327,6 +327,29 @@ static int hf_scsi_block_limits_uga             = -1;
 static int hf_scsi_block_limits_mwsl            = -1;
 static int hf_scsi_prevent_allow_flags          = -1;
 static int hf_scsi_prevent_allow_prevent        = -1;
+static int hf_scsi_mpi_service_action           = -1;
+static int hf_scsi_report_opcodes_rctd          = -1;
+static int hf_scsi_report_opcodes_options       = -1;
+static int hf_scsi_report_opcodes_requested_o   = -1;
+static int hf_scsi_report_opcodes_requested_sa  = -1;
+static int hf_scsi_report_opcodes_cdl           = -1;
+static int hf_scsi_report_opcodes_sa            = -1;
+static int hf_scsi_report_opcodes_ctdp          = -1;
+static int hf_scsi_report_opcodes_ctdp_one      = -1;
+static int hf_scsi_report_opcodes_servactv      = -1;
+static int hf_scsi_report_opcodes_cdb_length    = -1;
+static int hf_scsi_report_opcodes_support       = -1;
+static int hf_scsi_report_opcodes_cdb_usage_data = -1;
+static int hf_scsi_report_opcodes_tdl           = -1;
+static int hf_scsi_report_opcodes_npt           = -1;
+static int hf_scsi_report_opcodes_rct           = -1;
+static int hf_scsi_inquiry_bdc_mrr              = -1;
+static int hf_scsi_inquiry_bdc_pt               = -1;
+static int hf_scsi_inquiry_bdc_wabereq          = -1;
+static int hf_scsi_inquiry_bdc_wacereq          = -1;
+static int hf_scsi_inquiry_bdc_nff              = -1;
+static int hf_scsi_inquiry_bdc_fuab              = -1;
+static int hf_scsi_inquiry_bdc_vbuls            = -1;
 
 static gint ett_scsi = -1;
 static gint ett_scsi_page = -1;
@@ -347,14 +370,15 @@ static gint ett_scsi_fragment = -1;
 static gint ett_persresv_control = -1;
 static gint ett_scsi_lun = -1;
 static gint ett_scsi_prevent_allow = -1;
+static gint ett_command_descriptor = -1;
+static gint ett_timeout_descriptor = -1;
 
 static int scsi_tap = -1;
 
 /* Defragment of SCSI DATA IN/OUT */
 static gboolean scsi_defragment = FALSE;
 
-static GHashTable *scsi_fragment_table = NULL;
-static GHashTable *scsi_reassembled_table = NULL;
+static reassembly_table scsi_reassembly_table;
 
 /*
  * Required by all commands
@@ -371,8 +395,8 @@ const int *cdb_control_fields[6] = {
 static void
 scsi_defragment_init(void)
 {
-    fragment_table_init(&scsi_fragment_table);
-    reassembled_table_init(&scsi_reassembled_table);
+    reassembly_table_init(&scsi_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 static const fragment_items scsi_frag_items = {
@@ -416,6 +440,7 @@ static const value_string scsi_spc_vals[] = {
     {SCSI_SPC_INQUIRY            , "Inquiry"},
     {SCSI_SPC_LOGSELECT          , "Log Select"},
     {SCSI_SPC_LOGSENSE           , "Log Sense"},
+    {SCSI_SPC_MGMT_PROTOCOL_IN   , "Mgmt Protocol In"},
     {SCSI_SPC_MODESELECT6        , "Mode Select(6)"},
     {SCSI_SPC_MODESELECT10       , "Mode Select(10)"},
     {SCSI_SPC_MODESENSE6         , "Mode Sense(6)"},
@@ -428,7 +453,6 @@ static const value_string scsi_spc_vals[] = {
     {SCSI_SPC_READBUFFER         , "Read Buffer"},
     {SCSI_SPC_RELEASE6           , "Release(6)"},
     {SCSI_SPC_RELEASE10          , "Release(10)"},
-    {SCSI_SPC_REPORTDEVICEID     , "Report Device ID"},
     {SCSI_SPC_REPORTLUNS         , "Report LUNs"},
     {SCSI_SPC_REQSENSE           , "Request Sense"},
     {SCSI_SPC_RESERVE6           , "Reserve(6)"},
@@ -475,6 +499,7 @@ static const value_string scsi_select_report_val[] = {
 #define SCSI_EVPD_ASCIIOPER       0x82
 #define SCSI_EVPD_DEVID           0x83
 #define SCSI_EVPD_BLKLIMITS       0xb0
+#define SCSI_EVPD_BLKDEVCHAR      0xb1
 #define SCSI_EVPD_LBP             0xb2
 
 static const value_string scsi_evpd_pagecode_val[] = {
@@ -492,7 +517,8 @@ static const value_string scsi_evpd_pagecode_val[] = {
     {SCSI_EVPD_ASCIIOPER, "ASCII Implemented Operating Definition Page"},
     {SCSI_EVPD_DEVID,     "Device Identification Page"},
     {SCSI_EVPD_BLKLIMITS, "Block Limits Page"},
-    {SCSI_EVPD_LBP,        "Logical Block Provisioning Page"},
+    {SCSI_EVPD_BLKDEVCHAR,"Block Device Characteristics"},
+    {SCSI_EVPD_LBP,       "Logical Block Provisioning Page"},
     {0, NULL},
 };
 
@@ -1051,10 +1077,14 @@ static const value_string scsi_mmc5_modepage_val[] = {
 
 #define SCSI_SPC_RESVIN_SVCA_RDKEYS 0
 #define SCSI_SPC_RESVIN_SVCA_RDRESV 1
+#define SCSI_SPC_RESVIN_SVCA_RPTCAP 2
+#define SCSI_SPC_RESVIN_SVCA_FULL   3
 
 static const value_string scsi_persresvin_svcaction_val[] = {
     {SCSI_SPC_RESVIN_SVCA_RDKEYS, "Read Keys"},
     {SCSI_SPC_RESVIN_SVCA_RDRESV, "Read Reservation"},
+    {SCSI_SPC_RESVIN_SVCA_RPTCAP, "Report Capabilities"},
+    {SCSI_SPC_RESVIN_SVCA_FULL,   "Read Full Status"},
     {0, NULL},
 };
 
@@ -1949,7 +1979,6 @@ static const value_string scsi_asc_val[] = {
     {0x6500,  "Voltage Fault"},
     {0, NULL},
 };
-
 value_string_ext scsi_asc_val_ext = VALUE_STRING_EXT_INIT(scsi_asc_val);
 
 /* SCSI Status Codes */
@@ -2134,6 +2163,29 @@ dissect_scsi_evpd(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
                                     tvb_format_text(tvb, offset, plen));
             }
             break;
+        case SCSI_EVPD_BLKDEVCHAR:
+            proto_tree_add_item(evpd_tree, hf_scsi_inquiry_bdc_mrr, tvb,
+				offset, 2, ENC_BIG_ENDIAN);
+            offset += 2;
+
+            proto_tree_add_item(evpd_tree, hf_scsi_inquiry_bdc_pt, tvb,
+				offset, 1, ENC_BIG_ENDIAN);
+            offset += 1;
+
+            proto_tree_add_item(evpd_tree, hf_scsi_inquiry_bdc_wabereq, tvb,
+				offset, 1, ENC_BIG_ENDIAN);
+            proto_tree_add_item(evpd_tree, hf_scsi_inquiry_bdc_wacereq, tvb,
+				offset, 1, ENC_BIG_ENDIAN);
+            proto_tree_add_item(evpd_tree, hf_scsi_inquiry_bdc_nff, tvb,
+				offset, 1, ENC_BIG_ENDIAN);
+            offset += 1;
+
+            proto_tree_add_item(evpd_tree, hf_scsi_inquiry_bdc_fuab, tvb,
+				offset, 1, ENC_BIG_ENDIAN);
+            proto_tree_add_item(evpd_tree, hf_scsi_inquiry_bdc_vbuls, tvb,
+				offset, 1, ENC_BIG_ENDIAN);
+            offset += 1;
+	    break;
         case SCSI_EVPD_BLKLIMITS:
             proto_tree_add_item(evpd_tree, hf_scsi_block_limits_wsnz, tvb, offset, 1, ENC_NA);
             offset += 1;
@@ -2167,11 +2219,11 @@ dissect_scsi_evpd(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
             offset += 4;
 
             proto_tree_add_item(evpd_tree, hf_scsi_block_limits_mwsl, tvb, offset, 8, ENC_BIG_ENDIAN);
-            offset += 8;
+            /*offset += 8;*/
 
             break;
         case SCSI_EVPD_LBP:
-            proto_tree_add_item(evpd_tree, hf_scsi_sbc_treshold_exponent, tvb, offset, 1, ENC_BIG_ENDIAN);
+            proto_tree_add_item(evpd_tree, hf_scsi_sbc_threshold_exponent, tvb, offset, 1, ENC_BIG_ENDIAN);
             offset += 1;
 
             proto_tree_add_item(evpd_tree, hf_scsi_sbc_lbpu, tvb, offset, 1, ENC_NA);
@@ -2183,7 +2235,7 @@ dissect_scsi_evpd(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
             offset += 1;
 
             proto_tree_add_item(evpd_tree, hf_scsi_sbc_ptype, tvb, offset, 1, ENC_BIG_ENDIAN);
-            offset += 1;
+            /*offset += 1;*/
 
             break;
         }
@@ -2266,11 +2318,11 @@ dissect_spc_inq_sccsflags(tvbuff_t *tvb, int offset, proto_tree *tree, int versi
         break;
     case 4: /* SPC-2 */
         proto_tree_add_bitmask(tree, tvb, offset, hf_scsi_inq_sccsflags, ett_scsi_inq_sccsflags,  sccs_fields_spc2, ENC_BIG_ENDIAN);
-	break;
+        break;
     case 5: /* SPC-3 */
     case 6: /* SPC-4 */
         proto_tree_add_bitmask(tree, tvb, offset, hf_scsi_inq_sccsflags, ett_scsi_inq_sccsflags,  sccs_fields_spc3, ENC_BIG_ENDIAN);
-	break;
+        break;
     default: /* including version 0 : claims conformance to no standard */
         proto_tree_add_bitmask(tree, tvb, offset, hf_scsi_inq_sccsflags, ett_scsi_inq_sccsflags,  sccs_fields_spc3, ENC_BIG_ENDIAN);
     }
@@ -2457,16 +2509,20 @@ dissect_spc_inquiry(tvbuff_t *tvb, packet_info *pinfo,
         if (flags & 0x1) {
             proto_tree_add_item(tree, hf_scsi_inquiry_evpd_page, tvb_v, offset_v+1,
                                 1, ENC_BIG_ENDIAN);
-        }
-        else if (flags & 0x2) {
+
+	    col_add_fstr(pinfo->cinfo, COL_INFO, " %s",
+			 val_to_str(tvb_get_guint8(tvb_v, offset_v+1),
+				    scsi_evpd_pagecode_val,
+				    "Unknown VPD 0x%02x"));
+	} else if (flags & 0x2) {
             proto_tree_add_item(tree, hf_scsi_inquiry_cmdt_page, tvb_v, offset_v+1,
                                 1, ENC_BIG_ENDIAN);
         }
 
-        proto_tree_add_item(tree, hf_scsi_alloclen, tvb_v, offset_v+3, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(tree, hf_scsi_alloclen16, tvb_v, offset_v+2, 2, ENC_BIG_ENDIAN);
         /* we need the alloc_len in the response */
         if (cdata) {
-            cdata->itlq->alloc_len = tvb_get_guint8(tvb_v, offset_v+3);
+            cdata->itlq->alloc_len = tvb_get_ntohs(tvb_v, offset_v+2);
         }
         proto_tree_add_bitmask(tree, tvb_v, offset_v+4, hf_scsi_inq_control,
                                ett_scsi_inq_control, inq_control_fields, ENC_BIG_ENDIAN);
@@ -2498,25 +2554,25 @@ dissect_spc_inquiry(tvbuff_t *tvb, packet_info *pinfo,
         offset_v+=1;
 
         /* Version */
-	version = tvb_get_guint8(tvb, offset_v);
+        version = tvb_get_guint8(tvb, offset_v);
         proto_tree_add_item(tree, hf_scsi_inq_version, tvb_v, offset_v, 1, ENC_BIG_ENDIAN);
         offset_v+=1;
 
         /* aca flags */
-	switch (version) {
-	case 3: /* SPC */
-	        proto_tree_add_bitmask(tree, tvb_v, offset_v, hf_scsi_inq_acaflags, ett_scsi_inq_acaflags, aca_fields_spc, ENC_BIG_ENDIAN);
-		break;
-	case 4: /* SPC-2 */
-	        proto_tree_add_bitmask(tree, tvb_v, offset_v, hf_scsi_inq_acaflags, ett_scsi_inq_acaflags, aca_fields_spc2, ENC_BIG_ENDIAN);
-		break;
-	case 5: /* SPC-3 */
-	case 6: /* SPC-4 */
-	        proto_tree_add_bitmask(tree, tvb_v, offset_v, hf_scsi_inq_acaflags, ett_scsi_inq_acaflags, aca_fields_spc3, ENC_BIG_ENDIAN);
-		break;
-	default: /* including version 0 : claims conformance to no standard */
-	        proto_tree_add_bitmask(tree, tvb_v, offset_v, hf_scsi_inq_acaflags, ett_scsi_inq_acaflags, aca_fields_spc3, ENC_BIG_ENDIAN);
-	}
+        switch (version) {
+        case 3: /* SPC */
+            proto_tree_add_bitmask(tree, tvb_v, offset_v, hf_scsi_inq_acaflags, ett_scsi_inq_acaflags, aca_fields_spc, ENC_BIG_ENDIAN);
+            break;
+        case 4: /* SPC-2 */
+            proto_tree_add_bitmask(tree, tvb_v, offset_v, hf_scsi_inq_acaflags, ett_scsi_inq_acaflags, aca_fields_spc2, ENC_BIG_ENDIAN);
+            break;
+        case 5: /* SPC-3 */
+        case 6: /* SPC-4 */
+            proto_tree_add_bitmask(tree, tvb_v, offset_v, hf_scsi_inq_acaflags, ett_scsi_inq_acaflags, aca_fields_spc3, ENC_BIG_ENDIAN);
+            break;
+        default: /* including version 0 : claims conformance to no standard */
+            proto_tree_add_bitmask(tree, tvb_v, offset_v, hf_scsi_inq_acaflags, ett_scsi_inq_acaflags, aca_fields_spc3, ENC_BIG_ENDIAN);
+        }
         offset_v+=1;
 
         /* Additional Length */
@@ -2878,15 +2934,15 @@ dissect_scsi_spc_modepage(tvbuff_t *tvb, packet_info *pinfo _U_,
                 /* control extension subpage */
                 proto_item_append_text(tree, " Control Extension");
 
-		/* TCMOS SCSIP IALUAE */
+                /* TCMOS SCSIP IALUAE */
                 proto_tree_add_item(tree, hf_scsi_modepage_tcmos, tvb, offset + 4, 1, ENC_BIG_ENDIAN);
                 proto_tree_add_item(tree, hf_scsi_modepage_scsip, tvb, offset + 4, 1, ENC_BIG_ENDIAN);
                 proto_tree_add_item(tree, hf_scsi_modepage_ialuae, tvb, offset + 4, 1, ENC_BIG_ENDIAN);
 
-		/* Initial Command Priority */
+                /* Initial Command Priority */
                 proto_tree_add_item(tree, hf_scsi_modepage_icp, tvb, offset + 5, 1, ENC_BIG_ENDIAN);
 
-		/* Maximum Sense Data Length */
+                /* Maximum Sense Data Length */
                 proto_tree_add_item(tree, hf_scsi_modepage_msdl, tvb, offset + 6, 1, ENC_BIG_ENDIAN);
 
                 break;
@@ -3492,7 +3548,7 @@ dissect_scsi_modepage(tvbuff_t *tvb, packet_info *pinfo,
                       scsi_device_type devtype)
 {
     guint16             plen;
-    guint8		pcode, spf, subpcode = 0;
+    guint8              pcode, spf, subpcode = 0;
     proto_tree         *tree;
     proto_item         *ti;
     const value_string *modepage_val;
@@ -3509,7 +3565,7 @@ dissect_scsi_modepage(tvbuff_t *tvb, packet_info *pinfo,
         plen = tvb_get_guint8(tvb, offset + 1);
     }
 
-    if (match_strval(pcode & SCSI_MS_PCODE_BITS,
+    if (try_val_to_str(pcode & SCSI_MS_PCODE_BITS,
                      scsi_spc_modepage_val) == NULL) {
         /*
          * This isn't a generic mode page that applies to all SCSI
@@ -3544,7 +3600,7 @@ dissect_scsi_modepage(tvbuff_t *tvb, packet_info *pinfo,
         default:
             /*
              * The "val_to_str()" lookup will fail in this table
-             * (it failed in "match_strval()"), so it'll return
+             * (it failed in "try_val_to_str()"), so it'll return
              * "Unknown (XXX)", which is what we want.
              */
             modepage_val = scsi_spc_modepage_val;
@@ -3558,7 +3614,8 @@ dissect_scsi_modepage(tvbuff_t *tvb, packet_info *pinfo,
         dissect_modepage = dissect_scsi_spc_modepage;
     }
 
-    ti = proto_tree_add_text(scsi_tree, tvb, offset, plen + spf ? 4 : 2, "%s Mode Page",
+    ti = proto_tree_add_text(scsi_tree, tvb, offset, plen + (spf ? 4 : 2),
+                             "%s Mode Page",
                              val_to_str(pcode & SCSI_MS_PCODE_BITS,
                                         modepage_val, "Unknown (0x%08x)"));
     tree = proto_item_add_subtree(ti, ett_scsi_page);
@@ -3795,7 +3852,7 @@ dissect_scsi_pagecode(tvbuff_t *tvb, packet_info *pinfo _U_,
         return;
 
     pcode = tvb_get_guint8(tvb, offset);
-    if (match_strval(pcode & SCSI_MS_PCODE_BITS,
+    if (try_val_to_str(pcode & SCSI_MS_PCODE_BITS,
                      scsi_spc_modepage_val) == NULL) {
         /*
          * This isn't a generic mode page that applies to all SCSI
@@ -4030,7 +4087,7 @@ dissect_spc_preventallowmediaremoval(tvbuff_t *tvb, packet_info *pinfo _U_, prot
         flags = tvb_get_guint8(tvb, offset + 3);
         if (flags & 0x01) {
             col_append_str(pinfo->cinfo, COL_INFO, " PREVENT");
-	} else {
+        } else {
             col_append_str(pinfo->cinfo, COL_INFO, " ALLOW");
         }
 
@@ -4272,6 +4329,193 @@ dissect_spc_reportluns(tvbuff_t *tvb, packet_info *pinfo _U_,
     }
 }
 
+const value_string mpi_action_vals[] = {
+    {MPI_MANAGEMENT_PROTOCOL_IN           , "Management Protocol In"},
+    {MPI_REPORT_SUPPORTED_OPERATION_CODES , "Report Supported Opcodes"},
+    {0, NULL}
+};
+
+const value_string report_opcodes_options_vals[] = {
+    {0, "Report ALL opcodes"},
+    {1, "Report ONE opcode, NO service action"},
+    {2, "Report ONE opcode, WITH service action"},
+    {0, NULL}
+};
+
+void
+dissect_spc_mgmt_protocol_in(tvbuff_t *tvb, packet_info *pinfo _U_,
+			     proto_tree *tree, guint offset,
+			     gboolean isreq, gboolean iscdb,
+			     guint payload_len _U_,
+			     scsi_task_data_t *cdata _U_)
+{
+    tvbuff_t *volatile tvb_v    = tvb;
+    volatile guint     offset_v = offset;
+    guint8 service_action;
+
+    if (isreq && iscdb) {
+	service_action = tvb_get_guint8 (tvb_v, offset_v) & 0x1F;
+	if (cdata) {
+		cdata->itlq->flags=service_action;
+	}	
+        col_append_str(pinfo->cinfo, COL_INFO,
+		val_to_str(service_action, mpi_action_vals, "Unknown"));
+
+	proto_tree_add_item(tree, hf_scsi_mpi_service_action, tvb_v,
+		offset_v, 1, ENC_BIG_ENDIAN);
+
+        switch(service_action){
+	case MPI_REPORT_SUPPORTED_OPERATION_CODES:
+		proto_tree_add_item(tree, hf_scsi_report_opcodes_rctd,
+			tvb_v, offset_v+1, 1, ENC_BIG_ENDIAN);
+		proto_tree_add_item(tree, hf_scsi_report_opcodes_options,
+			tvb_v, offset_v+1, 1, ENC_BIG_ENDIAN);
+		if (cdata && (tvb_get_guint8(tvb_v, offset_v+1) & 0x07)) {
+			/* Need the one-command parameter format */
+		        cdata->itlq->flags|=0x80;
+		}
+
+		proto_tree_add_item(tree, hf_scsi_report_opcodes_requested_o,
+			tvb_v, offset_v+2, 1, ENC_BIG_ENDIAN);
+		proto_tree_add_item(tree, hf_scsi_report_opcodes_requested_sa,
+			tvb_v, offset_v+3, 2, ENC_BIG_ENDIAN);
+
+		proto_tree_add_item(tree, hf_scsi_alloclen32, tvb_v,
+			offset_v+5, 4, ENC_BIG_ENDIAN);
+		if (cdata) {
+			cdata->itlq->alloc_len = tvb_get_ntohl(tvb_v, offset_v+5);
+		}
+		break;
+	default:
+		proto_tree_add_text(tree, tvb_v, offset_v+1, 8,
+			"No dissection for this service action yet");
+	}
+
+	proto_tree_add_bitmask(tree, tvb_v, offset_v+10, hf_scsi_control,
+		ett_scsi_control, cdb_control_fields, ENC_BIG_ENDIAN);
+
+    } else if (!isreq) {
+        proto_item *it;
+	int length;
+	cmdset_t *csdata;
+	int ctdp;
+
+        if (!cdata || !cdata->itlq || !cdata->itl) {
+            return;
+        }
+
+	csdata = get_cmdset_data(cdata->itlq, cdata->itl);
+
+        it = proto_tree_add_uint(tree, hf_scsi_mpi_service_action, tvb_v, 0, 0, cdata->itlq->flags & 0x7f);
+        PROTO_ITEM_SET_GENERATED(it);
+
+        TRY_SCSI_CDB_ALLOC_LEN(pinfo, tvb_v, offset_v, cdata->itlq->alloc_len);
+
+        switch (cdata->itlq->flags & 0x7f) {
+	case MPI_REPORT_SUPPORTED_OPERATION_CODES:
+		if (cdata->itlq->flags & 0x80) {
+			/* one-command format */
+			proto_tree_add_item(tree, hf_scsi_report_opcodes_ctdp_one,
+					tvb_v, offset_v+1, 1, ENC_BIG_ENDIAN);
+			ctdp = tvb_get_guint8(tvb_v, offset_v+1) & 0x80;
+
+			proto_tree_add_item(tree, hf_scsi_report_opcodes_support,
+				tvb_v, offset_v+1, 1, ENC_BIG_ENDIAN);
+
+			proto_tree_add_item(tree, hf_scsi_report_opcodes_cdb_length,
+				tvb_v, offset_v+2, 2, ENC_BIG_ENDIAN);
+			length = tvb_get_ntohs(tvb_v, offset_v+2);
+
+			proto_tree_add_item(tree, hf_scsi_report_opcodes_cdb_usage_data,
+				tvb_v, offset_v+4, length, ENC_BIG_ENDIAN);
+
+			if (ctdp) {
+				proto_tree *tr;
+
+				it = proto_tree_add_text(tree, tvb_v, offset_v,
+					 12, "Timeout Descriptor: ");
+
+				tr = proto_item_add_subtree(it,
+					ett_timeout_descriptor);
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_tdl,
+					tvb_v, offset_v, 2, ENC_BIG_ENDIAN);
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_npt,
+					tvb_v, offset_v + 4, 4, ENC_BIG_ENDIAN);
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_rct,
+					tvb_v, offset_v + 8, 4, ENC_BIG_ENDIAN);
+			}
+		} else {
+			/* all commands format */
+			proto_tree_add_item(tree, hf_scsi_report_opcodes_cdl,
+				tvb_v, offset_v+0, 4, ENC_BIG_ENDIAN);
+			length = tvb_get_ntohl(tvb_v, offset_v);
+			offset_v += 4;
+
+			while (length >= 20) {
+				proto_tree *tr;
+
+				it = proto_tree_add_text(tree, tvb_v, offset_v,
+					20, "Command Descriptor: %s",
+					val_to_str(tvb_get_guint8(tvb_v, offset_v+0), csdata->cdb_vals, "Unknown"));
+				tr = proto_item_add_subtree(it,
+					ett_command_descriptor);
+
+				proto_tree_add_item(tr, csdata->hf_opcode,
+					tvb_v, offset_v+0, 1, ENC_BIG_ENDIAN);
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_sa,
+					tvb_v, offset_v+2, 2, ENC_BIG_ENDIAN);
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_ctdp,
+					tvb_v, offset_v+5, 1, ENC_BIG_ENDIAN);
+				ctdp = tvb_get_guint8(tvb_v, offset_v+5) & 0x02;
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_servactv,
+					tvb_v, offset_v+5, 1, ENC_BIG_ENDIAN);
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_cdb_length,
+					tvb_v, offset_v+6, 2, ENC_BIG_ENDIAN);
+
+				offset_v += 8;
+				length -= 8;
+
+				if (!ctdp) {
+					continue;
+				}
+
+				it = proto_tree_add_text(tree, tvb_v, offset_v,
+					 12, "Timeout Descriptor: ");
+
+				tr = proto_item_add_subtree(it,
+					ett_timeout_descriptor);
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_tdl,
+					tvb_v, offset_v, 2, ENC_BIG_ENDIAN);
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_npt,
+					tvb_v, offset_v + 4, 4, ENC_BIG_ENDIAN);
+
+				proto_tree_add_item(tr, hf_scsi_report_opcodes_rct,
+					tvb_v, offset_v + 8, 4, ENC_BIG_ENDIAN);
+
+				offset_v += 12;
+				length -= 12;
+
+			}
+		}
+		break;
+	default:
+		proto_tree_add_text(tree, tvb_v, offset_v+1, 8,
+			"No dissection for this service action yet");
+	}
+
+        END_TRY_SCSI_CDB_ALLOC_LEN;
+    }
+}
+
 static void
 dissect_scsi_fix_snsinfo(tvbuff_t *tvb, proto_tree *sns_tree, guint offset)
 {
@@ -4325,11 +4569,11 @@ dissect_scsi_sense(tvbuff_t *tvb, proto_tree *sns_tree, guint offset)
     case 0x70:
     case 0x71:
         dissect_scsi_fix_snsinfo(tvb, sns_tree, offset);
-	break;
+        break;
     case 0x72:
     case 0x73:
         dissect_scsi_descriptor_snsinfo(tvb, sns_tree, offset);
-	break;
+        break;
     }
 }
 
@@ -4470,7 +4714,7 @@ dissect_scsi_rsp(tvbuff_t *tvb, packet_info *pinfo,
     cmdset_t         *csdata;
     scsi_task_data_t *cdata;
 
-    cdata = ep_alloc(sizeof(scsi_task_data_t));
+    cdata = ep_new(scsi_task_data_t);
     cdata->itl = itl;
     cdata->itlq = itlq;
     cdata->type = SCSI_PDU_TYPE_RSP;
@@ -4533,7 +4777,7 @@ dissect_scsi_snsinfo(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     const char       *old_proto;
     scsi_task_data_t *cdata;
 
-    cdata = ep_alloc(sizeof(scsi_task_data_t));
+    cdata = ep_new(scsi_task_data_t);
     cdata->itl = itl;
     cdata->itlq = itlq;
     cdata->type = SCSI_PDU_TYPE_SNS;
@@ -4868,8 +5112,8 @@ dissect_scsi_cdb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     }
 #endif
 
-    if ((valstr = match_strval(opcode, scsi_spc_vals)) == NULL) {
-        valstr = match_strval(opcode, csdata->cdb_vals);
+    if ((valstr = try_val_to_str(opcode, scsi_spc_vals)) == NULL) {
+        valstr = try_val_to_str(opcode, csdata->cdb_vals);
     }
 
     if (check_col(pinfo->cinfo, COL_INFO)) {
@@ -4882,7 +5126,7 @@ dissect_scsi_cdb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
         col_set_fence(pinfo->cinfo, COL_INFO);
     }
 
-    cdata = ep_alloc(sizeof(scsi_task_data_t));
+    cdata = ep_new(scsi_task_data_t);
     cdata->itl = itl;
     cdata->itlq = itlq;
     cdata->type = SCSI_PDU_TYPE_CDB;
@@ -4963,7 +5207,7 @@ dissect_scsi_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     }
 
     payload_len = tvb_length(tvb);
-    cdata = ep_alloc(sizeof(scsi_task_data_t));
+    cdata = ep_new(scsi_task_data_t);
     cdata->itl = itl;
     cdata->itlq = itlq;
     cdata->type = SCSI_PDU_TYPE_CDB;
@@ -5089,10 +5333,10 @@ dissect_scsi_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     if ((tvb_length_remaining(tvb,offset) + relative_offset) != expected_length) {
         more_frags = TRUE;
     }
-    ipfd_head = fragment_add_check(tvb, offset, pinfo,
+    ipfd_head = fragment_add_check(&scsi_reassembly_table, tvb, offset,
+                                   pinfo,
                                    itlq->first_exchange_frame, /* key */
-                                   scsi_fragment_table,
-                                   scsi_reassembled_table,
+                                   NULL,
                                    relative_offset,
                                    tvb_length_remaining(tvb, offset),
                                    more_frags);
@@ -5165,7 +5409,7 @@ get_cmdset_data(itlq_nexus_t *itlq, itl_nexus_t *itl)
         cmdset = scsi_def_devtype;
     }
 
-    csdata = ep_alloc(sizeof(cmdset_t));
+    csdata = ep_new(cmdset_t);
 
     switch(cmdset&SCSI_CMDSET_MASK) {
     case SCSI_DEV_SBC:
@@ -5291,7 +5535,7 @@ proto_register_scsi(void)
            HFILL}},
         { &hf_scsi_persresvin_svcaction,
           {"Service Action", "scsi.persresvin.svcaction", FT_UINT8, BASE_HEX,
-           VALS(scsi_persresvin_svcaction_val), 0x0F, NULL, HFILL}},
+           VALS(scsi_persresvin_svcaction_val), 0x1F, NULL, HFILL}},
         { &hf_scsi_persresvout_svcaction,
           {"Service Action", "scsi.persresvout.svcaction", FT_UINT8, BASE_HEX,
            VALS(scsi_persresvout_svcaction_val), 0x0F, NULL, HFILL}},
@@ -5331,6 +5575,9 @@ proto_register_scsi(void)
         { &hf_scsi_persresv_control_aptpl,
           {"aptpl", "scsi.persresv.control.aptpl", FT_BOOLEAN, 8,
            TFS(&scsi_aptpl_tfs), 0x01, NULL, HFILL}},
+        { &hf_scsi_persresv_control_unreg,                             /* XXX: originally missing; OK ? */
+            {"unreg", "scsi.persresv.control.unreg", FT_BOOLEAN, 8,
+           NULL, 0x02, NULL, HFILL}},
         { &hf_scsi_release_flags,
           {"Release Flags", "scsi.release.flags", FT_UINT8, BASE_HEX, NULL,
            0x0, NULL, HFILL}},
@@ -5793,8 +6040,8 @@ proto_register_scsi(void)
         { &hf_scsi_log_ta_wmoa,
           {"worm medium overwrite attempted", "scsi.log.ta.wmoa", FT_BOOLEAN, 8, NULL, 0x01,
            NULL, HFILL}},
-        { &hf_scsi_sbc_treshold_exponent,
-          {"Treshold Exponent", "scsi_sbc.treshold_exponent", FT_UINT8, BASE_DEC, NULL, 0,
+        { &hf_scsi_sbc_threshold_exponent,
+          {"Threshold Exponent", "scsi_sbc.threshold_exponent", FT_UINT8, BASE_DEC, NULL, 0,
            NULL, HFILL}},
         { &hf_scsi_sbc_lbpu,
           {"LBPU", "scsi_sbc.lbpu", FT_BOOLEAN, 8, NULL, 0x80,
@@ -5862,21 +6109,21 @@ proto_register_scsi(void)
         { &hf_scsi_modepage_plen,
           {"Page Length", "scsi.spc.modepage.plen", FT_UINT16, BASE_DEC, NULL, 0,
            NULL, HFILL}},
-	{ &hf_scsi_modepage_tcmos,
+        { &hf_scsi_modepage_tcmos,
           {"TCMOS", "scsi.spc.modepage.tcmos", FT_BOOLEAN, 8, NULL, 0x04,
            NULL, HFILL}},
-	{ &hf_scsi_modepage_scsip,
+        { &hf_scsi_modepage_scsip,
           {"SCSIP", "scsi.spc.modepage.scsip", FT_BOOLEAN, 8, NULL, 0x02,
            NULL, HFILL}},
-	{ &hf_scsi_modepage_ialuae,
+        { &hf_scsi_modepage_ialuae,
           {"IALUAE", "scsi.spc.modepage.ialuae", FT_BOOLEAN, 8, NULL, 0x01,
            NULL, HFILL}},
         { &hf_scsi_modepage_icp,
           {"Initial Command Priority", "scsi.spc.modepage.icp", FT_UINT8, BASE_DEC,
-	   NULL, 0x0f, NULL, HFILL}},
+           NULL, 0x0f, NULL, HFILL}},
         { &hf_scsi_modepage_msdl,
           {"Maximum Sense Data Length", "scsi.spc.modepage.msdl", FT_UINT8, BASE_DEC,
-	   NULL, 0, NULL, HFILL}},
+           NULL, 0, NULL, HFILL}},
         { &hf_scsi_lun,
           { "LUN", "scsi.lun", FT_UINT16, BASE_DEC,
             NULL, 0, "Logical Unit Number", HFILL }},
@@ -5886,11 +6133,80 @@ proto_register_scsi(void)
         { &hf_scsi_lun_address_mode,
           { "Address Mode", "scsi.lun.address_mode", FT_UINT8, BASE_DEC,
           VALS(scsi_lun_address_mode_vals), 0xc0, "Addressing mode for the LUN", HFILL }},
-	{ &hf_scsi_prevent_allow_flags,
+        { &hf_scsi_prevent_allow_flags,
           {"Prevent Allow Flags", "scsi.prevent_allow.flags", FT_UINT8, BASE_HEX, NULL, 0,
            NULL, HFILL}},
         { &hf_scsi_prevent_allow_prevent,
           { "PREVENT", "scsi.prevent_allow.prevent", FT_BOOLEAN, 8,
+            NULL, 0x01, NULL, HFILL}},
+        { &hf_scsi_mpi_service_action,
+          { "Service Action", "scsi.mpi.service_action", FT_UINT8, BASE_HEX,
+          VALS(mpi_action_vals), 0x1f, "Management Protocol In Service Action", HFILL }},
+        { &hf_scsi_report_opcodes_rctd,
+          { "RCTD", "scsi.report_opcodes.rctd", FT_BOOLEAN, 8,
+            NULL, 0x80, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_options,
+          { "Reporting Options", "scsi.report_opcodes.options", FT_UINT8, BASE_HEX,
+            VALS(report_opcodes_options_vals), 0x07, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_requested_o,
+          { "Requested Operation Code", "scsi.report_opcodes.requested_operation_code", FT_UINT8, BASE_HEX,
+            NULL, 0, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_requested_sa,
+          { "Requested Service Action", "scsi.report_opcodes.requested_service_action", FT_UINT16, BASE_HEX,
+            NULL, 0, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_cdl,
+          { "Command Data Length", "scsi.report_opcodes.command_data_length", FT_UINT32, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_sa,
+          { "Service Action", "scsi.report_opcodes.service_action", FT_UINT16, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_ctdp,
+          { "CTDP", "scsi.report_opcodes.ctdp", FT_BOOLEAN, 8,
+            NULL, 0x02, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_ctdp_one,
+          { "CTDP", "scsi.report_opcodes_one.ctdp", FT_BOOLEAN, 8,
+            NULL, 0x80, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_servactv,
+          { "SERVACTV", "scsi.report_opcodes.servactv", FT_BOOLEAN, 8,
+            NULL, 0x01, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_cdb_length,
+          { "CDB Length", "scsi.report_opcodes.cdb_length", FT_UINT16, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_support,
+          { "Support", "scsi.report_opcodes.support", FT_UINT8, BASE_DEC,
+            NULL, 0x07, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_cdb_usage_data,
+          {"CDB Usage Data", "scsi.report_opcodes.cdb_usage_data", FT_BYTES, BASE_NONE,
+	   NULL, 0, NULL, HFILL}},
+        { &hf_scsi_report_opcodes_tdl,
+          { "Timeout Descriptor Length", "scsi.report_opcodes.timeout_descriptor_length", FT_UINT16, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+	{ &hf_scsi_report_opcodes_npt,
+          { "Nominal Command Processing Timeout", "scsi.report_opcodes.ncpt", FT_UINT32, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+	{ &hf_scsi_report_opcodes_rct,
+          { "Recommended Command Timeout", "scsi.report_opcodes.rct", FT_UINT32, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+	{ &hf_scsi_inquiry_bdc_mrr,
+          { "Medium Rotation Rate", "scsi.inquiry.bdc.mrr", FT_UINT16, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+	{ &hf_scsi_inquiry_bdc_pt,
+          { "Product Type", "scsi.inquiry.bdc.pt", FT_UINT8, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+	{ &hf_scsi_inquiry_bdc_wabereq,
+          { "WABEREQ", "scsi.inquiry.bdc.wabereq", FT_UINT8, BASE_DEC,
+            NULL, 0xc0, NULL, HFILL}},
+	{ &hf_scsi_inquiry_bdc_wacereq,
+          { "WACEREQ", "scsi.inquiry.bdc.wacereq", FT_UINT8, BASE_DEC,
+            NULL, 0x30, NULL, HFILL}},
+	{ &hf_scsi_inquiry_bdc_nff,
+          { "Nominal Form factor", "scsi.inquiry.bdc.nff", FT_UINT8, BASE_DEC,
+            NULL, 0x0f, NULL, HFILL}},
+	{ &hf_scsi_inquiry_bdc_fuab,
+          { "FUAB", "scsi.inquiry.bdc.fuab", FT_BOOLEAN, 8,
+            NULL, 0x02, NULL, HFILL}},
+	{ &hf_scsi_inquiry_bdc_vbuls,
+          { "VBULS", "scsi.inquiry.bdc.vbuls", FT_BOOLEAN, 8,
             NULL, 0x01, NULL, HFILL}},
     };
 
@@ -5914,7 +6230,9 @@ proto_register_scsi(void)
         &ett_scsi_fragment,
         &ett_persresv_control,
         &ett_scsi_lun,
-        &ett_scsi_prevent_allow
+        &ett_scsi_prevent_allow,
+        &ett_command_descriptor,
+        &ett_timeout_descriptor
     };
     module_t *scsi_module;
 

@@ -123,7 +123,7 @@ static int hf_tipcv2_opt_p = -1;
 static int hf_tipcv2_broadcast_ack_no = -1;
 static int hf_tipcv2_link_level_ack_no = -1;
 static int hf_tipcv2_link_level_seq_no = -1;
-static int hf_tipcv2_bcast_seq_no = -1;
+/* static int hf_tipcv2_bcast_seq_no = -1; */
 static int hf_tipcv2_prev_node = -1;
 static int hf_tipcv2_orig_node = -1;
 static int hf_tipcv2_dest_node = -1;
@@ -132,7 +132,6 @@ static int hf_tipcv2_port_name_instance = -1;
 static int hf_tipcv2_multicast_lower = -1;
 static int hf_tipcv2_multicast_upper = -1;
 
-static int hf_tipcv2_bcast_seq_gap = -1;
 static int hf_tipcv2_sequence_gap = -1;
 static int hf_tipcv2_next_sent_broadcast = -1;
 static int hf_tipcv2_fragment_number = -1;
@@ -555,15 +554,14 @@ static const value_string tipcv2_networkplane_strings[] = {
 static void dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 void proto_reg_handoff_tipc(void);
 
-static GHashTable *tipc_msg_fragment_table    = NULL;
-static GHashTable *tipc_msg_reassembled_table = NULL;
+static reassembly_table tipc_msg_reassembly_table;
 
 
 static void
 tipc_defragment_init(void)
 {
-	fragment_table_init (&tipc_msg_fragment_table);
-	reassembled_table_init(&tipc_msg_reassembled_table);
+	reassembly_table_init(&tipc_msg_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 
@@ -575,7 +573,7 @@ tipc_addr_to_str(guint tipc_address)
 	guint16 processor;
 	gchar *buff;
 
-	buff = ep_alloc(MAX_TIPC_ADDRESS_STR_LEN);
+	buff = (gchar *)ep_alloc(MAX_TIPC_ADDRESS_STR_LEN);
 
 	processor = tipc_address & 0x0fff;
 
@@ -795,7 +793,7 @@ tipc_v1_set_col_msgtype(packet_info *pinfo, guint8 user, guint8 msg_type)
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 w0:|vers |msg usr|hdr sz |n|resrv|            packet size          |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-w1:|m typ|bcstsqgap| sequence gap  |       broadcast ack no        |
+w1:|m typ|      sequence gap       |       broadcast ack no        |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 w2:|        link level ack no      |   broadcast/link level seq no |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -819,7 +817,7 @@ w9:|          msg count            |       link tolerance          |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 */
 
-static void
+static int
 dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_info *pinfo, int offset, guint8 user, guint32 msg_size, guint8 orig_hdr_size)
 {
 	guint32 dword;
@@ -846,7 +844,6 @@ dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_i
 		case TIPCv2_BCAST_PROTOCOL:
 			/* W1 */
 			proto_tree_add_item(tipc_tree, hf_tipcv2_bcast_mtype, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
-			/* NO bcstsqgap */
 			/* NO sequence gap */
 			proto_tree_add_item(tipc_tree, hf_tipcv2_broadcast_ack_no, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
 			offset = offset + 4;
@@ -969,9 +966,7 @@ dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_i
 		case TIPCv2_LINK_PROTOCOL:
 			/* W1 */
 			proto_tree_add_item(tipc_tree, hf_tipcv2_link_mtype, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
-			/*  Broadcast Sequence Gap: 5 bits. */
-			proto_tree_add_item(tipc_tree, hf_tipcv2_bcast_seq_gap, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
-			/* Sequence Gap:  8 bits. */
+			/* Sequence Gap:  13 bits. */
 			proto_tree_add_item(tipc_tree, hf_tipcv2_sequence_gap, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
 			proto_tree_add_item(tipc_tree, hf_tipcv2_broadcast_ack_no, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
 			offset = offset + 4;
@@ -1390,11 +1385,12 @@ dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_i
 				save_fragmented = pinfo->fragmented;
 				pinfo->fragmented = TRUE;
 
-				frag_msg = fragment_add_seq_check(tipc_tvb, offset, pinfo,
+				frag_msg = fragment_add_seq_check(&tipc_msg_reassembly_table,
+						tipc_tvb, offset,
+						pinfo, 
 						frag_msg_no,					/* ID for fragments belonging together */
+						NULL,
 						/* TODO: make sure that fragments are on the same LINK */
-						tipc_msg_fragment_table,			/* list of message fragments */
-						tipc_msg_reassembled_table,			/* list of reassembled messages */
 						/* TIPC starts with "1" but we * need "0" */
 						(frag_no-1),					/* number of the fragment */
 						len,						/* fragment length - to the end of the data */
@@ -1412,7 +1408,6 @@ dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_i
 							" (Message fragment %u)", frag_no);
 				}
 				if (new_tvb) { /* take it all */
-					data_tvb = new_tvb;
 
 					/* the info column shall not be deleted by the
 					 * encapsulated messages */
@@ -1505,6 +1500,8 @@ w9:|                                                               |
 		default:
 			break;
 	}
+
+	return offset;
 
 }
 
@@ -1923,10 +1920,11 @@ dissect_tipc_int_prot_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tipc_tr
 			if (tipc_defragment) {
 				pinfo->fragmented = TRUE;
 
-				frag_msg = fragment_add_seq_next(tvb, offset, pinfo,
+				frag_msg = fragment_add_seq_next(&tipc_msg_reassembly_table,
+						tvb, offset,
+						pinfo,
 						link_sel,				/* ID for fragments belonging together - NEEDS IMPROVING? */
-						tipc_msg_fragment_table,		/* list of message fragments */
-						tipc_msg_reassembled_table,		/* list of reassembled messages */
+						NULL,
 						tvb_length_remaining(tvb, offset),	/* fragment length - to the end */
 						TRUE);					/* More fragments? */
 				if (msg_type == TIPC_FIRST_SEGMENT) {
@@ -1938,7 +1936,9 @@ dissect_tipc_int_prot_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tipc_tr
 					no_of_segments = reassembled_msg_length/(msg_size - 28);
 					if (reassembled_msg_length > (no_of_segments * (msg_size - 28)))
 						no_of_segments++;
-					fragment_set_tot_len(pinfo, link_sel, tipc_msg_fragment_table, no_of_segments-1);
+					fragment_set_tot_len(&tipc_msg_reassembly_table,
+						pinfo, link_sel, NULL,
+						no_of_segments-1);
 					item = proto_tree_add_text(tipc_tree, tvb, offset, -1, "Segmented message size %u bytes -> No segments = %i",
 							reassembled_msg_length, no_of_segments);
 					PROTO_ITEM_SET_GENERATED(item);
@@ -2049,7 +2049,7 @@ dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		case TIPCv1:
 			msg_type = tvb_get_guint8(tipc_tvb, offset + 20)>>4;
 			col_append_fstr(pinfo->cinfo, COL_INFO, " %s(%u) ", val_to_str_const(user, tipc_user_values, "unknown"), user);
-			/* Set msg type in info col and find out if its a data hdr or not */
+			/* Set msg type in info col and find out if it's a data hdr or not */
 			datatype_hdr = tipc_v1_set_col_msgtype(pinfo, user, msg_type);
 			if (datatype_hdr) {
 				/* Data type header */
@@ -2079,7 +2079,7 @@ dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			/* Set msg type in info col */
 			tipc_v2_set_info_col(tvb, pinfo, user, msg_type, hdr_size);
 
-			/* find out if its a data hdr or not */
+			/* find out if it's a data hdr or not */
 			switch (user) {
 				case TIPCv2_DATA_LOW:
 				case TIPCv2_DATA_NORMAL:
@@ -2517,7 +2517,7 @@ proto_register_tipc(void)
 		},
 		{ &hf_tipc_seq_gap,
 			{ "Sequence gap", "tipc.seq_gap",
-				FT_UINT32, BASE_DEC, NULL, 0x0fff0000,
+				FT_UINT32, BASE_DEC, NULL, 0x1fff0000,
 				"TIPC Sequence gap", HFILL }
 		},
 		{ &hf_tipc_nxt_snt_pkg,
@@ -2655,11 +2655,13 @@ proto_register_tipc(void)
 				FT_UINT32, BASE_DEC, NULL, 0x0000FFFF,
 				NULL, HFILL }
 		},
+#if 0
 		{ &hf_tipcv2_bcast_seq_no,
 			{ "Broadcast Sequence Number", "tipcv2.bcast_seq_no",
 				FT_UINT32, BASE_DEC, NULL, 0x0000FFFF,
 				NULL, HFILL }
 		},
+#endif
 		{ &hf_tipcv2_prev_node,
 			{ "Previous Node", "tipcv2.prev_node",
 				FT_STRING, BASE_NONE, NULL, 0x0,
@@ -2695,14 +2697,9 @@ proto_register_tipc(void)
 				FT_UINT32, BASE_DEC, NULL, 0xffffffff,
 				"Multicast port name instance upper bound", HFILL }
 		},
-		{ &hf_tipcv2_bcast_seq_gap,
-			{ "Broadcast Sequence Gap", "tipcv2.bcast_seq_gap",
-				FT_UINT32, BASE_DEC, NULL, 0x1F000000,
-				NULL, HFILL }
-		},
 		{ &hf_tipcv2_sequence_gap,
 			{ "Sequence Gap", "tipcv2.seq_gap",
-				FT_UINT32, BASE_DEC, NULL, 0x00FF0000,
+				FT_UINT32, BASE_DEC, NULL, 0x1FFF0000,
 				NULL, HFILL }
 		},
 		{ &hf_tipcv2_next_sent_broadcast,

@@ -41,8 +41,8 @@
 #include "../globals.h"
 
 #include "ui/alert_box.h"
-#include "ui/simple_dialog.h"
 #include "ui/main_statusbar.h"
+#include "ui/preference_utils.h"
 #include "ui/ui_util.h"
 
 #include "ui/gtk/gui_utils.h"
@@ -103,7 +103,7 @@ filter_expression_save_dlg_init(gpointer filter_tb, gpointer filter_te)
 	}
 }
 
-void
+static void
 filter_expression_nuke(struct filter_expression *fe)
 {
 	if (fe == NULL)
@@ -122,7 +122,7 @@ filter_expression_reinit(int what)
 		fe = *pfilter_expression_head;
 		while (fe != NULL) {
 			if (fe->button != NULL) {
-				gtk_widget_destroy(fe->button);
+				gtk_widget_destroy((GtkWidget *)fe->button);
 				fe->button = NULL;
 			}
 			fe = fe->next;
@@ -195,7 +195,7 @@ filter_button_add(const char *label, const char *expr, struct filter_expression 
 	gtk_widget_set_sensitive(GTK_WIDGET(fe->button), FALSE);
 	gtk_widget_show(GTK_WIDGET(fe->button));
 
-	gtk_toolbar_insert(GTK_TOOLBAR(_filter_tb), fe->button, -1);
+	gtk_toolbar_insert(GTK_TOOLBAR(_filter_tb), (GtkToolItem *)fe->button, -1);
 	gtk_widget_set_sensitive(GTK_WIDGET(fe->button), TRUE);
 	gtk_widget_set_tooltip_text(GTK_WIDGET(fe->button), fe->expression);
 
@@ -227,7 +227,7 @@ filter_expression_save_dlg(gpointer data)
 		    *filter_save_type_vb, *filter_save_type_hb, *entry_hb,
 		    *bbox, *ok_bt, *cancel_bt, *help_bt, *filter_text_box,
 		    *label_text_box;
- 
+
 	const char *expr;
 
 	/* The filter requested */
@@ -250,7 +250,7 @@ filter_expression_save_dlg(gpointer data)
 
 	/* */
 	main_filter_save_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
-    gtk_box_pack_start(GTK_BOX (main_vb), main_filter_save_hb, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX (main_vb), main_filter_save_hb, TRUE, TRUE, 0);
 	gtk_widget_show(main_filter_save_hb);
 
 	/* Filter Save frame */
@@ -267,7 +267,7 @@ filter_expression_save_dlg(gpointer data)
 
 	/* filter_save type row */
 	filter_save_type_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
-    gtk_box_pack_start(GTK_BOX (filter_save_type_vb), filter_save_type_hb, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX (filter_save_type_vb), filter_save_type_hb, TRUE, TRUE, 0);
 
 	gtk_widget_show(filter_save_type_hb);
 
@@ -297,15 +297,15 @@ filter_expression_save_dlg(gpointer data)
 	gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 	gtk_widget_show(bbox);
 
-	ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+	ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
 	g_signal_connect(ok_bt, "clicked", G_CALLBACK(filter_save_ok_cb),
 	filter_save_frame_w);
 
-	cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+	cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
 	g_signal_connect(cancel_bt, "clicked", G_CALLBACK(filter_save_close_cb),
 	filter_save_frame_w);
 
-	help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+	help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
 	g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb),
 	(gpointer)HELP_FILTER_SAVE_DIALOG);
 

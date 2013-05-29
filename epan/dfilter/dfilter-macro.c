@@ -149,14 +149,14 @@ void dfilter_macro_dump(void) {
 #endif
 }
 
-static gchar* dfilter_macro_resolve(gchar* name, gchar** args, const gchar** error) {
+static const gchar* dfilter_macro_resolve(gchar* name, gchar** args, const gchar** error) {
 	GString* text;
 	int argc = 0;
 	dfilter_macro_t* m = NULL;
 	fvt_cache_entry_t* e;
 	int* arg_pos_p;
 	gchar** parts;
-	gchar* ret;
+	const gchar* ret;
 	guint i;
 
 	for (i = 0; i < num_macros; i++) {
@@ -215,7 +215,7 @@ static gchar* dfilter_macro_resolve(gchar* name, gchar** args, const gchar** err
 }
 
 
-static gchar* dfilter_macro_apply_recurse(const gchar* text, guint depth, const gchar** error) {
+static const gchar* dfilter_macro_apply_recurse(const gchar* text, guint depth, const gchar** error) {
 	enum { OUTSIDE, STARTING, NAME, ARGS } state = OUTSIDE;
 	GString* out;
 	GString* name = NULL;
@@ -293,7 +293,7 @@ static gchar* dfilter_macro_apply_recurse(const gchar* text, guint depth, const 
 				} else if ( c == ':') {
 					state = ARGS;
 				} else if ( c == '}') {
-					gchar* resolved;
+					const gchar* resolved;
 
 					g_ptr_array_add(args,NULL);
 
@@ -339,7 +339,7 @@ static gchar* dfilter_macro_apply_recurse(const gchar* text, guint depth, const 
 						g_string_append_c(arg,c);
 						break;
 					} case '}': {
-						gchar* resolved;
+						const gchar* resolved;
 						g_ptr_array_add(args,arg->str);
 						g_ptr_array_add(args,NULL);
 
@@ -369,11 +369,11 @@ finish:
 		FREE_ALL();
 
 		if (changed) {
-			gchar* resolved = dfilter_macro_apply_recurse(out->str, depth + 1, error);
+			const gchar* resolved = dfilter_macro_apply_recurse(out->str, depth + 1, error);
 			g_string_free(out,TRUE);
 			return (*error) ? NULL : resolved;
 		} else {
-			gchar* out_str = ep_strdup(out->str);
+			const gchar* out_str = ep_strdup(out->str);
 			g_string_free(out,TRUE);
 			return out_str;
 		}
@@ -387,7 +387,7 @@ on_error:
 	}
 }
 
-gchar* dfilter_macro_apply(const gchar* text, const gchar** error) {
+const gchar* dfilter_macro_apply(const gchar* text, const gchar** error) {
 	return dfilter_macro_apply_recurse(text, 0, error);
 }
 
@@ -579,7 +579,7 @@ static void* macro_copy(void* dest, const void* orig, size_t len _U_) {
 	return d;
 }
 
-static gboolean macro_name_chk(void* r _U_, const char* in_name, unsigned name_len, const void* u1 _U_, const void* u2 _U_, const char** error) {
+static gboolean macro_name_chk(void* r _U_, const char* in_name, guint name_len, const void* u1 _U_, const void* u2 _U_, const char** error) {
 	guint i;
 
 	if (name_len == 0) {
@@ -611,7 +611,7 @@ void dfilter_macro_init(void) {
 				    sizeof(dfilter_macro_t),
 				    DFILTER_MACRO_FILENAME,
 				    TRUE,
-				    (void*) &macros,
+				    (void**) &macros,
 				    &num_macros,
 				    0, /* doesn't affect anything that requires a GUI update */
 				    "ChDisplayFilterMacrosSection",

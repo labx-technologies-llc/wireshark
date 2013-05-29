@@ -37,6 +37,7 @@
 #include <epan/prefs.h>
 #include <epan/strutil.h>
 
+void proto_register_cpfi(void);
 void proto_reg_handoff_cpfi(void);
 
 #define CPFI_DEFAULT_UDP_PORT      5000
@@ -190,7 +191,7 @@ dissect_cpfi_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* Make sure this is an Ethernet address. */
     DISSECTOR_ASSERT(pinfo->src.type == AT_ETHER);
-    srcmac = pinfo->src.data;
+    srcmac = (const guint8 *)pinfo->src.data;
 
     src_instance = srcmac[2]-1;
     src_board = tda >> 4;
@@ -212,7 +213,7 @@ dissect_cpfi_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* Make sure this is an Ethernet address. */
     DISSECTOR_ASSERT(pinfo->dst.type == AT_ETHER);
-    dstmac = pinfo->dst.data;
+    dstmac = (const guint8 *)pinfo->dst.data;
 
     dst_instance = dstmac[2]-1;
     dst_board = tda >> 4;
@@ -371,7 +372,7 @@ dissect_cpfi(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *tree, void *
   body_tvb = tvb_new_subset(message_tvb, 8, body_length, reported_body_length);
   call_dissector(fc_handle, body_tvb, pinfo, tree);
 
-  /* add more info, now that FC added it's */
+  /* add more info, now that FC added its */
   proto_item_append_text(cpfi_item, direction_and_port_string, left, arrow, right);
   col_prepend_fstr(pinfo->cinfo, COL_INFO, direction_and_port_string, left, arrow, right);
 

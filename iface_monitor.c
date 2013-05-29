@@ -37,13 +37,20 @@
 #include <strings.h>
 #include <errno.h>
 
-#if defined(HAVE_LIBNL1) || defined(HAVE_LIBNL2)
-#include <net/if.h>
-#endif
-
 #include <netlink/msg.h>
 #include <netlink/attr.h>
 #include <netlink/route/link.h>
+
+#ifndef IFF_UP
+/*
+ * Apparently, some versions of libnl drag in headers that define IFF_UP
+ * and others don't.  Include <net/if.h> iff IFF_UP isn't already defined,
+ * so that if <linux/if.h> has been included by some or all of the
+ * netlink headers, we don't include <net/if.h> and get a bunch of
+ * complaints about various structures being redefined.
+ */
+#include <net/if.h>
+#endif
 
 /* libnl 1.x compatibility code */
 #ifdef HAVE_LIBNL1
@@ -70,7 +77,7 @@ iface_mon_handler2(struct nl_object *obj, void *arg)
     struct rtnl_link *link_obj;
     int flags, up;
     char *ifname;
-    iface_mon_cb cb = arg;
+    iface_mon_cb cb = (iface_mon_cb)arg;
 
     filter = rtnl_link_alloc();
     if (!filter) {
@@ -243,7 +250,7 @@ iface_mon_event(void)
     ssize_t received;
     struct kern_event_msg *kem;
     struct net_event_data *evd;
-    int evd_len;
+    size_t evd_len;
     char ifr_name[IFNAMSIZ];
 
     received = recv(s, msg, sizeof msg, 0);

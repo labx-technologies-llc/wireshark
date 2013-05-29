@@ -29,6 +29,9 @@
 
 #include <epan/packet.h>
 
+void proto_register_babel(void);
+void proto_reg_handoff_babel(void);
+
 static int proto_babel = -1;
 
 static gint ett_babel = -1;
@@ -124,7 +127,7 @@ network_prefix(int ae, int plen, unsigned int omitted,
                const unsigned char *p, const unsigned char *dp,
                unsigned int len, unsigned char *p_r)
 {
-    unsigned      pb;
+    guint      pb;
     unsigned char prefix[16];
 
     if (plen >= 0)

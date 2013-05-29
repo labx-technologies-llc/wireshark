@@ -38,6 +38,7 @@
    index and opaque pointer. */
 typedef struct _frame_proto_data {
   int   proto;
+  guint8 key;
   void *proto_data;
 } frame_proto_data;
 
@@ -50,21 +51,27 @@ p_compare(gconstpointer a, gconstpointer b)
   const frame_proto_data *ap = (const frame_proto_data *)a;
   const frame_proto_data *bp = (const frame_proto_data *)b;
 
-  if (ap -> proto > bp -> proto)
+  if (ap -> proto > bp -> proto){
     return 1;
-  else if (ap -> proto == bp -> proto)
-    return 0;
-  else
+  }else if (ap -> proto == bp -> proto){
+    if (ap -> key > bp -> key){
+      return 1;
+    }else if (ap -> key == bp -> key){
+      return 0;
+	}
     return -1;
-
+  }else{
+    return -1;
+  }
 }
 
 void
-p_add_proto_data(frame_data *fd, int proto, void *proto_data)
+p_add_proto_data(frame_data *fd, int proto, guint8 key, void *proto_data)
 {
-  frame_proto_data *p1 = wmem_alloc(wmem_file_scope(), sizeof(frame_proto_data));
+  frame_proto_data *p1 = (frame_proto_data *)wmem_alloc(wmem_file_scope(), sizeof(frame_proto_data));
 
   p1->proto = proto;
+  p1->key = key;
   p1->proto_data = proto_data;
 
   /* Add it to the GSLIST */
@@ -75,12 +82,13 @@ p_add_proto_data(frame_data *fd, int proto, void *proto_data)
 }
 
 void *
-p_get_proto_data(frame_data *fd, int proto)
+p_get_proto_data(frame_data *fd, int proto, guint8 key)
 {
   frame_proto_data  temp, *p1;
   GSList           *item;
 
   temp.proto = proto;
+  temp.key = key;
   temp.proto_data = NULL;
 
   item = g_slist_find_custom(fd->pfd, (gpointer *)&temp, p_compare);
@@ -95,12 +103,13 @@ p_get_proto_data(frame_data *fd, int proto)
 }
 
 void
-p_remove_proto_data(frame_data *fd, int proto)
+p_remove_proto_data(frame_data *fd, int proto, guint8 key)
 {
   frame_proto_data  temp;
   GSList           *item;
 
   temp.proto = proto;
+  temp.key = key;
   temp.proto_data = NULL;
 
   item = g_slist_find_custom(fd->pfd, (gpointer *)&temp, p_compare);
@@ -108,6 +117,16 @@ p_remove_proto_data(frame_data *fd, int proto)
   if (item) {
     fd->pfd = g_slist_remove(fd->pfd, item->data);
   }
+}
+
+gchar *
+p_get_proto_name_and_key(frame_data *fd, guint pfd_index){
+	frame_proto_data  *temp;
+
+	temp = (frame_proto_data*)g_slist_nth_data(fd->pfd, pfd_index);
+
+	return ep_strdup_printf("[%s, key %u]",proto_get_protocol_name(temp->proto), temp->key);
+
 }
 
 #define COMPARE_FRAME_NUM()     ((fdata1->num < fdata2->num) ? -1 : \
@@ -240,6 +259,7 @@ frame_data_init(frame_data *fdata, guint32 num,
   /* To save some memory, we coerce it into a gint16 */
   g_assert(phdr->pkt_encap <= G_MAXINT16);
   fdata->lnk_t = (gint16) phdr->pkt_encap;
+  fdata->pack_flags = phdr->pack_flags;
   fdata->flags.passed_dfilter = 0;
   fdata->flags.dependent_of_displayed = 0;
   fdata->flags.encoding = PACKET_CHAR_ENC_CHAR_ASCII;
@@ -249,6 +269,7 @@ frame_data_init(frame_data *fdata, guint32 num,
   fdata->flags.ignored = 0;
   fdata->flags.has_ts = (phdr->presence_flags & WTAP_HAS_TS) ? 1 : 0;
   fdata->flags.has_if_id = (phdr->presence_flags & WTAP_HAS_INTERFACE_ID) ? 1 : 0;
+  fdata->flags.has_pack_flags = (phdr->presence_flags & WTAP_HAS_PACK_FLAGS) ? 1 : 0;
   fdata->color_filter = NULL;
   fdata->abs_ts.secs = phdr->ts.secs;
   fdata->abs_ts.nsecs = phdr->ts.nsecs;
@@ -313,22 +334,39 @@ frame_data_set_after_dissect(frame_data *fdata,
 }
 
 void
-frame_data_cleanup(frame_data *fdata)
+frame_data_reset(frame_data *fdata)
+{
+  fdata->flags.visited = 0;
+
+  if (fdata->pfd) {
+    g_slist_free(fdata->pfd);
+    fdata->pfd = NULL;
+  }
+}
+
+void
+frame_data_destroy(frame_data *fdata)
 {
   if (fdata->pfd) {
     g_slist_free(fdata->pfd);
     fdata->pfd = NULL;
   }
 
-  /* XXX, frame_data_cleanup() is called when redissecting (rescan_packets()),
-   *      which might be triggered by lot of things, like: preferences change,
-   *      setting manual address resolve, etc.. (grep by redissect_packets)
-   *      fdata->opt_comment can be set by user, which we must not discard when redissecting.
-   */
-#if 0
   if (fdata->opt_comment) {
     g_free(fdata->opt_comment);
     fdata->opt_comment = NULL;
   }
-#endif
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

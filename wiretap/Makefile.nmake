@@ -13,7 +13,8 @@ GENERATED_CFLAGS=\
 	$(STANDARD_CFLAGS) \
 	-DYYMALLOC=malloc -DYYFREE=free \
 	/I. /I.. $(GLIB_CFLAGS) \
-	$(ZLIB_CFLAGS) /I$(PCAP_DIR)/include
+	$(ZLIB_CFLAGS) /I$(PCAP_DIR)/include \
+	-DWS_BUILD_DLL
 
 CFLAGS=$(WARNINGS_ARE_ERRORS) $(GENERATED_CFLAGS)
 
@@ -32,10 +33,10 @@ all: wiretap-$(WTAP_VERSION).dll
 wiretap-$(WTAP_VERSION).lib: wiretap-$(WTAP_VERSION).dll
 wiretap-$(WTAP_VERSION).exp: wiretap-$(WTAP_VERSION).dll
 
-wiretap-$(WTAP_VERSION).dll : $(OBJECTS) wtap.def ..\image\wiretap.res
+wiretap-$(WTAP_VERSION).dll : $(OBJECTS) ..\image\wiretap.res
 	$(link) $(dlllflags) $(conlibsdll) \
 		$(LOCAL_LDFLAGS) $(DLL_LDFLAGS) \
-		/DEF:wtap.def /OUT:wiretap-$(WTAP_VERSION).dll \
+		/OUT:wiretap-$(WTAP_VERSION).dll \
 		/IMPLIB:wiretap-$(WTAP_VERSION).lib \
 		..\image\wiretap.res \
 		$(OBJECTS) $(wiretap_LIBS)

@@ -64,6 +64,9 @@
 #define AX25_HEADER_SIZE	15 /* length of src_addr + dst_addr + cntl */
 #define AX25_MAX_DIGIS		 8
 
+void proto_register_ax25(void);
+void proto_reg_handoff_ax25(void);
+
 /* Dissector table */
 static dissector_table_t ax25_dissector_table;
 
@@ -134,7 +137,7 @@ dissect_ax25( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 	int via_index;
 	char *info_buffer;
 	/* char v2cmdresp; */
-	char *ax25_version;
+	const char *ax25_version;
 	int is_response;
 	const guint8 *src_addr;
 	const guint8 *dst_addr;
@@ -147,7 +150,7 @@ dissect_ax25( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 	tvbuff_t *next_tvb = NULL;
 
 
-	info_buffer = ep_alloc( STRLEN );
+	info_buffer = (char *)ep_alloc( STRLEN );
 	info_buffer[0] = '\0';
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, "AX.25" );
@@ -324,42 +327,42 @@ proto_register_ax25(void)
 			FT_AX25, BASE_NONE, NULL, 0x0,
 			"Source callsign", HFILL }
 		},
-		{ &(hf_ax25_via[ 0 ]),
+		{ &hf_ax25_via[ 0 ],
 			{ "Via 1",			"ax25.via1",
 			FT_AX25, BASE_NONE, NULL, 0x0,
 			"Via callsign 1", HFILL }
 		},
-		{ &(hf_ax25_via[ 1 ]),
+		{ &hf_ax25_via[ 1 ],
 			{ "Via 2",			"ax25.via2",
 			FT_AX25, BASE_NONE, NULL, 0x0,
 			"Via callsign 2", HFILL }
 		},
-		{ &(hf_ax25_via[ 2 ]),
+		{ &hf_ax25_via[ 2 ],
 			{ "Via 3",			"ax25.via3",
 			FT_AX25, BASE_NONE, NULL, 0x0,
 			"Via callsign 3", HFILL }
 		},
-		{ &(hf_ax25_via[ 3 ]),
+		{ &hf_ax25_via[ 3 ],
 			{ "Via 4",			"ax25.via4",
 			FT_AX25, BASE_NONE, NULL, 0x0,
 			"Via callsign 4", HFILL }
 		},
-		{ &(hf_ax25_via[ 4 ]),
+		{ &hf_ax25_via[ 4 ],
 			{ "Via 5",			"ax25.via5",
 			FT_AX25, BASE_NONE, NULL, 0x0,
 			"Via callsign 5", HFILL }
 		},
-		{ &(hf_ax25_via[ 5 ]),
+		{ &hf_ax25_via[ 5 ],
 			{ "Via 6",			"ax25.via6",
 			FT_AX25, BASE_NONE, NULL, 0x0,
 			"Via callsign 6", HFILL }
 		},
-		{ &(hf_ax25_via[ 6 ]),
+		{ &hf_ax25_via[ 6 ],
 			{ "Via 7",			"ax25.via7",
 			FT_AX25, BASE_NONE, NULL, 0x0,
 			"Via callsign 7", HFILL }
 		},
-		{ &(hf_ax25_via[ 7 ]),
+		{ &hf_ax25_via[ 7 ],
 			{ "Via 8",			"ax25.via8",
 			FT_AX25, BASE_NONE, NULL, 0x0,
 			"Via callsign 8", HFILL }

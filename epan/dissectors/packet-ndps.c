@@ -42,9 +42,8 @@
 /* Limit the number of items we can add to the tree. */
 #define NDPS_MAX_ITEMS 100
 
-/* Tables for reassembly of fragments. */
-static GHashTable *ndps_fragment_table = NULL;
-static GHashTable *ndps_reassembled_table = NULL;
+/* Table for reassembly of fragments. */
+static reassembly_table ndps_reassembly_table;
 
 /* desegmentation of ndps */
 static gboolean ndps_defragment = TRUE;
@@ -80,11 +79,11 @@ static int hf_ndps_length = -1;
 static int hf_ndps_xid = -1;
 static int hf_ndps_packet_type = -1;
 static int hf_ndps_rpc_version = -1;
-static int hf_ndps_error = -1;
+/* static int hf_ndps_error = -1; */
 static int hf_ndps_num_objects = -1;
 static int hf_ndps_num_attributes = -1;
-static int hf_ndps_sbuffer = -1;
-static int hf_ndps_rbuffer = -1;
+/* static int hf_ndps_sbuffer = -1; */
+/* static int hf_ndps_rbuffer = -1; */
 static int hf_ndps_user_name = -1;
 static int hf_ndps_broker_name = -1;
 static int hf_ndps_num_results = -1;
@@ -200,7 +199,7 @@ static int hf_ndps_item_ptr = -1;
 static int hf_ndps_len = -1;
 static int hf_ndps_limit_enc = -1;
 static int hf_ndps_delivery_add_count = -1;
-static int hf_ndps_qualified_name2 = -1;
+/* static int hf_ndps_qualified_name2 = -1; */
 static int hf_ndps_delivery_add_type = -1;
 static int hf_ndps_criterion_type = -1;
 static int hf_ndps_num_ignored_attributes = -1;
@@ -230,8 +229,8 @@ static int hf_ndps_attrs_arg = -1;
 static int hf_ndps_context_len = -1;
 static int hf_ndps_context = -1;
 static int hf_ndps_filter = -1;
-static int hf_ndps_item_filter = -1;
-static int hf_ndps_substring_match = -1;
+/* static int hf_ndps_item_filter = -1; */
+/* static int hf_ndps_substring_match = -1; */
 static int hf_ndps_time_limit = -1;
 static int hf_ndps_count_limit = -1;
 static int hf_ndps_operator = -1;
@@ -254,7 +253,7 @@ static int hf_font_type = -1;
 static int hf_printer_id = -1;
 static int hf_ndps_font_name = -1;
 static int hf_ndps_return_code = -1;
-static int hf_ndps_banner_count = -1;
+/* static int hf_ndps_banner_count = -1; */
 static int hf_ndps_banner_name = -1;
 static int hf_ndps_font_type_count = -1;
 static int hf_font_type_name = -1;
@@ -276,7 +275,7 @@ static int hf_res_type = -1;
 static int hf_file_timestamp = -1;
 static int hf_sub_complete = -1;
 static int hf_doc_content = -1;
-static int hf_ndps_doc_name = -1;
+/* static int hf_ndps_doc_name = -1; */
 static int hf_print_arg = -1;
 static int hf_local_id = -1;
 static int hf_ndps_included_doc_len = -1;
@@ -309,7 +308,7 @@ static int hf_info_int16 = -1;
 static int hf_info_int32 = -1;
 static int hf_info_boolean = -1;
 static int hf_info_string = -1;
-static int hf_info_bytes = -1;
+/* static int hf_info_bytes = -1; */
 static int hf_ndps_list_local_servers_type = -1;
 static int hf_ndps_registry_name = -1;
 static int hf_ndps_client_server_type = -1;
@@ -335,7 +334,7 @@ static int hf_ndps_object_ids_13 = -1;
 static int hf_ndps_object_ids_14 = -1;
 static int hf_ndps_object_ids_15 = -1;
 static int hf_ndps_object_ids_16 = -1;
-static int hf_ndps_attribute_time = -1;
+/* static int hf_ndps_attribute_time = -1; */
 static int hf_print_security = -1;
 static int hf_notify_time_interval = -1;
 static int hf_notify_sequence_number = -1;
@@ -355,7 +354,10 @@ static int hf_spx_ndps_func_delivery = -1;
 static int hf_spx_ndps_func_broker = -1;
 
 static gint ett_ndps = -1;
-static dissector_handle_t ndps_data_handle;
+
+static expert_field ei_ndps_problem_type = EI_INIT;
+static expert_field ei_ndps_return_code = EI_INIT;
+static expert_field ei_ndps_rpc_acc_stat = EI_INIT;
 
 /* desegmentation of NDPS over TCP */
 static gboolean ndps_desegment = TRUE;
@@ -2066,7 +2068,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
     {
     case 9:
         label_value = tvb_get_ntohl(tvb, foffset+5);
-        label = match_strval(label_value, object_ids_7);
+        label = try_val_to_str(label_value, object_ids_7);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2077,7 +2079,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
         break;
     case 10:
         label_value = tvb_get_ntohl(tvb, foffset+6);
-        label = match_strval(label_value, object_ids_8);
+        label = try_val_to_str(label_value, object_ids_8);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2088,7 +2090,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
         break;
     case 11:
         label_value = tvb_get_ntohl(tvb, foffset+7);
-        label = match_strval(label_value, object_ids_9);
+        label = try_val_to_str(label_value, object_ids_9);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2099,7 +2101,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
         break;
     case 12:
         label_value = tvb_get_ntohl(tvb, foffset+8);
-        label = match_strval(label_value, object_ids_10);
+        label = try_val_to_str(label_value, object_ids_10);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2110,7 +2112,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
         break;
     case 13:
         label_value = tvb_get_ntohl(tvb, foffset+9);
-        label = match_strval(label_value, object_ids_11);
+        label = try_val_to_str(label_value, object_ids_11);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2121,7 +2123,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
         break;
     case 14:
         label_value = tvb_get_ntohl(tvb, foffset+10);
-        label = match_strval(label_value, object_ids_12);
+        label = try_val_to_str(label_value, object_ids_12);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2132,7 +2134,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
         break;
     case 15:
         label_value = tvb_get_ntohl(tvb, foffset+11);
-        label = match_strval(label_value, object_ids_13);
+        label = try_val_to_str(label_value, object_ids_13);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2143,7 +2145,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
         break;
     case 16:
         label_value = tvb_get_ntohl(tvb, foffset+12);
-        label = match_strval(label_value, object_ids_14);
+        label = try_val_to_str(label_value, object_ids_14);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2154,7 +2156,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
         break;
     case 17:
         label_value = tvb_get_ntohl(tvb, foffset+13);
-        label = match_strval(label_value, object_ids_15);
+        label = try_val_to_str(label_value, object_ids_15);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2165,7 +2167,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
         break;
     case 18:
         label_value = tvb_get_ntohl(tvb, foffset+14);
-        label = match_strval(label_value, object_ids_16);
+        label = try_val_to_str(label_value, object_ids_16);
         if (label==NULL)
         {
             aitem = proto_tree_add_text(ndps_tree, tvb, foffset, length, "Unknown ID");
@@ -2182,7 +2184,7 @@ objectidentifier(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
     if (!found)
     {
         label_value = 1;
-        label = match_strval(label_value, object_ids_7);
+        label = try_val_to_str(label_value, object_ids_7);
     }
     if (ndps_show_oids)
     {
@@ -2707,7 +2709,7 @@ attribute_value(tvbuff_t* tvb, proto_tree *ndps_tree, int foffset)
     if (global_attribute_name==NULL)
     {
         label_value = 1;
-        label = match_strval(label_value, object_ids_7);
+        label = try_val_to_str(label_value, object_ids_7);
         global_attribute_name = label;
     }
     attribute_type = tvb_get_ntohl(tvb, foffset);
@@ -4104,8 +4106,8 @@ static void
 ndps_init_protocol(void)
 {
     /* fragment */
-    fragment_table_init(&ndps_fragment_table);
-    reassembled_table_init(&ndps_reassembled_table);
+    reassembly_table_init(&ndps_reassembly_table,
+                          &addresses_reassembly_table_functions);
 
     if (ndps_req_hash)
         g_hash_table_destroy(ndps_req_hash);
@@ -4136,11 +4138,11 @@ ndps_hash_insert(conversation_t *conversation, guint32 ndps_xport)
 
     /* Now remember the request, so we can find it if we later
        a reply to it. */
-    request_key = se_alloc(sizeof(ndps_req_hash_key));
+    request_key = se_new(ndps_req_hash_key);
     request_key->conversation = conversation;
     request_key->ndps_xport = ndps_xport;
 
-    request_value = se_alloc(sizeof(ndps_req_hash_value));
+    request_value = se_new(ndps_req_hash_value);
     request_value->ndps_prog = 0;
     request_value->ndps_func = 0;
     request_value->ndps_frame_num = 0;
@@ -4161,7 +4163,7 @@ ndps_hash_lookup(conversation_t *conversation, guint32 ndps_xport)
     request_key.conversation = conversation;
     request_key.ndps_xport = ndps_xport;
 
-    return g_hash_table_lookup(ndps_req_hash, &request_key);
+    return (ndps_req_hash_value *)g_hash_table_lookup(ndps_req_hash, &request_key);
 }
 
 /* ================================================================= */
@@ -4224,7 +4226,7 @@ dissect_ndps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ndps_tree)
         proto_tree_add_item(ndps_tree, hf_ndps_rpc_version, tvb, foffset, 4, ENC_BIG_ENDIAN);
         foffset += 4;
         ndps_prog = tvb_get_ntohl(tvb, foffset);
-        ndps_program_string = match_strval(ndps_prog, spx_ndps_program_vals);
+        ndps_program_string = try_val_to_str(ndps_prog, spx_ndps_program_vals);
         if( ndps_program_string != NULL)
         {
             proto_tree_add_item(ndps_tree, hf_spx_ndps_program, tvb, foffset, 4, ENC_BIG_ENDIAN);
@@ -4241,27 +4243,27 @@ dissect_ndps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ndps_tree)
             {
                 case 0x060976:
                     ndps_hfname = hf_spx_ndps_func_print;
-                    ndps_func_string = match_strval(ndps_func, spx_ndps_print_func_vals);
+                    ndps_func_string = try_val_to_str(ndps_func, spx_ndps_print_func_vals);
                     break;
                 case 0x060977:
                     ndps_hfname = hf_spx_ndps_func_broker;
-                    ndps_func_string = match_strval(ndps_func, spx_ndps_broker_func_vals);
+                    ndps_func_string = try_val_to_str(ndps_func, spx_ndps_broker_func_vals);
                     break;
                 case 0x060978:
                     ndps_hfname = hf_spx_ndps_func_registry;
-                    ndps_func_string = match_strval(ndps_func, spx_ndps_registry_func_vals);
+                    ndps_func_string = try_val_to_str(ndps_func, spx_ndps_registry_func_vals);
                     break;
                 case 0x060979:
                     ndps_hfname = hf_spx_ndps_func_notify;
-                    ndps_func_string = match_strval(ndps_func, spx_ndps_notify_func_vals);
+                    ndps_func_string = try_val_to_str(ndps_func, spx_ndps_notify_func_vals);
                     break;
                 case 0x06097a:
                     ndps_hfname = hf_spx_ndps_func_resman;
-                    ndps_func_string = match_strval(ndps_func, spx_ndps_resman_func_vals);
+                    ndps_func_string = try_val_to_str(ndps_func, spx_ndps_resman_func_vals);
                     break;
                 case 0x06097b:
                     ndps_hfname = hf_spx_ndps_func_delivery;
-                    ndps_func_string = match_strval(ndps_func, spx_ndps_deliver_func_vals);
+                    ndps_func_string = try_val_to_str(ndps_func, spx_ndps_deliver_func_vals);
                     break;
                 default:
                     ndps_hfname = 0;
@@ -4339,7 +4341,7 @@ ndps_defrag(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     conversation_t      *conversation;
 
     /* Get SPX info from SPX dissector */
-    spx_info_p = pinfo->private_data;
+    spx_info_p = (spx_info *)pinfo->private_data;
     /* Check to see if defragmentation is enabled in the dissector */
     if (!ndps_defragment) {
         dissect_ndps(tvb, pinfo, tree);
@@ -4367,12 +4369,12 @@ ndps_defrag(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             request_value = ndps_hash_insert(conversation, (guint32) pinfo->srcport);
         }
         /* Add it to pinfo so we can get it on further dissection requests */
-        p_add_proto_data(pinfo->fd, proto_ndps, (void*) request_value);
+        p_add_proto_data(pinfo->fd, proto_ndps, 0, (void*) request_value);
     }
     else
     {
         /* Get request value data */
-        request_value = p_get_proto_data(pinfo->fd, proto_ndps);
+        request_value = (ndps_req_hash_value *)p_get_proto_data(pinfo->fd, proto_ndps, 0);
     }
     if (!request_value)
     {
@@ -4394,7 +4396,7 @@ ndps_defrag(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         len = tvb_reported_length(tvb);
         if (tvb_length(tvb) >= len)
         {
-            fd_head = fragment_add_seq_next(tvb, 0, pinfo, tid, ndps_fragment_table, ndps_reassembled_table, len, !spx_info_p->eom);
+            fd_head = fragment_add_seq_next(&ndps_reassembly_table, tvb, 0, pinfo, tid, NULL, len, !spx_info_p->eom);
             if (fd_head != NULL)
             {
                 /* Is this the last fragment? EOM will indicate */
@@ -6734,7 +6736,7 @@ ndps_error(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ndps_tree, int foffset
     ndps_problem_type = tvb_get_ntohl(tvb, foffset);
     col_set_str(pinfo->cinfo, COL_INFO, "R NDPS - Error");
     expert_item = proto_tree_add_uint(ndps_tree, hf_ndps_problem_type, tvb, foffset, 4, ndps_problem_type);
-    expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Fault: %s", val_to_str(ndps_problem_type, error_type_enum, "Unknown NDPS Error (0x%08x)"));
+    expert_add_info_format_text(pinfo, expert_item, &ei_ndps_problem_type, "Fault: %s", val_to_str(ndps_problem_type, error_type_enum, "Unknown NDPS Error (0x%08x)"));
     foffset += 4;
     switch(ndps_problem_type)
     {
@@ -6935,7 +6937,7 @@ return_code(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ndps_tree, int foffse
     expert_status = tvb_get_ntohl(tvb, foffset);
     expert_item = proto_tree_add_item(ndps_tree, hf_ndps_return_code, tvb, foffset, 4, ENC_BIG_ENDIAN);
     if (expert_status != 0) {
-        expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Fault: %s", val_to_str(expert_status, ndps_error_types, "Unknown NDPS Error (0x%08x)"));
+        expert_add_info_format_text(pinfo, expert_item, &ei_ndps_return_code, "Fault: %s", val_to_str(expert_status, ndps_error_types, "Unknown NDPS Error (0x%08x)"));
     }
     foffset += 4;
     if (check_col(pinfo->cinfo, COL_INFO) && tvb_get_ntohl(tvb, foffset-4) != 0)
@@ -6985,12 +6987,12 @@ dissect_ndps_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ndps_tree, int
             /* find the record telling us the request made that caused
             this reply */
             request_value = ndps_hash_lookup(conversation, (guint32) pinfo->destport);
-            p_add_proto_data(pinfo->fd, proto_ndps, (void*) request_value);
+            p_add_proto_data(pinfo->fd, proto_ndps, 0, (void*) request_value);
         }
         /* else... we haven't seen an NDPS Request for that conversation. */
     }
     else {
-        request_value = p_get_proto_data(pinfo->fd, proto_ndps);
+        request_value = (ndps_req_hash_value *)p_get_proto_data(pinfo->fd, proto_ndps, 0);
     }
     if (request_value) {
         ndps_prog = request_value->ndps_prog;
@@ -7012,7 +7014,7 @@ dissect_ndps_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ndps_tree, int
         expert_item = proto_tree_add_item(ndps_tree, hf_ndps_rpc_acc_stat, tvb, foffset, 4, ENC_BIG_ENDIAN);
         expert_status = tvb_get_ntohl(tvb, foffset);
         if (expert_status != 0) {
-            expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Fault: %s", val_to_str(expert_status, accept_stat, "Unknown NDPS Error (0x%08x)"));
+            expert_add_info_format_text(pinfo, expert_item, &ei_ndps_rpc_acc_stat, "Fault: %s", val_to_str(expert_status, accept_stat, "Unknown NDPS Error (0x%08x)"));
         }
         foffset += 4;
         if (tvb_length_remaining(tvb,foffset) < 4 ) {
@@ -7030,11 +7032,11 @@ dissect_ndps_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ndps_tree, int
     proto_tree_add_uint(ndps_tree, hf_ndps_error_val, tvb, foffset, 4, error_val);
     foffset += 4;
     /* Some functions return an error with no data, 0 is ok */
-    if (match_strval(tvb_get_ntohl(tvb, foffset), ndps_error_types) && tvb_length_remaining(tvb,foffset) < 8 && (tvb_get_ntohl(tvb, foffset)!=0))
+    if (try_val_to_str(tvb_get_ntohl(tvb, foffset), ndps_error_types) && tvb_length_remaining(tvb,foffset) < 8 && (tvb_get_ntohl(tvb, foffset)!=0))
     {
         expert_status = tvb_get_ntohl(tvb, foffset);
         expert_item = proto_tree_add_item(ndps_tree, hf_ndps_return_code, tvb, foffset, 4, ENC_BIG_ENDIAN);
-        expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Fault: %s", val_to_str(expert_status, ndps_error_types, "Unknown NDPS Error (0x%08x)"));
+        expert_add_info_format_text(pinfo, expert_item, &ei_ndps_return_code, "Fault: %s", val_to_str(expert_status, ndps_error_types, "Unknown NDPS Error (0x%08x)"));
         col_append_str(pinfo->cinfo, COL_INFO, "- Error");
         return foffset;
     }
@@ -8354,10 +8356,12 @@ proto_register_ndps(void)
             FT_UINT32,    BASE_DEC,   NULL,   0x0,
             NULL, HFILL }},
 
+#if 0
         { &hf_ndps_error,
           { "NDPS Error",    "spx.ndps_error",
             FT_UINT32,    BASE_HEX,   NULL,   0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_ndps_other_error_string,
           { "Extended Error String",    "ndps.ext_err_string",
@@ -8404,15 +8408,19 @@ proto_register_ndps(void)
             FT_UINT32,    BASE_DEC,   NULL,   0x0,
             NULL, HFILL }},
 
+#if 0
         { &hf_ndps_sbuffer,
           { "Server",    "ndps.sbuffer",
             FT_UINT32,    BASE_DEC,   NULL,   0x0,
             NULL, HFILL }},
+#endif
 
+#if 0
         { &hf_ndps_rbuffer,
           { "Connection",    "ndps.rbuffer",
             FT_UINT32,    BASE_DEC,   NULL,   0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_ndps_user_name,
           { "Trustee Name",    "ndps.user_name",
@@ -8599,10 +8607,12 @@ proto_register_ndps(void)
             FT_UINT32,    BASE_HEX,   VALS(qualified_name_enum),   0x0,
             NULL, HFILL }},
 
+#if 0
         { &hf_ndps_qualified_name2,
           { "Qualified Name Type",    "ndps.qual_name_type2",
             FT_UINT32,    BASE_HEX,   VALS(qualified_name_enum2),   0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_ndps_item_count,
           { "Number of Items",    "ndps.item_count",
@@ -9139,15 +9149,19 @@ proto_register_ndps(void)
             FT_UINT32,    BASE_HEX,   VALS(ndps_filter_enum),   0x0,
             NULL, HFILL }},
 
+#if 0
         { &hf_ndps_item_filter,
           { "Filter Item Operation",    "ndps.filter_item",
             FT_UINT32,    BASE_HEX,   VALS(ndps_filter_item_enum),   0x0,
             NULL, HFILL }},
+#endif
 
+#if 0
         { &hf_ndps_substring_match,
           { "Substring Match",    "ndps.substring_match",
             FT_UINT32,    BASE_HEX,   VALS(ndps_match_criteria_enum),   0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_ndps_time_limit,
           { "Time Limit",    "ndps.time_limit",
@@ -9259,10 +9273,12 @@ proto_register_ndps(void)
             FT_UINT32,    BASE_HEX,   VALS(ndps_error_types),   0x0,
             NULL, HFILL }},
 
+#if 0
         { &hf_ndps_banner_count,
           { "Number of Banners",    "ndps.banner_count",
             FT_UINT32,    BASE_DEC,   NULL,   0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_ndps_banner_name,
           { "Banner Name",    "ndps.banner_name",
@@ -9410,10 +9426,12 @@ proto_register_ndps(void)
             FT_UINT32,    BASE_DEC,   VALS(ndps_doc_content_enum),   0x0,
             NULL, HFILL }},
 
+#if 0
         { &hf_ndps_doc_name,
           { "Document Name",    "ndps.doc_name",
             FT_STRING,    BASE_NONE,   NULL,   0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_local_id,
           { "Local ID",    "ndps.local_id",
@@ -9570,10 +9588,12 @@ proto_register_ndps(void)
             FT_STRING,    BASE_NONE,   NULL,   0x0,
             NULL, HFILL }},
 
+#if 0
         { &hf_info_bytes,
           { "Byte Value",    "ndps.info_bytes",
             FT_BYTES,    BASE_NONE,   NULL,   0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_ndps_list_local_servers_type,
           { "Server Type",    "ndps.list_local_server_type",
@@ -9700,10 +9720,12 @@ proto_register_ndps(void)
             FT_NONE,    BASE_NONE,   NULL,
             0x0, NULL, HFILL }},
 
+#if 0
         { &hf_ndps_attribute_time,
           { "Time",    "ndps.attribute_time",
             FT_ABSOLUTE_TIME,    ABSOLUTE_TIME_LOCAL,   NULL,   0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_print_security,
           { "Printer Security",    "ndps.print_security",
@@ -9746,11 +9768,21 @@ proto_register_ndps(void)
         &ett_ndps_segments,
         &ett_ndps_segment,
     };
+
+    static ei_register_info ei[] = {
+        { &ei_ndps_problem_type, { "ndps.problem_type.expert", PI_RESPONSE_CODE, PI_NOTE, "Fault", EXPFILL }},
+        { &ei_ndps_return_code, { "ndps.return_code.expert", PI_RESPONSE_CODE, PI_NOTE, "Fault", EXPFILL }},
+        { &ei_ndps_rpc_acc_stat, { "ndps.rpc_acc_stat.expert", PI_RESPONSE_CODE, PI_NOTE, "Fault", EXPFILL }},
+    };
+
     module_t *ndps_module;
+    expert_module_t* expert_ndps;
 
     proto_ndps = proto_register_protocol("Novell Distributed Print System", "NDPS", "ndps");
     proto_register_field_array(proto_ndps, hf_ndps, array_length(hf_ndps));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_ndps = expert_register_protocol(proto_ndps);
+    expert_register_field_array(expert_ndps, ei, array_length(ei));
 
     ndps_module = prefs_register_protocol(proto_ndps, NULL);
     prefs_register_bool_preference(ndps_module, "desegment_tcp",

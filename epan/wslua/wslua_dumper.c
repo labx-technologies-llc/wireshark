@@ -64,7 +64,7 @@ WSLUA_CONSTRUCTOR PseudoHeader_none(lua_State* L) {
      Creates a "no" pseudoheader.
 
     */
-    PseudoHeader ph = g_malloc(sizeof(struct lua_pseudo_header));
+    PseudoHeader ph = (PseudoHeader)g_malloc(sizeof(struct lua_pseudo_header));
     ph->type = PHDR_NONE;
     ph->wph = NULL;
 
@@ -81,9 +81,9 @@ WSLUA_CONSTRUCTOR PseudoHeader_eth(lua_State* L) {
 
 #define WSLUA_OPTARG_PseudoHeader_eth_FCSLEN 1 /* The fcs length */
 
-    PseudoHeader ph = g_malloc(sizeof(struct lua_pseudo_header));
+    PseudoHeader ph = (PseudoHeader)g_malloc(sizeof(struct lua_pseudo_header));
     ph->type = PHDR_ETH;
-    ph->wph = g_malloc(sizeof(union wtap_pseudo_header));
+    ph->wph = (union wtap_pseudo_header *)g_malloc(sizeof(union wtap_pseudo_header));
     ph->wph->eth.fcs_len = luaL_optint(L,WSLUA_OPTARG_PseudoHeader_eth_FCSLEN,-1);
 
     pushPseudoHeader(L,ph);
@@ -103,9 +103,9 @@ WSLUA_CONSTRUCTOR PseudoHeader_atm(lua_State* L) {
 #define WSLUA_OPTARG_PseudoHeader_atm_AAL5U2U 6 /* AAL5 User to User indicator */
 #define WSLUA_OPTARG_PseudoHeader_atm_AAL5LEN 7 /* AAL5 Len */
 
-    PseudoHeader ph = g_malloc(sizeof(struct lua_pseudo_header));
+    PseudoHeader ph = (PseudoHeader)g_malloc(sizeof(struct lua_pseudo_header));
     ph->type = PHDR_ATM;
-    ph->wph = g_malloc(sizeof(union wtap_pseudo_header));
+    ph->wph = (union wtap_pseudo_header *)g_malloc(sizeof(union wtap_pseudo_header));
     ph->wph->atm.aal = luaL_optint(L,WSLUA_OPTARG_PseudoHeader_atm_AAL,5);
     ph->wph->atm.vpi = luaL_optint(L,WSLUA_OPTARG_PseudoHeader_atm_VPI,1);
     ph->wph->atm.vci = luaL_optint(L,WSLUA_OPTARG_PseudoHeader_atm_VCI,1);
@@ -124,9 +124,9 @@ WSLUA_CONSTRUCTOR PseudoHeader_mtp2(lua_State* L) {
 #define WSLUA_OPTARG_PseudoHeader_mtp2_SENT 1 /* True if the packet is sent, False if received. */
 #define WSLUA_OPTARG_PseudoHeader_mtp2_ANNEXA 2 /* True if annex A is used  */
 #define WSLUA_OPTARG_PseudoHeader_mtp2_LINKNUM 3 /* Link Number */
-    PseudoHeader ph = g_malloc(sizeof(struct lua_pseudo_header));
+    PseudoHeader ph = (PseudoHeader)g_malloc(sizeof(struct lua_pseudo_header));
     ph->type = PHDR_MTP2;
-    ph->wph = g_malloc(sizeof(union wtap_pseudo_header));
+    ph->wph = (union wtap_pseudo_header *)g_malloc(sizeof(union wtap_pseudo_header));
     ph->wph->mtp2.sent = luaL_optint(L,WSLUA_OPTARG_PseudoHeader_mtp2_SENT,0);
     ph->wph->mtp2.annex_a_used = luaL_optint(L,WSLUA_OPTARG_PseudoHeader_mtp2_ANNEXA,0);
     ph->wph->mtp2.link_number = luaL_optint(L,WSLUA_OPTARG_PseudoHeader_mtp2_LINKNUM,0);
@@ -145,6 +145,12 @@ static int PseudoHeader_irda(lua_State* L) { luaL_error(L,"not implemented"); re
 static int PseudoHeader_nettl(lua_State* L) { luaL_error(L,"not implemented"); return 0; }
 static int PseudoHeader_k12(lua_State* L) { luaL_error(L,"not implemented"); return 0; }
 #endif
+
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
+static int PseudoHeader__gc(lua_State* L _U_) {
+    /* do NOT free PseudoHeader */
+    return 0;
+}
 
 WSLUA_METHODS PseudoHeader_methods[] = {
     WSLUA_CLASS_FNREG(PseudoHeader,mtp2),
@@ -208,16 +214,28 @@ WSLUA_CONSTRUCTOR Dumper_new(lua_State* L) {
 
     filename = cross_plat_fname(fname);
 
-    if (!wtap_dump_can_write_encap(filetype, encap))
-        WSLUA_ERROR(Dumper_new,"Not every filetype handles every encap");
-
-    d = wtap_dump_open(filename, filetype, encap,0 , FALSE, &err);
+    d = wtap_dump_open(filename, filetype, encap, 0, FALSE, &err);
 
     if (! d ) {
         /* WSLUA_ERROR("Error while opening file for writing"); */
-        luaL_error(L,"error while opening `%s': %s",
-                   filename,
-                   wtap_strerror(err));
+        switch (err) {
+        case WTAP_ERR_UNSUPPORTED_FILE_TYPE:
+            luaL_error(L,"Files of file type %s cannot be written",
+                       wtap_file_type_string(filetype));
+            break;
+
+        case WTAP_ERR_UNSUPPORTED_ENCAP:
+            luaL_error(L,"Files of file type %s don't support encapsulation %s",
+                       wtap_file_type_string(filetype),
+                       wtap_encap_short_string(encap));
+            break;
+
+        default:
+            luaL_error(L,"error while opening `%s': %s",
+                       filename,
+                       wtap_strerror(err));
+            break;
+        }
         return 0;
     }
 
@@ -332,19 +350,27 @@ WSLUA_METHOD Dumper_new_for_current(lua_State* L) {
 
     encap = lua_pinfo->fd->lnk_t;
 
-    if (!wtap_dump_can_write_encap(filetype, encap)) {
-        luaL_error(L,"Cannot write encap %s in filetype %s",
-                   wtap_encap_short_string(encap),
-                   wtap_file_type_string(filetype));
-        return 0;
-    }
-
-    d = wtap_dump_open(filename, filetype, encap, 0 , FALSE, &err);
+    d = wtap_dump_open(filename, filetype, encap, 0, FALSE, &err);
 
     if (! d ) {
-        luaL_error(L,"error while opening `%s': %s",
-                   filename,
-                   wtap_strerror(err));
+        switch (err) {
+        case WTAP_ERR_UNSUPPORTED_FILE_TYPE:
+            luaL_error(L,"Files of file type %s cannot be written",
+                       wtap_file_type_string(filetype));
+            break;
+
+        case WTAP_ERR_UNSUPPORTED_ENCAP:
+            luaL_error(L,"Files of file type %s don't support encapsulation %s",
+                       wtap_file_type_string(filetype),
+                       wtap_encap_short_string(encap));
+            break;
+
+        default:
+            luaL_error(L,"error while opening `%s': %s",
+                       filename,
+                       wtap_strerror(err));
+            break;
+        }
         return 0;
     }
 
@@ -386,7 +412,7 @@ WSLUA_METHOD Dumper_dump_current(lua_State* L) {
     if (lua_pinfo->fd->opt_comment)
         pkthdr.opt_comment = ep_strdup(lua_pinfo->fd->opt_comment);
 
-    data = ep_tvb_memdup(tvb,0,pkthdr.caplen);
+    data = (const guchar *)ep_tvb_memdup(tvb,0,pkthdr.caplen);
 
     if (! wtap_dump(d, &pkthdr, data, &err)) {
         luaL_error(L,"error while dumping: %s",
@@ -396,6 +422,7 @@ WSLUA_METHOD Dumper_dump_current(lua_State* L) {
     return 0;
 }
 
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
 static int Dumper__gc(lua_State* L) {
     Dumper* dp = (Dumper*)luaL_checkudata(L, 1, "Dumper");
     int err;
@@ -417,17 +444,16 @@ static int Dumper__gc(lua_State* L) {
 
 
 WSLUA_METHODS Dumper_methods[] = {
-    {"new",       Dumper_new},
-    {"new_for_current",       Dumper_new_for_current},
-    {"close",       Dumper_close},
-    {"flush",       Dumper_flush},
-    {"dump",       Dumper_dump},
-    {"dump_current",       Dumper_dump_current},
+    WSLUA_CLASS_FNREG(Dumper,new),
+    WSLUA_CLASS_FNREG(Dumper,new_for_current),
+    WSLUA_CLASS_FNREG(Dumper,close),
+    WSLUA_CLASS_FNREG(Dumper,flush),
+    WSLUA_CLASS_FNREG(Dumper,dump),
+    WSLUA_CLASS_FNREG(Dumper,dump_current),
     {0, 0}
 };
 
 WSLUA_META Dumper_meta[] = {
-    {"__gc", Dumper__gc},
     {0, 0}
 };
 

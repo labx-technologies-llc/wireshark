@@ -37,6 +37,10 @@
 
 #include "packet-aim.h"
 
+void proto_register_aim_messaging(void);
+void proto_reg_handoff_aim_messaging(void);
+
+
 #define FAMILY_MESSAGING  0x0004
 
 
@@ -287,7 +291,7 @@ static int hf_aim_rendezvous_extended_data_message_flags_multi = -1;
 static int hf_aim_rendezvous_extended_data_message_status_code = -1;
 static int hf_aim_rendezvous_extended_data_message_priority_code = -1;
 static int hf_aim_rendezvous_extended_data_message_text_length = -1;
-static int hf_aim_rendezvous_extended_data_message_text = -1;
+/* static int hf_aim_rendezvous_extended_data_message_text = -1; */
 
 /* Initialize the subtree pointers */
 static gint ett_aim_messaging = -1;
@@ -735,9 +739,11 @@ proto_register_aim_messaging(void)
 		{ &hf_aim_rendezvous_extended_data_message_text_length,
 			{ "Text Length", "aim_messaging.icbm.extended_data.message.text_length", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL },
 		},
+#if 0
 		{ &hf_aim_rendezvous_extended_data_message_text,
 			{ "Text", "aim_messaging.icbm.extended_data.message.text", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL },
 		}
+#endif
 	};
 
 	/* Setup protocol subtree array */

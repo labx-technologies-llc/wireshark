@@ -44,7 +44,7 @@ static int hf_bthci_acl_chandle = -1;
 static int hf_bthci_acl_pb_flag = -1;
 static int hf_bthci_acl_bc_flag = -1;
 static int hf_bthci_acl_length = -1;
-static int hf_bthci_acl_data = -1;
+/* static int hf_bthci_acl_data = -1; */
 static int hf_bthci_acl_continuation_to = -1;
 static int hf_bthci_acl_reassembled_in = -1;
 
@@ -65,6 +65,9 @@ typedef struct _multi_fragment_pdu_t {
 
 typedef struct _chandle_data_t {
     emem_tree_t *start_fragments;  /* indexed by pinfo->fd->num */
+    guint32      interface_id;
+    guint32      adapter_id;
+    guint32      chandle;
 } chandle_data_t;
 
 static emem_tree_t *chandle_tree = NULL;
@@ -83,6 +86,8 @@ static const value_string bc_flag_vals[] = {
     { 0, NULL }
 };
 
+void proto_register_bthci_acl(void);
+void proto_reg_handoff_bthci_acl(void);
 
 /* Code to actually dissect the packets */
 static void
@@ -114,6 +119,19 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     localhost_bdaddr_entry_t *localhost_bdaddr_entry;
     localhost_name_entry_t   *localhost_name_entry;
 
+    switch (pinfo->p2p_dir) {
+        case P2P_DIR_SENT:
+            col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
+    }
+
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "HCI_ACL");
 
     if (tree) {
@@ -129,11 +147,16 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     offset += 2;
 
     hci_data = (hci_data_t *) pinfo->private_data;
+    acl_data = wmem_new(wmem_packet_scope(), bthci_acl_data_t);
 
-    acl_data            = ep_alloc(sizeof(bthci_acl_data_t));
-    acl_data->chandle   = flags & 0x0fff;
-    pd_save             = pinfo->private_data;
-    pinfo->private_data = acl_data;
+    acl_data->interface_id = hci_data->interface_id;
+    acl_data->adapter_id   = hci_data->adapter_id;
+    acl_data->chandle      = flags & 0x0fff;
+    acl_data->remote_bd_addr_oui = 0;
+    acl_data->remote_bd_addr_id  = 0;
+
+    pd_save                = pinfo->private_data;
+    pinfo->private_data    = acl_data;
 
     k_interface_id      = hci_data->interface_id;
     k_adapter_id        = hci_data->adapter_id;
@@ -152,9 +175,9 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     key[4].key    = NULL;
 
     /* remote bdaddr and name */
-    remote_bdaddr = se_tree_lookup32_array_le(hci_data->chandle_to_bdaddr_table, key);
-    if (remote_bdaddr && remote_bdaddr->interface_id == k_interface_id &&
-            remote_bdaddr->adapter_id == k_adapter_id &&
+    remote_bdaddr = (remote_bdaddr_t *)se_tree_lookup32_array_le(hci_data->chandle_to_bdaddr_table, key);
+    if (remote_bdaddr && remote_bdaddr->interface_id == hci_data->interface_id &&
+            remote_bdaddr->adapter_id == hci_data->adapter_id &&
             remote_bdaddr->chandle == (flags & 0x0fff)) {
         guint32         k_bd_addr_oui;
         guint32         k_bd_addr_id;
@@ -168,8 +191,13 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         bd_addr_oui = remote_bdaddr->bd_addr[0] << 16 | remote_bdaddr->bd_addr[1] << 8 | remote_bdaddr->bd_addr[2];
         bd_addr_id  = remote_bdaddr->bd_addr[3] << 16 | remote_bdaddr->bd_addr[4] << 8 | remote_bdaddr->bd_addr[5];
-        k_bd_addr_oui = bd_addr_oui;
-        k_bd_addr_id  = bd_addr_id;
+
+        acl_data->remote_bd_addr_oui = bd_addr_oui;
+        acl_data->remote_bd_addr_id  = bd_addr_id;
+
+        k_bd_addr_oui  = bd_addr_oui;
+        k_bd_addr_id   = bd_addr_id;
+        k_frame_number = pinfo->fd->num;
 
         key[0].length = 1;
         key[0].key    = &k_bd_addr_id;
@@ -180,7 +208,7 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         key[3].length = 0;
         key[3].key    = NULL;
 
-        device_name = se_tree_lookup32_array_le(hci_data->bdaddr_to_name_table, key);
+        device_name = (device_name_t *)se_tree_lookup32_array_le(hci_data->bdaddr_to_name_table, key);
         if (device_name && device_name->bd_addr_oui == bd_addr_oui && device_name->bd_addr_id == bd_addr_id)
             remote_name = device_name->name;
         else
@@ -188,30 +216,34 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         remote_ether_addr = get_ether_name(remote_bdaddr->bd_addr);
         remote_length = (gint)(strlen(remote_ether_addr) + 3 + strlen(remote_name) + 1);
-        remote_addr_name = wmem_alloc(pinfo->pool, remote_length);
+        remote_addr_name = (gchar *)wmem_alloc(pinfo->pool, remote_length);
 
         g_snprintf(remote_addr_name, remote_length, "%s (%s)", remote_ether_addr, remote_name);
 
         if (pinfo->p2p_dir == P2P_DIR_RECV) {
-            SET_ADDRESS(&pinfo->net_src, AT_STRINGZ, (int) strlen(remote_name), remote_name);
+            SET_ADDRESS(&pinfo->net_src, AT_STRINGZ, (int)strlen(remote_name) + 1, remote_name);
             SET_ADDRESS(&pinfo->dl_src, AT_ETHER, 6, remote_bdaddr->bd_addr);
-            SET_ADDRESS(&pinfo->src, AT_STRINGZ, (int) strlen(remote_addr_name), remote_addr_name);
+            SET_ADDRESS(&pinfo->src, AT_STRINGZ, (int)strlen(remote_addr_name) + 1, remote_addr_name);
         } else if (pinfo->p2p_dir == P2P_DIR_SENT) {
-            SET_ADDRESS(&pinfo->net_dst, AT_STRINGZ, (int) strlen(remote_name), remote_name);
+            SET_ADDRESS(&pinfo->net_dst, AT_STRINGZ, (int)strlen(remote_name) + 1, remote_name);
             SET_ADDRESS(&pinfo->dl_dst, AT_ETHER, 6, remote_bdaddr->bd_addr);
-            SET_ADDRESS(&pinfo->dst, AT_STRINGZ, (int) strlen(remote_addr_name), remote_addr_name);
+            SET_ADDRESS(&pinfo->dst, AT_STRINGZ, (int)strlen(remote_addr_name) + 1, remote_addr_name);
         }
     } else {
         if (pinfo->p2p_dir == P2P_DIR_RECV) {
-            SET_ADDRESS(&pinfo->net_src, AT_STRINGZ, 0, "");
-            SET_ADDRESS(&pinfo->dl_src, AT_STRINGZ, 0, "");
-            SET_ADDRESS(&pinfo->src, AT_STRINGZ, 0, "");
+            SET_ADDRESS(&pinfo->net_src, AT_STRINGZ, 1, "");
+            SET_ADDRESS(&pinfo->dl_src, AT_STRINGZ, 1, "");
+            SET_ADDRESS(&pinfo->src, AT_STRINGZ, 10, "remote ()");
         } else if (pinfo->p2p_dir == P2P_DIR_SENT) {
-            SET_ADDRESS(&pinfo->net_dst, AT_STRINGZ, 0, "");
-            SET_ADDRESS(&pinfo->dl_dst, AT_STRINGZ, 0, "");
-            SET_ADDRESS(&pinfo->dst, AT_STRINGZ, 0, "");
+            SET_ADDRESS(&pinfo->net_dst, AT_STRINGZ, 1, "");
+            SET_ADDRESS(&pinfo->dl_dst, AT_STRINGZ, 1, "");
+            SET_ADDRESS(&pinfo->dst, AT_STRINGZ, 10, "remote ()");
         }
     }
+
+    k_interface_id      = hci_data->interface_id;
+    k_adapter_id        = hci_data->adapter_id;
+    k_frame_number      = pinfo->fd->num;
 
     /* localhost bdaddr and name */
     key[0].length = 1;
@@ -224,41 +256,79 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     key[3].key    = NULL;
 
 
-    localhost_bdaddr_entry = se_tree_lookup32_array_le(hci_data->localhost_bdaddr, key);
-    if (localhost_bdaddr_entry && localhost_bdaddr_entry->interface_id == k_interface_id &&
-            localhost_bdaddr_entry->adapter_id == k_adapter_id)
+    localhost_bdaddr_entry = (localhost_bdaddr_entry_t *)se_tree_lookup32_array_le(hci_data->localhost_bdaddr, key);
+    if (localhost_bdaddr_entry && localhost_bdaddr_entry->interface_id == hci_data->interface_id &&
+            localhost_bdaddr_entry->adapter_id == hci_data->adapter_id)
         localhost_ether_addr = get_ether_name(localhost_bdaddr_entry->bd_addr);
     else
         localhost_ether_addr = "localhost";
 
-    localhost_name_entry = se_tree_lookup32_array_le(hci_data->localhost_name, key);
-    if (localhost_name_entry && localhost_name_entry->interface_id == k_interface_id &&
-            localhost_name_entry->adapter_id == k_adapter_id)
+    localhost_name_entry = (localhost_name_entry_t *)se_tree_lookup32_array_le(hci_data->localhost_name, key);
+    if (localhost_name_entry && localhost_name_entry->interface_id == hci_data->interface_id &&
+            localhost_name_entry->adapter_id == hci_data->adapter_id)
         localhost_name = localhost_name_entry->name;
     else
         localhost_name = "";
 
     localhost_length = (gint)(strlen(localhost_ether_addr) + 3 + strlen(localhost_name) + 1);
-    localhost_addr_name = wmem_alloc(pinfo->pool, localhost_length);
+    localhost_addr_name = (gchar *)wmem_alloc(pinfo->pool, localhost_length);
 
     g_snprintf(localhost_addr_name, localhost_length, "%s (%s)", localhost_ether_addr, localhost_name);
 
     if (pinfo->p2p_dir == P2P_DIR_RECV) {
-        SET_ADDRESS(&pinfo->net_dst, AT_STRINGZ, (int) strlen(localhost_name), localhost_name);
+        SET_ADDRESS(&pinfo->net_dst, AT_STRINGZ, (int)strlen(localhost_name) + 1, localhost_name);
         SET_ADDRESS(&pinfo->dl_dst, AT_ETHER, 6, localhost_bdaddr);
-        SET_ADDRESS(&pinfo->dst, AT_STRINGZ, (int) strlen(localhost_addr_name), localhost_addr_name);
+        SET_ADDRESS(&pinfo->dst, AT_STRINGZ, (int)strlen(localhost_addr_name) + 1, localhost_addr_name);
     } else if (pinfo->p2p_dir == P2P_DIR_SENT) {
-        SET_ADDRESS(&pinfo->net_src, AT_STRINGZ, (int) strlen(localhost_name), localhost_name);
+        SET_ADDRESS(&pinfo->net_src, AT_STRINGZ, (int)strlen(localhost_name) + 1, localhost_name);
         SET_ADDRESS(&pinfo->dl_src, AT_ETHER, 6, localhost_bdaddr);
-        SET_ADDRESS(&pinfo->src, AT_STRINGZ, (int) strlen(localhost_addr_name), localhost_addr_name);
+        SET_ADDRESS(&pinfo->src, AT_STRINGZ, (int)strlen(localhost_addr_name) + 1, localhost_addr_name);
     }
 
     /* find the chandle_data structure associated with this chandle */
-    chandle_data = se_tree_lookup32(chandle_tree, acl_data->chandle);
-    if (!chandle_data) {
-        chandle_data = se_alloc(sizeof(chandle_data_t));
+    k_interface_id      = hci_data->interface_id;
+    k_adapter_id        = hci_data->adapter_id;
+    k_connection_handle = flags & 0x0fff;
+    k_frame_number      = pinfo->fd->num;
+
+    key[0].length = 1;
+    key[0].key = &k_interface_id;
+    key[1].length = 1;
+    key[1].key = &k_adapter_id;
+    key[2].length = 1;
+    key[2].key = &k_connection_handle;
+    key[3].length = 1;
+    key[3].key = &k_frame_number;
+    key[4].length = 0;
+    key[4].key = NULL;
+
+    chandle_data = (chandle_data_t *)se_tree_lookup32_array_le(chandle_tree, key);
+    if (!(chandle_data && chandle_data->interface_id == hci_data->interface_id &&
+            chandle_data->adapter_id == hci_data->adapter_id &&
+            chandle_data->chandle == (flags & 0x0fff))) {
+        k_interface_id      = hci_data->interface_id;
+        k_adapter_id        = hci_data->adapter_id;
+        k_connection_handle = flags & 0x0fff;
+        k_frame_number      = pinfo->fd->num;
+
+        key[0].length = 1;
+        key[0].key = &k_interface_id;
+        key[1].length = 1;
+        key[1].key = &k_adapter_id;
+        key[2].length = 1;
+        key[2].key = &k_connection_handle;
+        key[3].length = 1;
+        key[3].key = &k_frame_number;
+        key[4].length = 0;
+        key[4].key = NULL;
+
+        chandle_data = (chandle_data_t *)se_alloc(sizeof(chandle_data_t));
         chandle_data->start_fragments = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "bthci_acl fragment starts");
-        se_tree_insert32(chandle_tree, acl_data->chandle, chandle_data);
+        chandle_data->interface_id = hci_data->interface_id;
+        chandle_data->adapter_id   = hci_data->adapter_id;
+        chandle_data->chandle      = flags & 0x0fff;
+
+        se_tree_insert32_array(chandle_tree, key, chandle_data);
     }
 
     length = tvb_get_letohs(tvb, offset);
@@ -299,11 +369,11 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         if (!(pb_flag & 0x01)) { /* first fragment */
             if (!pinfo->fd->flags.visited) {
-                mfp = se_alloc(sizeof(multi_fragment_pdu_t));
+                mfp = (multi_fragment_pdu_t *) wmem_new(wmem_file_scope(), multi_fragment_pdu_t);
                 mfp->first_frame = pinfo->fd->num;
                 mfp->last_frame  = 0;
                 mfp->tot_len     = l2cap_length + 4;
-                mfp->reassembled = se_alloc(mfp->tot_len);
+                mfp->reassembled = (char *) wmem_alloc(wmem_file_scope(), mfp->tot_len);
                 len = tvb_length_remaining(tvb, offset);
                 if (len <= mfp->tot_len) {
                     tvb_memcpy(tvb, (guint8 *) mfp->reassembled, offset, len);
@@ -311,7 +381,7 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     se_tree_insert32(chandle_data->start_fragments, pinfo->fd->num, mfp);
                 }
             } else {
-                mfp = se_tree_lookup32(chandle_data->start_fragments, pinfo->fd->num);
+                mfp = (multi_fragment_pdu_t *)se_tree_lookup32(chandle_data->start_fragments, pinfo->fd->num);
             }
             if (mfp != NULL && mfp->last_frame) {
                 proto_item *item;
@@ -322,7 +392,7 @@ dissect_bthci_acl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             }
         }
         if (pb_flag == 0x01) { /* continuation fragment */
-            mfp = se_tree_lookup32_le(chandle_data->start_fragments, pinfo->fd->num);
+            mfp = (multi_fragment_pdu_t *)se_tree_lookup32_le(chandle_data->start_fragments, pinfo->fd->num);
             if (!pinfo->fd->flags.visited) {
                 len = tvb_length_remaining(tvb, offset);
                 if (mfp != NULL && !mfp->last_frame && (mfp->tot_len >= mfp->cur_off + len)) {
@@ -381,11 +451,13 @@ proto_register_bthci_acl(void)
             FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL }
         },
+#if 0
         { &hf_bthci_acl_data,
           { "Data",                                          "bthci_acl.data",
             FT_NONE, BASE_NONE, NULL, 0x0,
             NULL, HFILL }
         },
+#endif
         { &hf_bthci_acl_continuation_to,
           { "This is a continuation to the PDU in frame",    "bthci_acl.continuation_to",
             FT_FRAMENUM, BASE_NONE, NULL, 0x0,

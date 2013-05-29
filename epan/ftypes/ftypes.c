@@ -24,16 +24,11 @@
 
 #include <ftypes-int.h>
 #include <glib.h>
-#include "../slab.h"
 
 #include "ftypes.h"
 
 /* Keep track of ftype_t's via their ftenum number */
 static ftype_t* type_list[FT_NUM_TYPES];
-
-/* Space for quickly allocating/de-allocating fvalue_t's */
-struct ws_memory_slab fvalue_t_slab = 
-		WS_MEMORY_SLAB_INIT(fvalue_t, 128);
 
 /* Initialize the ftype module. */
 void
@@ -203,7 +198,7 @@ fvalue_new(ftenum_t ftype)
 	ftype_t			*ft;
 	FvalueNewFunc		new_value;
 
-	fv = (fvalue_t *)sl_alloc(&fvalue_t_slab);
+	fv = g_slice_new(fvalue_t);
 
 	FTYPE_LOOKUP(ftype, ft);
 	fv->ftype = ft;
@@ -393,7 +388,7 @@ slice_func(gpointer data, gpointer user_data)
 
 /* Returns a new FT_BYTES fvalue_t* if possible, otherwise NULL */
 fvalue_t*
-fvalue_slice(fvalue_t *fv, drange *d_range)
+fvalue_slice(fvalue_t *fv, drange_t *d_range)
 {
 	slice_data_t	slice_data;
 	fvalue_t	*new_fv;

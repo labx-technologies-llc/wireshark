@@ -50,6 +50,7 @@
 #include "packet-bssap.h"
 #include "packet-ansi_a.h"
 
+
 /*
  * IOS 4, probably most common
  */
@@ -58,10 +59,11 @@ static gint global_a_variant = A_VARIANT_IOS401;
 
 /* PROTOTYPES/FORWARDS */
 
+void proto_register_ansi_a(void);
 void proto_reg_handoff_ansi_a(void);
 
 static const gchar *
-my_match_strval_idx(guint32 val, const ext_value_string_t *vs, gint *idx, gint *dec_idx)
+my_try_val_to_str_idx(guint32 val, const ext_value_string_t *vs, gint *idx, gint *dec_idx)
 {
     gint i = 0;
 
@@ -658,7 +660,7 @@ const ext_value_string_t *ansi_a_elem_1_strings = NULL;
 
 static int ansi_a_tap = -1;
 
-static int hf_ansi_a_none = -1;
+/* static int hf_ansi_a_none = -1; */
 static int hf_ansi_a_bsmap_msgtype = -1;
 static int hf_ansi_a_dtap_msgtype = -1;
 static int hf_ansi_a_length = -1;
@@ -668,7 +670,9 @@ static int hf_ansi_a_imsi = -1;
 static int hf_ansi_a_min = -1;
 static int hf_ansi_a_meid = -1;
 static int hf_ansi_a_cld_party_bcd_num = -1;
+#ifdef MAYBE_USED_FOR_OLDER_CODECS
 static int hf_ansi_a_clg_party_bcd_num = -1;
+#endif
 static int hf_ansi_a_cld_party_ascii_num = -1;
 static int hf_ansi_a_clg_party_ascii_num = -1;
 static int hf_ansi_a_cell_ci = -1;
@@ -706,6 +710,8 @@ static gint ett_scr = -1;
 static gint ett_srvc_con_rec = -1;
 static gint ett_cm2_band_class = -1;
 static gint ett_vp_algs = -1;
+
+static expert_field ei_ansi_a_extraneous_data = EI_INIT;
 
 static char a_bigbuf[1024];
 static dissector_handle_t rtp_handle=NULL;
@@ -924,7 +930,7 @@ ansi_a_so_int_to_str(
         proto_item *expert_item; \
         expert_item = proto_tree_add_text(tree, tvb, \
             curr_offset, (edc_len) - (edc_max_len), "Extraneous Data, dissector bug or later version spec(report to wireshark.org)"); \
-        expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_NOTE, "Extraneous Data, dissector bug or later version spec(report to wireshark.org)"); \
+        expert_add_info(pinfo, expert_item, &ei_ansi_a_extraneous_data); \
         curr_offset += ((edc_len) - (edc_max_len)); \
     }
 
@@ -3377,7 +3383,7 @@ elem_info_rec_req(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint
 
         rec_type = tvb_get_guint8(tvb, curr_offset);
 
-        str = match_strval_idx((guint32) rec_type, ansi_rev_ms_info_rec_str, &idx);
+        str = try_val_to_str_idx((guint32) rec_type, ansi_rev_ms_info_rec_str, &idx);
 
         if (str == NULL)
         {
@@ -5314,7 +5320,7 @@ elem_adds_user_part(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, gui
 
     adds_app = oct & 0x3f;
 
-    str = match_strval_idx((guint32) adds_app, ansi_a_adds_strings, &idx);
+    str = try_val_to_str_idx((guint32) adds_app, ansi_a_adds_strings, &idx);
     if (str == NULL)
     {
         str = "Reserved";
@@ -6269,7 +6275,7 @@ elem_fwd_ms_info_recs(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, g
 
         rec_type = tvb_get_guint8(tvb, curr_offset);
 
-        str = match_strval_idx((guint32) rec_type, ansi_fwd_ms_info_rec_str, &idx);
+        str = try_val_to_str_idx((guint32) rec_type, ansi_fwd_ms_info_rec_str, &idx);
 
         if (str == NULL)
         {
@@ -6560,7 +6566,7 @@ elem_rev_ms_info_recs(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, g
 
         rec_type = tvb_get_guint8(tvb, curr_offset);
 
-        str = match_strval_idx((guint32) rec_type, ansi_rev_ms_info_rec_str, &idx);
+        str = try_val_to_str_idx((guint32) rec_type, ansi_rev_ms_info_rec_str, &idx);
 
         if (str == NULL)
         {
@@ -8316,10 +8322,10 @@ elem_a2p_bearer_format(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, 
             format_assigned &&
             (first_assigned_found == FALSE))
         {
-            key = (gint *) se_alloc(sizeof(gint));
+            key  = se_new(gint);
             *key = rtp_payload_type;
 
-            encoding_name_and_rate = se_alloc(sizeof(encoding_name_and_rate_t));
+            encoding_name_and_rate = se_new(encoding_name_and_rate_t);
             encoding_name_and_rate->encoding_name = se_strdup(mime_type);
             encoding_name_and_rate->sample_rate = sample_rate;
 
@@ -8336,7 +8342,7 @@ elem_a2p_bearer_format(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, 
             key = (gint *) se_alloc(sizeof(gint));
             *key = rtp_payload_type;
 
-            encoding_name_and_rate = se_alloc(sizeof(encoding_name_and_rate_t));
+            encoding_name_and_rate = se_new(encoding_name_and_rate_t);
             encoding_name_and_rate->encoding_name = se_strdup("telephone-event");
             encoding_name_and_rate->sample_rate = sample_rate;
 
@@ -8582,7 +8588,7 @@ typedef enum
     ANSI_A_E_NONE        /* NONE */
 }
 elem_idx_t;
-static elem_idx_t ansi_a_elem_1_max = 0;
+static elem_idx_t ansi_a_elem_1_max = (elem_idx_t)0;
 
 #define MAX_IOS401_NUM_ELEM_1 (sizeof(ansi_a_ios401_elem_1_strings)/sizeof(ext_value_string_t))
 #define MAX_IOS501_NUM_ELEM_1 (sizeof(ansi_a_ios501_elem_1_strings)/sizeof(ext_value_string_t))
@@ -11583,7 +11589,7 @@ dissect_cdma2000_a1_elements(tvbuff_t *tvb, _U_ packet_info *pinfo, proto_tree *
     guint32     curr_offset;
     guint32     consumed;
     guint       curr_len;
-    elem_idx_t  idx;
+    unsigned    idx;
     guint8      oct;
 
     curr_offset = offset;
@@ -11599,16 +11605,16 @@ dissect_cdma2000_a1_elements(tvbuff_t *tvb, _U_ packet_info *pinfo, proto_tree *
          */
         oct = tvb_get_guint8(tvb, curr_offset);
 
-        for (idx=0; idx < ansi_a_elem_1_max; idx++)
+        for (idx=0; idx < (unsigned)ansi_a_elem_1_max; idx++)
         {
             if (oct == (guint8) ansi_a_elem_1_strings[idx].value)
             {
-                ELEM_OPT_TLV(idx, "");
+                ELEM_OPT_TLV((elem_idx_t)idx, "");
                 break;
             }
         }
 
-        if (idx == ansi_a_elem_1_max)
+        if (idx == (elem_idx_t)ansi_a_elem_1_max)
         {
             /*
              * didn't recognize the T(ype)
@@ -11665,7 +11671,7 @@ dissect_bsmap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      */
     oct = tvb_get_guint8(tvb, offset++);
 
-    msg_str = my_match_strval_idx((guint32) oct, ansi_a_bsmap_strings, &idx, &dec_idx);
+    msg_str = my_try_val_to_str_idx((guint32) oct, ansi_a_bsmap_strings, &idx, &dec_idx);
 
     /*
      * create the a protocol tree
@@ -11782,7 +11788,7 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      */
     oct = tvb_get_guint8(tvb, offset++);
 
-    msg_str = my_match_strval_idx((guint32) oct, ansi_a_dtap_strings, &idx, &dec_idx);
+    msg_str = my_try_val_to_str_idx((guint32) oct, ansi_a_dtap_strings, &idx, &dec_idx);
 
     /*
      * create the a protocol tree
@@ -11945,11 +11951,13 @@ proto_register_ansi_a(void)
             FT_UINT8, BASE_DEC, NULL, 0,
             NULL, HFILL }
         },
+#if 0
         { &hf_ansi_a_none,
             { "Sub tree",       "ansi_a_bsmap.none",
             FT_NONE, BASE_NONE, 0, 0,
             NULL, HFILL }
         },
+#endif
         { &hf_ansi_a_esn,
             { "ESN",    "ansi_a_bsmap.esn",
             FT_UINT32, BASE_HEX, 0, 0x0,
@@ -11975,11 +11983,13 @@ proto_register_ansi_a(void)
             FT_STRING, BASE_NONE, 0, 0,
             NULL, HFILL }
         },
+#ifdef MAYBE_USED_FOR_OLDER_CODECS
         { &hf_ansi_a_clg_party_bcd_num,
             { "Calling Party BCD Number",       "ansi_a_bsmap.clg_party_bcd_num",
             FT_STRING, BASE_NONE, 0, 0,
             NULL, HFILL }
         },
+#endif
         { &hf_ansi_a_cld_party_ascii_num,
             { "Called Party ASCII Number",      "ansi_a_bsmap.cld_party_ascii_num",
             FT_STRING, BASE_NONE, 0, 0,
@@ -12061,6 +12071,12 @@ proto_register_ansi_a(void)
             NULL, HFILL }
         }
     };
+
+    static ei_register_info ei[] = {
+        { &ei_ansi_a_extraneous_data, { "ansi_a.extraneous_data", PI_PROTOCOL, PI_NOTE, "Extraneous Data, dissector bug or later version spec(report to wireshark.org)", EXPFILL }},
+    };
+
+    expert_module_t* expert_a_bsmap;
 
     static const enum_val_t a_variant_options[] = {
             { "is-634-rev0",    "IS-634 rev. 0",        A_VARIANT_IS634 },
@@ -12149,6 +12165,8 @@ proto_register_ansi_a(void)
         proto_register_protocol("ANSI A-I/F BSMAP", "ANSI BSMAP", "ansi_a_bsmap");
 
     proto_register_field_array(proto_a_bsmap, hf, array_length(hf));
+    expert_a_bsmap = expert_register_protocol(proto_a_bsmap);
+    expert_register_field_array(expert_a_bsmap, ei, array_length(ei));
 
     proto_a_dtap =
         proto_register_protocol("ANSI A-I/F DTAP", "ANSI DTAP", "ansi_a_dtap");
@@ -12211,14 +12229,14 @@ proto_reg_handoff_ansi_a(void)
         ansi_a_bsmap_strings = ansi_a_ios501_bsmap_strings;
         ansi_a_dtap_strings = ansi_a_ios501_dtap_strings;
         ansi_a_elem_1_strings = ansi_a_ios501_elem_1_strings;
-        ansi_a_elem_1_max = MAX_IOS501_NUM_ELEM_1;
+        ansi_a_elem_1_max = (elem_idx_t)MAX_IOS501_NUM_ELEM_1;
         break;
 
     default:
         ansi_a_bsmap_strings = ansi_a_ios401_bsmap_strings;
         ansi_a_dtap_strings = ansi_a_ios401_dtap_strings;
         ansi_a_elem_1_strings = ansi_a_ios401_elem_1_strings;
-        ansi_a_elem_1_max = MAX_IOS401_NUM_ELEM_1;
+        ansi_a_elem_1_max = (elem_idx_t)MAX_IOS401_NUM_ELEM_1;
         break;
     }
 }

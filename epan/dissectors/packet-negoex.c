@@ -22,15 +22,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/show_exception.h>
 
-#include "packet-frame.h"
 #include "packet-dcerpc.h"
 #include "packet-gssapi.h"
 
@@ -504,11 +504,9 @@ dissect_negoex(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     bad_message:
         ;
 
-    } CATCH(BoundsError) {
-      RETHROW;
-    } CATCH(ReportedBoundsError) {
+    } CATCH_NONFATAL_ERRORS {
       done = TRUE;
-      show_reported_bounds_error(tvb, pinfo, tree);
+      show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
     } ENDTRY;
   }
 

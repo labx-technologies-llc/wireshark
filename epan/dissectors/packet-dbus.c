@@ -32,10 +32,13 @@
 #include <epan/expert.h>
 #include <epan/dissectors/packet-tcp.h>
 
+void proto_register_dbus(void);
+void proto_reg_handoff_dbus(void);
+
 static gboolean dbus_desegment = TRUE;
 
 static int hf_dbus_hdr = -1;
-static int hf_dbus_hdr_endianess = -1;
+static int hf_dbus_hdr_endianness = -1;
 static int hf_dbus_hdr_type = -1;
 static int hf_dbus_hdr_flags = -1;
 static int hf_dbus_hdr_version = -1;
@@ -111,7 +114,7 @@ typedef struct {
 
 	guint32 body_len;
 	guint32 fields_len;
-	char *body_sig;
+	const char *body_sig;
 } dbus_info_t;
 
 typedef union {
@@ -425,7 +428,7 @@ dissect_dbus_hdr(tvbuff_t *tvb, dbus_info_t *dinfo, proto_tree *tree, int offset
 	ti = proto_tree_add_item(tree, hf_dbus_hdr, tvb, offset, 0, ENC_NA);
 	hdr_tree = proto_item_add_subtree(ti, ett_dbus_hdr);
 
-	proto_tree_add_item(hdr_tree, hf_dbus_hdr_endianess, tvb, offset, 1, ENC_ASCII | ENC_NA);
+	proto_tree_add_item(hdr_tree, hf_dbus_hdr_endianness, tvb, offset, 1, ENC_ASCII | ENC_NA);
 	offset += 1;
 
 	type = tvb_get_guint8(tvb, offset);
@@ -583,8 +586,8 @@ proto_register_dbus(void)
 		{ &hf_dbus_hdr,
 			{ "Header", "dbus.header", FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL }
 		},
-		{ &hf_dbus_hdr_endianess,
-			{ "Endianess Flag", "dbus.endianess", FT_STRING, BASE_NONE, NULL, 0x00, NULL, HFILL }
+		{ &hf_dbus_hdr_endianness,
+			{ "Endianness Flag", "dbus.endianness", FT_STRING, BASE_NONE, NULL, 0x00, NULL, HFILL }
 		},
 		{ &hf_dbus_hdr_type,
 			{ "Message Type", "dbus.type", FT_UINT8, BASE_DEC, VALS(message_type_vals), 0x00, NULL, HFILL }

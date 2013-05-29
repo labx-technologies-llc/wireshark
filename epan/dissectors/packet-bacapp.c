@@ -1614,17 +1614,69 @@ fDeviceObjectReference (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
  *      high-limit                       [2] REAL,
  *      deadband                         [3] REAL
  *      },
- *  buffer-ready                    [7] SEQUENCE {
- *      notification-threshold           [0] Unsigned,
- *      previous-notification-count      [1] Unsigned32
- *      }
+ *  -- context tag 7 is deprecated
  *  change-of-life-safety           [8] SEQUENCE {
  *      time-delay                       [0] Unsigned,
  *      list-of-life-safety-alarm-values [1] SEQUENCE OF BACnetLifeSafetyState,
  *      list-of-alarm-values             [2] SEQUENCE OF BACnetLifeSafetyState,
  *      mode-property-reference          [3] BACnetDeviceObjectPropertyReference
+ *      },
+ *  extended                        [9] SEQUENCE {
+ *      vendor-id                        [0] Unsigned16,
+ *      extended-event-type              [1] Unsigned,
+ *      parameters                       [2] SEQUENCE OF CHOICE {
+ *          null        NULL,
+ *          real        REAL,
+ *          integer     Unsigned,
+ *          boolean     BOOLEAN,
+ *          double      Double,
+ *          octet       OCTET STRING,
+ *          bitstring   BIT STRING,
+ *          enum        ENUMERATED,
+ *          reference   [0] BACnetDeviceObjectPropertyReference
+ *          }
+ *      },
+ *  buffer-ready                    [10] SEQUENCE {
+ *      notification-threshold           [0] Unsigned,
+ *      previous-notification-count      [1] Unsigned32
+ *      },
+ * unsigned-range                   [11] SEQUENCE {
+ *      time-delay                       [0] Unsigned,
+ *      low-limit                        [1] Unsigned,
+ *      high-limit                       [2] Unsigned,
  *      }
+ * -- context tag 12 is reserved for future addenda
+ * access-event                     [13] SEQUENCE {
+ *      list-of-access-events            [0] SEQUENCE OF BACnetAccessEvent,
+ *      access-event-time-reference      [1] BACnetDeviceObjectPropertyReference
+ *      }
+ * double-out-of-range              [14] SEQUENCE {
+ *      time-delay                       [0] Unsigned,
+ *      low-limit                        [1] Double,
+ *      high-limit                       [2] Double,
+ *      deadband                         [3] Double
  *  }
+ *  signed-out-of-range             [15] SEQUENCE {
+ *      time-delay                       [0] Unsigned,
+ *      low-limit                        [1] INTEGER,
+ *      high-limit                       [2] INTEGER,
+ *      deadband                         [3] Unsigned
+ *  }
+ *  unsigned-out-of-range           [16] SEQUENCE {
+ *      time-delay                       [0] Unsigned,
+ *      low-limit                        [1] Unsigned,
+ *      high-limit                       [2] Unsigned,
+ *      deadband                         [3] Unsigned
+ *   }
+ *  change-of-characterstring       [17] SEQUENCE {
+ *      time-delay                       [0] Unsigned,
+ *      list-of-alarm-values             [1] SEQUENCE OF CharacterString,
+ *   }
+ *  change-of-status-flags          [18] SEQUENCE {
+ *      time-delay                       [0] Unsigned,
+ *      selected-flags                   [1] BACnetStatusFlags
+ *   }
+ * }
  * @param tvb
  * @param tree
  * @param offset
@@ -1715,21 +1767,78 @@ fLogMultipleRecord (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint o
  *      exceeding-value      [0] REAL,
  *      status-flags         [1] BACnetStatusFlags
  *      deadband             [2] REAL,
- *      exceeded-limit       [0] REAL
+ *      exceeded-limit       [3] REAL
  *      },
  *  complex-event-type  [6] SEQUENCE OF BACnetPropertyValue,
- *  buffer-ready [7]    SEQUENCE {
- *      buffer-device        [0] BACnetObjectIdentifier,
- *      buffer-object        [1] BACnetObjectIdentifier
- *      previous-notification[2] BACnetDateTime,
- *      current-notification [3] BACnetDateTime
- *      },
+ * -- complex tag 7 is deprecated
  *  change-of-life-safety [8]   SEQUENCE {
  *      new-state            [0] BACnetLifeSafetyState,
  *      new-mode             [1] BACnetLifeSafetyState
  *      status-flags         [2] BACnetStatusFlags,
  *      operation-expected   [3] BACnetLifeSafetyOperation
- *      }
+ *      },
+ *  extended [9]   SEQUENCE {
+ *      vendor-id            [0] Unsigned16,
+ *      extended-event-type  [1] Unsigned,
+ *      parameters           [2] SEQUENCE OF CHOICE {
+ *          null                NULL,
+ *          real                REAL,
+ *          integer             Unsigned,
+ *          boolean             BOOLEAN,
+ *          double              Double,
+ *          octet               OCTET STRING,
+ *          bitstring           BIT STRING,
+ *          enum                ENUMERATED,
+ *          propertyValue       [0] BACnetDeviceObjectPropertyValue
+ *          }
+ *      },
+ *  buffer-ready [10]    SEQUENCE {
+ *      buffer-property      [0] BACnetDeviceObjectPropertyReference,
+ *      previous-notification[1] Unsigned32,
+ *      current-notification [2] BACneUnsigned32tDateTime
+ *      },
+ *  unsigned-range [11]    SEQUENCE {
+ *      exceeding-value      [0] Unsigned,
+ *      status-flags         [1] BACnetStatusFlags,
+ *      exceeded-limit       [2] Unsigned
+ *      },
+ * -- context tag 12 is reserved for future addenda
+ *  access-event [13]    SEQUENCE {
+ *      access-event          [0] BACnetAccessEvent,
+ *      status-flags          [1] BACnetStatusFlags,
+ *      access-event-tag      [2] Unsigned,
+ *      access-event-time     [3] BACnetTimeStamp,
+ *      access-credential     [4] BACnetDeviceObjectReference,
+ *      authentication-factor [5] BACnetAuthenticationFactor OPTIONAL
+ *      },
+ *  double-out-of-range [14]    SEQUENCE {
+ *      exceeding-value      [0] Double,
+ *      status-flags         [1] BACnetStatusFlags
+ *      deadband             [2] Double,
+ *      exceeded-limit       [3] Double
+ *      },
+ *  signed-out-of-range [15]    SEQUENCE {
+ *      exceeding-value      [0] INTEGER,
+ *      status-flags         [1] BACnetStatusFlags
+ *      deadband             [2] Unsigned,
+ *      exceeded-limit       [3] INTEGER
+ *      },
+ *  unsigned-out-of-range [16]    SEQUENCE {
+ *      exceeding-value      [0] Unsigned,
+ *      status-flags         [1] BACnetStatusFlags
+ *      deadband             [2] Unsigned,
+ *      exceeded-limit       [3] Unsigned
+ *      },
+ *  change-of-characterstring [17]    SEQUENCE {
+ *      changed-value        [0] CharacterString,
+ *      status-flags         [1] BACnetStatusFlags
+ *      alarm-value          [2] CharacterString
+ *      },
+ *  change-of-status-flags [18]    SEQUENCE {
+ *      present-value        [0] ABSTRACT-SYNTAX.&Type OPTIONAL,
+ *                              -- depends on referenced property
+ *      referenced-flags     [1] BACnetStatusFlags
+ *      },
  * }
  * @param tvb
  * @param pinfo
@@ -2220,9 +2329,8 @@ uni_to_string(char * data, gsize str_length, char *dest_buf);
 
 /* <<<< formerly bacapp.h */
 
-/* some hashes for segmented messages */
-static GHashTable *msg_fragment_table    = NULL;
-static GHashTable *msg_reassembled_table = NULL;
+/* reassembly table for segmented messages */
+static reassembly_table msg_reassembly_table;
 
 /* some necessary forward function prototypes */
 static guint
@@ -2355,6 +2463,69 @@ BACnetAction [] = {
     { 0, "direct"},
     { 1, "reverse"},
     { 0, NULL}
+};
+
+static const value_string
+BACnetAccessEvent [] = {
+    {  0, "none"},
+    {  1, "granted"},
+    {  2, "muster"},
+    {  3, "passback-detected"},
+    {  4, "duress"},
+    {  5, "trace"},
+    {  6, "lockout-max-attempts"},
+    {  7, "lockout-other"},
+    {  8, "lockout-relinquished"},
+    {  9, "lockout-by-higher-priority"},
+    { 10, "out-of-service"},
+    { 11, "out-of-service-relinquished"},
+    { 12, "accompaniment-by"},
+    { 13, "authentication-factor-read"},
+    { 14, "authorization-delayed"},
+    { 15, "verification-required"},
+    /* Enumerated values 128-511 are used for events 
+     * which indicate that access has been denied. */
+    { 128, "denied-deny-all"},
+    { 129, "denied-unknown-credential"},
+    { 130, "denied-authentication-unavailable"},
+    { 131, "denied-authentication-factor-timeout"},
+    { 132, "denied-incorrect-authentication-factor"},
+    { 133, "denied-zone-no-access-rights"},
+    { 134, "denied-point-no-access-rights"},
+    { 135, "denied-no-access-rights"},
+    { 136, "denied-out-of-time-range"},
+    { 137, "denied-threat-level"},
+    { 138, "denied-passback"},
+    { 139, "denied-unexpected-location-usage"},
+    { 140, "denied-max-attempts"},
+    { 141, "denied-lower-occupancy-limit"},
+    { 142, "denied-upper-occupancy-limit"},
+    { 143, "denied-authentication-factor-lost"},
+    { 144, "denied-authentication-factor-stolen"},
+    { 145, "denied-authentication-factor-damaged"},
+    { 146, "denied-authentication-factor-destroyed"},
+    { 147, "denied-authentication-factor-disabled"},
+    { 148, "denied-authentication-factor-error"},
+    { 149, "denied-credential-unassigned"},
+    { 150, "denied-credential-not-provisioned"},
+    { 151, "denied-credential-not-yet-active"},
+    { 152, "denied-credential-expired"},
+    { 153, "denied-credential-manual-disable"},
+    { 154, "denied-credential-lockout"},
+    { 155, "denied-credential-max-days"},
+    { 156, "denied-credential-max-uses"},
+    { 157, "denied-credential-inactivity"},
+    { 158, "denied-credential-disabled"},
+    { 159, "denied-no-accompaniment"},
+    { 160, "denied-incorrect-accompaniment"},
+    { 161, "denied-lockout"},
+    { 162, "denied-verification-failed"},
+    { 163, "denied-verification-timeout"},
+    { 164, "denied-other"},
+    { 0,  NULL}
+/* Enumerated values 0-512 are reserved for definition by ASHRAE.
+   Enumerated values 512-65535 may be used by others subject to
+   procedures and constraints described in Clause 23. */
 };
 
 static const value_string
@@ -3557,7 +3728,7 @@ BACnetEventType [] = {
     {  4, "floating-limit" },
     {  5, "out-of-range" },
     {  6, "complex-event-type" },
-    {  7, "buffer-ready" },
+    {  7, "(deprecated)buffer-ready" },
     {  8, "change-of-life-safety" },
     {  9, "extended" },
     { 10, "buffer-ready" },
@@ -4501,7 +4672,7 @@ bacapp_stats_tree_packet(stats_tree* st, packet_info* pinfo, epan_dissect_t* edt
     int instanceid_for_this_src;
     gchar *dststr;
     gchar *srcstr;
-    const bacapp_info_value_t *binfo = p;
+    const bacapp_info_value_t *binfo = (const bacapp_info_value_t *)p;
 
     srcstr = ep_strconcat("Src: ", address_to_str(&pinfo->src), NULL);
     dststr = ep_strconcat("Dst: ", address_to_str(&pinfo->dst), NULL);
@@ -4547,7 +4718,7 @@ bacapp_stats_tree_service(stats_tree* st, packet_info* pinfo, epan_dissect_t* ed
     gchar *dststr;
     gchar *srcstr;
 
-    const bacapp_info_value_t *binfo = p;
+    const bacapp_info_value_t *binfo = (const bacapp_info_value_t *)p;
 
     srcstr = ep_strconcat("Src: ", address_to_str(&pinfo->src), NULL);
     dststr = ep_strconcat("Dst: ", address_to_str(&pinfo->dst), NULL);
@@ -4585,7 +4756,7 @@ bacapp_stats_tree_objectid(stats_tree* st, packet_info* pinfo, epan_dissect_t* e
 
     gchar *dststr;
     gchar *srcstr;
-    const bacapp_info_value_t *binfo = p;
+    const bacapp_info_value_t *binfo = (const bacapp_info_value_t *)p;
 
     srcstr = ep_strconcat("Src: ", address_to_str(&pinfo->src), NULL);
     dststr = ep_strconcat("Dst: ", address_to_str(&pinfo->dst), NULL);
@@ -4623,7 +4794,7 @@ bacapp_stats_tree_instanceid(stats_tree* st, packet_info* pinfo, epan_dissect_t*
 
     gchar *dststr;
     gchar *srcstr;
-    const bacapp_info_value_t *binfo = p;
+    const bacapp_info_value_t *binfo = (const bacapp_info_value_t *)p;
 
     srcstr = ep_strconcat("Src: ", address_to_str(&pinfo->src), NULL);
     dststr = ep_strconcat("Dst: ", address_to_str(&pinfo->dst), NULL);
@@ -4658,7 +4829,7 @@ register_bacapp_stat_trees(void)
 
 /* 'data' must be ep_ allocated */
 static gint
-updateBacnetInfoValue(gint whichval, gchar *data)
+updateBacnetInfoValue(gint whichval, const gchar *data)
 {
     if (whichval == BACINFO_SERVICE) {
         bacinfo.service_type = data;
@@ -4821,7 +4992,6 @@ fUnsigned64 (tvbuff_t *tvb, guint offset, guint32 lvt, guint64 *val)
 
     if (lvt && (lvt <= 8)) {
         valid = TRUE;
-        data = tvb_get_guint8(tvb, offset);
         for (i = 0; i < lvt; i++) {
             data = tvb_get_guint8(tvb, offset+i);
             value = (value << 8) + data;
@@ -5692,7 +5862,6 @@ fCOVSubscription (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
                 offset += fTagHeaderTree(tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt); /* show context open */
                 offset  = fRecipientProcess (tvb, pinfo, subtree, offset);
                 offset += fTagHeaderTree (tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt);  /* show context close */
-                subtree = tree; /* done with this level - return to previous tree */
             break;
         case 1: /* MonitoredPropertyReference */
                 tt = proto_tree_add_text(tree, tvb, offset, 1, "Monitored Property Reference");
@@ -5700,7 +5869,6 @@ fCOVSubscription (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
                 offset += fTagHeaderTree(tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt);
                 offset  = fBACnetObjectPropertyReference (tvb, pinfo, subtree, offset);
                 offset += fTagHeaderTree (tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt);
-                subtree = tree;
             break;
         case 2: /* IssueConfirmedNotifications - boolean */
             offset = fBooleanTag (tvb, pinfo, tree, offset, "Issue Confirmed Notifications: ");
@@ -5914,7 +6082,7 @@ fCharacterString (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
         lvt -= (extra);
 
         do {
-            inbytesleft = l = MIN(lvt, 255);
+            inbytesleft = l = MIN(lvt, 256);
             /*
              * XXX - are we guaranteed that these encoding
              * names correspond, on *all* platforms with
@@ -6464,9 +6632,14 @@ fAbstractSyntaxNType (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint
             break;
         case 19:  /* controlled-variable-reference */
         case 60:  /* manipulated-variable-reference */
-        case 109: /* Setpoint-Reference */
         case 132: /* log-device-object-property */
             offset = fDeviceObjectPropertyReference (tvb, pinfo, tree, offset);
+            break;
+        case 109: /* Setpoint-Reference */
+            /* setpoint-Reference is actually BACnetSetpointReference which is a SEQ of [0] */
+            offset += fTagHeaderTree(tvb, pinfo, tree, offset, &tag_no, &tag_info, &lvt);
+            offset = fBACnetObjectPropertyReference (tvb, pinfo, tree, offset);
+            offset += fTagHeaderTree(tvb, pinfo, tree, offset, &tag_no, &tag_info, &lvt);
             break;
         case 123:   /* weekly-schedule -- accessed as a BACnetARRAY */
             if (object_type < 128) {
@@ -6999,7 +7172,6 @@ fConfirmedPrivateTransferRequest(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     guint       vendor_identifier = 0;
     guint       service_number = 0;
 
-    lastoffset = offset;
     len = fTagHeader (tvb, pinfo, offset, &tag_no, &tag_info, &lvt);
     fUnsigned32(tvb, offset+len, lvt, &vendor_identifier);
     if (col_get_writable(pinfo->cinfo))
@@ -7473,7 +7645,7 @@ fNotificationParameters (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gu
             if (offset == lastoffset) break;     /* nothing happened, exit loop */
         }
         break;
-    case 7: /* buffer-ready */
+    case 7: /* deprecated (was 'buffer-ready', changed and moved to [10]) */
         while (tvb_reported_length_remaining(tvb, offset) > 0) {  /* exit loop if nothing happens inside */
             lastoffset = offset;
             switch (fTagNo(tvb, offset)) {
@@ -7597,6 +7769,85 @@ fNotificationParameters (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gu
             }
             if (offset == lastoffset) break;     /* nothing happened, exit loop */
         }
+        break;
+        /* 12 reserved */
+    case 13: /* access-event */
+        break;
+    case 14: /* double-out-of-range */
+        while (tvb_reported_length_remaining(tvb, offset) > 0) {  /* exit loop if nothing happens inside */
+            lastoffset = offset;
+            switch (fTagNo(tvb, offset)) {
+            case 0:
+                offset = fDoubleTag (tvb, pinfo, subtree, offset, "exceeding-value: ");
+                break;
+            case 1:
+                offset = fBitStringTagVS (tvb, pinfo, subtree, offset,
+                    "status-flags: ", BACnetStatusFlags);
+                break;
+            case 2:
+                offset = fDoubleTag (tvb, pinfo, subtree, offset, "deadband: ");
+                break;
+            case 3:
+                offset = fDoubleTag (tvb, pinfo, subtree, offset, "exceeded-limit: ");
+                lastoffset = offset;
+                break;
+            default:
+                break;
+            }
+            if (offset == lastoffset) break;     /* nothing happened, exit loop */
+        }
+        break;
+    case 15: /* signed-out-of-range */
+        while (tvb_reported_length_remaining(tvb, offset) > 0) {  /* exit loop if nothing happens inside */
+            lastoffset = offset;
+            switch (fTagNo(tvb, offset)) {
+            case 0:
+                offset = fSignedTag (tvb, pinfo, subtree, offset, "exceeding-value: ");
+                break;
+            case 1:
+                offset = fBitStringTagVS (tvb, pinfo, subtree, offset,
+                    "status-flags: ", BACnetStatusFlags);
+                break;
+            case 2:
+                offset = fUnsignedTag (tvb, pinfo, subtree, offset, "deadband: ");
+                break;
+            case 3:
+                offset = fSignedTag (tvb, pinfo, subtree, offset, "exceeded-limit: ");
+                lastoffset = offset;
+                break;
+            default:
+                break;
+            }
+            if (offset == lastoffset) break;     /* nothing happened, exit loop */
+        }
+        break;
+    case 16: /* unsigned-out-of-range */
+        while (tvb_reported_length_remaining(tvb, offset) > 0) {  /* exit loop if nothing happens inside */
+            lastoffset = offset;
+            switch (fTagNo(tvb, offset)) {
+            case 0:
+                offset = fUnsignedTag (tvb, pinfo, subtree, offset, "exceeding-value: ");
+                break;
+            case 1:
+                offset = fBitStringTagVS (tvb, pinfo, subtree, offset,
+                    "status-flags: ", BACnetStatusFlags);
+                break;
+            case 2:
+                offset = fUnsignedTag (tvb, pinfo, subtree, offset, "deadband: ");
+                break;
+            case 3:
+                offset = fUnsignedTag (tvb, pinfo, subtree, offset, "exceeded-limit: ");
+                lastoffset = offset;
+                break;
+            default:
+                break;
+            }
+            if (offset == lastoffset) break;     /* nothing happened, exit loop */
+        }
+        break;
+    case 17: /* change-of-characterstring */
+        break;
+    case 18: /* change-of-status-flags */
         break;
         /* todo: add new parameters here ... */
     default:
@@ -7912,6 +8163,137 @@ fEventParameter (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offs
             }
         }
         break;
+    case 13: /* access-event */
+        while ((tvb_reported_length_remaining(tvb, offset) > 0)&&(offset>lastoffset)) {  /* exit loop if nothing happens inside */
+            lastoffset = offset;
+            switch (fTagNo(tvb, offset)) {
+            case 0:
+                /* TODO: [0] SEQUENCE OF BACnetAccessEvent */
+                offset += fTagHeaderTree(tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt);
+                while ((tvb_reported_length_remaining(tvb, offset) > 0)&&(offset>lastoffset)) {  /* exit loop if nothing happens inside */
+                    lastoffset = offset;
+                    fTagHeader (tvb, pinfo, offset, &tag_no, &tag_info, &lvt);
+                    if (tag_is_closing(tag_info)) {
+                        break;
+                    }
+                    offset = fEnumeratedTagSplit (tvb, pinfo, subtree, offset,
+                                                  "access event: ", BACnetAccessEvent, 512);
+                }
+                offset += fTagHeaderTree(tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt);
+                break;
+            case 1:
+                offset += fTagHeaderTree(tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt);
+                offset  = fDeviceObjectPropertyReference (tvb,pinfo,subtree,offset);
+                offset += fTagHeaderTree(tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt);
+                break;
+            default:
+                break;
+            }
+        }
+        break;
+    case 14: /* double-out-of-range */
+        while ((tvb_reported_length_remaining(tvb, offset) > 0)&&(offset>lastoffset)) {  /* exit loop if nothing happens inside */
+            lastoffset = offset;
+            switch (fTagNo(tvb, offset)) {
+            case 0:
+                offset = fTimeSpan (tvb, pinfo, subtree, offset, "Time Delay");
+                break;
+            case 1:
+                offset = fDoubleTag (tvb, pinfo, subtree, offset, "low limit: ");
+                break;
+            case 2:
+                offset = fDoubleTag (tvb, pinfo, subtree, offset, "high limit: ");
+                break;
+            case 3:
+                offset = fDoubleTag (tvb, pinfo, subtree, offset, "deadband: ");
+                break;
+            default:
+                break;
+            }
+        }
+        break;
+    case 15: /* signed-out-of-range */
+        while ((tvb_reported_length_remaining(tvb, offset) > 0)&&(offset>lastoffset)) {  /* exit loop if nothing happens inside */
+            lastoffset = offset;
+            switch (fTagNo(tvb, offset)) {
+            case 0:
+                offset = fTimeSpan (tvb, pinfo, subtree, offset, "Time Delay");
+                break;
+            case 1:
+                offset = fSignedTag (tvb, pinfo, subtree, offset, "low limit: ");
+                break;
+            case 2:
+                offset = fSignedTag (tvb, pinfo, subtree, offset, "high limit: ");
+                break;
+            case 3:
+                offset = fUnsignedTag (tvb, pinfo, subtree, offset, "deadband: ");
+                break;
+            default:
+                break;
+            }
+        }
+        break;
+    case 16: /* unsigned-out-of-range */
+        while ((tvb_reported_length_remaining(tvb, offset) > 0)&&(offset>lastoffset)) {  /* exit loop if nothing happens inside */
+            lastoffset = offset;
+            switch (fTagNo(tvb, offset)) {
+            case 0:
+                offset = fTimeSpan (tvb, pinfo, subtree, offset, "Time Delay");
+                break;
+            case 1:
+                offset = fUnsignedTag (tvb, pinfo, subtree, offset, "low limit: ");
+                break;
+            case 2:
+                offset = fUnsignedTag (tvb, pinfo, subtree, offset, "high limit: ");
+                break;
+            case 3:
+                offset = fUnsignedTag (tvb, pinfo, subtree, offset, "deadband: ");
+                break;
+            default:
+                break;
+            }
+        }
+        break;
+    case 17: /* change-of-characterstring */
+        while ((tvb_reported_length_remaining(tvb, offset) > 0)&&(offset>lastoffset)) {  /* exit loop if nothing happens inside */
+            lastoffset = offset;
+            switch (fTagNo(tvb, offset)) {
+            case 0:
+                offset = fTimeSpan (tvb, pinfo, subtree, offset, "Time Delay");
+                break;
+            case 1: /* SEQUENCE OF CharacterString */
+                offset += fTagHeaderTree(tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt);
+                while ((tvb_reported_length_remaining(tvb, offset) > 0)&&(offset>lastoffset)) {  /* exit loop if nothing happens inside */
+                    lastoffset = offset;
+                    fTagHeader (tvb, pinfo, offset, &tag_no, &tag_info, &lvt);
+                    if (tag_is_closing(tag_info)) {
+                        break;
+                    }
+                    offset  = fCharacterString(tvb, pinfo, tree, offset, "alarm value: ");
+                }
+                offset += fTagHeaderTree(tvb, pinfo, subtree, offset, &tag_no, &tag_info, &lvt);
+                break;
+            default:
+                break;
+            }
+        }
+        break;
+    case 18: /* change-of-status-flags */
+        while ((tvb_reported_length_remaining(tvb, offset) > 0)&&(offset>lastoffset)) {  /* exit loop if nothing happens inside */
+            lastoffset = offset;
+            switch (fTagNo(tvb, offset)) {
+            case 0:
+                offset = fTimeSpan (tvb, pinfo, subtree, offset, "Time Delay");
+                break;
+            case 1:
+                offset = fBitStringTagVS (tvb, pinfo, subtree, offset,
+                    "selected flags: ", BACnetStatusFlags);
+                break;
+            default:
+                break;
+            }
+        }
+        break;
         /* todo: add new event-parameter cases here */
     default:
         break;
@@ -8139,7 +8521,6 @@ fConfirmedEventNotificationRequest (tvbuff_t *tvb, packet_info *pinfo, proto_tre
         lastoffset = offset;
         fTagHeader (tvb, pinfo, offset, &tag_no, &tag_info, &lvt);
         if (tag_is_closing(tag_info)) {
-            lastoffset = offset;
             break;
         }
 
@@ -8779,7 +9160,6 @@ fWritePropertyRequest(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint
         fTagHeader (tvb, pinfo, offset, &tag_no, &tag_info, &lvt);
         /* quit loop if we spot a closing tag */
         if (tag_is_closing(tag_info)) {
-            subtree = tree;
             break;
         }
 
@@ -10413,7 +10793,7 @@ dissect_bacapp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     bacapp_tree = proto_item_add_subtree(ti, ett_bacapp);
 
     if (!fragment)
-        offset = do_the_dissection(tvb,pinfo,bacapp_tree);
+        do_the_dissection(tvb,pinfo,bacapp_tree);
     else
         fStartConfirmed(tvb, pinfo, bacapp_tree, offset, ack, &svc, &tt);
             /* not resetting the offset so the remaining can be done */
@@ -10423,10 +10803,11 @@ dissect_bacapp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         pinfo->fragmented = TRUE;
 
-        frag_msg = fragment_add_seq_check(tvb, data_offset, pinfo,
+        frag_msg = fragment_add_seq_check(&msg_reassembly_table,
+            tvb, data_offset,
+            pinfo,
             bacapp_invoke_id,      /* ID for fragments belonging together */
-            msg_fragment_table,    /* list of message fragments */
-            msg_reassembled_table, /* list of reassembled messages */
+            NULL,
             bacapp_seqno,          /* fragment sequence number */
             tvb_reported_length_remaining(tvb, data_offset), /* fragment length - to the end */
             flag & BACAPP_MORE_SEGMENTS); /* Last fragment reached? */
@@ -10465,8 +10846,8 @@ dissect_bacapp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static void
 bacapp_init_routine(void)
 {
-    fragment_table_init(&msg_fragment_table);
-    reassembled_table_init(&msg_reassembled_table);
+    reassembly_table_init(&msg_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 static guint32
@@ -10749,3 +11130,16 @@ proto_reg_handoff_bacapp(void)
 {
     data_handle = find_dissector("data");
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

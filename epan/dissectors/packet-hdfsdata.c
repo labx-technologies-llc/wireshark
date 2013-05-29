@@ -130,9 +130,9 @@ dissect_variable_length_long (tvbuff_t *tvb, proto_tree *hdfsdata_tree, int* off
 {
   int byte_count = 1;
   int idx = 0;
-  long i = 0;
-  char first_byte = tvb_get_guint8(tvb, *offset);
-  long size = 0;
+  guint i = 0;
+  gint8 first_byte = tvb_get_guint8(tvb, *offset);
+  guint size = 0;
 
   int len = decode_vint_size(first_byte);
   if (len == 1) {
@@ -147,7 +147,7 @@ dissect_variable_length_long (tvbuff_t *tvb, proto_tree *hdfsdata_tree, int* off
     i = i << 8;
     i = i | (b & 0xFF);
   }
-  size = ((first_byte < -120 || (first_byte >= -112 && first_byte < 0)) ? (i ^ -1L) : i);
+  size = ((first_byte < -120 || (first_byte >= -112 && first_byte < 0)) ? (i ^ 0xFFFFFFFF) : i);
   proto_tree_add_item(hdfsdata_tree, hf_hdfsdata_clientlen, tvb, *offset, byte_count, ENC_BIG_ENDIAN);
   *offset = (*offset) + byte_count;
 
@@ -211,6 +211,7 @@ static void
 dissect_read_response(tvbuff_t *tvb, proto_tree *hdfsdata_tree, int offset)
 {
   int len = 0;
+  guint32 chunksize;
 
   /* 4 bytes = data length */
   proto_tree_add_item(hdfsdata_tree, hf_hdfsdata_datalength, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -233,9 +234,12 @@ dissect_read_response(tvbuff_t *tvb, proto_tree *hdfsdata_tree, int offset)
   offset += 4;
 
   /* if there is a crc checksum it is 8* the length of the data * checksum size / chunksize */
+  chunksize = tvb_get_ntohl(tvb, CHUNKSIZE_START);
+  if (chunksize == 0)   /* let's not divide by zero */
+    return;
   if (tvb_get_guint8(tvb, 2) == CRC) {
     len = (int)(CRC_SIZE * tvb_get_ntohl(tvb, offset - 4) *
-      tvb_get_ntohl(tvb, offset - 8) / tvb_get_ntohl(tvb, CHUNKSIZE_START));
+      tvb_get_ntohl(tvb, offset - 8) / chunksize);
   }
 
   /* the rest of bytes (usually 4) = crc32 code */

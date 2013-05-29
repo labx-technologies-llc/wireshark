@@ -1,6 +1,6 @@
 # lte-rrc.cnf
 # lte-rrc conformation file
-# Copyright 2008 Vincent Helfre 
+# Copyright 2008 Vincent Helfre, 2009-2013 Pascal Quantin
 # $Id$
 
 #.OPT
@@ -52,11 +52,11 @@ VarMeasConfig
 VarMeasReportList
 VarMeasReport
 CellsTriggeredList
+VarConnEstFailReport-r11
 VarLogMeasConfig-r10
 VarLogMeasReport-r10
 LogMeasInfoList2-r10
 VarRLF-Report-r10
-VarConnEstFail-Report-r11
 VarLogMeasConfig-r11
 VarLogMeasReport-r11
 VarRLF-Report-r11
@@ -177,73 +177,7 @@ if(ue_cap_tvb){
 %(DEFAULT_BODY)s
   if(featureGroupIndicators_tvb){
     /* Dissect featureGroupIndicators */
-    proto_tree *subtree;
-    gint curr_bit_offset = 0;
-    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_featureGroupIndicators);
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_1, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_2, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_3, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_4, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_5, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_6, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_7, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_8, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_9, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_10, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_11, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_12, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_13, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_14, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_15, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_16, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_17, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_18, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_19, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_20, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_21, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_22, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_23, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_24, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_25, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_26, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_27, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_28, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_29, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_30, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_31, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_32, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
+    dissect_lte_rrc_featureGroupIndicators(featureGroupIndicators_tvb, actx);
   }
 
 #.FN_BODY UE-EUTRA-Capability-v1020-IEs/featureGroupIndRel10-r10 VAL_PTR = &featureGroupIndRel10_tvb
@@ -251,73 +185,7 @@ if(ue_cap_tvb){
 %(DEFAULT_BODY)s
   if(featureGroupIndRel10_tvb){
     /* Dissect featureGroupIndRel10-r10 */
-    proto_tree *subtree;
-    gint curr_bit_offset = 0;
-    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_featureGroupIndRel10);
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_101, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_102, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_103, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_104, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_105, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_106, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_107, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_108, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_109, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_110, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_111, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_112, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_113, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_114, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_115, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_116, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_117, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_118, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_119, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_120, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_121, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_122, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_123, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_124, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_125, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_126, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_127, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_128, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_129, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_130, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_131, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_132, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
+    dissect_lte_rrc_featureGroupIndRel10(featureGroupIndRel10_tvb, actx);
   }
 
 #.FN_BODY UE-EUTRA-Capability-v9a0-IEs/featureGroupIndRel9Add-r9 VAL_PTR = &featureGroupIndRel9Add_tvb
@@ -325,73 +193,7 @@ if(ue_cap_tvb){
 %(DEFAULT_BODY)s
   if(featureGroupIndRel9Add_tvb){
     /* Dissect featureGroupIndRel9Add-r9 */
-    proto_tree *subtree;
-    gint curr_bit_offset = 0;
-    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_featureGroupIndRel9Add);
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_33, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_34, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_35, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_36, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_37, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_38, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_39, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_40, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_41, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_42, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_43, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_44, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_45, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_46, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_47, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_48, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_49, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_50, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_51, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_52, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_53, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_54, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_55, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_56, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_57, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_58, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_59, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_60, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_61, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_62, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_63, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_64, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
+    dissect_lte_rrc_featureGroupIndRel9Add(featureGroupIndRel9Add_tvb, actx);
   }
 
 #.FN_BODY UE-EUTRA-CapabilityAddXDD-Mode-r9/featureGroupIndicators-r9 VAL_PTR = &featureGroupIndicators_tvb
@@ -399,73 +201,7 @@ if(ue_cap_tvb){
 %(DEFAULT_BODY)s
   if(featureGroupIndicators_tvb){
     /* Dissect featureGroupIndicators-r9 */
-    proto_tree *subtree;
-    gint curr_bit_offset = 0;
-    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_featureGroupIndicators);
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_1, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_2, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_3, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_4, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_5, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_6, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_7, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_8, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_9, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_10, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_11, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_12, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_13, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_14, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_15, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_16, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_17, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_18, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_19, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_20, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_21, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_22, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_23, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_24, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_25, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_26, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_27, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_28, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_29, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_30, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_31, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_32, featureGroupIndicators_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
+    dissect_lte_rrc_featureGroupIndicators(featureGroupIndicators_tvb, actx);
   }
 
 #.FN_BODY UE-EUTRA-CapabilityAddXDD-Mode-r9/featureGroupIndRel9Add-r9 VAL_PTR = &featureGroupIndRel9Add_tvb
@@ -473,73 +209,7 @@ if(ue_cap_tvb){
 %(DEFAULT_BODY)s
   if(featureGroupIndRel9Add_tvb){
     /* Dissect featureGroupIndRel9Add-r9 */
-    proto_tree *subtree;
-    gint curr_bit_offset = 0;
-    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_featureGroupIndRel9Add);
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_33, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_34, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_35, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_36, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_37, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_38, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_39, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_40, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_41, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_42, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_43, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_44, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_45, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_46, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_47, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_48, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_49, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_50, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_51, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_52, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_53, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_54, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_55, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_56, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_57, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_58, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_59, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_60, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_61, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_62, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_63, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_64, featureGroupIndRel9Add_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
+    dissect_lte_rrc_featureGroupIndRel9Add(featureGroupIndRel9Add_tvb, actx);
   }
 
 #.FN_BODY UE-EUTRA-CapabilityAddXDD-Mode-v1060/featureGroupIndRel10-v1060 VAL_PTR = &featureGroupIndRel10_tvb
@@ -547,73 +217,7 @@ if(ue_cap_tvb){
 %(DEFAULT_BODY)s
   if(featureGroupIndRel10_tvb){
     /* Dissect featureGroupIndRel10-v1060 */
-    proto_tree *subtree;
-    gint curr_bit_offset = 0;
-    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_featureGroupIndRel10);
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_101, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_102, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_103, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_104, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_105, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_106, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_107, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_108, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_109, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_110, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_111, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_112, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_113, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_114, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_115, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_116, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_117, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_118, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_119, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_120, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_121, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_122, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_123, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_124, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_125, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_126, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_127, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_128, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_129, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_130, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_131, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
-    proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_132, featureGroupIndRel10_tvb, curr_bit_offset, 1, ENC_BIG_ENDIAN);
-    curr_bit_offset++;
+    dissect_lte_rrc_featureGroupIndRel10(featureGroupIndRel10_tvb, actx);
   }
 
 #.FN_BODY Handover
@@ -715,6 +319,40 @@ if(ue_cap_tvb){
     }
   }
 
+#.FN_BODY SystemTimeInfoCDMA2000/cdma-SystemTime/asynchronousSystemTime VAL_PTR=&async_system_time_tvb
+  tvbuff_t *async_system_time_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemTimeInfoCDMA2000/cdma-SystemTime/asynchronousSystemTime
+  if (async_system_time_tvb) {
+    guint64 bits;
+    nstime_t ts;
+    proto_tree *subtree;
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_timeInfo);
+    bits = tvb_get_bits64(async_system_time_tvb, 0, 49, ENC_BIG_ENDIAN);
+    ts.secs = (time_t)((bits*8)/1228800) + 315964800; /* CDMA2000 epoch is 00:00:00 (midnight) UTC on 1980-01-06 */
+    ts.nsecs = (int)(((bits%153600)*8*1000000000)/1228800);
+    proto_tree_add_text(subtree, async_system_time_tvb, 0, -1, "CDMA  time: %s", abs_time_to_str(&ts, ABSOLUTE_TIME_UTC, FALSE));
+    proto_tree_add_text(subtree, async_system_time_tvb, 0, -1, "Local time: %s", abs_time_to_str(&ts, ABSOLUTE_TIME_LOCAL, TRUE));
+  }
+
+#.FN_BODY SystemTimeInfoCDMA2000/cdma-SystemTime/synchronousSystemTime VAL_PTR=&sync_system_time_tvb
+  tvbuff_t *sync_system_time_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemTimeInfoCDMA2000/cdma-SystemTime/synchronousSystemTime
+  if (sync_system_time_tvb) {
+    guint64 bits;
+    nstime_t ts;
+    proto_tree *subtree;
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_timeInfo);
+    bits = tvb_get_bits64(sync_system_time_tvb, 0, 39, ENC_BIG_ENDIAN);
+    ts.secs = (time_t)(bits/100) + 315964800; /* CDMA2000 epoch is 00:00:00 (midnight) UTC on 1980-01-06 */
+    ts.nsecs = (int)(bits%100)*10000000;
+    proto_tree_add_text(subtree, sync_system_time_tvb, 0, -1, "CDMA  time: %s", abs_time_to_str(&ts, ABSOLUTE_TIME_UTC, FALSE));
+    proto_tree_add_text(subtree, sync_system_time_tvb, 0, -1, "Local time: %s", abs_time_to_str(&ts, ABSOLUTE_TIME_LOCAL, TRUE));
+  }
+
 #.FN_BODY CellInfoUTRA-FDD-r9/utra-BCCH-Container-r9 VAL_PTR = &utra_bcch_cont_tvb
   tvbuff_t *utra_bcch_cont_tvb = NULL;
   proto_tree *subtree;
@@ -742,30 +380,16 @@ if(ue_cap_tvb){
     call_dissector(rrc_sys_info_cont_handle, utra_bcch_cont_tvb, actx->pinfo, subtree);
   }
 
-#.FN_BODY NeighCellConfig VAL_PTR = &neigh_cell_config_tvb
+#.TYPE_ATTR
+NeighCellConfig TYPE=FT_UINT8 DISPLAY=BASE_DEC STRINGS=VALS(lte_rrc_neighCellConfig_vals)
+
+#.FN_BODY NeighCellConfig VAL_PTR = &neigh_cell_config_tvb HF_INDEX=-1
   tvbuff_t *neigh_cell_config_tvb = NULL;
 %(DEFAULT_BODY)s
+
+#.FN_FTR NeighCellConfig
   if (neigh_cell_config_tvb) {
-    guint8 bits;
-    proto_tree *subtree;
-    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_neighCellConfig);
-    bits = tvb_get_bits8(neigh_cell_config_tvb, 0, 2);
-    switch (bits) {
-    case 0:
-      proto_tree_add_text(subtree, neigh_cell_config_tvb, 0, 1, "Not all neighbour cells have the same MBSFN subframe allocation as serving cell");
-      break;
-    case 1:
-      proto_tree_add_text(subtree, neigh_cell_config_tvb, 0, 1, "No MBSFN subframes are present in all neighbour cells");
-      break;
-    case 2:
-      proto_tree_add_text(subtree, neigh_cell_config_tvb, 0, 1, "The MBSFN subframe allocations of all neighbour cells are identical to or subsets of that in the serving cell");
-      break;
-    case 3:
-      proto_tree_add_text(subtree, neigh_cell_config_tvb, 0, 1, "Different UL/DL allocation in neighbouring cells for TDD compared to the serving cell");
-      break;
-    default:
-      break;
-    }
+    actx->created_item = proto_tree_add_uint(tree, hf_index, neigh_cell_config_tvb, 0, 1, tvb_get_bits8(neigh_cell_config_tvb, 0, 2));
   }
 
 #.FN_BODY LocationInfo-r10/locationCoordinates-r10/ellipsoid-Point-r10 VAL_PTR = &ellipsoid_point_tvb
@@ -780,6 +404,41 @@ if(ue_cap_tvb){
 %(DEFAULT_BODY)s
   if (ellipsoid_point_with_alt_tvb) {
     dissect_lpp_EllipsoidPointWithAltitude_PDU(ellipsoid_point_with_alt_tvb, actx->pinfo, tree, NULL);
+  }
+
+#.FN_BODY LocationInfo-r10/locationCoordinates-r10/ellipsoidPointWithUncertaintyCircle-r11 VAL_PTR = &ellipsoid_point_with_uncert_circ_tvb
+  tvbuff_t *ellipsoid_point_with_uncert_circ_tvb = NULL;
+%(DEFAULT_BODY)s
+  if (ellipsoid_point_with_uncert_circ_tvb) {
+    dissect_lpp_Ellipsoid_PointWithUncertaintyCircle_PDU(ellipsoid_point_with_uncert_circ_tvb, actx->pinfo, tree, NULL);
+  }
+
+#.FN_BODY LocationInfo-r10/locationCoordinates-r10/ellipsoidPointWithUncertaintyEllipse-r11 VAL_PTR = &ellipsoid_point_with_uncert_ellipse_tvb
+  tvbuff_t *ellipsoid_point_with_uncert_ellipse_tvb = NULL;
+%(DEFAULT_BODY)s
+  if (ellipsoid_point_with_uncert_ellipse_tvb) {
+    dissect_lpp_EllipsoidPointWithUncertaintyEllipse_PDU(ellipsoid_point_with_uncert_ellipse_tvb, actx->pinfo, tree, NULL);
+  }
+
+#.FN_BODY LocationInfo-r10/locationCoordinates-r10/ellipsoidPointWithAltitudeAndUncertaintyEllipsoid-r11 VAL_PTR = &ellipsoid_point_with_alt_uncert_ellipsoid_tvb
+  tvbuff_t *ellipsoid_point_with_alt_uncert_ellipsoid_tvb = NULL;
+%(DEFAULT_BODY)s
+  if (ellipsoid_point_with_alt_uncert_ellipsoid_tvb) {
+    dissect_lpp_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid_PDU(ellipsoid_point_with_alt_uncert_ellipsoid_tvb, actx->pinfo, tree, NULL);
+  }
+
+#.FN_BODY LocationInfo-r10/locationCoordinates-r10/ellipsoidArc-r11 VAL_PTR = &ellipsoid_arc_tvb
+  tvbuff_t *ellipsoid_arc_tvb = NULL;
+%(DEFAULT_BODY)s
+  if (ellipsoid_arc_tvb) {
+    dissect_lpp_EllipsoidArc_PDU(ellipsoid_arc_tvb, actx->pinfo, tree, NULL);
+  }
+
+#.FN_BODY LocationInfo-r10/locationCoordinates-r10/polygon-r11 VAL_PTR = &polygon_tvb
+  tvbuff_t *polygon_tvb = NULL;
+%(DEFAULT_BODY)s
+  if (polygon_tvb) {
+    dissect_lpp_Polygon_PDU(polygon_tvb, actx->pinfo, tree, NULL);
   }
 
 #.FN_BODY LocationInfo-r10/horizontalVelocity-r10 VAL_PTR = &horizontal_velocity_tvb
@@ -798,26 +457,6 @@ if(ue_cap_tvb){
     dissect_per_constrained_integer(gnss_tod_msec_tvb, 0, &asn1_ctx, tree, hf_index, 0U, 3599999U, NULL, FALSE);
   }
 
-#.FN_BODY LocationInfo-r10/eag_1/uncertainty-r11 VAL_PTR = &uncertainty_tvb
-  tvbuff_t *uncertainty_tvb = NULL;
-%(DEFAULT_BODY)s
-  if (uncertainty_tvb) {
-    asn1_ctx_t asn1_ctx;
-    asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, actx->pinfo);
-      offset = dissect_per_constrained_integer(uncertainty_tvb, 0, &asn1_ctx, tree, hf_index, 0U, 127U, NULL, FALSE);
-
-  }
-
-#.FN_BODY LocationInfo-r10/eag_1/confidence-r11 VAL_PTR = &confidence_tvb
-  tvbuff_t *confidence_tvb = NULL;
-%(DEFAULT_BODY)s
-  if (confidence_tvb) {
-    asn1_ctx_t asn1_ctx;
-    asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, actx->pinfo);
-      offset = dissect_per_constrained_integer(confidence_tvb, 0, &asn1_ctx, tree, hf_index, 0U, 100U, NULL, FALSE);
-
-  }
-
 #.FN_BODY AbsoluteTimeInfo-r10 VAL_PTR = &abs_time_info_tvb
   tvbuff_t *abs_time_info_tvb = NULL;
 %(DEFAULT_BODY)s
@@ -829,17 +468,201 @@ if(ue_cap_tvb){
     str = tvb_bcd_dig_to_ep_str(abs_time_info_tvb, 0, 6, NULL, FALSE);
     proto_tree_add_text(subtree, abs_time_info_tvb, 0, 6, "%c%c-%c%c-%c%c %c%c:%c%c:%c%c", str[0], str[1],
                         str[2], str[3], str[4], str[5], str[6], str[7], str[8], str[9], str[10], str[11]);
-  } 
+  }
 
 #.TYPE_ATTR
 SystemInformationBlockType9/hnb-Name TYPE=FT_STRING DISPLAY=BASE_NONE
 
-#.FN_BODY SystemInformationBlockType9/hnb-Name VAL_PTR = &hnb_name_tvb HF_INDEX = -1
+#.FN_BODY SystemInformationBlockType9/hnb-Name VAL_PTR=&hnb_name_tvb HF_INDEX=-1
   tvbuff_t *hnb_name_tvb = NULL;
 
 %(DEFAULT_BODY)s
-  proto_tree_add_unicode_string(tree, hf_index, hnb_name_tvb, 0, -1,
+  actx->created_item = proto_tree_add_unicode_string(tree, hf_index, hnb_name_tvb, 0, -1,
                                 tvb_get_ephemeral_string_enc(hnb_name_tvb, 0, tvb_length(hnb_name_tvb), ENC_UTF_8 | ENC_NA));
+
+#.TYPE_ATTR
+SystemInformationBlockType10/messageIdentifier TYPE=FT_UINT16 DISPLAY=BASE_DEC|BASE_EXT_STRING STRINGS=&lte_rrc_messageIdentifier_vals_ext
+
+#.FN_BODY SystemInformationBlockType10/messageIdentifier VAL_PTR=&msg_id_tvb HF_INDEX=-1
+  tvbuff_t *msg_id_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType10/messageIdentifier
+  if (msg_id_tvb) {
+    actx->created_item = proto_tree_add_item(tree, hf_index, msg_id_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
+
+#.FN_BODY SystemInformationBlockType10/serialNumber VAL_PTR=&serial_nb_tvb
+  tvbuff_t *serial_nb_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType10/serialNumber
+  if (serial_nb_tvb) {
+    proto_tree *subtree;
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_serialNumber);
+    proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_gs, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_msg_code, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_upd_nb, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
+
+#.FN_BODY SystemInformationBlockType10/warningType VAL_PTR=&warning_type_tvb
+  tvbuff_t *warning_type_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType10/warningType
+  if (warning_type_tvb) {
+    proto_tree *subtree;
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_warningType);
+    proto_tree_add_item(subtree, hf_lte_rrc_warningType_value, warning_type_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_lte_rrc_warningType_emergency_user_alert, warning_type_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_lte_rrc_warningType_popup, warning_type_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
+
+#.TYPE_ATTR
+SystemInformationBlockType11/messageIdentifier TYPE=FT_UINT16 DISPLAY=BASE_DEC|BASE_EXT_STRING STRINGS=&lte_rrc_messageIdentifier_vals_ext
+
+#.FN_BODY SystemInformationBlockType11/messageIdentifier VAL_PTR=&msg_id_tvb HF_INDEX=-1
+  tvbuff_t *msg_id_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType11/messageIdentifier
+  if (msg_id_tvb) {
+    lte_rrc_etws_cmas_dcs_key = tvb_get_ntohs(msg_id_tvb, 0) << 16;
+    actx->created_item = proto_tree_add_item(tree, hf_index, msg_id_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
+
+#.FN_BODY SystemInformationBlockType11/serialNumber VAL_PTR=&serial_nb_tvb
+  tvbuff_t *serial_nb_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType11/serialNumber
+  if (serial_nb_tvb) {
+    proto_tree *subtree;
+    lte_rrc_etws_cmas_dcs_key |= tvb_get_ntohs(serial_nb_tvb, 0);
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_serialNumber);
+    proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_gs, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_msg_code, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_upd_nb, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
+
+#.FN_BODY SystemInformationBlockType11/dataCodingScheme VAL_PTR=&data_coding_scheme_tvb
+  tvbuff_t *data_coding_scheme_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType11/dataCodingScheme
+  if (data_coding_scheme_tvb) {
+    proto_tree *subtree;
+    guint32 dataCodingScheme;
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_dataCodingScheme);
+    dataCodingScheme = dissect_cbs_data_coding_scheme(data_coding_scheme_tvb, actx->pinfo, subtree, 0);
+    g_hash_table_insert(lte_rrc_etws_cmas_dcs_hash, GUINT_TO_POINTER(lte_rrc_etws_cmas_dcs_key),
+                        GUINT_TO_POINTER(dataCodingScheme));
+  }
+
+#.FN_BODY SystemInformationBlockType11/warningMessageSegment VAL_PTR=&warning_msg_seg_tvb
+  tvbuff_t *warning_msg_seg_tvb = NULL;
+  gpointer p_dcs;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType11/warningMessageSegment
+  p_dcs = g_hash_table_lookup(lte_rrc_etws_cmas_dcs_hash, GUINT_TO_POINTER(lte_rrc_etws_cmas_dcs_key));
+  if (warning_msg_seg_tvb && p_dcs) {
+    proto_tree *subtree;
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_warningMessageSegment);
+    dissect_lte_rrc_warningMessageSegment(warning_msg_seg_tvb, subtree, actx->pinfo, GPOINTER_TO_UINT(p_dcs));
+  }
+
+#.TYPE_ATTR
+SystemInformationBlockType12-r9/messageIdentifier-r9 TYPE=FT_UINT16 DISPLAY=BASE_DEC|BASE_EXT_STRING STRINGS=&lte_rrc_messageIdentifier_vals_ext
+
+#.FN_BODY SystemInformationBlockType12-r9/messageIdentifier-r9 VAL_PTR=&msg_id_tvb HF_INDEX=-1
+  tvbuff_t *msg_id_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType12-r9/messageIdentifier-r9
+  if (msg_id_tvb) {
+    lte_rrc_etws_cmas_dcs_key = tvb_get_ntohs(msg_id_tvb, 0) << 16;
+    actx->created_item = proto_tree_add_item(tree, hf_index, msg_id_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
+
+#.FN_BODY SystemInformationBlockType12-r9/serialNumber-r9 VAL_PTR=&serial_nb_tvb
+  tvbuff_t *serial_nb_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType12-r9/serialNumber-r9
+  if (serial_nb_tvb) {
+    proto_tree *subtree;
+    lte_rrc_etws_cmas_dcs_key |= tvb_get_ntohs(serial_nb_tvb, 0);
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_serialNumber);
+    proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_gs, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_msg_code, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_upd_nb, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
+
+#.FN_BODY SystemInformationBlockType12-r9/dataCodingScheme-r9 VAL_PTR=&data_coding_scheme_tvb
+  tvbuff_t *data_coding_scheme_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType12-r9/dataCodingScheme-r9
+  if (data_coding_scheme_tvb) {
+    proto_tree *subtree;
+    guint32 dataCodingScheme;
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_dataCodingScheme);
+    dataCodingScheme = dissect_cbs_data_coding_scheme(data_coding_scheme_tvb, actx->pinfo, subtree, 0);
+    g_hash_table_insert(lte_rrc_etws_cmas_dcs_hash, GUINT_TO_POINTER(lte_rrc_etws_cmas_dcs_key),
+                        GUINT_TO_POINTER(dataCodingScheme));
+  }
+
+#.FN_BODY SystemInformationBlockType12-r9/warningMessageSegment-r9 VAL_PTR=&warning_msg_seg_tvb
+  tvbuff_t *warning_msg_seg_tvb = NULL;
+  gpointer p_dcs;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType12-r9/warningMessageSegment-r9
+  p_dcs = g_hash_table_lookup(lte_rrc_etws_cmas_dcs_hash, GUINT_TO_POINTER(lte_rrc_etws_cmas_dcs_key));
+  if (warning_msg_seg_tvb && p_dcs) {
+    proto_tree *subtree;
+    subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_warningMessageSegment);
+    dissect_lte_rrc_warningMessageSegment(warning_msg_seg_tvb, subtree, actx->pinfo, GPOINTER_TO_UINT(p_dcs));
+  }
+
+#.TYPE_ATTR
+SystemInformationBlockType16-r11/timeInfo-r11/dayLightSavingTime-r11 TYPE=FT_UINT8 DISPLAY=BASE_DEC STRINGS=VALS(lte_rrc_daylightSavingTime_vals)
+
+#.FN_BODY SystemInformationBlockType16-r11/timeInfo-r11/dayLightSavingTime-r11 VAL_PTR=&daylight_saving_time_tvb HF_INDEX=-1
+  tvbuff_t *daylight_saving_time_tvb = NULL;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType16-r11/timeInfo-r11/dayLightSavingTime-r11
+  if (daylight_saving_time_tvb) {
+    actx->created_item = proto_tree_add_uint(tree, hf_index, daylight_saving_time_tvb, 0, 1, tvb_get_bits8(daylight_saving_time_tvb, 0, 2));
+  }
+
+#.FN_BODY SystemInformationBlockType16-r11/timeInfo-r11/leapSeconds-r11
+%(DEFAULT_BODY)s
+  proto_item_append_text(actx->created_item, "s");
+
+#.TYPE_ATTR
+SystemInformationBlockType16-r11/timeInfo-r11/localTimeOffset-r11 DISPLAY=BASE_CUSTOM STRINGS=&lte_rrc_localTimeOffset_fmt
+
+#.TYPE_ATTR
+SystemInformationBlockType16-r11/timeInfo-r11/timeInfoUTC-r11 TYPE = FT_UINT64
+
+#.FN_BODY SystemInformationBlockType16-r11/timeInfo-r11/timeInfoUTC-r11 VAL_PTR=&timeInfo FN_VARIANT = _64b
+  guint64 timeInfo;
+  proto_tree *subtree;
+  nstime_t ts;
+  guint32 old_offset = offset;
+%(DEFAULT_BODY)s
+
+#.FN_FTR SystemInformationBlockType16-r11/timeInfo-r11/timeInfoUTC-r11
+  subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_timeInfo);
+  ts.secs = (time_t)(timeInfo/100)-2208988800U; /* epoch is 00:00:00 (midnight) UTC on 1900-01-01 */ 
+  ts.nsecs = (int)(timeInfo%100)*10000000;
+  proto_tree_add_text(subtree, tvb, old_offset>>3, (old_offset&0x07) ? 6 : 5,
+                      "UTC   time: %s", abs_time_to_str(&ts, ABSOLUTE_TIME_UTC, FALSE));
+  proto_tree_add_text(subtree, tvb, old_offset>>3, (old_offset&0x07) ? 6 : 5,
+                      "Local time: %s", abs_time_to_str(&ts, ABSOLUTE_TIME_LOCAL, TRUE));
 
 #.FN_BODY RRCConnectionReject-r8-IEs/waitTime
 %(DEFAULT_BODY)s
@@ -860,17 +683,14 @@ SystemInformationBlockType1/cellSelectionInfo/q-RxLevMinOffset STRINGS=VALS(lte_
 %(DEFAULT_BODY)s
   proto_item_append_text(actx->created_item, "dB");
 
-#.FN_BODY RLF-Report-r9/eag_1/timeConnFailure-r10 VAL_PTR=&timeConnFailure_val
-  guint32 timeConnFailure_val;
-%(DEFAULT_BODY)s
-#.FN_FTR RLF-Report-r9/eag_1/timeConnFailure-r10
-  proto_item_append_text(actx->created_item, " (%dms)", 100*timeConnFailure_val);
+#.TYPE_ATTR
+RLF-Report-r9/eag_1/timeConnFailure-r10 DISPLAY=BASE_CUSTOM STRINGS=&lte_rrc_timeConnFailure_r10_fmt
 
-#.FN_BODY RLF-Report-r9/eag_2/timeSinceFailure-r11
+#.FN_BODY LogMeasInfo-r10/relativeTimeStamp-r10
 %(DEFAULT_BODY)s
   proto_item_append_text(actx->created_item, "s");
 
-#.FN_BODY ConnEstFailReport-r11/timeSinceFailure-r11
+#.FN_BODY TimeSinceFailure-r11
 %(DEFAULT_BODY)s
   proto_item_append_text(actx->created_item, "s");
 
@@ -908,17 +728,19 @@ CQI-ReportConfig-r10/nomPDSCH-RS-EPRE-Offset STRINGS=VALS(lte_rrc_nomPDSCH_RS_EP
 #.TYPE_ATTR
 CQI-ReportConfigSCell-r10/nomPDSCH-RS-EPRE-Offset-r10 STRINGS=VALS(lte_rrc_nomPDSCH_RS_EPRE_Offset_vals)
 
-#.FN_BODY MAC-MainConfig/eag_1/sr-ProhibitTimer-r9
+#.FN_BODY MAC-MainConfig/eag_1/sr-ProhibitTimer-r9 VAL_PTR=&timer
+  guint32 timer;
 %(DEFAULT_BODY)s
-  proto_item_append_text(actx->created_item, " (number of SR periods)");
 
-#.FN_BODY DRX-Config/setup/shortDRX/drxShortCycleTimer
-%(DEFAULT_BODY)s
-  proto_item_append_text(actx->created_item, " (multiples of shortDRX-Cycle)");
+#.FN_FTR MAC-MainConfig/eag_1/sr-ProhibitTimer-r9
+  proto_item_append_text(actx->created_item, " SR period%s", (timer > 1) ? "s" : "");
 
-#.FN_BODY DRX-Config-r11/setup/shortDRX-r11/drxShortCycleTimer
+#.FN_BODY DRX-Config/setup/shortDRX/drxShortCycleTimer VAL_PTR=&timer
+  guint32 timer;
 %(DEFAULT_BODY)s
-  proto_item_append_text(actx->created_item, " (multiples of shortDRX-Cycle-r11)");
+
+#.FN_FTR DRX-Config/setup/shortDRX/drxShortCycleTimer
+  proto_item_append_text(actx->created_item, " shortDRX-Cycle%s", plurality(timer, "", "s"));
 
 #.FN_BODY PDSCH-ConfigCommon/referenceSignalPower
 %(DEFAULT_BODY)s
@@ -937,11 +759,14 @@ CQI-ReportConfigSCell-r10/nomPDSCH-RS-EPRE-Offset-r10 STRINGS=VALS(lte_rrc_nomPD
   proto_item_append_text(actx->created_item, "dB");
 
 #.TYPE_ATTR
-UplinkPowerControlCommon/deltaPreambleMsg3  STRINGS=VALS(lte_rrc_deltaPreambleMsg3_vals)
+UplinkPowerControlCommon/deltaPreambleMsg3 STRINGS=VALS(lte_rrc_deltaPreambleMsg3_vals)
 
 #.FN_BODY UplinkPowerControlCommon/p0-NominalPUSCH
 %(DEFAULT_BODY)s
   proto_item_append_text(actx->created_item, "dBm");
+
+#.TYPE_ATTR
+UplinkPowerControlCommonSCell-v11x0/deltaPreambleMsg3-r11 STRINGS=VALS(lte_rrc_deltaPreambleMsg3_vals)
 
 #.FN_BODY UplinkPowerControlCommon/p0-NominalPUCCH
 %(DEFAULT_BODY)s
@@ -1051,173 +876,283 @@ SoundingRS-UL-ConfigDedicated/setup/duration STRINGS=TFS(&lte_rrc_duration_val)
 
 #.FN_HDR MasterInformationBlock
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "MasterInformationBlock");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "MasterInformationBlock");
 
 #.FN_HDR SystemInformation
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "SystemInformation");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SystemInformation [ ");
+
+#.FN_BODY SystemInformation
+
+%(DEFAULT_BODY)s
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "]");
 
 #.FN_HDR SystemInformationBlockType1
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "SystemInformationBlockType1");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SystemInformationBlockType1");
+
+#.FN_HDR SystemInformationBlockType2
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB2 ");
+
+#.FN_HDR SystemInformationBlockType3
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB3 ");
+
+#.FN_HDR SystemInformationBlockType4
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB4 ");
+
+#.FN_HDR SystemInformationBlockType5
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB5 ");
+
+#.FN_HDR SystemInformationBlockType6
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB6 ");
+
+#.FN_HDR SystemInformationBlockType7
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB7 ");
+
+#.FN_HDR SystemInformationBlockType8
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB8 ");
+
+#.FN_HDR SystemInformationBlockType9
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB9 ");
+
+#.FN_HDR SystemInformationBlockType10
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB10 ");
+
+#.FN_HDR SystemInformationBlockType11
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB11 ");
+
+#.FN_HDR SystemInformationBlockType12-r9
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB12 ");
+
+#.FN_HDR SystemInformationBlockType13-r9
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB13 ");
+
+#.FN_HDR SystemInformationBlockType14-r11
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB14 ");
+
+#.FN_HDR SystemInformationBlockType15-r11
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB15 ");
+
+#.FN_HDR SystemInformationBlockType16-r11
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SIB16 ");
 
 #.FN_HDR MBSFNAreaConfiguration-r9
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "MBSFNAreaConfiguration-r9");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "MBSFNAreaConfiguration-r9");
 
 #.FN_HDR MBMSCountingRequest-r10
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "MBMSCountingRequest-r10");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "MBMSCountingRequest-r10");
 
 #.FN_HDR Paging
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "Paging");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "Paging");
 
 #.FN_HDR RRCConnectionReestablishment
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReestablishment");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReestablishment");
 
 #.FN_HDR RRCConnectionReestablishmentReject
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReestablishmentReject");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReestablishmentReject");
 
 #.FN_HDR RRCConnectionReject
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReject");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReject");
 
 #.FN_HDR RRCConnectionSetup
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionSetup");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionSetup");
 
 #.FN_HDR CSFBParametersResponseCDMA2000
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "CSFBParametersResponseCDMA2000");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "CSFBParametersResponseCDMA2000");
 
 #.FN_HDR DLInformationTransfer
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "DLInformationTransfer");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "DLInformationTransfer");
 
 #.FN_HDR HandoverFromEUTRAPreparationRequest
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "HandoverFromEUTRAPreparationRequest");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "HandoverFromEUTRAPreparationRequest");
 
 #.FN_HDR MobilityFromEUTRACommand
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "MobilityFromEUTRACommand");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "MobilityFromEUTRACommand");
 
 #.FN_HDR RRCConnectionReconfiguration
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReconfiguration");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReconfiguration");
 
 #.FN_HDR RRCConnectionRelease
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionRelease");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionRelease");
 
 #.FN_HDR SecurityModeCommand
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "SecurityModeCommand");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SecurityModeCommand");
 
 #.FN_HDR UECapabilityEnquiry
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "UECapabilityEnquiry");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "UECapabilityEnquiry");
 
 #.FN_HDR CounterCheck
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "CounterCheck");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "CounterCheck");
 
 #.FN_HDR UEInformationRequest-r9
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "UEInformationRequest-r9");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "UEInformationRequest-r9");
 
 #.FN_HDR LoggedMeasurementConfiguration-r10
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "LoggedMeasurementConfiguration-r10");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "LoggedMeasurementConfiguration-r10");
 
 #.FN_HDR RNReconfiguration-r10
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RNReconfiguration-r10");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RNReconfiguration-r10");
 
 #.FN_HDR RRCConnectionReestablishmentRequest
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReestablishmentRequest");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReestablishmentRequest");
 
 #.FN_HDR RRCConnectionRequest
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionRequest");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionRequest");
 
 #.FN_HDR CSFBParametersRequestCDMA2000
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "CSFBParametersRequestCDMA2000");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "CSFBParametersRequestCDMA2000");
 
 #.FN_HDR MeasurementReport
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "MeasurementReport");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "MeasurementReport");
 
 #.FN_HDR RRCConnectionReconfigurationComplete
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReconfigurationComplete");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReconfigurationComplete");
 
 #.FN_HDR RRCConnectionReestablishmentComplete
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReestablishmentComplete");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionReestablishmentComplete");
 
 #.FN_HDR RRCConnectionSetupComplete
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionSetupComplete");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RRCConnectionSetupComplete");
 
 #.FN_HDR SecurityModeComplete
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "SecurityModeComplete");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SecurityModeComplete");
 
 #.FN_HDR SecurityModeFailure
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "SecurityModeFailure");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "SecurityModeFailure");
 
 #.FN_HDR UECapabilityInformation
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "UECapabilityInformation");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "UECapabilityInformation");
 
 #.FN_HDR ULHandoverPreparationTransfer
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "ULHandoverPreparationTransfer");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "ULHandoverPreparationTransfer");
 
 #.FN_HDR ULInformationTransfer
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "ULInformationTransfer");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "ULInformationTransfer");
 
 #.FN_HDR CounterCheckResponse
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "CounterCheckResponse");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "CounterCheckResponse");
 
 #.FN_HDR UEInformationResponse-r9
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "UEInformationResponse-r9");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "UEInformationResponse-r9");
 
 #.FN_HDR ProximityIndication-r9
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "ProximityIndication-r9");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "ProximityIndication-r9");
 
 #.FN_HDR RNReconfigurationComplete-r10
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "RNReconfigurationComplete-r10");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "RNReconfigurationComplete-r10");
 
 #.FN_HDR MBMSCountingResponse-r10
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "MBMSCountingResponse-r10");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "MBMSCountingResponse-r10");
 
 #.FN_HDR InterFreqRSTDMeasurementIndication-r10
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "InterFreqRSTDMeasurementIndication-r10");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "InterFreqRSTDMeasurementIndication-r10");
 
 #.FN_HDR UEAssistanceInformation-r11
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "UEAssistanceInformation-r11");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "UEAssistanceInformation-r11");
 
 #.FN_HDR InDeviceCoexIndication-r11
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "InDeviceCoexIndication-r11");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "InDeviceCoexIndication-r11");
 
 #.FN_HDR MBMSInterestIndication-r11
 
-col_append_str(actx->pinfo->cinfo, COL_INFO, "MBMSInterestIndication-r11");
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "MBMSInterestIndication-r11");
+  
+#.FN_BODY Paging/systemInfoModification
+%(DEFAULT_BODY)s
+  col_append_str(actx->pinfo->cinfo, COL_INFO, " (systemInfoModification)");
+  expert_add_info_format(actx->pinfo, actx->created_item, PI_SEQUENCE, PI_WARN, "SIBs changing in next BCCH modification period - signalled in Paging message");
+
+#.FN_BODY Paging/pagingRecordList
+  /* Number of items is (last 3 bits of first byte and first bit of second) + 1 */
+  guint16 number_of_records = ((tvb_get_ntohs(tvb, 0) >> 7) & 0x0f) + 1;
+%(DEFAULT_BODY)s
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (%%u PagingRecords)", number_of_records);
+
+#.FN_BODY MasterInformationBlock/systemFrameNumber VAL_PTR=&value_tvb
+  tvbuff_t *value_tvb;
+  guint32 sfn;
+%(DEFAULT_BODY)s
+  /* Show SFN in info column */
+  sfn = tvb_get_guint8(value_tvb, 0);
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (SFN=%%u)", sfn);
+  
+#.FN_BODY SystemInformationBlockType1/systemInfoValueTag VAL_PTR=&value
+  guint32 value;
+%(DEFAULT_BODY)s
+  /* Track whether systemInfoValue has changed since last seen, indicating new SI config
+     TODO: add link back to previous config and (if known) time since previous config
+     was first seen */
+  if (!actx->pinfo->fd->flags.visited) {
+    if (system_info_value_current_set && (value != system_info_value_current)) {
+      /* Add entry to the hash table.  Offset by one to distinguish 0 from lookup failure */
+      g_hash_table_insert(lte_rrc_system_info_value_changed_hash, GUINT_TO_POINTER(actx->pinfo->fd->num),
+                          GUINT_TO_POINTER(system_info_value_current+1));
+    }
+    system_info_value_current_set = TRUE;
+    system_info_value_current = value;
+  }
+  else {
+    /* Look up indication of changed info value from hash table */
+    gpointer p_previous = g_hash_table_lookup(lte_rrc_system_info_value_changed_hash, GUINT_TO_POINTER(actx->pinfo->fd->num));
+    if (p_previous != NULL) {
+      /* Subtract one from stored result to get previous value */
+      guint32 previous = GPOINTER_TO_UINT(p_previous) - 1;
+      expert_add_info_format(actx->pinfo, actx->created_item, PI_SEQUENCE, PI_WARN,
+                             "SI Info Value changed (now %%u, was %%u)", value, previous);
+    }
+  }
 

@@ -36,7 +36,6 @@
 #include "epan/ex-opt.h"
 #include "capture_ifinfo.h"
 #include "capture_ui_utils.h"
-#include "ui/simple_dialog.h"
 #include "wiretap/wtap.h"
 #include "epan/to_str.h"
 
@@ -92,7 +91,7 @@ capture_dev_user_descr_find(const gchar *if_name)
     /* Allocate enough space to return the string,
        which runs from p2 to p, plus a terminating
        '\0'. */
-    descr = g_malloc(p - p2 + 1);
+    descr = (char *)g_malloc(p - p2 + 1);
     memcpy(descr, p2, p - p2);
     descr[p - p2] = '\0';
     return descr;
@@ -130,6 +129,123 @@ capture_dev_user_linktype_find(const gchar *if_name)
   }
 
   return (gint)linktype;
+}
+
+#if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
+gint
+capture_dev_user_buffersize_find(const gchar *if_name)
+{
+  gchar *p, *next;
+  gint buffersize;
+
+  if ((prefs.capture_devices_buffersize == NULL) ||
+      (*prefs.capture_devices_buffersize == '\0')) {
+    /* There are no buffersizes defined */
+    return -1;
+  }
+
+  if ((p = strstr(prefs.capture_devices_buffersize, if_name)) == NULL) {
+    /* There are, but there isn't one for this interface. */
+    return -1;
+  }
+
+  p += strlen(if_name) + 1;
+  buffersize = (gint)strtol(p, &next, 10);
+  if (next == p || *next != ')' || buffersize < 0) {
+    /* Syntax error */
+    return -1;
+  }
+  if (buffersize > G_MAXINT) {
+    /* Value doesn't fit in a gint */
+    return -1;
+  }
+
+  return (gint)buffersize;
+}
+#endif
+
+gint
+capture_dev_user_snaplen_find(const gchar *if_name)
+{
+  gchar *p, *next;
+  gint snaplen;
+
+  if ((prefs.capture_devices_snaplen == NULL) ||
+      (*prefs.capture_devices_snaplen == '\0')) {
+    /* There is no snap length defined */
+    return -1;
+  }
+
+  if ((p = strstr(prefs.capture_devices_snaplen, if_name)) == NULL) {
+    /* There are, but there isn't one for this interface. */
+    return -1;
+  }
+
+  p += strlen(if_name) + 3;
+  snaplen = (gint)strtol(p, &next, 10);
+  if (next == p || *next != ')' || snaplen < 0) {
+    /* Syntax error */
+    return -1;
+  }
+  if (snaplen > WTAP_MAX_PACKET_SIZE) {
+    /* Value doesn't fit in a gint */
+    return -1;
+  }
+
+  return (gint)snaplen;
+}
+
+gboolean
+capture_dev_user_hassnap_find(const gchar *if_name)
+{
+  gchar *p, *next;
+  gboolean hassnap;
+
+  if ((prefs.capture_devices_snaplen == NULL) ||
+      (*prefs.capture_devices_snaplen == '\0')) {
+    /* There is no snap length defined */
+    return -1;
+  }
+
+  if ((p = strstr(prefs.capture_devices_snaplen, if_name)) == NULL) {
+    /* There are, but there isn't one for this interface. */
+    return -1;
+  }
+
+  p += strlen(if_name) + 1;
+  hassnap = (gboolean)strtol(p, &next, 10);
+  if (next == p || *next != '(') {
+    /* Syntax error */
+    return -1;
+  }
+
+  return (gboolean)hassnap;
+}
+
+gboolean
+capture_dev_user_pmode_find(const gchar *if_name)
+{
+  gchar *p, *next;
+  gboolean pmode;
+
+  if ((prefs.capture_devices_pmode == NULL) ||
+      (*prefs.capture_devices_pmode == '\0')) {
+    /* There is no promiscuous mode defined */
+    return -1;
+  }
+
+  if ((p = strstr(prefs.capture_devices_pmode, if_name)) == NULL) {
+    /* There are, but there isn't one for this interface. */
+    return -1;
+  }
+
+  p += strlen(if_name) + 1;
+  pmode = (gboolean)strtol(p, &next, 10);
+  if (next == p || *next != ')') {
+    /* Syntax error */
+    return -1;
+  }
+  return (gboolean)pmode;
 }
 
 /*
@@ -178,7 +294,7 @@ get_interface_descriptive_name(const char *if_name)
     if (if_list != NULL) {
       if_entry = if_list;
       do {
-        if_info = if_entry->data;
+        if_info = (if_info_t *)if_entry->data;
         if (strcmp(if_info->name, if_name) == 0) {
           if (if_info->friendly_name != NULL) {
               /* We have a "friendly name"; return a copy of that
@@ -218,7 +334,7 @@ search_info(GList *if_list, gchar *if_name)
 
 
   for (if_entry = if_list; if_entry != NULL; if_entry = g_list_next(if_entry)) {
-    if_info = if_entry->data;
+    if_info = (if_info_t *)if_entry->data;
 
     if(strcmp(if_name, if_info->name) == 0) {
       return if_info;
@@ -275,7 +391,7 @@ build_capture_combo_list(GList *if_list, gboolean do_hide)
     /* Scan through the list and build a list of strings to display. */
     for (if_entry = if_list; if_entry != NULL;
          if_entry = g_list_next(if_entry)) {
-      if_info = if_entry->data;
+      if_info = (if_info_t *)if_entry->data;
 
       /* Is this interface hidden and, if so, should we include it
          anyway? */

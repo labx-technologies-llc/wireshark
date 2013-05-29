@@ -87,6 +87,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 INCLUDE(UseLemon)
 INCLUDE(UseMakeDissectorReg)
 INCLUDE(UseMakeTapReg)
+INCLUDE(UseAsn2Wrs)
 
 # Under linux the release mode (CMAKE_BUILD_TYPE=release) defines NDEBUG
 
@@ -125,15 +126,18 @@ set(WIRESHARK_C_FLAGS
 	-Warray-bounds
 	-Wcast-align
 	-Wformat-security
-	-fexcess-precision=fast
-	# -fvisibility=hidden
 )
+if (NOT APPLE)
+	set(WIRESHARK_C_FLAGS ${WIRESHARK_C_FLAGS} -fexcess-precision=fast)
+endif()
 
 set(WIRESHARK_C_ONLY_FLAGS
 	# The following are C only, not C++
+	-Wc++-compat
 	-Wdeclaration-after-statement
 	-Wno-pointer-sign
 	-Wold-style-definition
+	-Wshadow
 )
 
 set(WIRESHARK_EXTRA_C_FLAGS
@@ -169,7 +173,6 @@ set(WIRESHARK_EXTRA_C_FLAGS
 set(WIRESHARK_EXTRA_C_ONLY_FLAGS
 	# The following are C only, not C++
 	-Wbad-function-cast
-	-Wc++-compat
 	-Wjump-misses-init
 	# GLib blocks this for now.
 	-Wstrict-prototypes
@@ -215,13 +218,21 @@ foreach(THIS_FLAG ${WIRESHARK_C_ONLY_FLAGS})
 endforeach()
 message(STATUS "C-Flags: ${CMAKE_C_FLAGS}\nCXX-Flags: ${CMAKE_CXX_FLAGS}")
 
+check_c_compiler_flag(-fvisibility=hidden FVHIDDEN)
+if((FVHIDDEN))
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
+else() # TODO add alternate compiler flags for hiding symbols
+	message(WARNING "Hiding shared library symbols is not supported by the compiler."
+		" All shared library symbols will be exported.")
+endif()
+
 if(NOT DISABLE_WERROR AND NOT ENABLE_EXTRA_GCC_CHECKS)
 	check_c_compiler_flag(-Werror WERROR)
 else()
 	unset(WERROR)
 endif()
 
-if(CMAKE_COMPILER_IS_GNUCC)
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_CXX_COMPILER MATCHES ".*clang" OR APPLE)
 	set (C_UNUSED "__attribute__((unused))" )
 else()
 	set (C_UNUSED "" )
@@ -270,6 +281,7 @@ set(GLIB2_MIN_VERSION 2.14.0)
 set(GTHREAD2_REQUIRED)
 set(PCAP_REQUIRED)
 set(M_REQUIRED)
+set(PythonInterp_FIND_VERSION 2)
 
 set(PACKAGELIST ${PACKAGELIST} HtmlViewer)
 
@@ -291,8 +303,14 @@ endif()
 
 # Build the Qt GUI?
 if(BUILD_qtshark)
-	set(PACKAGELIST ${PACKAGELIST} QT)
-	# set(QT_OPTIONS 4.7.1 REQUIRED QtCore QtGui)
+	if(ENABLE_QT5)
+		set(PACKAGELIST ${PACKAGELIST} Qt5Widgets Qt5PrintSupport Qt5LinguistTools)
+		set(QT_VERSION 5)
+	else()
+		set(PACKAGELIST ${PACKAGELIST} Qt4)
+		# set(Qt4_OPTIONS 4.7.1 REQUIRED QtCore QtGui)
+		set(QT_VERSION 4)
+	endif()
 endif()
 
 # SMI SNMP
@@ -353,7 +371,7 @@ if(ENABLE_CAP)
 endif()
 
 if(ENABLE_PYTHON)
-	set(PACKAGELIST ${PACKAGELIST} PYTHON)
+	set(PACKAGELIST ${PACKAGELIST} PythonLibs)
 endif()
 
 set(PACKAGELIST ${PACKAGELIST} YAPP)
@@ -363,26 +381,39 @@ set(PACKAGELIST ${PACKAGELIST} POD)
 
 set(PROGLIST text2pcap mergecap capinfos editcap reordercap dumpcap)
 
+#Sort the package list
+list(SORT PACKAGELIST)
+message(STATUS "Packagelist: ${PACKAGELIST}")
 #Let's loop the package list
 foreach(PACKAGE ${PACKAGELIST})
-	if(${PACKAGE} STREQUAL "QT")
-		set(PACKAGE_NAME "Qt4")
+	if(${PACKAGE} STREQUAL "Qt4")
+		set(PACKAGE_VAR "QT")
+	elseif(${PACKAGE} STREQUAL "PythonInterp")
+		set(PACKAGE_VAR "PYTHON")
+	elseif(${PACKAGE} STREQUAL "PythonLibs")
+		set(PACKAGE_VAR "PYTHON")
 	else()
-		set(PACKAGE_NAME ${PACKAGE})
+		set(PACKAGE_VAR ${PACKAGE})
 	endif()
 	if(${PACKAGE}_OPTIONS)
-		find_package(${PACKAGE_NAME} ${${PACKAGE}_OPTIONS})
+		find_package(${PACKAGE} ${${PACKAGE}_OPTIONS})
 	elseif(${PACKAGE}_REQUIRED)
-		find_package(${PACKAGE_NAME} REQUIRED)
+		find_package(${PACKAGE} REQUIRED)
 	else()
-		find_package(${PACKAGE_NAME})
+		find_package(${PACKAGE})
 	endif()
-	message(${PACKAGE}_FOUND)
-	if (${PACKAGE}_FOUND)
-		set(HAVE_LIB${PACKAGE} 1)
-		include_directories(${${PACKAGE}_INCLUDE_DIRS})
-		message(STATUS "${PACKAGE} includes: ${${PACKAGE}_INCLUDE_DIRS}")
-		message(STATUS "${PACKAGE} libs: ${${PACKAGE}_LIBRARIES}")
+	message(${PACKAGE_VAR}_FOUND)
+	if (${PACKAGE_VAR}_FOUND)
+		set(HAVE_LIB${PACKAGE_VAR} 1)
+		include_directories(${${PACKAGE_VAR}_INCLUDE_DIRS})
+		message(STATUS "${PACKAGE} includes: ${${PACKAGE_VAR}_INCLUDE_DIRS}")
+		message(STATUS "${PACKAGE} libs: ${${PACKAGE_VAR}_LIBRARIES}")
+		if (${PACKAGE}_DEFINITIONS)
+			message(STATUS "${PACKAGE} definitions: ${${PACKAGE_VAR}_DEFINITIONS}")
+		endif()
+		if (${PACKAGE_VAR}_EXECUTABLE)
+			message(STATUS "${PACKAGE} executable: ${${PACKAGE_VAR}_EXECUTABLE}")
+		endif()
 	endif()
 endforeach()
 
@@ -426,14 +457,20 @@ endif()
 if(HAVE_LIBZLIB)
 	set(HAVE_LIBZ 1)
 endif()
-# QT_LIBRARIES and QT_INCLUDES are not set above. They require extra magic:
-if(QT_FOUND)
+if (Qt5Widgets_FOUND)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
+	if (Qt5_POSITION_INDEPENDENT_CODE)
+		set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+	endif()
+	set (QT_FOUND ON)
+	set (QT_LIBRARIES ${Qt5Widgets_LIBRARIES} ${Qt5PrintSupport_LIBRARIES})
+# If Qt4: QT_LIBRARIES and QT_INCLUDES are not set above. They require extra magic
+elseif(QT_FOUND)
 	include(${QT_USE_FILE})
 	include_directories(${QT_INCLUDE_DIR})
 	message(STATUS "QT includes: ${QT_INCLUDE_DIR}")
 	message(STATUS "QT libs: ${QT_LIBRARIES}")
 endif()
-
 include(ConfigureChecks.cmake)
 
 #Big or little endian ?
@@ -476,11 +513,14 @@ foreach(PLUGIN_DIR ${PLUGIN_SRC_DIRS})
 	add_subdirectory( ${PLUGIN_DIR} )
 endforeach()
 
+add_subdirectory( asn1 EXCLUDE_FROM_ALL )
 add_subdirectory( codecs )
 add_subdirectory( epan )
 add_subdirectory( tools/lemon )
 add_subdirectory( wiretap )
 add_subdirectory( wsutil )
+
+add_custom_target(dumpabi DEPENDS dumpabi-libwireshark dumpabi-libwiretap dumpabi-libwsutil color.h)
 
 if((BUILD_wireshark AND GTK_FOUND) OR (BUILD_qtshark AND QT_FOUND))
 	add_subdirectory( ui )
@@ -508,14 +548,8 @@ if(ENABLE_PCAP_NG_DEFAULT)
 endif()
 
 #Platform specific
-if(UNIX)
-	if(CMAKE_COMPILER_IS_GNUCC)
-		# set(WS_VAR_IMPORT "__attribute__((visibility(\"default\")))" )
-		set(WS_VAR_IMPORT "extern")
-	else()
-		set(WS_VAR_IMPORT "extern")
-	endif()
-endif()
+#if(UNIX)
+#endif()
 
 if(APPLE)
 	#
@@ -529,8 +563,6 @@ if(APPLE)
 endif()
 
 if(WIN32)
-	add_definitions(-D_NEED_VAR_IMPORT_)
-	set(WS_VAR_IMPORT "__declspec(dllimport) extern")
 	set(WS_MSVC_NORETURN "__declspec(noreturn)")
 
 	# Disable deprecation
@@ -542,6 +574,14 @@ else()
 endif()
 
 configure_file(${CMAKE_SOURCE_DIR}/cmakeconfig.h.in ${CMAKE_BINARY_DIR}/config.h)
+
+set( configure_input "Built with CMake ${CMAKE_VERSION}" )
+set( VERSION ${PROJECT_VERSION} )
+
+configure_file(
+	${CMAKE_SOURCE_DIR}/packaging/macosx/Info.plist.in
+	${CMAKE_SOURCE_DIR}/packaging/macosx/Info.plist
+	@ONLY)
 
 include(FeatureSummary)
 #SET_FEATURE_INFO(NAME DESCRIPTION [URL [COMMENT] ]
@@ -590,7 +630,7 @@ ADD_CUSTOM_COMMAND(
 
 if(UNIX)
 	set(PLATFORM_SRC
-		capture-pcap-util-unix.c capture_unix_ifnames.c
+		capture-pcap-util-unix.c
 	)
 endif()
 
@@ -691,6 +731,8 @@ set(INSTALL_FILES
 	${CMAKE_BINARY_DIR}/dftest.html
 	${CMAKE_BINARY_DIR}/dumpcap.html
 	${CMAKE_BINARY_DIR}/editcap.html
+	${CMAKE_BINARY_DIR}/asn2deb.html
+	${CMAKE_BINARY_DIR}/idl2deb.html
 	${CMAKE_BINARY_DIR}/idl2wrs.html
 	ipmap.html
 	manuf
@@ -743,7 +785,6 @@ if( (BUILD_wireshark AND GTK_FOUND) OR (BUILD_qtshark AND QT_FOUND) )
 		iface_monitor.c
 		merge.c
 		proto_hier_stats.c
-		recent.c
 		summary.c
 		tempfile.c
 		u3.c
@@ -882,12 +923,13 @@ endif()
 
 if(BUILD_text2pcap)
 	set(text2pcap_LIBS
-		wiretap
+		wsutil
 		${M_LIBRARIES}
 		${ZLIB_LIBRARIES}
 	)
 	set(text2pcap_CLEAN_FILES
 		text2pcap.c
+		pcapio.c
 	)
 	set(text2pcap_FILES
 		${text2pcap_CLEAN_FILES}
@@ -1048,6 +1090,8 @@ pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/capinfos 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/dftest 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/dumpcap 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/editcap 1 )
+pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/asn2deb 1 )
+pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/idl2deb 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/idl2wrs 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/mergecap 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/randpkt 1 )
@@ -1066,6 +1110,8 @@ add_custom_target(
 		dftest.html
 		dumpcap.html
 		editcap.html
+		asn2deb.html
+		idl2deb.html
 		idl2wrs.html
 		mergecap.html
 		randpkt.html

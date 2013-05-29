@@ -47,18 +47,12 @@ extern void gui_prefs_fetch(GtkWidget *widget);
  *
  * @param widget widget from gui_prefs_show()
  */
-extern void gui_prefs_apply(GtkWidget *widget, gboolean);
+extern void gui_prefs_apply(GtkWidget *widget);
 
 /** Destroy preference values from page.
  *
  * @param widget widget from gui_prefs_show()
  */
 void gui_prefs_destroy(GtkWidget *widget);
-
-/** Build a User interface font preferences page.
- *
- * @return the new preferences page
- */
-extern GtkWidget *gui_font_prefs_show(void);
 
 #endif

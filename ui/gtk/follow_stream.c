@@ -73,9 +73,7 @@ static GtkTextTag *server_tag, *client_tag;
 
 static void follow_find_destroy_cb(GtkWidget * win _U_, gpointer data);
 static void follow_find_button_cb(GtkWidget * w, gpointer data);
-static gboolean follow_save_as_ok_cb(GtkWidget * w _U_, gpointer fs);
 static void follow_destroy_cb(GtkWidget *w, gpointer data _U_);
-static void follow_save_as_destroy_cb(GtkWidget * win _U_, gpointer data);
 
 GList *follow_infos = NULL;
 
@@ -97,15 +95,15 @@ follow_read_stream(follow_info_t *follow_info,
 
 	default :
 		g_assert_not_reached();
-		return 0;
+		return (frs_return_t)0;
 	}
 }
 
 gboolean
-follow_add_to_gtk_text(char *buffer, size_t nchars, gboolean is_server,
+follow_add_to_gtk_text(char *buffer, size_t nchars, gboolean is_from_server,
 		       void *arg)
 {
-	GtkWidget *text = arg;
+	GtkWidget *text = (GtkWidget *)arg;
 	GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text));
 	GtkTextIter    iter;
 
@@ -125,7 +123,7 @@ follow_add_to_gtk_text(char *buffer, size_t nchars, gboolean is_server,
 	}
 
 	gtk_text_buffer_get_end_iter(buf, &iter);
-	if (is_server) {
+	if (is_from_server) {
 		gtk_text_buffer_insert_with_tags(buf, &iter, buffer, (gint) nchars,
 						 server_tag, NULL);
 	} else {
@@ -143,10 +141,10 @@ follow_add_to_gtk_text(char *buffer, size_t nchars, gboolean is_server,
  * suggestion.
  */
 static gboolean
-follow_print_text(char *buffer, size_t nchars, gboolean is_server _U_,
+follow_print_text(char *buffer, size_t nchars, gboolean is_from_server _U_,
 		  void *arg)
 {
-	print_stream_t *stream = arg;
+	print_stream_t *stream = (print_stream_t *)arg;
 	size_t i;
 	char *str;
 
@@ -160,7 +158,7 @@ follow_print_text(char *buffer, size_t nchars, gboolean is_server _U_,
 	}
 
 	/* convert unterminated char array to a zero terminated string */
-	str = g_malloc(nchars + 1);
+	str = (char *)g_malloc(nchars + 1);
 	memcpy(str, buffer, nchars);
 	str[nchars] = 0;
 	print_line(stream, /*indent*/ 0, str);
@@ -170,9 +168,9 @@ follow_print_text(char *buffer, size_t nchars, gboolean is_server _U_,
 }
 
 static gboolean
-follow_write_raw(char *buffer, size_t nchars, gboolean is_server _U_, void *arg)
+follow_write_raw(char *buffer, size_t nchars, gboolean is_from_server _U_, void *arg)
 {
-	FILE *fh = arg;
+	FILE *fh = (FILE *)arg;
 	size_t nwritten;
 
 	nwritten = fwrite(buffer, 1, nchars, fh);
@@ -186,7 +184,7 @@ follow_write_raw(char *buffer, size_t nchars, gboolean is_server _U_, void *arg)
 static void
 follow_charset_toggle_cb(GtkWidget * w _U_, gpointer data)
 {
-	follow_info_t	*follow_info = data;
+	follow_info_t	*follow_info = (follow_info_t *)data;
 
 	/*
 	 * A radio button toggles when it goes on and when it goes
@@ -242,7 +240,7 @@ follow_load_text(follow_info_t *follow_info)
 void
 follow_filter_out_stream(GtkWidget * w _U_, gpointer data)
 {
-	follow_info_t	*follow_info = data;
+	follow_info_t	*follow_info = (follow_info_t *)data;
 
 	/* Lock out user from messing with us. (ie. don't free our data!) */
 	gtk_widget_set_sensitive(follow_info->streamwindow, FALSE);
@@ -263,7 +261,7 @@ follow_filter_out_stream(GtkWidget * w _U_, gpointer data)
 static void
 follow_find_cb(GtkWidget * w _U_, gpointer data)
 {
-	follow_info_t      	*follow_info = data;
+	follow_info_t      	*follow_info = (follow_info_t *)data;
 	GtkWidget		*find_dlg_w, *main_vb, *buttons_row, *find_lb;
 	GtkWidget		*find_hb, *find_text_box, *find_bt, *cancel_bt;
 
@@ -312,8 +310,8 @@ follow_find_cb(GtkWidget * w _U_, gpointer data)
 	buttons_row = dlg_button_row_new(GTK_STOCK_FIND, GTK_STOCK_CANCEL,
 					 NULL);
 	gtk_box_pack_start(GTK_BOX(main_vb), buttons_row, TRUE, TRUE, 0);
-	find_bt = g_object_get_data(G_OBJECT(buttons_row), GTK_STOCK_FIND);
-	cancel_bt = g_object_get_data(G_OBJECT(buttons_row), GTK_STOCK_CANCEL);
+	find_bt   = (GtkWidget *)g_object_get_data(G_OBJECT(buttons_row), GTK_STOCK_FIND);
+	cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(buttons_row), GTK_STOCK_CANCEL);
 
 	g_signal_connect(find_bt, "clicked", G_CALLBACK(follow_find_button_cb), follow_info);
 	g_object_set_data(G_OBJECT(find_bt), "find_string", find_text_box);
@@ -333,7 +331,7 @@ follow_find_button_cb(GtkWidget * w, gpointer data)
 {
 	gboolean		found;
 	const gchar		*find_string;
-	follow_info_t	*follow_info = data;
+	follow_info_t	*follow_info = (follow_info_t *)data;
 	GtkTextBuffer	*buffer;
 	GtkTextIter		iter, match_start, match_end;
 	GtkTextMark		*last_pos_mark;
@@ -352,7 +350,7 @@ follow_find_button_cb(GtkWidget * w, gpointer data)
 	if(last_pos_mark)
 		gtk_text_buffer_get_iter_at_mark(buffer, &iter, last_pos_mark);
 
-	found = gtk_text_iter_forward_search(&iter, find_string, 0,
+	found = gtk_text_iter_forward_search(&iter, find_string, (GtkTextSearchFlags)0,
 					     &match_start,
 					     &match_end,
 					     NULL);
@@ -379,7 +377,7 @@ follow_find_button_cb(GtkWidget * w, gpointer data)
 static void
 follow_find_destroy_cb(GtkWidget * win _U_, gpointer data)
 {
-	follow_info_t	*follow_info = data;
+	follow_info_t	*follow_info = (follow_info_t *)data;
 
 	/* Note that we no longer have a dialog box. */
 	follow_info->find_dlg_w = NULL;
@@ -390,8 +388,8 @@ follow_print_stream(GtkWidget * w _U_, gpointer data)
 {
 	print_stream_t	*stream;
 	gboolean	 to_file;
-	char		*print_dest;
-	follow_info_t	*follow_info = data;
+	const char	*print_dest;
+	follow_info_t	*follow_info =(follow_info_t *) data;
 #ifdef _WIN32
 	gboolean         win_printer = FALSE;
 	int              tmp_fd;
@@ -516,91 +514,32 @@ follow_print_stream(GtkWidget * w _U_, gpointer data)
 #endif
 }
 
-/*
- * Keep a static pointer to the current "Save Follow Stream As" window, if
- * any, so that if somebody tries to do "Save"
- * while there's already a "Save Follow Stream" window up, we just pop
- * up the existing one, rather than creating a new one.
- */
-
-static void
-follow_save_as_cmd_cb(GtkWidget *w _U_, gpointer data)
+static char *
+gtk_follow_save_as_file(GtkWidget *caller)
 {
-	GtkWidget		*new_win;
-	follow_info_t	*follow_info = data;
+	GtkWidget	*new_win;
+	char		*pathname;
 
-#if 0  /* XXX: GtkFileChooserDialog/gtk_dialog_run currently being used is effectively modal so this is not req'd */
-	if (follow_info->follow_save_as_w != NULL) {
-		/* There's already a dialog box; reactivate it. */
-		reactivate_window(follow_info->follow_save_as_w);
-		return;
-	}
-#endif
 	new_win = file_selection_new("Wireshark: Save Follow Stream As",
+				     GTK_WINDOW(caller),
 				     FILE_SELECTION_SAVE);
-	follow_info->follow_save_as_w = new_win;
-	gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(new_win), TRUE);
-
-	/* Tuck away the follow_info object into the window */
-	g_object_set_data(G_OBJECT(new_win), E_FOLLOW_INFO_KEY, follow_info);
-
-	g_signal_connect(new_win, "destroy", G_CALLBACK(follow_save_as_destroy_cb),
-		       follow_info);
-
-#if 0
-	if (gtk_dialog_run(GTK_DIALOG(new_win)) == GTK_RESPONSE_ACCEPT)
-		{
-			follow_save_as_ok_cb(new_win, new_win);
-		} else {
-		window_destroy(new_win);
+	pathname = file_selection_run(new_win);
+	if (pathname == NULL) {
+		/* User cancelled or closed the dialog. */
+		return NULL;
 	}
-#endif
-	/* "Run" the GtkFileChooserDialog.                                              */
-	/* Upon exit: If "Accept" run the OK callback.                                  */
-	/*            If the OK callback returns with a FALSE status, re-run the dialog.*/
-	/*            If not accept (ie: cancel) destroy the window.                    */
-	/* XXX: If the OK callback pops up an alert box (eg: for an error) it *must*    */
-	/*      return with a TRUE status so that the dialog window will be destroyed.  */
-	/*      Trying to re-run the dialog after popping up an alert box will not work */
-	/*       since the user will not be able to dismiss the alert box.              */
-	/*      The (somewhat unfriendly) effect: the user must re-invoke the           */
-	/*      GtkFileChooserDialog whenever the OK callback pops up an alert box.     */
-	/*                                                                              */
-	/*      ToDo: use GtkFileChooserWidget in a dialog window instead of            */
-	/*            GtkFileChooserDialog.                                             */
-	while (gtk_dialog_run(GTK_DIALOG(new_win)) == GTK_RESPONSE_ACCEPT) {
-		if (follow_save_as_ok_cb(NULL, new_win)) {
-		    break; /* we're done */
-		}
-	}
+
+	/* We've crosed the Rubicon; get rid of the dialog box. */
 	window_destroy(new_win);
+
+	return pathname;
 }
 
-
 static gboolean
-follow_save_as_ok_cb(GtkWidget * w _U_, gpointer fs)
+follow_save_as_ok_cb(gchar *to_name, follow_info_t *follow_info)
 {
-	gchar		*to_name;
-	follow_info_t	*follow_info;
 	FILE		*fh;
-	print_stream_t	*stream = NULL;
-	gchar		*dirname;
-
-	to_name = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(fs));
-
-	/* Perhaps the user specified a directory instead of a file.
-	   Check whether they did. */
-	if (test_for_directory(to_name) == EISDIR) {
-		/* It's a directory - set the file selection box to display that
-		   directory, and leave the selection box displayed. */
-		set_last_open_dir(to_name);
-		g_free(to_name);
-		file_selection_set_current_folder(fs, get_last_open_dir());
-		gtk_file_chooser_set_current_name(fs, "");
-		return FALSE; /* do gtk_dialog_run again */
-	}
-
-	follow_info = g_object_get_data(G_OBJECT(fs), E_FOLLOW_INFO_KEY);
+	print_stream_t	*stream;
 
 	if (follow_info->show_type == SHOW_RAW) {
 		/* Write the data out as raw binary data */
@@ -611,72 +550,84 @@ follow_save_as_ok_cb(GtkWidget * w _U_, gpointer fs)
 	}
 	if (fh == NULL) {
 		open_failure_alert_box(to_name, errno, TRUE);
-		g_free(to_name);
-		return TRUE;
+		return FALSE;
 	}
 
-#if 0 /* handled by caller (for now) .... */
-	gtk_widget_hide(GTK_WIDGET(fs));
-	window_destroy(GTK_WIDGET(fs));
-#endif
 	if (follow_info->show_type == SHOW_RAW) {
 		switch (follow_read_stream(follow_info, follow_write_raw, fh)) {
 		case FRS_OK:
-			if (fclose(fh) == EOF)
+			if (fclose(fh) == EOF) {
 				write_failure_alert_box(to_name, errno);
+				return FALSE;
+			}
 			break;
 
 		case FRS_OPEN_ERROR:
 		case FRS_READ_ERROR:
 			fclose(fh);
-			break;
+			return FALSE;
 
 		case FRS_PRINT_ERROR:
 			write_failure_alert_box(to_name, errno);
 			fclose(fh);
-			break;
+			return FALSE;
 		}
 	} else {
 		stream = print_stream_text_stdio_new(fh);
 		switch (follow_read_stream(follow_info, follow_print_text,
 					   stream)) {
 		case FRS_OK:
-			if (!destroy_print_stream(stream))
+			if (!destroy_print_stream(stream)) {
 				write_failure_alert_box(to_name, errno);
+				return FALSE;
+			}
 			break;
 
 		case FRS_OPEN_ERROR:
 		case FRS_READ_ERROR:
 			destroy_print_stream(stream);
-			break;
+			return FALSE;
 
 		case FRS_PRINT_ERROR:
 			write_failure_alert_box(to_name, errno);
 			destroy_print_stream(stream);
-			break;
+			return FALSE;
 		}
 	}
 
-	/* Save the directory name for future file dialogs. */
-	dirname = get_dirname(to_name);  /* Overwrites to_name */
-	set_last_open_dir(dirname);
-	g_free(to_name);
 	return TRUE;
 }
 
 static void
-follow_save_as_destroy_cb(GtkWidget * win _U_, gpointer data)
+follow_save_as_cmd_cb(GtkWidget *w, gpointer data)
 {
-	follow_info_t	*follow_info = data;
+	GtkWidget	*caller = gtk_widget_get_toplevel(w);
+	follow_info_t	*follow_info = (follow_info_t *)data;
+	char		*pathname;
 
-	/* Note that we no longer have a dialog box. */
-	follow_info->follow_save_as_w = NULL;
+	/*
+	 * Loop until the user either selects a file or gives up.
+	 */
+	for (;;) {
+		pathname = gtk_follow_save_as_file(caller);
+		if (pathname == NULL) {
+			/* User gave up. */
+			break;
+		}
+		if (follow_save_as_ok_cb(pathname, follow_info)) {
+			/* We succeeded. */
+			g_free(pathname);
+			break;
+		}
+		/* Dump failed; let the user select another file or give up. */
+		g_free(pathname);
+	}
 }
 
 static void
 follow_stream_direction_changed(GtkWidget *w, gpointer data)
 {
-	follow_info_t *follow_info = data;
+	follow_info_t *follow_info = (follow_info_t *)data;
 
 	switch(gtk_combo_box_get_active(GTK_COMBO_BOX(w))) {
 
@@ -685,11 +636,11 @@ follow_stream_direction_changed(GtkWidget *w, gpointer data)
 		follow_load_text(follow_info);
 		break;
 	case 1 :
-		follow_info->show_stream = FROM_CLIENT;
+		follow_info->show_stream = FROM_SERVER;
 		follow_load_text(follow_info);
 		break;
 	case 2 :
-		follow_info->show_stream = FROM_SERVER;
+		follow_info->show_stream = FROM_CLIENT;
 		follow_load_text(follow_info);
 		break;
 	}
@@ -711,7 +662,7 @@ forget_follow_info(follow_info_t *follow_info)
 }
 
 void
-follow_stream(gchar *title, follow_info_t *follow_info,
+follow_stream(const gchar *title, follow_info_t *follow_info,
 	      gchar *both_directions_string,
 	      gchar *server_to_client_string, gchar *client_to_server_string)
 {
@@ -885,17 +836,17 @@ follow_stream(gchar *title, follow_info_t *follow_info,
 	gtk_box_pack_start(GTK_BOX(vbox), bbox, FALSE, FALSE, 5);
 
 
-	button = g_object_get_data(G_OBJECT(bbox), WIRESHARK_STOCK_FILTER_OUT_STREAM);
+	button = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), WIRESHARK_STOCK_FILTER_OUT_STREAM);
 	gtk_widget_set_tooltip_text(button, "Build a display filter which cuts this stream from the capture");
 	g_signal_connect(button, "clicked", G_CALLBACK(follow_filter_out_stream),
 		       follow_info);
 
-	button = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	button = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(streamwindow, button, window_cancel_button_cb);
 	gtk_widget_set_tooltip_text(button, "Close the dialog and keep the current display filter");
 	gtk_widget_grab_default(button);
 
-	button = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+	button = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
 	g_signal_connect(button, "clicked", G_CALLBACK(topic_cb),
 			 (gpointer)HELP_FOLLOW_STREAM_DIALOG);
 
@@ -932,7 +883,7 @@ follow_destroy_cb(GtkWidget *w, gpointer data _U_)
 	GList *cur;
 	int i;
 
-	follow_info = g_object_get_data(G_OBJECT(w), E_FOLLOW_INFO_KEY);
+	follow_info = (follow_info_t *)g_object_get_data(G_OBJECT(w), E_FOLLOW_INFO_KEY);
 
 	switch(follow_info->follow_type) {
 
@@ -947,7 +898,7 @@ follow_destroy_cb(GtkWidget *w, gpointer data _U_)
 	case FOLLOW_UDP :
 		for(cur = follow_info->payload; cur; cur = g_list_next(cur))
 			if(cur->data) {
-				follow_record = cur->data;
+			follow_record = (follow_record_t *)cur->data;
 				if(follow_record->data)
 					g_byte_array_free(follow_record->data,
 							  TRUE);
@@ -981,7 +932,7 @@ follow_destroy_cb(GtkWidget *w, gpointer data _U_)
 frs_return_t
 follow_show(follow_info_t *follow_info,
 	    gboolean (*print_line_fcn_p)(char *, size_t, gboolean, void *),
-	    char *buffer, size_t nchars, gboolean is_server, void *arg,
+	    char *buffer, size_t nchars, gboolean is_from_server, void *arg,
 	    guint32 *global_pos, guint32 *server_packet_count,
 	    guint32 *client_packet_count)
 {
@@ -994,7 +945,7 @@ follow_show(follow_info_t *follow_info,
 	case SHOW_EBCDIC:
 		/* If our native arch is ASCII, call: */
 		EBCDIC_to_ASCII(buffer, (guint) nchars);
-		if (!(*print_line_fcn_p) (buffer, nchars, is_server, arg))
+		if (!(*print_line_fcn_p) (buffer, nchars, is_from_server, arg))
 			return FRS_PRINT_ERROR;
 		break;
 
@@ -1002,7 +953,7 @@ follow_show(follow_info_t *follow_info,
 		/* If our native arch is EBCDIC, call:
 		 * ASCII_TO_EBCDIC(buffer, nchars);
 		 */
-		if (!(*print_line_fcn_p) (buffer, nchars, is_server, arg))
+		if (!(*print_line_fcn_p) (buffer, nchars, is_from_server, arg))
 			return FRS_PRINT_ERROR;
 		break;
 
@@ -1010,7 +961,7 @@ follow_show(follow_info_t *follow_info,
 		/* Don't translate, no matter what the native arch
 		 * is.
 		 */
-		if (!(*print_line_fcn_p) (buffer, nchars, is_server, arg))
+		if (!(*print_line_fcn_p) (buffer, nchars, is_from_server, arg))
 			return FRS_PRINT_ERROR;
 		break;
 
@@ -1021,10 +972,10 @@ follow_show(follow_info_t *follow_info,
 			int i;
 			gchar *cur = hexbuf, *ascii_start;
 
-			/* is_server indentation : put 4 spaces at the
+			/* is_from_server indentation : put 4 spaces at the
 			 * beginning of the string */
 			/* XXX - We might want to prepend each line with "C" or "S" instead. */
-			if (is_server && follow_info->show_stream == BOTH_HOSTS) {
+			if (is_from_server && follow_info->show_stream == BOTH_HOSTS) {
 				memset(cur, ' ', 4);
 				cur += 4;
 			}
@@ -1057,7 +1008,7 @@ follow_show(follow_info_t *follow_info,
 			(*global_pos) += i;
 			*cur++ = '\n';
 			*cur = 0;
-			if (!(*print_line_fcn_p) (hexbuf, strlen(hexbuf), is_server, arg))
+			if (!(*print_line_fcn_p) (hexbuf, strlen(hexbuf), is_from_server, arg))
 				return FRS_PRINT_ERROR;
 		}
 		break;
@@ -1065,9 +1016,9 @@ follow_show(follow_info_t *follow_info,
 	case SHOW_CARRAY:
 		current_pos = 0;
 		g_snprintf(initbuf, sizeof(initbuf), "char peer%d_%d[] = {\n",
-			   is_server ? 1 : 0,
-			   is_server ? (*server_packet_count)++ : (*client_packet_count)++);
-		if (!(*print_line_fcn_p) (initbuf, strlen(initbuf), is_server, arg))
+			   is_from_server ? 1 : 0,
+			   is_from_server ? (*server_packet_count)++ : (*client_packet_count)++);
+		if (!(*print_line_fcn_p) (initbuf, strlen(initbuf), is_from_server, arg))
 			return FRS_PRINT_ERROR;
 
 		while (current_pos < nchars) {
@@ -1101,7 +1052,7 @@ follow_show(follow_info_t *follow_info,
 			(*global_pos) += i;
 			hexbuf[cur++] = '\n';
 			hexbuf[cur] = 0;
-			if (!(*print_line_fcn_p) (hexbuf, strlen(hexbuf), is_server, arg))
+			if (!(*print_line_fcn_p) (hexbuf, strlen(hexbuf), is_from_server, arg))
 				return FRS_PRINT_ERROR;
 		}
 		break;

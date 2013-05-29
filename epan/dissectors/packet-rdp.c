@@ -242,8 +242,8 @@ static int hf_rdp_Pad2 = -1;
 static int hf_rdp_Pad3 = -1;
 
 /* BitmapCache Persistent List Entry */
-static int hf_rdp_Key1 = -1;
-static int hf_rdp_Key2 = -1;
+/* static int hf_rdp_Key1 = -1; */
+/* static int hf_rdp_Key2 = -1; */
 
 /* FontList */
 #if 0
@@ -266,10 +266,10 @@ static int hf_rdp_lengthCapability = -1;
 static int hf_rdp_capabilityData = -1;
 static int hf_rdp_sessionId = -1;
 
-static int hf_rdp_unknownData = -1;
+/* static int hf_rdp_unknownData = -1; */
 static int hf_rdp_notYetImplemented = -1;
 static int hf_rdp_encrypted = -1;
-static int hf_rdp_compressed = -1;
+/* static int hf_rdp_compressed = -1; */
 
 static int hf_rdp_channelDefArray = -1;
 static int hf_rdp_channelDef = -1;
@@ -285,7 +285,7 @@ static int hf_rdp_optionsPriLow = -1;
 static int hf_rdp_optionsCompressRDP = -1;
 static int hf_rdp_optionsCompress = -1;
 static int hf_rdp_optionsShowProtocol= -1;
-static int hf_rdp_optionsRemoteControlPersistent;
+static int hf_rdp_optionsRemoteControlPersistent = -1;
 
 static int hf_rdp_channelPDUHeader = -1;
 static int hf_rdp_channelFlags = -1;
@@ -1418,7 +1418,7 @@ dissect_rdp_SendData(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   tree = proto_item_add_subtree(pi, ett_rdp_SendData);
 
   conversation = find_or_create_conversation(pinfo);
-  rdp_info = conversation_get_proto_data(conversation, proto_rdp);
+  rdp_info = (rdp_conv_info_t *)conversation_get_proto_data(conversation, proto_rdp);
 
   if (rdp_info &&
       ((rdp_info->licenseAgreed == 0) ||
@@ -1627,10 +1627,10 @@ dissect_rdp_ClientData(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
   conversation = find_or_create_conversation(pinfo);
 
-  rdp_info = conversation_get_proto_data(conversation, proto_rdp);
+  rdp_info = (rdp_conv_info_t *)conversation_get_proto_data(conversation, proto_rdp);
 
   if (rdp_info == NULL) {
-    rdp_info = se_alloc0(sizeof(rdp_conv_info_t));
+    rdp_info = se_new0(rdp_conv_info_t);
     rdp_info->staticChannelId  = -1;
     rdp_info->encryptionMethod = 0;
     rdp_info->encryptionLevel  = 0;
@@ -1773,10 +1773,10 @@ dissect_rdp_ServerData(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
   conversation = find_or_create_conversation(pinfo);
 
-  rdp_info = conversation_get_proto_data(conversation, proto_rdp);
+  rdp_info = (rdp_conv_info_t *)conversation_get_proto_data(conversation, proto_rdp);
 
   if (rdp_info == NULL) {
-    rdp_info = se_alloc0(sizeof(rdp_conv_info_t));
+    rdp_info = se_new0(rdp_conv_info_t);
     rdp_info->staticChannelId  = -1;
     rdp_info->encryptionMethod = 0;
     rdp_info->encryptionLevel  = 0;
@@ -2470,14 +2470,18 @@ proto_register_rdp(void) {
       { "Pad3", "rdp.Pad3",
         FT_UINT16, BASE_HEX, NULL, 0,
         NULL, HFILL }},
+#if 0
     { &hf_rdp_Key1,
       { "Key1", "rdp.Key1",
         FT_UINT32, BASE_HEX, NULL, 0,
         NULL, HFILL }},
+#endif
+#if 0
     { &hf_rdp_Key2,
       { "Key2", "rdp.Key2",
         FT_UINT32, BASE_HEX, NULL, 0,
         NULL, HFILL }},
+#endif
     { &hf_rdp_originatorId,
       { "originatorId", "rdp.OriginatorId",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -2518,10 +2522,12 @@ proto_register_rdp(void) {
       { "capabilityData", "rdp.capabilityData",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
+#if 0
     { &hf_rdp_unknownData,
       { "unknownData", "rdp.unknownData",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
+#endif
     { &hf_rdp_notYetImplemented,
       { "notYetImplemented", "rdp.notYetImplemented",
         FT_NONE, BASE_NONE, NULL, 0,
@@ -2530,10 +2536,12 @@ proto_register_rdp(void) {
       { "encryptedData", "rdp.encryptedData",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
+#if 0
     { &hf_rdp_compressed,
       { "compressedData", "rdp.compressedData",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
+#endif
     { &hf_rdp_sessionId,
       { "sessionId", "rdp.sessionId",
         FT_UINT32, BASE_HEX, NULL, 0,

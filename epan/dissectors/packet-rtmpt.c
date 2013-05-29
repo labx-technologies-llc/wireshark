@@ -141,6 +141,16 @@ static dissector_handle_t rtmpt_http_handle;
 
 static gboolean rtmpt_desegment = TRUE;
 
+/* Native Bandwidth Detection (using the checkBandwidth(), onBWCheck(),
+ * onBWDone() calls) transmits a series of increasing size packets over
+ * the course of 2 seconds. On a fast link the largest packet can just
+ * exceed 256KB, but setting the limit there can cause massive memory
+ * usage in some scenarios. For now make it a preference, but a better fix
+ * is really needed.
+ * See https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=6898
+ */
+static guint rtmpt_max_packet_size = 262144;
+
 #define RTMP_PORT                     1935
 
 #define RTMPT_MAGIC                   0x03
@@ -151,14 +161,6 @@ static gboolean rtmpt_desegment = TRUE;
 #define RTMPT_HANDSHAKE_LENGTH_2      3073
 #define RTMPT_HANDSHAKE_LENGTH_3      1536
 #define RTMPT_DEFAULT_CHUNK_SIZE       128
-
-/* Native Bandwidth Detection (using the checkBandwidth(), onBWCheck(),
- * onBWDone() calls) transmits a series of increasing size packets over
- * the course of 2 seconds. On a fast link the largest packet can just
- * exceed 256KB. */
-/* #define RTMPT_MAX_PACKET_SIZE     131072 */
-/* #define RTMPT_MAX_PACKET_SIZE     262144 */
-#define RTMPT_MAX_PACKET_SIZE         524288
 
 #define RTMPT_ID_MAX                     65599
 #define RTMPT_TYPE_HANDSHAKE_1        0x100001
@@ -308,7 +310,7 @@ static int hf_amf_header_count = -1;
 static int hf_amf_header_name = -1;
 static int hf_amf_header_must_understand = -1;
 static int hf_amf_header_length = -1;
-static int hf_amf_header_value_type = -1;
+/* static int hf_amf_header_value_type = -1; */
 static int hf_amf_message_count = -1;
 static int hf_amf_message_target_uri = -1;
 static int hf_amf_message_response_uri = -1;
@@ -324,7 +326,7 @@ static int hf_amf_string = -1;
 static int hf_amf_string_reference = -1;
 static int hf_amf_object_reference = -1;
 static int hf_amf_date = -1;
-static int hf_amf_longstringlength = -1;
+/* static int hf_amf_longstringlength = -1; */
 static int hf_amf_longstring = -1;
 static int hf_amf_xml_doc = -1;
 static int hf_amf_xmllength = -1;
@@ -724,7 +726,7 @@ rtmpt_get_packet_desc(tvbuff_t *tvb, guint32 offset, guint32 remain, rtmpt_conv_
                 if (tp->len<2 || remain<2) return NULL;
 
                 iUCM = tvb_get_ntohs(tvb, offset);
-                sFunc = match_strval(iUCM, rtmpt_ucm_vals);
+                sFunc = try_val_to_str(iUCM, rtmpt_ucm_vals);
                 if (sFunc==NULL) {
                         *deschasopcode = TRUE;
                         sFunc = ep_strdup_printf("User Control Message 0x%01x", iUCM);
@@ -1513,7 +1515,7 @@ dissect_amf3_value_type(tvbuff_t *tvb, gint offset, proto_tree *tree, proto_item
                         iArrayLength = iIntegerValue >> 1;
                         proto_tree_add_uint(val_tree, hf_amf_bytearraylength, tvb, iValueOffset, iValueLength, iArrayLength);
                         iValueOffset += iValueLength;
-                        iByteArrayValue = ep_tvb_memdup(tvb, iValueOffset, iArrayLength);
+                        iByteArrayValue = (guint8 *)ep_tvb_memdup(tvb, iValueOffset, iArrayLength);
                         proto_tree_add_bytes(val_tree, hf_amf_bytearray, tvb, iValueOffset, iArrayLength, iByteArrayValue);
                         proto_item_append_text(ti, " %s", bytes_to_str(iByteArrayValue, iArrayLength));
                         if (parent_ti != NULL)
@@ -1659,7 +1661,6 @@ dissect_rtmpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_conv_t 
         proto_tree   *rtmpt_tree           = NULL;
         proto_tree   *rtmptroot_tree       = NULL;
         proto_item   *ti                   = NULL;
-        static guint  iPreviousFrameNumber = 0;
         gint          offset               = 0;
 
         gchar        *sDesc                = NULL;
@@ -1670,16 +1671,12 @@ dissect_rtmpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_conv_t 
 
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "RTMP");
 
-        RTMPT_DEBUG("Dissect: frame=%u prev=%u visited=%d len=%d col=%d tree=%p\n",
-                    pinfo->fd->num, iPreviousFrameNumber, pinfo->fd->flags.visited,
+        RTMPT_DEBUG("Dissect: frame=%u visited=%d len=%d col=%d tree=%p\n",
+                    pinfo->fd->num, pinfo->fd->flags.visited,
                     tvb_length_remaining(tvb, offset), check_col(pinfo->cinfo, COL_INFO), tree);
 
-        /* This is a trick to know whether this is the first PDU in this packet or not */
-        if (iPreviousFrameNumber != PINFO_FD_NUM(pinfo))
-                col_clear(pinfo->cinfo, COL_INFO);
-        else
-                col_append_str(pinfo->cinfo, COL_INFO, " | ");
-        iPreviousFrameNumber = pinfo->fd->num;
+        /* Clear any previous data in Info column (RTMP packets are protected by a "fence") */
+        col_clear(pinfo->cinfo, COL_INFO);
 
         if (tvb_length_remaining(tvb, offset) < 1) return;
 
@@ -1695,7 +1692,7 @@ dissect_rtmpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_conv_t 
 
                 if (tp->cmd==RTMPT_TYPE_CHUNK_SIZE && tp->len>=4 && iBodyRemain>=4) {
                         guint32 newchunksize = tvb_get_ntohl(tvb, iBodyOffset);
-                        if (newchunksize<RTMPT_MAX_PACKET_SIZE) {
+                        if (newchunksize<rtmpt_max_packet_size) {
                                 se_tree_insert32(rconv->chunksize[cdir], tp->lastseq, GINT_TO_POINTER(newchunksize));
                         }
                 }
@@ -1724,13 +1721,16 @@ dissect_rtmpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_conv_t 
         if (check_col(pinfo->cinfo, COL_INFO))
         {
                 if (tp->id>RTMPT_ID_MAX) {
-                        col_append_fstr(pinfo->cinfo, COL_INFO, "%s",
+                        col_append_sep_fstr(pinfo->cinfo, COL_INFO, "|", "%s",
                                         val_to_str(tp->id, rtmpt_handshake_vals, "Unknown (0x%01x)"));
+                        col_set_fence(pinfo->cinfo, COL_INFO);
                 } else if (sDesc) {
-                        col_append_fstr(pinfo->cinfo, COL_INFO, "%s", sDesc);
+                        col_append_sep_fstr(pinfo->cinfo, COL_INFO, "|", "%s", sDesc);
+                        col_set_fence(pinfo->cinfo, COL_INFO);
                 } else {
-                        col_append_fstr(pinfo->cinfo, COL_INFO, "%s",
+                        col_append_sep_fstr(pinfo->cinfo, COL_INFO, "|", "%s",
                                         val_to_str(tp->cmd, rtmpt_opcode_vals, "Unknown (0x%01x)"));
+                        col_set_fence(pinfo->cinfo, COL_INFO);
                 }
         }
 
@@ -1886,15 +1886,15 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                 packets = ep_stack_new();
                 ep_stack_push(packets, 0);
 
-                tp = se_tree_lookup32_le(rconv->packets[cdir], seq+remain-1);
+                tp = (rtmpt_packet_t *)se_tree_lookup32_le(rconv->packets[cdir], seq+remain-1);
                 while (tp && tp->lastseq>=seq) {
                         ep_stack_push(packets, tp);
-                        tp = se_tree_lookup32_le(rconv->packets[cdir], tp->lastseq-1);
+                        tp = (rtmpt_packet_t *)se_tree_lookup32_le(rconv->packets[cdir], tp->lastseq-1);
                 }
 
                 /* Dissect the generated list in reverse order (beginning to end) */
 
-                while ((tp=ep_stack_pop(packets))!=NULL) {
+                while ((tp=(rtmpt_packet_t *)ep_stack_pop(packets))!=NULL) {
                         if (tp->resident) {
                                 pktbuf = tvb_new_child_real_data(tvb, tp->data.p, tp->have, tp->have);
                                 add_new_data_source(pinfo, pktbuf, "Unchunked RTMP");
@@ -1915,7 +1915,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                 /* Check for outstanding fragmented headers/chunks first */
 
                 if (offset==0) {
-                        tf = se_tree_lookup32_le(rconv->frags[cdir], seq+offset-1);
+                        tf = (rtmpt_frag_t *)se_tree_lookup32_le(rconv->frags[cdir], seq+offset-1);
 
                         if (tf) {
                                 /* May need to reassemble cross-TCP-segment fragments */
@@ -1923,8 +1923,8 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                                 if (tf->have>=tf->len || seq+offset<tf->seq || seq+offset>tf->lastseq+tf->len-tf->have) {
                                         tf = NULL;
                                 } else if (!tf->ishdr) {
-                                        ti = se_tree_lookup32(rconv->ids[cdir], tf->saved.id);
-                                        if (ti) tp = se_tree_lookup32_le(ti->packets, seq+offset-1);
+                                        ti = (rtmpt_id_t *)se_tree_lookup32(rconv->ids[cdir], tf->saved.id);
+                                        if (ti) tp = (rtmpt_packet_t *)se_tree_lookup32_le(ti->packets, seq+offset-1);
                                         if (tp && tp->chunkwant) {
                                                 goto unchunk;
                                         }
@@ -1990,7 +1990,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
 
                                 if (remain<basic_hlen+message_hlen) {
                                         /* Ran out of packet mid-header, save and try again next time */
-                                        tf = se_alloc(sizeof(rtmpt_frag_t));
+                                        tf = se_new(rtmpt_frag_t);
                                         tf->ishdr = 1;
                                         tf->seq = seq + offset;
                                         tf->lastseq = tf->seq + remain - 1;
@@ -2020,8 +2020,8 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
 
                 /* Calculate header values, defaulting from previous packets with same id */
 
-                if (id<=RTMPT_ID_MAX) ti = se_tree_lookup32(rconv->ids[cdir], id);
-                if (ti) tp = se_tree_lookup32_le(ti->packets, seq+offset-1);
+                if (id<=RTMPT_ID_MAX) ti = (rtmpt_id_t *)se_tree_lookup32(rconv->ids[cdir], id);
+                if (ti) tp = (rtmpt_packet_t *)se_tree_lookup32_le(ti->packets, seq+offset-1);
 
                 if (header_type==0) src = tf ? pntohl(tf->saved.d+basic_hlen+7) : tvb_get_ntohl(tvb, offset+basic_hlen+7);
                 else if (ti) src = ti->src;
@@ -2044,7 +2044,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                         else if (ti) body_len = ti->len;
                         else body_len = chunk_size;
 
-                        if (body_len>RTMPT_MAX_PACKET_SIZE) {
+                        if (body_len>(gint)rtmpt_max_packet_size) {
                                 return;
                         }
                 }
@@ -2061,7 +2061,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                                     ti, tp, header_type, basic_hlen+message_hlen, id, tp?tp->have:0, tp?tp->want:0, body_len, chunk_size);
 
                         if (!ti) {
-                                ti = se_alloc(sizeof(rtmpt_id_t));
+                                ti = se_new(rtmpt_id_t);
                                 ti->packets = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "rtmpt_packets");
                                 ti->ts = 0;
                                 ti->tsd = 0;
@@ -2088,7 +2088,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                         }
 
                         /* create a new packet structure */
-                        tp = se_alloc(sizeof(rtmpt_packet_t));
+                        tp = se_new(rtmpt_packet_t);
                         tp->seq = tp->lastseq = tf ? tf->seq : seq+offset;
                         tp->have = 0;
                         tp->want = basic_hlen + message_hlen + body_len;
@@ -2136,7 +2136,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                         } else {
                                 /* Some more reassembly required */
                                 tp->resident = TRUE;
-                                tp->data.p = se_alloc(tp->bhlen+tp->mhlen+tp->len);
+                                tp->data.p = (guint8 *)se_alloc(tp->bhlen+tp->mhlen+tp->len);
 
                                 if (tf && tf->ishdr) {
                                         memcpy(tp->data.p, tf->saved.d, tf->len);
@@ -2209,7 +2209,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                         dissect_rtmpt(pktbuf, pinfo, tree, rconv, cdir, tp);
                 } else if (tp->chunkhave<tp->chunkwant) {
                         /* Chunk is split across segment boundary */
-                        rtmpt_frag_t *tf2 = se_alloc(sizeof(rtmpt_frag_t));
+                        rtmpt_frag_t *tf2 = se_new(rtmpt_frag_t);
                         tf2->ishdr = 0;
                         tf2->seq = seq + offset - want;
                         tf2->lastseq = tf2->seq + remain - 1 + want;
@@ -2225,7 +2225,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
 static rtmpt_conv_t*
 rtmpt_init_rconv(conversation_t *conv)
 {
-        rtmpt_conv_t *rconv = se_alloc(sizeof(rtmpt_conv_t));
+        rtmpt_conv_t *rconv = se_new(rtmpt_conv_t);
         conversation_add_proto_data(conv, proto_rtmpt, rconv);
 
         rconv->seqs[0]      = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "rtmpt_seqs0");
@@ -2267,7 +2267,7 @@ dissect_rtmpt_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 conv->key_ptr->port1==pinfo->srcport &&
                 conv->key_ptr->port2==pinfo->destport) ? 0 : 1;
 
-        tcpinfo = pinfo->private_data;
+        tcpinfo = (struct tcpinfo *)pinfo->private_data;
         dissect_rtmpt_common(tvb, pinfo, tree, rconv, cdir, tcpinfo->seq, tcpinfo->lastackseq);
 }
 
@@ -2680,6 +2680,11 @@ proto_register_rtmpt(void)
                                        " in the TCP protocol settings.",
                                        &rtmpt_desegment);
 
+        prefs_register_uint_preference(rtmpt_module, "max_packet_size",
+                                       "Maximum packet size",
+                                       "The largest acceptable packet size for reassembly",
+                                       10, &rtmpt_max_packet_size);
+
 }
 
 void
@@ -2723,9 +2728,11 @@ proto_register_amf(void)
                   { "Length", "amf.header.length", FT_UINT32, BASE_DEC,
                     NULL, 0x0, NULL, HFILL }},
 
+#if 0
                 { &hf_amf_header_value_type,
                   { "Value type", "amf.header.value_type", FT_UINT32, BASE_HEX,
-                    /*VALS(rtmpt_type_vals)*/NULL, 0x0, NULL, HFILL }},
+                    VALS(rtmpt_type_vals), 0x0, NULL, HFILL }},
+#endif
 
                 { &hf_amf_message_count,
                   { "Message count", "amf.message_count", FT_UINT16, BASE_DEC,
@@ -2785,9 +2792,11 @@ proto_register_amf(void)
                   { "Date", "amf.date", FT_ABSOLUTE_TIME, ABSOLUTE_TIME_LOCAL,
                     NULL, 0x0, "AMF date", HFILL }},
 
+#if 0
                 { &hf_amf_longstringlength,
                   { "String length", "amf.longstringlength", FT_UINT32, BASE_DEC,
                     NULL, 0x0, "AMF long string length", HFILL }},
+#endif
 
                 { &hf_amf_longstring,
                   { "Long string", "amf.longstring", FT_STRING, BASE_NONE,

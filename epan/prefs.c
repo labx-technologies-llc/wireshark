@@ -63,8 +63,8 @@ static module_t *find_subtree(module_t *parent, const char *tilte);
 static module_t *prefs_register_module_or_subtree(module_t *parent,
     const char *name, const char *title, const char *description, gboolean is_subtree,
     void (*apply_cb)(void), gboolean use_gui);
-static prefs_set_pref_e set_pref(gchar*, gchar*, void *, gboolean);
-static void write_string_list(FILE *, GList *, gboolean is_default);
+static prefs_set_pref_e set_pref(gchar*, const gchar*, void *, gboolean);
+static char * join_string_list(GList *);
 static void free_col_info(GList *);
 static void pre_init_prefs(void);
 static gboolean prefs_is_column_visible(const gchar *cols_hidden, fmt_data *cfmt);
@@ -73,7 +73,7 @@ static void try_convert_to_custom_column(gpointer *el_data);
 
 
 #define PF_NAME		"preferences"
-#define OLD_GPF_NAME	"wireshark.conf"	/* old name for global preferences file */
+#define OLD_GPF_NAME	"wireshark.conf" /* old name for global preferences file */
 
 static gboolean prefs_initialized = FALSE;
 static gboolean prefs_pre_initialized = FALSE;
@@ -91,65 +91,71 @@ static int mgcp_udp_port_count;
 
 e_prefs prefs;
 
-static enum_val_t gui_ptree_line_style[] = {
-		{"NONE", "NONE", 0},
-		{"SOLID", "SOLID", 1},
-		{"DOTTED", "DOTTED", 2},
-		{"TABBED", "TABBED", 3},
-		{NULL, NULL, -1}
-	};
+static const enum_val_t gui_ptree_line_style[] = {
+    {"NONE", "NONE", 0},
+    {"SOLID", "SOLID", 1},
+    {"DOTTED", "DOTTED", 2},
+    {"TABBED", "TABBED", 3},
+    {NULL, NULL, -1}
+};
 
-static enum_val_t gui_ptree_expander_style[] = {
-		{"NONE", "NONE", 0},
-		{"SQUARE", "SQUARE", 1},
-		{"TRIANGLE", "TRIANGLE", 2},
-		{"CIRCULAR", "CIRCULAR", 3},
-		{NULL, NULL, -1}
-	};
+static const enum_val_t gui_ptree_expander_style[] = {
+    {"NONE", "NONE", 0},
+    {"SQUARE", "SQUARE", 1},
+    {"TRIANGLE", "TRIANGLE", 2},
+    {"CIRCULAR", "CIRCULAR", 3},
+    {NULL, NULL, -1}
+};
 
-static enum_val_t gui_hex_dump_highlight_style[] = {
-		{"BOLD", "BOLD", 0},
-		{"INVERSE", "INVERSE", 1},
-		{NULL, NULL, -1}
-	};
+static const enum_val_t gui_hex_dump_highlight_style[] = {
+    {"BOLD", "BOLD", 0},
+    {"INVERSE", "INVERSE", 1},
+    {NULL, NULL, -1}
+};
 
-static enum_val_t gui_console_open_type[] = {
-		{"NEVER", "NEVER", console_open_never},
-		{"AUTOMATIC", "AUTOMATIC", console_open_auto},
-		{"ALWAYS", "ALWAYS", console_open_always},
-		{NULL, NULL, -1}
-	};
+static const enum_val_t gui_console_open_type[] = {
+    {"NEVER", "NEVER", console_open_never},
+    {"AUTOMATIC", "AUTOMATIC", console_open_auto},
+    {"ALWAYS", "ALWAYS", console_open_always},
+    {NULL, NULL, -1}
+};
 
-static enum_val_t gui_version_placement_type[] = {
-		{"WELCOME", "WELCOME", version_welcome_only},
-		{"TITLE", "TITLE", version_title_only},
-		{"BOTH", "BOTH", version_both},
-		{"NEITHER", "NEITHER", version_neither},
-		{NULL, NULL, -1}
-	};
+static const enum_val_t gui_version_placement_type[] = {
+    {"WELCOME", "WELCOME", version_welcome_only},
+    {"TITLE", "TITLE", version_title_only},
+    {"BOTH", "BOTH", version_both},
+    {"NEITHER", "NEITHER", version_neither},
+    {NULL, NULL, -1}
+};
 
-static enum_val_t gui_fileopen_style[] = {
-		{"LAST_OPENED", "LAST_OPENED", 0},
-		{"SPECIFIED", "SPECIFIED", 1},
-		{NULL, NULL, -1}
-	};
+static const enum_val_t gui_fileopen_style[] = {
+    {"LAST_OPENED", "LAST_OPENED", 0},
+    {"SPECIFIED", "SPECIFIED", 1},
+    {NULL, NULL, -1}
+};
 
 /* GTK knows of two ways representing "both", vertical and horizontal aligned.
  * as this may not work on other guis, we use only "both" in general here */
-static enum_val_t gui_toolbar_style[] = {
-		{"ICONS", "ICONS", 0},
-		{"TEXT", "TEXT", 1},
-		{"BOTH", "BOTH", 2},
-		{NULL, NULL, -1}
-	};
+static const enum_val_t gui_toolbar_style[] = {
+    {"ICONS", "ICONS", 0},
+    {"TEXT", "TEXT", 1},
+    {"BOTH", "BOTH", 2},
+    {NULL, NULL, -1}
+};
 
-static enum_val_t gui_layout_content[] = {
-		{"NONE", "NONE", 0},
-		{"PLIST", "PLIST", 1},
-		{"PDETAILS", "PDETAILS", 2},
-		{"PBYTES", "PBYTES", 3},
-		{NULL, NULL, -1}
-	};
+static const enum_val_t gui_layout_content[] = {
+    {"NONE", "NONE", 0},
+    {"PLIST", "PLIST", 1},
+    {"PDETAILS", "PDETAILS", 2},
+    {"PBYTES", "PBYTES", 3},
+    {NULL, NULL, -1}
+};
+
+static const enum_val_t gui_update_channel[] = {
+    {"DEVELOPMENT", "DEVELOPMENT", UPDATE_CHANNEL_DEVELOPMENT},
+    {"STABLE", "STABLE", UPDATE_CHANNEL_STABLE},
+    {NULL, NULL, -1}
+};
 
 /*
  * List of all modules with preference settings.
@@ -173,7 +179,7 @@ prefs_init(void)
 static void
 free_pref(gpointer data, gpointer user_data _U_)
 {
-    pref_t *pref = data;
+    pref_t *pref = (pref_t *)data;
 
     switch (pref->type) {
     case PREF_OBSOLETE:
@@ -186,14 +192,17 @@ free_pref(gpointer data, gpointer user_data _U_)
         break;
     case PREF_STRING:
     case PREF_FILENAME:
+    case PREF_DIRNAME:
         g_free((char *)*pref->varp.string);
         *pref->varp.string = NULL;
         g_free(pref->default_val.string);
+        pref->default_val.string = NULL;
         break;
     case PREF_RANGE:
         g_free(*pref->varp.range);
         *pref->varp.range = NULL;
         g_free(pref->default_val.range);
+        pref->default_val.range = NULL;
         break;
     case PREF_CUSTOM:
         pref->custom_cbs.free_cb(pref);
@@ -283,7 +292,7 @@ prefs_register_module_or_subtree(module_t *parent, const char *name,
         return module;
     }
 
-    module = g_malloc(sizeof (module_t));
+    module = g_new(module_t,1);
     module->name = name;
     module->title = title;
     module->description = description;
@@ -514,13 +523,13 @@ prefs_register_stat(const char *name, const char *title,
 module_t *
 prefs_find_module(const char *name)
 {
-    return pe_tree_lookup_string(prefs_modules, name, EMEM_TREE_STRING_NOCASE);
+    return (module_t *)pe_tree_lookup_string(prefs_modules, name, EMEM_TREE_STRING_NOCASE);
 }
 
 static module_t *
 find_subtree(module_t *parent, const char *name)
 {
-    return pe_tree_lookup_string(parent ? parent->submodules : prefs_top_level_modules, name, EMEM_TREE_STRING_NOCASE);
+    return (module_t *)pe_tree_lookup_string(parent ? parent->submodules : prefs_top_level_modules, name, EMEM_TREE_STRING_NOCASE);
 }
 
 /*
@@ -621,7 +630,7 @@ prefs_modules_foreach_submodules(module_t *module, module_cb callback,
 static gboolean
 call_apply_cb(void *value, void *data _U_)
 {
-    module_t *module = value;
+    module_t *module = (module_t *)value;
 
     if (module->obsolete)
         return FALSE;
@@ -672,7 +681,7 @@ register_preference(module_t *module, const char *name, const char *title,
     pref_t *preference;
     const gchar *p;
 
-    preference = g_malloc(sizeof (pref_t));
+    preference = g_new(pref_t,1);
     preference->name = name;
     preference->title = title;
     preference->description = description;
@@ -707,7 +716,7 @@ register_preference(module_t *module, const char *name, const char *title,
         g_error("Preference %s has already been registered", name);
 
     if ((type != PREF_OBSOLETE) &&
-        /* Don't compare if its a subtree */
+        /* Don't compare if it's a subtree */
         (module->name != NULL)) {
         /*
          * Make sure the preference name doesn't begin with the
@@ -741,8 +750,8 @@ typedef struct {
 static gint
 preference_match(gconstpointer a, gconstpointer b)
 {
-    const pref_t *pref = a;
-    const char *name = b;
+    const pref_t *pref = (const pref_t *)a;
+    const char *name = (const char *)b;
 
     return strcmp(name, pref->name);
 }
@@ -751,7 +760,7 @@ static gboolean module_find_pref_cb(void *value, void *data)
 {
     find_pref_arg_t* arg = (find_pref_arg_t*)data;
     GList *list_entry;
-    module_t *module = value;
+    module_t *module = (module_t *)value;
 
     if (module == NULL)
         return FALSE;
@@ -839,6 +848,11 @@ prefs_register_uint_preference(module_t *module, const char *name,
 }
 
 /*
+ * XXX Add a prefs_register_{uint16|port}_preference which sets max_value?
+ */
+
+
+/*
  * Register a "custom" preference with a unsigned integral value.
  * XXX - This should be temporary until we can find a better way
  * to do "custom" preferences
@@ -922,7 +936,7 @@ register_string_like_preference(module_t *module, const char *name,
     }
     preference->varp.string = var;
     preference->default_val.string = varcopy;
-    preference->saved_val.string = NULL;
+    preference->stashed_val.string = NULL;
 
     return preference;
 }
@@ -971,6 +985,18 @@ prefs_register_filename_preference(module_t *module, const char *name,
 }
 
 /*
+ * Register a preference with a directory name (string) value.
+ */
+void
+prefs_register_directory_preference(module_t *module, const char *name,
+                                   const char *title, const char *description,
+                                   const char **var)
+{
+    register_string_like_preference(module, name, title, description, var,
+                                    PREF_DIRNAME);
+}
+
+/*
  * Register a preference with a ranged value.
  */
 void
@@ -997,7 +1023,7 @@ prefs_register_range_preference(module_t *module, const char *name,
         *var = range_empty();
     preference->varp.range = var;
     preference->default_val.range = range_copy(*var);
-    preference->saved_val.range = NULL;
+    preference->stashed_val.range = NULL;
 }
 
 /*
@@ -1036,7 +1062,7 @@ void prefs_register_color_preference(module_t *module, const char *name,
 {
     pref_t* preference = register_preference(module, name, title, description, PREF_COLOR);
 
-    preference->varp.color = color;
+    preference->varp.colorp = color;
     preference->default_val.color = *color;
 }
 
@@ -1130,7 +1156,7 @@ prefs_pref_foreach(module_t *module, pref_cb callback, gpointer user_data)
     guint ret;
 
     for (elem = g_list_first(module->prefs); elem != NULL; elem = g_list_next(elem)) {
-        pref = elem->data;
+        pref = (pref_t *)elem->data;
         if (pref->type == PREF_OBSOLETE) {
             /*
              * This preference is no longer supported; it's
@@ -1216,11 +1242,11 @@ static void console_log_level_reset_cb(pref_t* pref)
     *pref->varp.uint = pref->default_val.uint;
 }
 
-static prefs_set_pref_e console_log_level_set_cb(pref_t* pref, gchar* value, gboolean* changed)
+static prefs_set_pref_e console_log_level_set_cb(pref_t* pref, const gchar* value, gboolean* changed)
 {
     guint    uval;
 
-    uval = strtoul(value, NULL, 10);
+    uval = (guint)strtoul(value, NULL, 10);
 
     if (*pref->varp.uint != uval) {
         *changed = TRUE;
@@ -1238,27 +1264,32 @@ static prefs_set_pref_e console_log_level_set_cb(pref_t* pref, gchar* value, gbo
     return PREFS_SET_OK;
 }
 
-static void console_log_level_write_cb(pref_t* pref, write_pref_arg_t* arg)
-{
-    const char *prefix = (arg->module->name != NULL) ? arg->module->name : arg->module->parent->name;
+static const char * console_log_level_type_name_cb(void) {
+    return "Log level";
+}
 
-    fprintf(arg->pf, "# (debugging only, not in the Preferences dialog)\n");
-    fprintf(arg->pf, "# A bitmask of glib log levels:\n"
-          "# G_LOG_LEVEL_ERROR    = 4\n"
-          "# G_LOG_LEVEL_CRITICAL = 8\n"
-          "# G_LOG_LEVEL_WARNING  = 16\n"
-          "# G_LOG_LEVEL_MESSAGE  = 32\n"
-          "# G_LOG_LEVEL_INFO     = 64\n"
-          "# G_LOG_LEVEL_DEBUG    = 128\n");
+static char * console_log_level_type_description_cb(void) {
+    return g_strdup_printf(
+        "Console log level (for debugging)\n"
+        "A bitmask of log levels:\n"
+        "ERROR    = 4\n"
+        "CRITICAL = 8\n"
+        "WARNING  = 16\n"
+        "MESSAGE  = 32\n"
+        "INFO     = 64\n"
+        "DEBUG    = 128");
+}
 
-    if (*pref->varp.uint == pref->default_val.uint)
-        fprintf(arg->pf, "#");
-    fprintf(arg->pf, "%s.%s: %u\n", prefix,
-                pref->name, *pref->varp.uint);
+static gboolean console_log_level_is_default_cb(pref_t* pref) {
+    return *pref->varp.uint == pref->default_val.uint;
+}
+
+static char * console_log_level_to_str_cb(pref_t* pref, gboolean default_val) {
+    return g_strdup_printf("%u",  default_val ? pref->default_val.uint : *pref->varp.uint);
 }
 
 /*
- * Column hidden custom preference functions
+ * Column preference functions
  */
 #define PRS_COL_HIDDEN                   "column.hidden"
 #define PRS_COL_FMT                      "column.format"
@@ -1270,6 +1301,7 @@ static void column_hidden_free_cb(pref_t* pref)
     g_free((char *)*pref->varp.string);
     *pref->varp.string = NULL;
     g_free(pref->default_val.string);
+    pref->default_val.string = NULL;
 }
 
 static void column_hidden_reset_cb(pref_t* pref)
@@ -1278,17 +1310,21 @@ static void column_hidden_reset_cb(pref_t* pref)
     *pref->varp.string = g_strdup(pref->default_val.string);
 }
 
-static prefs_set_pref_e column_hidden_set_cb(pref_t* pref, gchar* value, gboolean* changed)
+static prefs_set_pref_e column_hidden_set_cb(pref_t* pref, const gchar* value, gboolean* changed)
 {
     GList       *clp;
     fmt_data    *cfmt;
     pref_t  *format_pref;
 
-    if (*pref->varp.string && (strcmp(*pref->varp.string, value) != 0)) {
-        *changed = TRUE;
-        g_free((void *)*pref->varp.string);
+    if (*pref->varp.string) { 
+        if (strcmp(*pref->varp.string, value) != 0) {
+            *changed = TRUE;
+            g_free((void *)*pref->varp.string);
+            *pref->varp.string = g_strdup(value);
+        }
+    } else if (value) {
         *pref->varp.string = g_strdup(value);
-    }
+    } 
 
     /*
      * Set the "visible" flag for the existing columns; we need to
@@ -1305,49 +1341,57 @@ static prefs_set_pref_e column_hidden_set_cb(pref_t* pref, gchar* value, gboolea
     return PREFS_SET_OK;
 }
 
-static void column_hidden_write_cb(pref_t* pref, write_pref_arg_t* arg)
-{
-  GString     *cols_hidden = g_string_new ("");
-  GList       *clp, *col_l;
-  fmt_data    *cfmt;
-  const char *prefix = (arg->module->name != NULL) ? arg->module->name : arg->module->parent->name;
-  pref_t  *format_pref;
-
-  format_pref = prefs_find_preference(gui_column_module, PRS_COL_FMT);
-  clp = *format_pref->varp.list;
-  col_l = NULL;
-  while (clp) {
-    gchar *prefs_fmt;
-    cfmt = (fmt_data *) clp->data;
-    col_l = g_list_append(col_l, g_strdup(cfmt->title));
-    if ((cfmt->fmt == COL_CUSTOM) && (cfmt->custom_field)) {
-      prefs_fmt = g_strdup_printf("%s:%s:%d:%c",
-                                  col_format_to_string(cfmt->fmt),
-                                  cfmt->custom_field,
-                                  cfmt->custom_occurrence,
-                                  cfmt->resolved ? 'R' : 'U');
-    } else {
-      prefs_fmt = g_strdup(col_format_to_string(cfmt->fmt));
-    }
-    col_l = g_list_append(col_l, prefs_fmt);
-    if (!cfmt->visible) {
-      if (cols_hidden->len) {
-	     g_string_append (cols_hidden, ",");
-      }
-      g_string_append (cols_hidden, prefs_fmt);
-    }
-    clp = clp->next;
-  }
-  fprintf (arg->pf, "\n# Packet list hidden columns.\n");
-  fprintf (arg->pf, "# List all columns to hide in the packet list.\n");
-  if (strcmp(cols_hidden->str, pref->default_val.string) == 0)
-    fprintf(arg->pf, "#");
-  fprintf (arg->pf, "%s.%s: %s\n", prefix, pref->name, cols_hidden->str);
-  /* This frees the list of strings, but not the strings to which it
-     refers; they are free'ed in write_string_list(). */
-  g_string_free (cols_hidden, TRUE);
-  g_list_free(col_l);
+static const char * column_hidden_type_name_cb(void) {
+    return "Packet list hidden columns";
 }
+
+static char * column_hidden_type_description_cb(void) {
+    return g_strdup("List all columns to hide in the packet list.");
+}
+
+static char * column_hidden_to_str_cb(pref_t* pref, gboolean default_val) {
+    GString     *cols_hidden = g_string_new ("");
+    GList       *clp;
+    fmt_data    *cfmt;
+    pref_t  *format_pref;
+
+    if (default_val)
+        return g_strdup(pref->default_val.string);
+
+    format_pref = prefs_find_preference(gui_column_module, PRS_COL_FMT);
+    clp = (format_pref) ? *format_pref->varp.list : NULL;
+    while (clp) {
+        gchar *prefs_fmt;
+        cfmt = (fmt_data *) clp->data;
+        if ((cfmt->fmt == COL_CUSTOM) && (cfmt->custom_field)) {
+            prefs_fmt = g_strdup_printf("%s:%s:%d:%c",
+                    col_format_to_string(cfmt->fmt),
+                    cfmt->custom_field,
+                    cfmt->custom_occurrence,
+                    cfmt->resolved ? 'R' : 'U');
+        } else {
+            prefs_fmt = g_strdup(col_format_to_string(cfmt->fmt));
+        }
+        if (!cfmt->visible) {
+            if (cols_hidden->len) {
+                g_string_append (cols_hidden, ",");
+            }
+            g_string_append (cols_hidden, prefs_fmt);
+        }
+        clp = clp->next;
+    }
+
+    return g_string_free (cols_hidden, FALSE);
+}
+
+static gboolean column_hidden_is_default_cb(pref_t* pref) {
+    char *cur_hidden_str = column_hidden_to_str_cb(pref, FALSE);
+    gboolean is_default = g_strcmp0(cur_hidden_str, pref->default_val.string) == 0;
+
+    g_free(cur_hidden_str);
+    return is_default;
+}
+
 
 /* Number of columns "preference".  This is only used internally and is not written to the
  * preference file
@@ -1357,13 +1401,27 @@ static void column_num_reset_cb(pref_t* pref)
     *pref->varp.uint = pref->default_val.uint;
 }
 
-static prefs_set_pref_e column_num_set_cb(pref_t* pref _U_, gchar* value _U_, gboolean* changed _U_)
+static prefs_set_pref_e column_num_set_cb(pref_t* pref _U_, const gchar* value _U_, gboolean* changed _U_)
 {
     /* Don't write this to the preferences file */
     return PREFS_SET_OK;
 }
 
-static void column_num_write_cb(pref_t* pref _U_, write_pref_arg_t* arg _U_) {}
+static const char * column_num_type_name_cb(void) {
+    return NULL;
+}
+
+static char * column_num_type_description_cb(void) {
+    return g_strdup("");
+}
+
+static gboolean column_num_is_default_cb(pref_t* pref _U_) {
+    return TRUE;
+}
+
+static char * column_num_to_str_cb(pref_t* pref _U_, gboolean default_val _U_) {
+    return g_strdup("");
+}
 
 /*
  * Column format custom preference functions
@@ -1377,8 +1435,8 @@ static void column_format_init_cb(pref_t* pref, GList** value)
 
     pref->default_val.list = NULL;
     for (entry = *pref->varp.list; entry != NULL; entry = g_list_next(entry)) {
-        src_cfmt = entry->data;
-        dest_cfmt = (fmt_data *) g_malloc(sizeof(fmt_data));
+        src_cfmt = (fmt_data *)entry->data;
+        dest_cfmt = g_new(fmt_data,1);
         dest_cfmt->title = g_strdup(src_cfmt->title);
         dest_cfmt->fmt = src_cfmt->fmt;
         if (src_cfmt->custom_field) {
@@ -1410,8 +1468,8 @@ static void column_format_reset_cb(pref_t* pref)
     *pref->varp.list = NULL;
 
     for (entry = pref->default_val.list; entry != NULL; entry = g_list_next(entry)) {
-        src_cfmt = entry->data;
-        dest_cfmt = (fmt_data *) g_malloc(sizeof(fmt_data));
+        src_cfmt = (fmt_data *)entry->data;
+        dest_cfmt = g_new(fmt_data,1);
         dest_cfmt->title = g_strdup(src_cfmt->title);
         dest_cfmt->fmt = src_cfmt->fmt;
         if (src_cfmt->custom_field) {
@@ -1430,7 +1488,7 @@ static void column_format_reset_cb(pref_t* pref)
     column_num_reset_cb(col_num_pref);
 }
 
-static prefs_set_pref_e column_format_set_cb(pref_t* pref, gchar* value, gboolean* changed _U_)
+static prefs_set_pref_e column_format_set_cb(pref_t* pref, const gchar* value, gboolean* changed _U_)
 {
     GList    *col_l, *col_l_elt;
     fmt_data *cfmt;
@@ -1454,13 +1512,13 @@ static prefs_set_pref_e column_format_set_cb(pref_t* pref, gchar* value, gboolea
       col_l_elt = col_l_elt->next;
 
       /* Parse the format to see if it's valid.  */
-      if (!parse_column_format(&cfmt_check, col_l_elt->data)) {
+      if (!parse_column_format(&cfmt_check, (char *)col_l_elt->data)) {
         /* It's not a valid column format.  */
         prefs_clear_string_list(col_l);
         return PREFS_SET_SYNTAX_ERR;
       }
       if (cfmt_check.fmt != COL_CUSTOM) {
-        /* Some predefined columns have been migrated to use custom colums.
+        /* Some predefined columns have been migrated to use custom columns.
          * We'll convert these silently here */
         try_convert_to_custom_column(&col_l_elt->data);
       } else {
@@ -1481,10 +1539,10 @@ static prefs_set_pref_e column_format_set_cb(pref_t* pref, gchar* value, gboolea
     *col_num_pref->varp.uint = llen / 2;
     col_l_elt = g_list_first(col_l);
     while(col_l_elt) {
-      cfmt = (fmt_data *) g_malloc(sizeof(fmt_data));
-      cfmt->title    = g_strdup(col_l_elt->data);
+      cfmt           = g_new(fmt_data,1);
+      cfmt->title    = g_strdup((gchar *)col_l_elt->data);
       col_l_elt      = col_l_elt->next;
-      parse_column_format(cfmt, col_l_elt->data);
+      parse_column_format(cfmt, (char *)col_l_elt->data);
       cfmt->visible   = prefs_is_column_visible((gchar*)(*hidden_pref->varp.string), cfmt);
       col_l_elt      = col_l_elt->next;
       *pref->varp.list = g_list_append(*pref->varp.list, cfmt);
@@ -1495,68 +1553,81 @@ static prefs_set_pref_e column_format_set_cb(pref_t* pref, gchar* value, gboolea
     return PREFS_SET_OK;
 }
 
-static void column_format_write_cb(pref_t* pref, write_pref_arg_t* arg)
-{
-  GList       *clp = *pref->varp.list, *col_l,
-              *pref_col = g_list_first(clp),
-              *def_col = g_list_first(pref->default_val.list);
-  fmt_data    *cfmt, *def_cfmt;
-  gchar       *prefs_fmt;
-  gboolean    is_default = TRUE;
-  pref_t      *col_num_pref;
-  const char *prefix = (arg->module->name != NULL) ? arg->module->name : arg->module->parent->name;
 
-  /* See if the column data has changed from the default */
-  col_num_pref = prefs_find_preference(gui_column_module, PRS_COL_NUM);
-  if (*col_num_pref->varp.uint != col_num_pref->default_val.uint) {
-     is_default = FALSE;
-  } else {
-      while (pref_col && def_col) {
-          cfmt = (fmt_data *) pref_col->data;
-          def_cfmt = (fmt_data *) def_col->data;
-          if ((strcmp(cfmt->title, def_cfmt->title) != 0) ||
-              (cfmt->fmt != def_cfmt->fmt) ||
-              (((cfmt->fmt == COL_CUSTOM) && (cfmt->custom_field)) &&
-                 ((strcmp(cfmt->custom_field, def_cfmt->custom_field) != 0) ||
-                 (cfmt->resolved != def_cfmt->resolved)))) {
-             is_default = FALSE;
-             break;
-          }
-
-          pref_col = pref_col->next;
-          def_col = def_col->next;
-      }
-  }
-
-  /* Now write the current columns */
-  col_l = NULL;
-  while (clp) {
-    cfmt = (fmt_data *) clp->data;
-    col_l = g_list_append(col_l, g_strdup(cfmt->title));
-    if ((cfmt->fmt == COL_CUSTOM) && (cfmt->custom_field)) {
-      prefs_fmt = g_strdup_printf("%s:%s:%d:%c",
-                                  col_format_to_string(cfmt->fmt),
-                                  cfmt->custom_field,
-                                  cfmt->custom_occurrence,
-                                  cfmt->resolved ? 'R' : 'U');
-    } else {
-      prefs_fmt = g_strdup(col_format_to_string(cfmt->fmt));
-    }
-    col_l = g_list_append(col_l, prefs_fmt);
-    clp = clp->next;
-  }
-
-  fprintf (arg->pf, "\n# Packet list column format.\n");
-  fprintf (arg->pf, "# Each pair of strings consists of a column title and its format.\n");
-  if (is_default)
-     fprintf(arg->pf, "#");
-  fprintf(arg->pf, "%s.%s: ", prefix, pref->name);
-  write_string_list(arg->pf, col_l, is_default);
-  fprintf(arg->pf, "\n");
-  /* This frees the list of strings, but not the strings to which it
-     refers; they are free'ed in write_string_list(). */
-  g_list_free(col_l);
+static const char * column_format_type_name_cb(void) {
+    return "Packet list column format";
 }
+
+static char * column_format_type_description_cb(void) {
+    return g_strdup("Each pair of strings consists of a column title and its format");
+}
+
+static gboolean column_format_is_default_cb(pref_t* pref) {
+    GList       *clp = *pref->varp.list,
+                *pref_col = g_list_first(clp),
+                *def_col = g_list_first(pref->default_val.list);
+    fmt_data    *cfmt, *def_cfmt;
+    gboolean    is_default = TRUE;
+    pref_t      *col_num_pref;
+
+    /* See if the column data has changed from the default */
+    col_num_pref = prefs_find_preference(gui_column_module, PRS_COL_NUM);
+    if (col_num_pref && *col_num_pref->varp.uint != col_num_pref->default_val.uint) {
+        is_default = FALSE;
+    } else {
+        while (pref_col && def_col) {
+            cfmt = (fmt_data *) pref_col->data;
+            def_cfmt = (fmt_data *) def_col->data;
+            if ((g_strcmp0(cfmt->title, def_cfmt->title) != 0) ||
+                    (cfmt->fmt != def_cfmt->fmt) ||
+                    (((cfmt->fmt == COL_CUSTOM) && (cfmt->custom_field)) &&
+                     ((g_strcmp0(cfmt->custom_field, def_cfmt->custom_field) != 0) ||
+                      (cfmt->resolved != def_cfmt->resolved)))) {
+                is_default = FALSE;
+                break;
+            }
+
+            pref_col = pref_col->next;
+            def_col = def_col->next;
+        }
+    }
+
+    return is_default;
+}
+
+static char * column_format_to_str_cb(pref_t* pref, gboolean default_val) {
+    GList       *pref_l = default_val ? pref->default_val.list : *pref->varp.list;
+    GList       *clp = g_list_first(pref_l);
+    GList       *col_l;
+    fmt_data    *cfmt;
+    gchar       *prefs_fmt;
+    char        *column_format_str;
+
+    col_l = NULL;
+    while (clp) {
+        cfmt = (fmt_data *) clp->data;
+        col_l = g_list_append(col_l, g_strdup(cfmt->title));
+        if ((cfmt->fmt == COL_CUSTOM) && (cfmt->custom_field)) {
+            prefs_fmt = g_strdup_printf("%s:%s:%d:%c",
+                    col_format_to_string(cfmt->fmt),
+                    cfmt->custom_field,
+                    cfmt->custom_occurrence,
+                    cfmt->resolved ? 'R' : 'U');
+        } else {
+            prefs_fmt = g_strdup(col_format_to_string(cfmt->fmt));
+        }
+        col_l = g_list_append(col_l, prefs_fmt);
+        clp = clp->next;
+    }
+
+    column_format_str = join_string_list(col_l);
+
+    /* This frees the list of strings, but not the strings to which it
+       refers; they are free'ed in join_string_list(). */
+    g_list_free(col_l);
+    return column_format_str;
+}
+
 
 /*
  * Capture column custom preference functions
@@ -1584,7 +1655,7 @@ static void capture_column_free_cb(pref_t* pref)
     gchar    *col_name;
 
     while (list != NULL) {
-        col_name = list->data;
+        col_name = (gchar *)list->data;
 
         g_free(col_name);
         list = g_list_remove_link(list, list);
@@ -1593,7 +1664,7 @@ static void capture_column_free_cb(pref_t* pref)
 
     list = pref->default_val.list;
     while (list != NULL) {
-        col_name = list->data;
+        col_name = (gchar *)list->data;
 
         g_free(col_name);
         list = g_list_remove_link(list, list);
@@ -1609,7 +1680,7 @@ static void capture_column_reset_cb(pref_t* pref)
 
     /* Clear the list before it's copied */
     while (list_copy != NULL) {
-        col_name = list_copy->data;
+        col_name = (gchar *)list_copy->data;
 
         g_free(col_name);
         list_copy = g_list_remove_link(list_copy, list_copy);
@@ -1622,7 +1693,7 @@ static void capture_column_reset_cb(pref_t* pref)
     }
 }
 
-static prefs_set_pref_e capture_column_set_cb(pref_t* pref, gchar* value, gboolean* changed _U_)
+static prefs_set_pref_e capture_column_set_cb(pref_t* pref, const gchar* value, gboolean* changed _U_)
 {
     GList    *col_l, *col_l_elt;
     gchar    *col_name;
@@ -1644,52 +1715,63 @@ static prefs_set_pref_e capture_column_set_cb(pref_t* pref, gchar* value, gboole
     return PREFS_SET_OK;
 }
 
-static void capture_column_write_cb(pref_t* pref, write_pref_arg_t* arg)
-{
-  GList       *clp = *pref->varp.list,
-              *col_l = NULL,
-              *pref_col = g_list_first(clp),
-              *def_col = g_list_first(pref->default_val.list);
-  gchar *col, *def_col_str;
-  gboolean is_default = TRUE;
-  const char *prefix = (arg->module->name != NULL) ? arg->module->name : arg->module->parent->name;
 
-  /* See if the column data has changed from the default */
-  while (pref_col && def_col) {
-      col = (gchar *)pref_col->data;
-      def_col_str = (gchar *) def_col->data;
-      if (strcmp(col, def_col_str) != 0) {
-         is_default = FALSE;
-         break;
-      }
+static const char * capture_column_type_name_cb(void) {
+    return "Column list";
+}
 
-      pref_col = pref_col->next;
-      def_col = def_col->next;
-  }
+static char * capture_column_type_description_cb(void) {
+    return g_strdup_printf(
+        "List of columns to be displayed in the capture options dialog.\n"
+        "Possible values: INTERFACE,LINK,PMODE,SNAPLEN,MONITOR,BUFFER,FILTER\n");
+}
 
-  /* Ensure the same column count */
-  if (((pref_col == NULL) && (def_col != NULL)) ||
-      ((pref_col != NULL) && (def_col == NULL)))
-     is_default = FALSE;
+static gboolean capture_column_is_default_cb(pref_t* pref) {
+    GList       *clp = *pref->varp.list,
+                *pref_col = g_list_first(clp),
+                *def_col = g_list_first(pref->default_val.list);
+    gchar *col, *def_col_str;
+    gboolean is_default = TRUE;
 
-  while (clp) {
-    col = (gchar *) clp->data;
-    col_l = g_list_append(col_l, g_strdup(col));
-    clp = clp->next;
-  }
+    /* See if the column data has changed from the default */
+    while (pref_col && def_col) {
+        col = (gchar *)pref_col->data;
+        def_col_str = (gchar *) def_col->data;
+        if (strcmp(col, def_col_str) != 0) {
+            is_default = FALSE;
+            break;
+        }
 
-  fprintf(arg->pf, "\n# Capture options dialog column list.\n");
-  fprintf(arg->pf, "# List of columns to be displayed.\n");
-  fprintf(arg->pf, "# Possible values: INTERFACE,LINK,PMODE,SNAPLEN,MONITOR,BUFFER,FILTER\n");
-  if (is_default)
-     fprintf(arg->pf, "#");
-  fprintf(arg->pf, "%s.%s: ", prefix, pref->name);
-  write_string_list(arg->pf, col_l, is_default);
-  fprintf(arg->pf, "\n");
-  /* This frees the list of strings, but not the strings to which it
-     refers; they are free'ed in write_string_list(). */
-  g_list_free(col_l);
+        pref_col = pref_col->next;
+        def_col = def_col->next;
+    }
 
+    /* Ensure the same column count */
+    if (((pref_col == NULL) && (def_col != NULL)) ||
+            ((pref_col != NULL) && (def_col == NULL)))
+        is_default = FALSE;
+
+    return is_default;
+}
+
+static char * capture_column_to_str_cb(pref_t* pref, gboolean default_val) {
+    GList       *pref_l = default_val ? pref->default_val.list : *pref->varp.list;
+    GList       *clp = g_list_first(pref_l);
+    GList       *col_l = NULL;
+    gchar       *col, *capture_column_str;
+
+
+    while (clp) {
+        col = (gchar *) clp->data;
+        col_l = g_list_append(col_l, g_strdup(col));
+        clp = clp->next;
+    }
+
+    capture_column_str = join_string_list(col_l);
+    /* This frees the list of strings, but not the strings to which it
+       refers; they are free'ed in write_string_list(). */
+    g_list_free(col_l);
+    return capture_column_str;
 }
 
 
@@ -1698,6 +1780,8 @@ static void colorized_frame_free_cb(pref_t* pref)
     g_free((char *)*pref->varp.string);
     *pref->varp.string = NULL;
     g_free(pref->default_val.string);
+    pref->default_val.string = NULL;
+
 }
 
 static void colorized_frame_reset_cb(pref_t* pref)
@@ -1706,7 +1790,7 @@ static void colorized_frame_reset_cb(pref_t* pref)
     *pref->varp.string = g_strdup(pref->default_val.string);
 }
 
-static prefs_set_pref_e colorized_frame_set_cb(pref_t* pref, gchar* value, gboolean* changed)
+static prefs_set_pref_e colorized_frame_set_cb(pref_t* pref, const gchar* value, gboolean* changed)
 {
     if (strcmp(*pref->varp.string, value) != 0) {
         *changed = TRUE;
@@ -1717,8 +1801,7 @@ static prefs_set_pref_e colorized_frame_set_cb(pref_t* pref, gchar* value, gbool
     return PREFS_SET_OK;
 }
 
-static void colorized_frame_write_cb(pref_t* pref _U_, write_pref_arg_t* arg _U_)
-{
+static const char * colorized_frame_type_name_cb(void) {
    /* Don't write the colors of the 10 easy-access-colorfilters to the preferences
     * file until the colors can be changed in the GUI. Currently this is not really
     * possible since the STOCK-icons for these colors are hardcoded.
@@ -1728,6 +1811,19 @@ static void colorized_frame_write_cb(pref_t* pref _U_, write_pref_arg_t* arg _U_
     *     the preferences.
     *
     */
+    return NULL;
+}
+
+static char * colorized_frame_type_description_cb(void) {
+    return g_strdup("");
+}
+
+static gboolean colorized_frame_is_default_cb(pref_t* pref _U_) {
+    return TRUE;
+}
+
+static char * colorized_frame_to_str_cb(pref_t* pref _U_, gboolean default_val _U_) {
+    return g_strdup("");
 }
 
 /*
@@ -1763,20 +1859,9 @@ prefs_register_modules(void)
     gui_module = prefs_register_module(NULL, "gui", "User Interface",
         "User Interface", &gui_callback, FALSE);
 
-    prefs_register_bool_preference(gui_module, "scrollbar_on_right",
-                                   "Vertical scrollbars on right side",
-                                   "Vertical scrollbars should be on right side?",
-                                   &prefs.gui_scrollbar_on_right);
-
-    prefs_register_bool_preference(gui_module, "packet_list_sel_browse",
-                                   "Packet-list selection bar browse",
-                                   "Packet-list selection bar can be used to browse w/o selecting?",
-                                   &prefs.gui_plist_sel_browse);
-
-    prefs_register_bool_preference(gui_module, "protocol_tree_sel_browse",
-                                   "Protocol-tree selection bar browse",
-                                   "Protocol-tree selection bar can be used to browse w/o selecting?",
-                                   &prefs.gui_ptree_sel_browse);
+    prefs_register_obsolete_preference(gui_module, "scrollbar_on_right");
+    prefs_register_obsolete_preference(gui_module, "packet_list_sel_browse");
+    prefs_register_obsolete_preference(gui_module, "protocol_tree_sel_browse");
 
     prefs_register_bool_preference(gui_module, "tree_view_altern_colors",
                                    "Alternating colors in TreeViews",
@@ -1813,14 +1898,20 @@ prefs_register_modules(void)
     custom_cbs.free_cb = column_hidden_free_cb;
     custom_cbs.reset_cb = column_hidden_reset_cb;
     custom_cbs.set_cb = column_hidden_set_cb;
-    custom_cbs.write_cb = column_hidden_write_cb;
+    custom_cbs.type_name_cb = column_hidden_type_name_cb;
+    custom_cbs.type_description_cb = column_hidden_type_description_cb;
+    custom_cbs.is_default_cb = column_hidden_is_default_cb;
+    custom_cbs.to_str_cb = column_hidden_to_str_cb;
     prefs_register_string_custom_preference(gui_column_module, PRS_COL_HIDDEN, "Packet list hidden columns",
         "List all columns to hide in the packet list", &custom_cbs, (const char **)&cols_hidden_list);
 
     custom_cbs.free_cb = column_format_free_cb;
     custom_cbs.reset_cb = column_format_reset_cb;
     custom_cbs.set_cb = column_format_set_cb;
-    custom_cbs.write_cb = column_format_write_cb;
+    custom_cbs.type_name_cb = column_format_type_name_cb;
+    custom_cbs.type_description_cb = column_format_type_description_cb;
+    custom_cbs.is_default_cb = column_format_is_default_cb;
+    custom_cbs.to_str_cb = column_format_to_str_cb;
 
     prefs_register_list_custom_preference(gui_column_module, PRS_COL_FMT, "Packet list column format",
         "Each pair of strings consists of a column title and its format", &custom_cbs,
@@ -1832,7 +1923,10 @@ prefs_register_modules(void)
     custom_cbs.free_cb = custom_pref_no_cb;
     custom_cbs.reset_cb = column_num_reset_cb;
     custom_cbs.set_cb = column_num_set_cb;
-    custom_cbs.write_cb = column_num_write_cb;
+    custom_cbs.type_name_cb = column_num_type_name_cb;
+    custom_cbs.type_description_cb = column_num_type_description_cb;
+    custom_cbs.is_default_cb = column_num_is_default_cb;
+    custom_cbs.to_str_cb = column_num_to_str_cb;
     prefs_register_uint_custom_preference(gui_column_module, PRS_COL_NUM, "Number of columns",
         "Number of columns in col_list", &custom_cbs, &prefs.num_cols);
 
@@ -1842,7 +1936,10 @@ prefs_register_modules(void)
     prefs_register_obsolete_preference(gui_font_module, "font_name");
 
     prefs_register_string_preference(gui_font_module, "gtk2.font_name", "Font name",
-        "Font name for packet list, protocol tree, and hex dump panes.", (const char**)(&prefs.gui_font_name));
+        "Font name for packet list, protocol tree, and hex dump panes. (GTK+)", (const char**)(&prefs.gui_gtk2_font_name));
+
+    prefs_register_string_preference(gui_font_module, "qt.font_name", "Font name",
+        "Font name for packet list, protocol tree, and hex dump panes. (Qt)", (const char**)(&prefs.gui_qt_font_name));
 
     /* User Interface : Colors */
     gui_color_module = prefs_register_subtree(gui_module, "Colors", "Colors", NULL);
@@ -1874,14 +1971,20 @@ prefs_register_modules(void)
     custom_cbs.free_cb = colorized_frame_free_cb;
     custom_cbs.reset_cb = colorized_frame_reset_cb;
     custom_cbs.set_cb = colorized_frame_set_cb;
-    custom_cbs.write_cb = colorized_frame_write_cb;
+    custom_cbs.type_name_cb = colorized_frame_type_name_cb;
+    custom_cbs.type_description_cb = colorized_frame_type_description_cb;
+    custom_cbs.is_default_cb = colorized_frame_is_default_cb;
+    custom_cbs.to_str_cb = colorized_frame_to_str_cb;
     prefs_register_string_custom_preference(gui_column_module, "colorized_frame.fg", "Colorized Foreground",
         "Filter Colorized Foreground", &custom_cbs, (const char **)&prefs.gui_colorized_fg);
 
     custom_cbs.free_cb = colorized_frame_free_cb;
     custom_cbs.reset_cb = colorized_frame_reset_cb;
     custom_cbs.set_cb = colorized_frame_set_cb;
-    custom_cbs.write_cb = colorized_frame_write_cb;
+    custom_cbs.type_name_cb = colorized_frame_type_name_cb;
+    custom_cbs.type_description_cb = colorized_frame_type_description_cb;
+    custom_cbs.is_default_cb = colorized_frame_is_default_cb;
+    custom_cbs.to_str_cb = colorized_frame_to_str_cb;
     prefs_register_string_custom_preference(gui_column_module, "colorized_frame.bg", "Colorized Background",
         "Filter Colorized Background", &custom_cbs, (const char **)&prefs.gui_colorized_bg);
 
@@ -1907,7 +2010,7 @@ prefs_register_modules(void)
                                    10,
                                    &prefs.gui_recent_df_entries_max);
 
-    prefs_register_string_preference(gui_module, "fileopen.dir", "Start Directory",
+    prefs_register_directory_preference(gui_module, "fileopen.dir", "Start Directory",
         "Directory to start in when opening File Open dialog.", (const char**)(&prefs.gui_fileopen_dir));
 
     prefs_register_obsolete_preference(gui_module, "fileopen.remembered_dir");
@@ -1972,6 +2075,22 @@ prefs_register_modules(void)
     prefs_register_string_preference(gui_module, "webbrowser", "The path to the webbrowser",
         "The path to the webbrowser (Ex: mozilla)", (const char**)(&prefs.gui_webbrowser));
 
+    prefs_register_bool_preference(gui_module, "update.enabled",
+                                   "Check for updates",
+                                   "Check for updates (Windows only)",
+                                   &prefs.gui_update_enabled);
+
+    prefs_register_enum_preference(gui_module, "update.channel",
+                       "Update channel",
+                       "The type of update to fetch. You should probably leave this set to UPDATE_CHANNEL_STABLE.",
+                       (gint*)(void*)(&prefs.gui_update_channel), gui_update_channel, FALSE);
+
+    prefs_register_uint_preference(gui_module, "update.interval",
+                                   "How often to check for software updates",
+                                   "How often to check for software updates in seconds",
+                                   10,
+                                   &prefs.gui_update_interval);
+
     prefs_register_string_preference(gui_module, "window_title", "Custom window title",
         "Custom window title. (Appended to existing titles.)", (const char**)(&prefs.gui_window_title));
 
@@ -2030,7 +2149,10 @@ prefs_register_modules(void)
     custom_cbs.free_cb = custom_pref_no_cb;
     custom_cbs.reset_cb = console_log_level_reset_cb;
     custom_cbs.set_cb = console_log_level_set_cb;
-    custom_cbs.write_cb = console_log_level_write_cb;
+    custom_cbs.type_name_cb = console_log_level_type_name_cb;
+    custom_cbs.type_description_cb = console_log_level_type_description_cb;
+    custom_cbs.is_default_cb = console_log_level_is_default_cb;
+    custom_cbs.to_str_cb = console_log_level_to_str_cb;
     prefs_register_uint_custom_preference(console_module, "log.level", "logging level",
         "A bitmask of glib log levels", &custom_cbs, &prefs.console_log_level);
 
@@ -2061,6 +2183,20 @@ prefs_register_modules(void)
         "By default, capture in monitor mode on interface? (Ex: eth0,eth3,...)",
         (const char**)(&prefs.capture_devices_monitor_mode));
 
+#if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
+    prefs_register_string_preference(capture_module, "devices_buffersize", "Interface buffer size",
+        "Interface buffer size (Ex: en0(1),en1(143),...)",
+        (const char**)(&prefs.capture_devices_buffersize));
+#endif
+
+    prefs_register_string_preference(capture_module, "devices_snaplen", "Interface snap length",
+        "Interface snap length (Ex: en0(65535),en1(1430),...)",
+        (const char**)(&prefs.capture_devices_snaplen));
+
+    prefs_register_string_preference(capture_module, "devices_pmode", "Interface promiscuous mode",
+        "Interface promiscuous mode (Ex: en0(0),en1(1),...)",
+        (const char**)(&prefs.capture_devices_pmode));
+
     prefs_register_bool_preference(capture_module, "prom_mode", "Capture in promiscuous mode",
         "Capture in promiscuous mode?", &prefs.capture_prom_mode);
 
@@ -2081,7 +2217,10 @@ prefs_register_modules(void)
     custom_cbs.free_cb = capture_column_free_cb;
     custom_cbs.reset_cb = capture_column_reset_cb;
     custom_cbs.set_cb = capture_column_set_cb;
-    custom_cbs.write_cb = capture_column_write_cb;
+    custom_cbs.type_name_cb = capture_column_type_name_cb;
+    custom_cbs.type_description_cb = capture_column_type_description_cb;
+    custom_cbs.is_default_cb = capture_column_is_default_cb;
+    custom_cbs.to_str_cb = capture_column_to_str_cb;
     prefs_register_list_custom_preference(capture_module, "columns", "Capture options dialog column list",
         "List of columns to be displayed", &custom_cbs, capture_column_init_cb, &prefs.capture_columns);
 
@@ -2160,7 +2299,7 @@ prefs_register_modules(void)
 /* Parse through a list of comma-separated, possibly quoted strings.
    Return a list of the string data. */
 GList *
-prefs_get_string_list(gchar *str)
+prefs_get_string_list(const gchar *str)
 {
   enum { PRE_STRING, IN_QUOT, NOT_IN_QUOT };
 
@@ -2249,64 +2388,38 @@ prefs_get_string_list(gchar *str)
   return(sl);
 }
 
-static void
-write_string_list(FILE *f, GList *sl, gboolean is_default)
+static char *
+join_string_list(GList *sl)
 {
-  char          pref_str[8];
-  GList        *clp = g_list_first(sl);
-  gchar        *str;
-  int           cur_len = 0;
-  gchar        *quoted_str;
-  size_t        str_len;
-  gchar        *strp, *quoted_strp, c;
-  guint         item_count = 0;
-  gboolean      first = TRUE;
+    GString      *joined_str = g_string_new("");
+    GList        *cur, *first;
+    gchar        *str;
+    gchar        *quoted_str;
+    guint         item_count = 0;
 
-  while (clp) {
-    item_count++;
-    str = clp->data;
+    cur = first = g_list_first(sl);
+    while (cur) {
+        item_count++;
+        str = (gchar *)cur->data;
 
-    /* Allocate a buffer big enough to hold the entire string, with each
-       character quoted (that's the worst case).  */
-    str_len = strlen(str);
-    quoted_str = g_malloc(str_len*2 + 1);
-
-    /* Now quote any " or \ characters in it. */
-    strp = str;
-    quoted_strp = quoted_str;
-    while ((c = *strp++) != '\0') {
-      if (c == '"' || c == '\\') {
-        /* It has to be backslash-quoted.  */
-        *quoted_strp++ = '\\';
-      }
-      *quoted_strp++ = c;
-    }
-    *quoted_strp = '\0';
-
-    {
-      cur_len = 0;
-      if (!first) {
-        pref_str[cur_len] = ','; cur_len++;
-      }
-
-      if (item_count % 2) {
-        /* Wrap the line.  */
-        pref_str[cur_len] = '\n'; cur_len++;
-        if (is_default) {
-          pref_str[cur_len] = '#'; cur_len++;
+        if (cur != first) {
+            g_string_append_c(joined_str, ',');
         }
-        pref_str[cur_len] = '\t'; cur_len++;
-      } else {
-        pref_str[cur_len] = ' '; cur_len++;
-      }
-      pref_str[cur_len] = '\0';
-      fprintf(f, "%s\"%s\"", pref_str, quoted_str);
-      first = FALSE;
+
+        if (item_count % 2) {
+            /* Wrap the line.  */
+            g_string_append(joined_str, "\n\t");
+        } else {
+            g_string_append_c(joined_str, ' ');
+        }
+
+        quoted_str = g_strescape(str, "");
+        g_string_append_printf(joined_str, "\"%s\"", quoted_str);
+        g_free(quoted_str);
+
+        cur = cur->next;
     }
-    g_free(quoted_str);
-    g_free(str);
-    clp = clp->next;
-  }
+    return g_string_free(joined_str, FALSE);
 }
 
 void
@@ -2503,9 +2616,6 @@ pre_init_prefs(void)
   prefs.pr_file    = "wireshark.out";
   prefs.pr_cmd     = "lpr";
 
-  prefs.gui_scrollbar_on_right = TRUE;
-  prefs.gui_plist_sel_browse = FALSE;
-  prefs.gui_ptree_sel_browse = FALSE;
   prefs.gui_altern_colors = FALSE;
   prefs.gui_expert_composite_eyecandy = FALSE;
   prefs.gui_ptree_line_style = 0;
@@ -2514,66 +2624,22 @@ pre_init_prefs(void)
   prefs.filter_toolbar_show_in_statusbar = FALSE;
   prefs.gui_toolbar_main_style = TB_STYLE_ICONS;
   prefs.gui_toolbar_filter_style = TB_STYLE_TEXT;
+  /* This can be g_freed, so it must be g_mallocated. */
 #ifdef _WIN32
-  prefs.gui_font_name = "Lucida Console 10";
+  prefs.gui_gtk2_font_name              = g_strdup("Lucida Console 10");
 #else
-  /*
-   * XXX - for now, we make the initial font name a pattern that matches
-   * only ISO 8859/1 fonts, so that we don't match 2-byte fonts such
-   * as ISO 10646 fonts.
-   *
-   * Users in locales using other one-byte fonts will have to choose
-   * a different font from the preferences dialog - or put the font
-   * selection in the global preferences file to make that font the
-   * default for all users who don't explicitly specify a different
-   * font.
-   *
-   * Making this a font set rather than a font has two problems:
-   *
-   *	1) as far as I know, you can't select font sets with the
-   *	   font selection dialog;
-   *
-   *  2) if you use a font set, the text to be drawn must be a
-   *	   multi-byte string in the appropriate locale, but
-   *	   Wireshark does *NOT* guarantee that's the case - in
-   *	   the hex-dump window, each character in the text portion
-   *	   of the display must be a *single* byte, and in the
-   *	   packet-list and protocol-tree windows, text extracted
-   *	   from the packet is not necessarily in the right format.
-   *
-   * "Doing this right" may, for the packet-list and protocol-tree
-   * windows, require that dissectors know what the locale is
-   * *AND* know what locale and text representation is used in
-   * the packets they're dissecting, and may be impossible in
-   * the hex-dump window (except by punting and displaying only
-   * ASCII characters).
-   *
-   * GTK+ 2.0 may simplify part of the problem, as it will, as I
-   * understand it, use UTF-8-encoded Unicode as its internal
-   * character set; however, we'd still have to know whatever
-   * character set and encoding is used in the packet (which
-   * may differ for different protocols, e.g. SMB might use
-   * PC code pages for some strings and Unicode for others, whilst
-   * NFS might use some UNIX character set encoding, e.g. ISO 8859/x,
-   * or one of the EUC character sets for Asian languages, or one
-   * of the other multi-byte character sets, or UTF-8, or...).
-   *
-   * I.e., as far as I can tell, "internationalizing" the packet-list,
-   * protocol-tree, and hex-dump windows involves a lot more than, say,
-   * just using font sets rather than fonts.
-   */
-  /* XXX - the above comment was about the GTK1 font stuff, just remove this comment now */
-  /* XXX- is this the correct default font name for GTK2 none win32? */
-  prefs.gui_font_name = "Monospace 10";
+  prefs.gui_gtk2_font_name              = g_strdup("Monospace 10");
 #endif
+  /* We try to find the best font in the Qt code */
+  prefs.gui_qt_font_name              = g_strdup("");
   prefs.gui_marked_fg.pixel        =     65535;
   prefs.gui_marked_fg.red          =     65535;
   prefs.gui_marked_fg.green        =     65535;
   prefs.gui_marked_fg.blue         =     65535;
   prefs.gui_marked_bg.pixel        =         0;
   prefs.gui_marked_bg.red          =         0;
-  prefs.gui_marked_bg.green        =         0;
-  prefs.gui_marked_bg.blue         =         0;
+  prefs.gui_marked_bg.green        =      8224;
+  prefs.gui_marked_bg.blue         =     10794;
   prefs.gui_ignored_fg.pixel       =     32767;
   prefs.gui_ignored_fg.red         =     32767;
   prefs.gui_ignored_fg.green       =     32767;
@@ -2613,8 +2679,13 @@ pre_init_prefs(void)
   prefs.gui_ask_unsaved            = TRUE;
   prefs.gui_find_wrap              = TRUE;
   prefs.gui_use_pref_save          = FALSE;
-  prefs.gui_webbrowser             = HTML_VIEWER " %s";
-  prefs.gui_window_title           = "";
+  prefs.gui_update_enabled         = TRUE;
+  prefs.gui_update_channel         = UPDATE_CHANNEL_STABLE;
+  prefs.gui_update_interval        = 60*60*24; /* Seconds */
+  /* This can be g_freed, so it must be g_mallocated. */
+  prefs.gui_webbrowser             = g_strdup(HTML_VIEWER " %s");
+  /* This can be g_freed, so it must be g_mallocated. */
+  prefs.gui_window_title           = g_strdup("");
   prefs.gui_start_title            = "The World's Most Popular Network Protocol Analyzer";
   prefs.gui_version_placement      = version_both;
   prefs.gui_auto_scroll_on_expand  = FALSE;
@@ -2626,7 +2697,7 @@ pre_init_prefs(void)
 
   prefs.col_list = NULL;
   for (i = 0; i < DEF_NUM_COLS; i++) {
-    cfmt = (fmt_data *) g_malloc(sizeof(fmt_data));
+    cfmt = g_new(fmt_data,1);
     cfmt->title = g_strdup(col_fmt[i * 2]);
     parse_column_format(cfmt, col_fmt[(i * 2) + 1]);
     cfmt->visible = TRUE;
@@ -2670,9 +2741,9 @@ pre_init_prefs(void)
  * Reset a single dissector preference.
  */
 static void
-reset_pref(gpointer data, gpointer user_data _U_)
+reset_pref(pref_t *pref)
 {
-    pref_t *pref = data;
+    if (!pref) return;
 
     switch (pref->type) {
 
@@ -2697,6 +2768,7 @@ reset_pref(gpointer data, gpointer user_data _U_)
 
     case PREF_STRING:
     case PREF_FILENAME:
+    case PREF_DIRNAME:
         g_free((void *)*pref->varp.string);
         *pref->varp.string = g_strdup(pref->default_val.string);
         break;
@@ -2712,7 +2784,7 @@ reset_pref(gpointer data, gpointer user_data _U_)
         break;
 
     case PREF_COLOR:
-        *pref->varp.color = pref->default_val.color;
+        *pref->varp.colorp = pref->default_val.color;
         break;
 
     case PREF_CUSTOM:
@@ -2730,6 +2802,13 @@ reset_pref(gpointer data, gpointer user_data _U_)
     }
 }
 
+static void
+reset_pref_cb(gpointer data, gpointer user_data _U_)
+{
+    pref_t *pref = (pref_t *) data;
+    reset_pref(pref);
+}
+
 typedef struct {
     module_t *module;
 } reset_pref_arg_t;
@@ -2742,8 +2821,8 @@ reset_module_prefs(void *value, void *data _U_)
 {
     reset_pref_arg_t arg;
 
-    arg.module = value;
-    g_list_foreach(arg.module->prefs, reset_pref, &arg);
+    arg.module = (module_t *)value;
+    g_list_foreach(arg.module->prefs, reset_pref_cb, &arg);
     return FALSE;
 }
 
@@ -2860,7 +2939,7 @@ read_prefs(int *gpf_errno_return, int *gpf_read_errno_return,
   }
 
   /* Construct the pathname of the user's preferences file. */
-  pf_path = get_persconffile_path(PF_NAME, TRUE, FALSE);
+  pf_path = get_persconffile_path(PF_NAME, TRUE);
 
   /* Read the user's preferences file, if it exists. */
   *pf_path_return = NULL;
@@ -2930,10 +3009,8 @@ read_prefs_file(const char *pf_path, FILE *pf,
         if (isalnum(got_c)) {
           if (cur_var->len > 0) {
             if (got_val) {
-              /*  Convert the string to a range.  Since we're reading the
-               *  preferences file, silently lower values in excess of the
-               *  range's maximum.
-               */
+              /* Call the routine to set the preference; it will parse
+                 the value as appropriate. */
               switch (pref_set_pair_fct(cur_var->str, cur_val->str, private_data, FALSE)) {
 
               case PREFS_SET_OK:
@@ -2944,8 +3021,13 @@ read_prefs_file(const char *pf_path, FILE *pf,
                 break;
 
               case PREFS_SET_NO_SUCH_PREF:
-                g_warning ("%s line %d: No such preference \"%s\" %s", pf_path,
-                                pline, cur_var->str, hint);
+                /*
+                 * If "print.command" silently ignore it because it's valid
+                 * on non-Win32 platforms.
+                 */
+                if (strcmp(cur_var->str, "print.command") != 0)
+                    g_warning ("%s line %d: No such preference \"%s\" %s",
+                               pf_path, pline, cur_var->str, hint);
                 break;
 
               case PREFS_SET_OBSOLETE:
@@ -2976,8 +3058,13 @@ read_prefs_file(const char *pf_path, FILE *pf,
         if (got_c != ':') {
           g_string_append_c(cur_var, (gchar) got_c);
         } else {
+          /* This is a colon (':') */
           state   = PRE_VAL;
           g_string_truncate(cur_val, 0);
+          /*
+           * Set got_val to TRUE to accommodate prefs such as
+           * "gui.fileopen.dir" that do not require a value.
+           */
           got_val = TRUE;
         }
         break;
@@ -3282,7 +3369,7 @@ prefs_capture_options_dialog_column_is_visible(const gchar *column)
 #define BLUE_COMPONENT(x)  (guint16) ( (((x)        & 0xff) * 65535 / 255))
 
 char
-string_to_name_resolve(char *string, e_addr_resolve *name_resolve)
+string_to_name_resolve(const char *string, e_addr_resolve *name_resolve)
 {
   char c;
 
@@ -3321,7 +3408,7 @@ try_convert_to_custom_column(gpointer *el_data)
     /* Array of columns that have been migrated to custom columns */
     struct {
         gint el;
-        gchar *col_expr;
+        const gchar *col_expr;
     } migrated_columns[] = {
         { COL_COS_VALUE, "vlan.priority" },
         { COL_CIRCUIT_ID, "iax2.call" },
@@ -3359,7 +3446,7 @@ try_convert_to_custom_column(gpointer *el_data)
 }
 
 static prefs_set_pref_e
-set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
+set_pref(gchar *pref_name, const gchar *value, void *private_data _U_,
          gboolean return_range_errors)
 {
   unsigned long int cval;
@@ -3387,14 +3474,15 @@ set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
   } else if (strcmp(pref_name, "gui.version_in_start_page") == 0) {
     /* Convert deprecated value to closest current equivalent */
     if (g_ascii_strcasecmp(value, "true") == 0) {
-	    prefs.gui_version_placement = version_both;
+        prefs.gui_version_placement = version_both;
     } else {
-	    prefs.gui_version_placement = version_neither;
+        prefs.gui_version_placement = version_neither;
     }
-/* handle the deprecated name resolution options */
   } else if (strcmp(pref_name, "name_resolve") == 0 ||
-	     strcmp(pref_name, "capture.name_resolve") == 0) {
+             strcmp(pref_name, "capture.name_resolve") == 0) {
     /*
+     * Handle the deprecated name resolution options.
+     *
      * "TRUE" and "FALSE", for backwards compatibility, are synonyms for
      * RESOLV_ALL and RESOLV_NONE.
      *
@@ -3450,7 +3538,7 @@ set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
         else {
             had_a_dot = TRUE;
         }
-        *dotp = '\0';		/* separate module and preference name */
+        *dotp = '\0'; /* separate module and preference name */
         module = prefs_find_module(pref_name);
 
         /*
@@ -3473,7 +3561,6 @@ set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
          *
          * The SynOptics Network Management Protocol (SONMP) is now known by
          * its modern name, the Nortel Discovery Protocol (NDP).
-         *
          */
         if (module == NULL) {
           if (strcmp(pref_name, "column") == 0)
@@ -3499,11 +3586,11 @@ set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
             module = prefs_find_module("ndp");
           else if (strcmp(pref_name, "etheric") == 0 ||
                    strcmp(pref_name, "isup_thin") == 0)
-            /* This protocols was removed 7. July 2009 */
+            /* This protocol was removed 7. July 2009 */
             return PREFS_SET_OBSOLETE;
         }
         *dotp = '.';                /* put the preference string back */
-        dotp++;                        /* skip past separator to preference name */
+        dotp++;                     /* skip past separator to preference name */
         last_dotp = dotp;
       }
     }
@@ -3744,8 +3831,9 @@ set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
           }
         }
       } else if (strcmp(module->name, "taps") == 0) {
-          /* taps preferences moved to stats module */
-          if (strcmp(dotp, "update_interval") == 0 || strcmp(value, "rtp_player_max_visible") == 0)
+          /* taps preferences moved to "statistics" module */
+          if (strcmp(dotp, "update_interval") == 0 ||
+              strcmp(dotp, "rtp_player_max_visible") == 0)
             pref = prefs_find_preference(stats_module, dotp);
       } else if (strcmp(module->name, "packet_list") == 0) {
           /* packet_list preferences moved to protocol module */
@@ -3753,8 +3841,10 @@ set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
             pref = prefs_find_preference(protocols_module, dotp);
       } else if (strcmp(module->name, "stream") == 0) {
           /* stream preferences moved to gui color module */
-          if ((strcmp(dotp, "stream.client.fg") == 0) || (strcmp(value, "stream.client.bg") == 0) ||
-              (strcmp(dotp, "stream.server.fg") == 0) || (strcmp(value, "stream.server.bg") == 0))
+          if ((strcmp(dotp, "client.fg") == 0) ||
+              (strcmp(dotp, "client.bg") == 0) ||
+              (strcmp(dotp, "server.fg") == 0) ||
+              (strcmp(dotp, "server.bg") == 0))
             pref = prefs_find_preference(gui_color_module, pref_name);
       } else if (strcmp(module->name, "nameres") == 0) {
           if (strcmp(pref_name, "name_resolve_concurrency") == 0) {
@@ -3772,7 +3862,8 @@ set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
     switch (pref->type) {
 
     case PREF_UINT:
-      uval = strtoul(value, &p, pref->info.base);
+      /* XXX - give an error if it doesn't fit in a guint? */
+      uval = (guint)strtoul(value, &p, pref->info.base);
       if (p == value || *p != '\0')
         return PREFS_SET_SYNTAX_ERR;        /* number was bad */
       if (*pref->varp.uint != uval) {
@@ -3805,6 +3896,7 @@ set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
 
     case PREF_STRING:
     case PREF_FILENAME:
+    case PREF_DIRNAME:
       if (strcmp(*pref->varp.string, value) != 0) {
         module->prefs_changed = TRUE;
         g_free((void *)*pref->varp.string);
@@ -3834,14 +3926,14 @@ set_pref(gchar *pref_name, gchar *value, void *private_data _U_,
     case PREF_COLOR:
     {
       cval = strtoul(value, NULL, 16);
-      pref->varp.color->pixel = 0;
-      if ((pref->varp.color->red != RED_COMPONENT(cval)) ||
-          (pref->varp.color->green != GREEN_COMPONENT(cval)) ||
-          (pref->varp.color->blue != BLUE_COMPONENT(cval))) {
+      pref->varp.colorp->pixel = 0;
+      if ((pref->varp.colorp->red != RED_COMPONENT(cval)) ||
+          (pref->varp.colorp->green != GREEN_COMPONENT(cval)) ||
+          (pref->varp.colorp->blue != BLUE_COMPONENT(cval))) {
           module->prefs_changed = TRUE;
-          pref->varp.color->red   = RED_COMPONENT(cval);
-          pref->varp.color->green = GREEN_COMPONENT(cval);
-          pref->varp.color->blue  = BLUE_COMPONENT(cval);
+          pref->varp.colorp->red   = RED_COMPONENT(cval);
+          pref->varp.colorp->green = GREEN_COMPONENT(cval);
+          pref->varp.colorp->blue  = BLUE_COMPONENT(cval);
       }
       break;
     }
@@ -3868,16 +3960,374 @@ typedef struct {
     gboolean is_gui_module;
 } write_gui_pref_arg_t;
 
+const char *
+prefs_pref_type_name(pref_t *pref)
+{
+    const char *type_name = "[Unknown]";
+
+    if (!pref) {
+        return type_name; /* ...or maybe assert? */
+    }
+
+    switch (pref->type) {
+
+    case PREF_UINT:
+        switch (pref->info.base) {
+
+        case 10:
+            type_name = "Decimal";
+            break;
+
+        case 8:
+            type_name = "Octal";
+            break;
+
+        case 16:
+            type_name = "Hexadecimal";
+            break;
+        }
+        break;
+
+    case PREF_BOOL:
+        type_name = "Boolean";
+        break;
+
+    case PREF_ENUM:
+        type_name = "Choice";
+        break;
+
+    case PREF_STRING:
+        type_name = "String";
+        break;
+
+    case PREF_FILENAME:
+        type_name = "Filename";
+        break;
+
+    case PREF_DIRNAME:
+        type_name = "Directory";
+        break;
+
+    case PREF_RANGE:
+        type_name = "Range";
+        break;
+
+    case PREF_COLOR:
+        type_name = "Color";
+        break;
+
+    case PREF_CUSTOM:
+        if (pref->custom_cbs.type_name_cb)
+            return pref->custom_cbs.type_name_cb();
+        type_name = "Custom";
+        break;
+
+    case PREF_OBSOLETE:
+        type_name = "Obsolete";
+        break;
+
+    case PREF_STATIC_TEXT:
+        type_name = "Static text";
+        break;
+
+    case PREF_UAT:
+        type_name = "UAT";
+        break;
+    }
+    return type_name;
+}
+
+char *
+prefs_pref_type_description(pref_t *pref)
+{
+    const char *type_desc = "An unkown preference type";
+
+    if (!pref) {
+        return g_strdup_printf("%s.", type_desc); /* ...or maybe assert? */
+    }
+
+    switch (pref->type) {
+
+    case PREF_UINT:
+        switch (pref->info.base) {
+
+        case 10:
+            type_desc = "A decimal number";
+            break;
+
+        case 8:
+            type_desc = "An octal number";
+            break;
+
+        case 16:
+            type_desc = "A hexadecimal number";
+            break;
+        }
+        break;
+
+    case PREF_BOOL:
+        type_desc = "TRUE or FALSE (case-insensitive)";
+        break;
+
+    case PREF_ENUM:
+    {
+        const enum_val_t *enum_valp = pref->info.enum_info.enumvals;
+        GString *enum_str = g_string_new("One of: ");
+        while (enum_valp->name != NULL) {
+            g_string_append(enum_str, enum_valp->description);
+            enum_valp++;
+            if (enum_valp->name != NULL)
+                g_string_append(enum_str, ", ");
+        }
+        g_string_append(enum_str, "\n(case-insensitive).");
+        return g_string_free(enum_str, FALSE);
+        break;
+    }
+
+    case PREF_STRING:
+        type_desc = "A string";
+        break;
+
+    case PREF_FILENAME:
+        type_desc = "A path to a file";
+        break;
+
+    case PREF_DIRNAME:
+        type_desc = "A path to a directory";
+        break;
+
+    case PREF_RANGE:
+    {
+        type_desc = "A string denoting an positive integer range (e.g., \"1-20,30-40\")";
+        break;
+    }
+
+    case PREF_COLOR:
+    {
+        type_desc = "A six-digit hexadecimal RGB color triplet (e.g. fce94f)";
+        break;
+    }
+
+    case PREF_CUSTOM:
+        if (pref->custom_cbs.type_description_cb)
+            return pref->custom_cbs.type_description_cb();
+        type_desc = "A custom value";
+        break;
+
+    case PREF_OBSOLETE:
+        type_desc = "An obsolete preference";
+        break;
+
+    case PREF_STATIC_TEXT:
+        type_desc = "[Static text]";
+        break;
+
+    case PREF_UAT:
+        type_desc = "Configuration data stored in its own file";
+        break;
+
+    default:
+        break;
+    }
+    return g_strdup(type_desc);
+}
+
+static gboolean
+prefs_pref_is_default(pref_t *pref) {
+    if (!pref) return FALSE;
+
+    switch (pref->type) {
+
+    case PREF_UINT:
+        if (pref->default_val.uint == *pref->varp.uint)
+            return TRUE;
+        break;
+
+    case PREF_BOOL:
+        if (pref->default_val.boolval == *pref->varp.boolp)
+            return TRUE;
+        break;
+
+    case PREF_ENUM:
+        if (pref->default_val.enumval == *pref->varp.enump)
+            return TRUE;
+        break;
+
+    case PREF_STRING:
+    case PREF_FILENAME:
+    case PREF_DIRNAME:
+        if (!(g_strcmp0(pref->default_val.string, *pref->varp.string)))
+            return TRUE;
+        break;
+
+    case PREF_RANGE:
+    {
+        if ((ranges_are_equal(pref->default_val.range, *pref->varp.range)))
+            return TRUE;
+        break;
+    }
+
+    case PREF_COLOR:
+    {
+        if ((pref->default_val.color.red == pref->varp.colorp->red) &&
+            (pref->default_val.color.green == pref->varp.colorp->green) &&
+            (pref->default_val.color.blue == pref->varp.colorp->blue))
+            return TRUE;
+        break;
+    }
+
+    case PREF_CUSTOM:
+        return pref->custom_cbs.is_default_cb(pref);
+
+    case PREF_OBSOLETE:
+    case PREF_STATIC_TEXT:
+    case PREF_UAT:
+        return FALSE;
+        /* g_assert_not_reached(); */
+        break;
+    }
+    return FALSE;
+}
+
+char *
+prefs_pref_to_str(pref_t *pref, pref_source_t source) {
+    const char *pref_text = "[Unknown]";
+    guint pref_uint;
+    gboolean pref_boolval;
+    gint pref_enumval;
+    const char *pref_string;
+    range_t *pref_range;
+    color_t *pref_color;
+
+    if (!pref) {
+        return g_strdup(pref_text);
+    }
+
+    switch (source) {
+        case pref_default:
+            pref_uint = pref->default_val.uint;
+            pref_boolval = pref->default_val.boolval;
+            pref_enumval = pref->default_val.enumval;
+            pref_string = pref->default_val.string;
+            pref_range = pref->default_val.range;
+            pref_color = &pref->default_val.color;
+            break;
+        case pref_stashed:
+            pref_uint = pref->stashed_val.uint;
+            pref_boolval = pref->stashed_val.boolval;
+            pref_enumval = pref->stashed_val.enumval;
+            pref_string = pref->stashed_val.string;
+            pref_range = pref->stashed_val.range;
+            pref_color = &pref->stashed_val.color;
+            break;
+        case pref_current:
+            pref_uint = *pref->varp.uint;
+            pref_boolval = *pref->varp.boolp;
+            pref_enumval = *pref->varp.enump;
+            pref_string = *pref->varp.string;
+            pref_range = *pref->varp.range;
+            pref_color = pref->varp.colorp;
+            break;
+        default:
+            return g_strdup(pref_text);
+    }
+
+    switch (pref->type) {
+
+    case PREF_UINT:
+        switch (pref->info.base) {
+
+        case 10:
+            return g_strdup_printf("%u", pref_uint);
+            break;
+
+        case 8:
+            return g_strdup_printf("%#o", pref_uint);
+            break;
+
+        case 16:
+            return g_strdup_printf("%#x", pref_uint);
+            break;
+        }
+        break;
+
+    case PREF_BOOL:
+        return g_strdup_printf("%s", pref_boolval ? "TRUE" : "FALSE");
+        break;
+
+    case PREF_ENUM:
+    {
+        /*
+         * For now, we return the "description" value, so that if we
+         * save the preferences older versions of Wireshark can at
+         * least read preferences that they supported; we support
+         * either the short name or the description when reading
+         * the preferences file or a "-o" option.
+         */
+        const enum_val_t *enum_valp = pref->info.enum_info.enumvals;
+        while (enum_valp->name != NULL) {
+            if (enum_valp->value == pref_enumval)
+                return g_strdup(enum_valp->description);
+            enum_valp++;
+        }
+        break;
+    }
+
+    case PREF_STRING:
+    case PREF_FILENAME:
+    case PREF_DIRNAME:
+        return g_strdup(pref_string);
+        break;
+
+    case PREF_RANGE:
+        pref_text = range_convert_range(pref_range);
+        break;
+
+    case PREF_COLOR:
+        return g_strdup_printf("%02x%02x%02x",
+                   (pref_color->red * 255 / 65535),
+                   (pref_color->green * 255 / 65535),
+                   (pref_color->blue * 255 / 65535));
+        break;
+
+    case PREF_CUSTOM:
+        if (pref->custom_cbs.to_str_cb)
+            return pref->custom_cbs.to_str_cb(pref, source == pref_default ? TRUE : FALSE);
+        pref_text = "[Custom]";
+        break;
+
+    case PREF_OBSOLETE:
+        pref_text = "[Obsolete]";
+        break;
+
+    case PREF_STATIC_TEXT:
+        pref_text = "[Static text]";
+        break;
+
+    case PREF_UAT:
+    {
+        uat_t *uat = (uat_t *) pref->varp.uat;
+        if (uat && uat->filename)
+            return g_strdup_printf("[Managed in the file \"%s\"]", uat->filename);
+        else
+            pref_text = "[Managed in an unknown file]";
+        break;
+    }
+
+    default:
+        break;
+    }
+    return g_strdup(pref_text);
+}
+
 /*
  * Write out a single dissector preference.
  */
 static void
 write_pref(gpointer data, gpointer user_data)
 {
-    pref_t *pref = data;
-    write_pref_arg_t *arg = user_data;
-    const enum_val_t *enum_valp;
-    const char *val_string, *prefix;
+    pref_t *pref = (pref_t *)data;
+    write_pref_arg_t *arg = (write_pref_arg_t *)user_data;
     gchar **desc_lines;
     int i;
 
@@ -3893,149 +4343,57 @@ write_pref(gpointer data, gpointer user_data)
 
     case PREF_STATIC_TEXT:
     case PREF_UAT:
-	/* Nothing to do; don't bother printing the description */
+        /* Nothing to do; don't bother printing the description */
         return;
     default:
-	break;
+        break;
     }
 
-    /*
-     * The prefix will either be the module name or the parent
-     * name if its a subtree
-     */
-    prefix = (arg->module->name != NULL) ? arg->module->name : arg->module->parent->name;
+    if (pref->type != PREF_CUSTOM || pref->custom_cbs.type_name_cb() != NULL) {
+        /*
+         * The prefix will either be the module name or the parent
+         * name if it's a subtree
+         */
+        const char *name_prefix = (arg->module->name != NULL) ? arg->module->name : arg->module->parent->name;
+        char *type_desc, *pref_text;
+        const char * def_prefix = prefs_pref_is_default(pref) ? "#" : "";
 
-    /*
-     * Make multiple line descriptions appear as
-     * multiple commented lines in prefs file.
-     */
-    if (pref->type != PREF_CUSTOM) {
+        if (pref->type == PREF_CUSTOM) fprintf(arg->pf, "\n# %s", pref->custom_cbs.type_name_cb());
+        fprintf(arg->pf, "\n");
         if (pref->description &&
                 (g_ascii_strncasecmp(pref->description,"", 2) != 0)) {
-            desc_lines = g_strsplit(pref->description,"\n",0);
-            for (i = 0; desc_lines[i] != NULL; ++i) {
-                fprintf(arg->pf, "\n# %s", desc_lines[i]);
+            if (pref->type != PREF_CUSTOM) {
+                /* We get duplicate lines otherwise. */
+
+                desc_lines = g_strsplit(pref->description,"\n",0);
+                for (i = 0; desc_lines[i] != NULL; ++i) {
+                    fprintf(arg->pf, "# %s\n", desc_lines[i]);
+                }
+                g_strfreev(desc_lines);
             }
-            fprintf(arg->pf, "\n");
-            g_strfreev(desc_lines);
         } else {
-            fprintf(arg->pf, "\n# No description\n");
+            fprintf(arg->pf, "# No description\n");
         }
-    }
 
-    switch (pref->type) {
-
-    case PREF_UINT:
-        switch (pref->info.base) {
-
-        case 10:
-            fprintf(arg->pf, "# A decimal number.\n");
-            if (pref->default_val.uint == *pref->varp.uint)
-                fprintf(arg->pf, "#");
-            fprintf(arg->pf, "%s.%s: %u\n", prefix,
-                pref->name, *pref->varp.uint);
-            break;
-
-        case 8:
-            fprintf(arg->pf, "# An octal number.\n");
-            if (pref->default_val.uint == *pref->varp.uint)
-                fprintf(arg->pf, "#");
-            fprintf(arg->pf, "%s.%s: %#o\n", prefix,
-                pref->name, *pref->varp.uint);
-            break;
-
-        case 16:
-            fprintf(arg->pf, "# A hexadecimal number.\n");
-            if (pref->default_val.uint == *pref->varp.uint)
-                fprintf(arg->pf, "#");
-            fprintf(arg->pf, "%s.%s: %#x\n", prefix,
-                pref->name, *pref->varp.uint);
-            break;
+        type_desc = prefs_pref_type_description(pref);
+        desc_lines = g_strsplit(type_desc,"\n",0);
+        for (i = 0; desc_lines[i] != NULL; ++i) {
+            fprintf(arg->pf, "# %s\n", desc_lines[i]);
         }
-        break;
+        g_strfreev(desc_lines);
+        g_free(type_desc);
 
-    case PREF_BOOL:
-        fprintf(arg->pf, "# TRUE or FALSE (case-insensitive).\n");
-        if (pref->default_val.boolval == *pref->varp.boolp)
-            fprintf(arg->pf, "#");
-        fprintf(arg->pf, "%s.%s: %s\n", prefix, pref->name,
-            *pref->varp.boolp ? "TRUE" : "FALSE");
-        break;
-
-    case PREF_ENUM:
-        /*
-         * For now, we save the "description" value, so that if we
-         * save the preferences older versions of Wireshark can at
-         * least read preferences that they supported; we support
-         * either the short name or the description when reading
-         * the preferences file or a "-o" option.
-         */
-        fprintf(arg->pf, "# One of: ");
-        enum_valp = pref->info.enum_info.enumvals;
-        val_string = NULL;
-        while (enum_valp->name != NULL) {
-            if (enum_valp->value == *pref->varp.enump)
-                val_string = enum_valp->description;
-            fprintf(arg->pf, "%s", enum_valp->description);
-            enum_valp++;
-            if (enum_valp->name == NULL)
-                fprintf(arg->pf, "\n");
-            else
-                fprintf(arg->pf, ", ");
+        pref_text = prefs_pref_to_str(pref, pref_current);
+        fprintf(arg->pf, "%s%s.%s: ", def_prefix, name_prefix, pref->name);
+        desc_lines = g_strsplit(pref_text,"\n",0);
+        for (i = 0; desc_lines[i] != NULL; ++i) {
+            fprintf(arg->pf, "%s%s\n", i == 0 ? "" : def_prefix, desc_lines[i]);
         }
-        fprintf(arg->pf, "# (case-insensitive).\n");
-        if (pref->default_val.enumval == *pref->varp.enump)
-            fprintf(arg->pf, "#");
-        fprintf(arg->pf, "%s.%s: %s\n", prefix,
-            pref->name, val_string);
-        break;
-
-    case PREF_STRING:
-    case PREF_FILENAME:
-        fprintf(arg->pf, "# A string.\n");
-        if (!(strcmp(pref->default_val.string, *pref->varp.string)))
-            fprintf(arg->pf, "#");
-        fprintf(arg->pf, "%s.%s: %s\n", prefix, pref->name,
-            *pref->varp.string);
-        break;
-
-    case PREF_RANGE:
-    {
-        char *range_string_p;
-
-        range_string_p = range_convert_range(*pref->varp.range);
-        fprintf(arg->pf, "# A string denoting an positive integer range (e.g., \"1-20,30-40\").\n");
-        if ((ranges_are_equal(pref->default_val.range, *pref->varp.range)))
-            fprintf(arg->pf, "#");
-        fprintf(arg->pf, "%s.%s: %s\n", prefix, pref->name,
-            range_string_p);
-        break;
+        if (i == 0) fprintf(arg->pf, "\n");
+        g_strfreev(desc_lines);
+        g_free(pref_text);
     }
 
-    case PREF_COLOR:
-    {
-        fprintf (arg->pf, "# Each value is a six digit hexadecimal color value in the form rrggbb.\n");
-        if ((pref->default_val.color.red == pref->varp.color->red) &&
-            (pref->default_val.color.green == pref->varp.color->green) &&
-            (pref->default_val.color.blue == pref->varp.color->blue))
-            fprintf(arg->pf, "#");
-        fprintf (arg->pf, "%s.%s: %02x%02x%02x\n", prefix, pref->name,
-                   (pref->varp.color->red * 255 / 65535),
-                   (pref->varp.color->green * 255 / 65535),
-                   (pref->varp.color->blue * 255 / 65535));
-        break;
-    }
-
-    case PREF_CUSTOM:
-        pref->custom_cbs.write_cb(pref, arg);
-        break;
-
-    case PREF_OBSOLETE:
-    case PREF_STATIC_TEXT:
-    case PREF_UAT:
-        g_assert_not_reached();
-        break;
-    }
 }
 
 /*
@@ -4097,7 +4455,7 @@ write_prefs(char **pf_path_return)
    */
 
   if (pf_path_return != NULL) {
-    pf_path = get_persconffile_path(PF_NAME, TRUE, TRUE);
+    pf_path = get_persconffile_path(PF_NAME, TRUE);
     if ((pf = ws_fopen(pf_path, "w")) == NULL) {
       *pf_path_return = pf_path;
       return errno;
@@ -4114,7 +4472,7 @@ write_prefs(char **pf_path_return)
         "# changed from their default value.\n", pf);
 
   /*
-   * For "backwards compatibility" the GUI module is written first as its
+   * For "backwards compatibility" the GUI module is written first as it's
    * at the top of the file.  This is followed by all modules that can't
    * fit into the preferences read/write API.  Finally the remaining modules
    * are written in alphabetical order (including of course the protocol preferences)
@@ -4163,7 +4521,7 @@ free_col_info(GList * list)
   fmt_data *cfmt;
 
   while (list != NULL) {
-    cfmt = list->data;
+    cfmt = (fmt_data *)list->data;
 
     g_free(cfmt->title);
     g_free(cfmt->custom_field);
@@ -4173,3 +4531,16 @@ free_col_info(GList * list)
   g_list_free(list);
   list = NULL;
 }
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-t125.c                                                              */
 /* ../../tools/asn2wrs.py -b -p t125 -c ./t125.cnf -s ./packet-t125-template -D . -O ../../epan/dissectors MCS-PROTOCOL.asn */
 
@@ -47,6 +47,8 @@
 #define PSNAME "T.125"
 #define PFNAME "t125"
 
+void proto_register_t125(void);
+void proto_reg_handoff_t125(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_t125 = -1;
@@ -81,7 +83,7 @@ static int hf_t125_connect_additional = -1;       /* Connect_Additional */
 static int hf_t125_connect_result = -1;           /* Connect_Result */
 
 /*--- End of included file: packet-t125-hf.c ---*/
-#line 47 "../../asn1/t125/packet-t125-template.c"
+#line 49 "../../asn1/t125/packet-t125-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_t125 = -1;
@@ -100,7 +102,7 @@ static gint ett_t125_Connect_Result_U = -1;
 static gint ett_t125_ConnectMCSPDU = -1;
 
 /*--- End of included file: packet-t125-ett.c ---*/
-#line 55 "../../asn1/t125/packet-t125-template.c"
+#line 57 "../../asn1/t125/packet-t125-template.c"
 
 static heur_dissector_list_t t125_heur_subdissector_list;
 
@@ -383,7 +385,7 @@ static int dissect_ConnectMCSPDU_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, 
 
 
 /*--- End of included file: packet-t125-fn.c ---*/
-#line 59 "../../asn1/t125/packet-t125-template.c"
+#line 61 "../../asn1/t125/packet-t125-template.c"
 
 static int
 dissect_t125(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *data _U_)
@@ -437,7 +439,7 @@ dissect_t125_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
   TRY {
     /* could be BER */
     get_ber_identifier(tvb, 0, &ber_class, &pc, &tag);
-  } CATCH2(BoundsError, ReportedBoundsError) {
+  } CATCH_BOUNDS_ERRORS {
     failed = TRUE;
   } ENDTRY;
 
@@ -454,7 +456,7 @@ dissect_t125_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
     dissect_per_constrained_integer(tvb, 0, &asn1_ctx,
                                     NULL, hf_t125_heur, 0, 42,
                                     &choice_index, FALSE);
-  } CATCH2(BoundsError, ReportedBoundsError) {
+  } CATCH_BOUNDS_ERRORS {
     failed = TRUE;
   } ENDTRY;
 
@@ -534,15 +536,15 @@ void proto_register_t125(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_t125_targetParameters,
-      { "targetParameters", "t125.targetParameters",
+      { "targetParameters", "t125.targetParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DomainParameters", HFILL }},
     { &hf_t125_minimumParameters,
-      { "minimumParameters", "t125.minimumParameters",
+      { "minimumParameters", "t125.minimumParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DomainParameters", HFILL }},
     { &hf_t125_maximumParameters,
-      { "maximumParameters", "t125.maximumParameters",
+      { "maximumParameters", "t125.maximumParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DomainParameters", HFILL }},
     { &hf_t125_userData,
@@ -558,7 +560,7 @@ void proto_register_t125(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_MAX", HFILL }},
     { &hf_t125_domainParameters,
-      { "domainParameters", "t125.domainParameters",
+      { "domainParameters", "t125.domainParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t125_userData_01,
@@ -570,24 +572,24 @@ void proto_register_t125(void) {
         FT_UINT32, BASE_DEC, VALS(t125_DataPriority_vals), 0,
         NULL, HFILL }},
     { &hf_t125_connect_initial,
-      { "connect-initial", "t125.connect_initial",
+      { "connect-initial", "t125.connect_initial_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t125_connect_response,
-      { "connect-response", "t125.connect_response",
+      { "connect-response", "t125.connect_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t125_connect_additional,
-      { "connect-additional", "t125.connect_additional",
+      { "connect-additional", "t125.connect_additional_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t125_connect_result,
-      { "connect-result", "t125.connect_result",
+      { "connect-result", "t125.connect_result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 
 /*--- End of included file: packet-t125-hfarr.c ---*/
-#line 158 "../../asn1/t125/packet-t125-template.c"
+#line 160 "../../asn1/t125/packet-t125-template.c"
   };
 
   /* List of subtrees */
@@ -604,7 +606,7 @@ void proto_register_t125(void) {
     &ett_t125_ConnectMCSPDU,
 
 /*--- End of included file: packet-t125-ettarr.c ---*/
-#line 164 "../../asn1/t125/packet-t125-template.c"
+#line 166 "../../asn1/t125/packet-t125-template.c"
   };
 
   /* Register protocol */

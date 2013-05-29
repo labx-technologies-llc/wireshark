@@ -59,7 +59,14 @@ if gui_enabled() then
     print = info
 end
 
+function typeof(obj)
+    local mt = getmetatable(obj)
+    return mt and mt.__typeof or type(obj)
+end
+
 -- %WTAP_ENCAPS%
+
+-- %WTAP_FILETYPES%
 
 -- %FT_TYPES%
 

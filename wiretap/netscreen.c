@@ -37,24 +37,33 @@
 
 /* XXX TODO:
  *
- * o  Create a wiki-page with instruction on how to make tracefiles
- *    on Juniper NetScreen devices. Also put a few examples up
- *    on the wiki (Done: wiki-page added 2007-08-03)
+ * o  Construct a list of interfaces, with interface names, give
+ *    them link-layer types based on the interface name and packet
+ *    data, and supply interface IDs with each packet (i.e., make
+ *    this supply a pcap-ng-style set of interfaces and associate
+ *    packets with interfaces).  This is probably the right way
+ *    to "Pass the interface names and the traffic direction to either
+ *    the frame-structure, a pseudo-header or use PPI."  See the
+ *    message at
  *
- * o  Use the interface names to properly detect the encapsulation
- *    type (ie adsl packets are now not properly dissected)
- *    (Done: adsl packets are now correctly seen as PPP, 2007-08-03)
+ *        http://www.wireshark.org/lists/wireshark-dev/200708/msg00029.html
  *
- * o  Pass the interface names and the traffic direction to either
- *    the frame-structure, a pseudo-header or use PPI. This needs
- *    to be discussed on the dev-list first
- *    (Posted a message to wireshark-dev abou this 2007-08-03)
+ *    to see whether any further discussion is still needed. I suspect
+ *    it doesn't; pcap-NG existed at the time, as per the final
+ *    message in that thread:
  *
+ *        http://www.wireshark.org/lists/wireshark-dev/200708/msg00039.html
+ *
+ *    but I don't think we fully *supported* it at that point.  Now
+ *    that we do, we have the infrastructure to support this, except
+ *    that we currently have no way to translate interface IDs to
+ *    interface names in the "frame" dissector or to supply interface
+ *    information as part of the packet metadata from Wiretap modules.
+ *    That should be fixed so that we can show interface information,
+ *    such as the interface name, in packet dissections from, for example,
+ *    pcap-NG captures.
  */
 
-
-
-static gboolean empty_line(const gchar *line);
 static gboolean info_line(const gchar *line);
 static gint64 netscreen_seek_next_packet(wtap *wth, int *err, gchar **err_info,
 	char *hdr);
@@ -72,24 +81,6 @@ static int parse_netscreen_hex_dump(FILE_T fh, int pkt_len, guint8* buf,
 	int *err, gchar **err_info);
 static int parse_single_hex_dump_line(char* rec, guint8 *buf,
 	guint byte_offset);
-
-/* Returns TRUE if the line appears to be an empty line. Otherwise it
-   returns FALSE. */
-static gboolean empty_line(const gchar *line)
-{
-	while (*line) {
-		if (isspace((guchar)*line)) {
-			line++;
-			continue;
-		} else {
-			break;
-		}
-	}
-	if (*line == '\0')
-		return TRUE;
-	else
-		return FALSE;
-}
 
 /* Returns TRUE if the line appears to be a line with protocol info.
    Otherwise it returns FALSE. */
@@ -110,8 +101,8 @@ static gboolean info_line(const gchar *line)
 
 /* Seeks to the beginning of the next packet, and returns the
    byte offset. Copy the header line to hdr. Returns -1 on failure,
-   and sets "*err" to the error, sets "*err_info" to null or an
-   additional error string, and sets hdr to NULL. */
+   and sets "*err" to the error and sets "*err_info" to null or an
+   additional error string. */
 static gint64 netscreen_seek_next_packet(wtap *wth, int *err, gchar **err_info,
     char *hdr)
 {
@@ -123,27 +114,19 @@ static gint64 netscreen_seek_next_packet(wtap *wth, int *err, gchar **err_info,
 		if (cur_off == -1) {
 			/* Error */
 			*err = file_error(wth->fh, err_info);
-			hdr = NULL;
 			return -1;
 		}
-		if (file_gets(buf, sizeof(buf), wth->fh) != NULL) {
-			if (strstr(buf, NETSCREEN_REC_MAGIC_STR1) ||
-			    strstr(buf, NETSCREEN_REC_MAGIC_STR2)) {
-				g_strlcpy(hdr, buf, NETSCREEN_LINE_LENGTH);
-				return cur_off;
-			}
-		} else {
-			if (file_eof(wth->fh)) {
-				/* We got an EOF. */
-				*err = 0;
-			} else {
-				/* We got an error. */
-				*err = file_error(wth->fh, err_info);
-			}
+		if (file_gets(buf, sizeof(buf), wth->fh) == NULL) {
+			/* EOF or error. */
+			*err = file_error(wth->fh, err_info);
 			break;
 		}
+		if (strstr(buf, NETSCREEN_REC_MAGIC_STR1) ||
+		    strstr(buf, NETSCREEN_REC_MAGIC_STR2)) {
+			g_strlcpy(hdr, buf, NETSCREEN_LINE_LENGTH);
+			return cur_off;
+		}
 	}
-	hdr = NULL;
 	return -1;
 }
 
@@ -162,25 +145,21 @@ static gboolean netscreen_check_file_type(wtap *wth, int *err, gchar **err_info)
 	buf[NETSCREEN_LINE_LENGTH-1] = '\0';
 
 	for (line = 0; line < NETSCREEN_HEADER_LINES_TO_CHECK; line++) {
-		if (file_gets(buf, NETSCREEN_LINE_LENGTH, wth->fh) != NULL) {
-
-			reclen = (guint) strlen(buf);
-			if (reclen < strlen(NETSCREEN_HDR_MAGIC_STR1) ||
-				reclen < strlen(NETSCREEN_HDR_MAGIC_STR2)) {
-				continue;
-			}
-
-			if (strstr(buf, NETSCREEN_HDR_MAGIC_STR1) ||
-			    strstr(buf, NETSCREEN_HDR_MAGIC_STR2)) {
-				return TRUE;
-			}
-		} else {
+		if (file_gets(buf, NETSCREEN_LINE_LENGTH, wth->fh) == NULL) {
 			/* EOF or error. */
-			if (file_eof(wth->fh))
-				*err = 0;
-			else
-				*err = file_error(wth->fh, err_info);
+			*err = file_error(wth->fh, err_info);
 			return FALSE;
+		}
+
+		reclen = (guint) strlen(buf);
+		if (reclen < strlen(NETSCREEN_HDR_MAGIC_STR1) ||
+			reclen < strlen(NETSCREEN_HDR_MAGIC_STR2)) {
+			continue;
+		}
+
+		if (strstr(buf, NETSCREEN_HDR_MAGIC_STR1) ||
+		    strstr(buf, NETSCREEN_HDR_MAGIC_STR2)) {
+			return TRUE;
 		}
 	}
 	*err = 0;
@@ -193,10 +172,9 @@ int netscreen_open(wtap *wth, int *err, gchar **err_info)
 
 	/* Look for a NetScreen snoop header line */
 	if (!netscreen_check_file_type(wth, err, err_info)) {
-		if (*err == 0)
-			return 0;
-		else
+		if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
 			return -1;
+		return 0;
 	}
 
 	if (file_seek(wth->fh, 0L, SEEK_SET, err) == -1)	/* rewind */
@@ -378,6 +356,7 @@ static int
 parse_netscreen_hex_dump(FILE_T fh, int pkt_len, guint8* buf, int *err, gchar **err_info)
 {
 	gchar	line[NETSCREEN_LINE_LENGTH];
+	gchar	*p;
 	int	n, i = 0, offset = 0;
 
 	while(1) {
@@ -389,24 +368,20 @@ parse_netscreen_hex_dump(FILE_T fh, int pkt_len, guint8* buf, int *err, gchar **
 			break;
 		}
 
+		/*
+		 * Skip blanks.
+		 * The number of blanks is not fixed - for wireless
+		 * interfaces, there may be 14 extra spaces before
+		 * the hex data.
+		 */
+		for (p = &line[0]; isspace((guchar)*p); p++)
+			;
 		/* packets are delimited with empty lines */
-		if (empty_line(line)) {
+		if (*p == '\0') {
 			break;
 		}
 		
-		/* terminate the line before the ascii-data to prevent the 
-		 * parser from parsing one or more extra bytes from the 
-		 * ascii-data.
-		 * Check for longer lines to prevent wireless hexdumps to
-		 * be cut in the middle (they can have 14 extra spaces
-		 * before the hex-data)
-		 */
-		if(strlen(line) != 98) 
-			line[62] = '\0';
-		else
-			line[76] = '\0';
-
-		n = parse_single_hex_dump_line(line, buf, offset);
+		n = parse_single_hex_dump_line(p, buf, offset);
 
 		/* the smallest packet has a length of 6 bytes, if
 		 * the first hex-data is less then check whether 
@@ -441,39 +416,61 @@ parse_netscreen_hex_dump(FILE_T fh, int pkt_len, guint8* buf, int *err, gchar **
 		 */
 		if(offset > pkt_len) {
 			*err = WTAP_ERR_BAD_FILE;
-                        *err_info = g_strdup("netscreen: to much hex-data");
+                        *err_info = g_strdup("netscreen: too much hex-data");
                         return -1;
 		}
 	}
 	return offset;
 }
 
-
-/* Take a string representing one line from a hex dump and converts
- * the text to binary data. We place the bytes in the buffer at the
- * specified offset.
+/* Take a string representing one line from a hex dump, with leading white
+ * space removed, and converts the text to binary data. We place the bytes
+ * in the buffer at the specified offset.
  *
  * Returns number of bytes successfully read, -1 if bad.  */
 static int
 parse_single_hex_dump_line(char* rec, guint8 *buf, guint byte_offset)
 {
-	int num_items_scanned, i;
-	unsigned int bytes[16];
+	int num_items_scanned;
+	guint8 character;
+	guint8 byte;
 
-	num_items_scanned = sscanf(rec, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-			       &bytes[0], &bytes[1], &bytes[2], &bytes[3],
-			       &bytes[4], &bytes[5], &bytes[6], &bytes[7],
-			       &bytes[8], &bytes[9], &bytes[10], &bytes[11],
-			       &bytes[12], &bytes[13], &bytes[14], &bytes[15]);
+
+	for (num_items_scanned = 0; num_items_scanned < 16; num_items_scanned++) {
+		character = *rec++;
+		if (character >= '0' && character <= '9')
+			byte = character - '0' + 0;
+		else if (character >= 'A' && character <= 'F')
+			byte = character - 'A' + 0xA;
+		else if (character >= 'a' && character <= 'f')
+			byte = character - 'a' + 0xa;
+		else if (character == ' ' || character == '\r' || character == '\n' || character == '\0') {
+			/* Nothing more to parse */
+			break;
+		} else
+			return -1; /* not a hex digit, space before ASCII dump, or EOL */
+		byte <<= 4;
+		character = *rec++ & 0xFF;
+		if (character >= '0' && character <= '9')
+			byte += character - '0' + 0;
+		else if (character >= 'A' && character <= 'F')
+			byte += character - 'A' + 0xA;
+		else if (character >= 'a' && character <= 'f')
+			byte += character - 'a' + 0xa;
+		else
+			return -1; /* not a hex digit */
+		buf[byte_offset + num_items_scanned] = byte;
+		character = *rec++ & 0xFF;
+		if (character == '\0' || character == '\r' || character == '\n') {
+			/* Nothing more to parse */
+			break;
+		} else if (character != ' ') {
+			/* not space before ASCII dump */
+			return -1;
+		}
+	}
 	if (num_items_scanned == 0)
 		return -1;
-
-	if (num_items_scanned > 16)
-		num_items_scanned = 16;
-
-	for (i=0; i<num_items_scanned; i++) {
-		buf[byte_offset + i] = (guint8)bytes[i];
-	}
 
 	return num_items_scanned;
 }

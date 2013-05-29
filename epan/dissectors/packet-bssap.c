@@ -44,6 +44,7 @@
 #include "packet-gsm_a_common.h"
 #include "packet-e212.h"
 
+void proto_register_bssap(void);
 void proto_reg_handoff_bssap(void);
 
 #define BSSAP 0
@@ -200,10 +201,11 @@ static value_string_ext bssap_plus_message_type_values_ext = VALUE_STRING_EXT_IN
 #define BSSAP_CELL_GBL_ID                      0x18
 #define BSSAP_LOC_INF_AGE                      0x19
 #define BSSAP_MOBILE_STN_STATE                 0x1a
-#define BSSAP_SERVICE_AREA_ID                  0x1e
 #define BSSAP_ERRONEOUS_MSG                    0x1b
 #define BSSAP_DLINK_TNL_PLD_CTR_AND_INF        0x1c
 #define BSSAP_ULINK_TNL_PLD_CTR_AND_INF        0x1d
+#define BSSAP_SERVICE_AREA_ID                  0x1e
+#define BSSAP_MSI_BASED_NRI_CON                0x1f
 
 static const value_string bssap_plus_ie_id_values[] = {
     { BSSAP_IMSI,                               "IMSI" },                                       /* 18.4.10 */
@@ -236,6 +238,7 @@ static const value_string bssap_plus_ie_id_values[] = {
     { BSSAP_DLINK_TNL_PLD_CTR_AND_INF,          "Downlink Tunnel Payload Control and Info" },   /* 18.4.3 */
     { BSSAP_ULINK_TNL_PLD_CTR_AND_INF,          "Uplink Tunnel Payload Control and Info" },     /* 18.4.25 */
     { BSSAP_SERVICE_AREA_ID,                    "Service Area Identification" },                /* 18.4.21b */
+    { BSSAP_MSI_BASED_NRI_CON,                  "TMSI based NRI container" },                   /* 18.4.28 */
     { 0,                NULL }
 };
 static value_string_ext bssap_plus_ie_id_values_ext = VALUE_STRING_EXT_INIT(bssap_plus_ie_id_values);
@@ -280,7 +283,7 @@ static int hf_bssap_extension = -1;
 static int hf_bssap_type_of_number = -1;
 static int hf_bssap_numbering_plan_id = -1;
 static int hf_bssap_sgsn_number = -1;
-static int hf_bssap_vlr_number = -1;
+/* static int hf_bssap_vlr_number = -1; */
 static int hf_bssap_call_priority = -1;
 static int hf_bssap_gprs_loc_upd_type_ie = -1;
 static int hf_bssap_Gs_cause_ie = -1;
@@ -427,7 +430,7 @@ dissect_bssap_data_param(tvbuff_t *tvb, packet_info *pinfo,
         }
     }
 
-    /* No sub-dissection occured, treat it as raw data */
+    /* No sub-dissection occurred, treat it as raw data */
     call_dissector(data_handle, tvb, pinfo, bssap_tree);
 }
 
@@ -641,7 +644,7 @@ unpack_digits(tvbuff_t *tvb, int offset, dgt_set_t *dgt, gboolean skip_first)
     length = tvb_length(tvb);
     if (length < offset)
         return "";
-    digit_str = ep_alloc((length - offset)*2+1);
+    digit_str = (char *)ep_alloc((length - offset)*2+1);
 
     while (offset < length) {
 
@@ -2260,10 +2263,12 @@ proto_register_bssap(void)
             FT_STRING, BASE_NONE, NULL, 0,
             NULL, HFILL }},
 
+#if 0
         { &hf_bssap_vlr_number,
           { "VLR number", "bssap.vlr_number",
             FT_STRING, BASE_NONE, NULL, 0,
             NULL, HFILL }},
+#endif
 
         { &hf_bssap_cell_global_id_ie,
           { "Cell global identity IE", "bssap.cell_global_id_ie",

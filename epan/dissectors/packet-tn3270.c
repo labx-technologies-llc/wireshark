@@ -4708,7 +4708,7 @@ dissect_structured_fields(proto_tree *tn3270_tree, tvbuff_t *tvb, gint offset,
       sf_id_len = 2;
     }
 
-    sf_id_str = match_strval(sf_id, direction_inbound ?
+    sf_id_str = try_val_to_str(sf_id, direction_inbound ?
                              vals_inbound_structured_fields : vals_outbound_structured_fields);
     if (sf_id_str != NULL) {
       sf_tree = display_sf_hdr(tn3270_tree, tvb, offset,
@@ -4724,7 +4724,7 @@ dissect_structured_fields(proto_tree *tn3270_tree, tvbuff_t *tvb, gint offset,
     }
 
     /* Not found above: See if an "outbound-inbound" field */
-    sf_id_str = match_strval(sf_id, vals_outbound_inbound_structured_fields);
+    sf_id_str = try_val_to_str(sf_id, vals_outbound_inbound_structured_fields);
     if (sf_id_str != NULL) {
       sf_tree = display_sf_hdr(tn3270_tree, tvb, offset,
                                sf_length, sf_id, sf_id_len, sf_id_str);
@@ -5269,7 +5269,7 @@ dissect_tn3270(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                    pinfo->destport, 0);
   if (conversation != NULL) {
     /* Do we already have a type and mechanism? */
-    tn3270_info = conversation_get_proto_data(conversation, proto_tn3270);
+    tn3270_info = (tn3270_conv_info_t *)conversation_get_proto_data(conversation, proto_tn3270);
   }
 
   if (tn3270_info == NULL)
@@ -5317,12 +5317,12 @@ add_tn3270_conversation(packet_info *pinfo, int tn3270e, gint model)
   /*
    * Do we already have a type and mechanism?
    */
-  tn3270_info = conversation_get_proto_data(conversation, proto_tn3270);
+  tn3270_info = (tn3270_conv_info_t *)conversation_get_proto_data(conversation, proto_tn3270);
   if (tn3270_info == NULL) {
     /* No.  Attach that information to the conversation, and add
      * it to the list of information structures.
      */
-    tn3270_info = se_alloc(sizeof(tn3270_conv_info_t));
+    tn3270_info = se_new(tn3270_conv_info_t);
 
     COPY_ADDRESS(&(tn3270_info->outbound_addr), &(pinfo->dst));
     tn3270_info->outbound_port = pinfo->destport;
@@ -5373,7 +5373,7 @@ find_tn3270_conversation(packet_info *pinfo)
                                    pinfo->ptype, pinfo->srcport,
                                    pinfo->destport, 0);
   if (conversation != NULL) {
-    tn3270_info = conversation_get_proto_data(conversation, proto_tn3270);
+    tn3270_info = (tn3270_conv_info_t *)conversation_get_proto_data(conversation, proto_tn3270);
     if (tn3270_info != NULL) {
       /*
        * Do we already have a type and mechanism?

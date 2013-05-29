@@ -129,7 +129,7 @@ static const struct amp_message amp_messages[] = {
 static dissector_handle_t dissector_handle;
 static int proto_bittorrent = -1;
 
-static gint hf_bittorrent_field_length  = -1;
+/* static gint hf_bittorrent_field_length  = -1; */
 static gint hf_bittorrent_prot_name_len = -1;
 static gint hf_bittorrent_prot_name     = -1;
 static gint hf_bittorrent_reserved      = -1;
@@ -346,10 +346,10 @@ dissect_bencoding_str(tvbuff_t *tvb, packet_info *pinfo _U_,
             proto_tree_add_item(tree, hf_bittorrent_bstr, tvb, offset+used, stringlen, ENC_ASCII|ENC_NA);
 
             if (treeadd==1) {
-               proto_item_append_text(ti, " Key: %s", format_text(ep_tvb_memdup(tvb, offset+used, stringlen), stringlen));
+               proto_item_append_text(ti, " Key: %s", format_text((guchar *)ep_tvb_memdup(tvb, offset+used, stringlen), stringlen));
             }
             if (treeadd==2) {
-               proto_item_append_text(ti, "  Value: %s", format_text(ep_tvb_memdup(tvb, offset+used, stringlen), stringlen));
+               proto_item_append_text(ti, "  Value: %s", format_text((guchar *)ep_tvb_memdup(tvb, offset+used, stringlen), stringlen));
             }
          }
          return used+stringlen;
@@ -624,10 +624,10 @@ dissect_bittorrent_message (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          }
       }
 
-      msgtype = match_strval(type, bittorrent_messages);
+      msgtype = try_val_to_str(type, bittorrent_messages);
 #if 0
       if (msgtype == NULL && isamp) {
-         msgtype = match_strval(type, azureus_messages);
+         msgtype = try_val_to_str(type, azureus_messages);
       }
 #endif
       if (msgtype == NULL) {
@@ -848,9 +848,11 @@ void
 proto_register_bittorrent(void)
 {
    static hf_register_info hf[] = {
+#if 0
       { &hf_bittorrent_field_length,
         { "Field Length", "bittorrent.length", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }
       },
+#endif
       { &hf_bittorrent_prot_name_len,
         { "Protocol Name Length", "bittorrent.protocol.name.length", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }
       },

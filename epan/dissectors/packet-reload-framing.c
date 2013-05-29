@@ -74,6 +74,7 @@ static gint ett_reload_framing = -1;
 static gint ett_reload_framing_message = -1;
 static gint ett_reload_framing_received = -1;
 
+static expert_field ei_reload_no_dissector = EI_INIT;
 
 #define UDP_PORT_RELOAD                 6084
 #define TCP_PORT_RELOAD                 6084
@@ -131,7 +132,7 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
   conversation = find_conversation(pinfo->fd->num, &pinfo->src, &pinfo->dst,
                                    pinfo->ptype, pinfo->srcport, pinfo->destport, 0);
   if (conversation)
-    reload_framing_info = conversation_get_proto_data(conversation, proto_reload_framing);
+    reload_framing_info = (reload_conv_info_t *)conversation_get_proto_data(conversation, proto_reload_framing);
 
   /* Get the type
    * http://tools.ietf.org/html/draft-ietf-p2psip-base-12
@@ -185,15 +186,15 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
   if (type==DATA) {
     transaction_id_key[1].length = 1;
     transaction_id_key[1].key    = &pinfo->srcport;
-    transaction_id_key[2].length = (pinfo->src.len) / sizeof(guint32);
-    transaction_id_key[2].key    = g_malloc(pinfo->src.len);
+    transaction_id_key[2].length = (pinfo->src.len) / (guint)sizeof(guint32);
+    transaction_id_key[2].key    = (guint32 *)g_malloc(pinfo->src.len);
     memcpy(transaction_id_key[2].key, pinfo->src.data, pinfo->src.len);
   }
   else {
     transaction_id_key[1].length = 1;
     transaction_id_key[1].key    = &pinfo->destport;
-    transaction_id_key[2].length = (pinfo->dst.len) / sizeof(guint32);
-    transaction_id_key[2].key    = g_malloc(pinfo->dst.len);
+    transaction_id_key[2].length = (pinfo->dst.len) / (guint)sizeof(guint32);
+    transaction_id_key[2].key    = (guint32 *)g_malloc(pinfo->dst.len);
     memcpy(transaction_id_key[2].key, pinfo->dst.data, pinfo->dst.len);
   }
   transaction_id_key[3].length=0;
@@ -215,18 +216,18 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     /* No.  Attach that information to the conversation, and add
      * it to the list of information structures.
      */
-    reload_framing_info = se_alloc(sizeof(reload_conv_info_t));
+    reload_framing_info = se_new(reload_conv_info_t);
     reload_framing_info->transaction_pdus = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK,
                                                                           "reload_framing_transaction_pdus");
     conversation_add_proto_data(conversation, proto_reload_framing, reload_framing_info);
   }
 
   if (!pinfo->fd->flags.visited) {
-    if ((reload_frame =
+    if ((reload_frame = (reload_frame_t *)
            se_tree_lookup32_array(reload_framing_info->transaction_pdus, transaction_id_key)) == NULL) {
       transaction_id_key[2].key    = key_save;
       transaction_id_key[2].length = len_save;
-      reload_frame = se_alloc(sizeof(reload_frame_t));
+      reload_frame = se_new(reload_frame_t);
       reload_frame->data_frame = 0;
       reload_frame->ack_frame  = 0;
       reload_frame->req_time   = pinfo->fd->abs_ts;
@@ -251,7 +252,7 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     }
   }
   else {
-    reload_frame=se_tree_lookup32_array(reload_framing_info->transaction_pdus, transaction_id_key);
+    reload_frame=(reload_frame_t *)se_tree_lookup32_array(reload_framing_info->transaction_pdus, transaction_id_key);
     transaction_id_key[2].key    = key_save;
     transaction_id_key[2].length = len_save;
   }
@@ -259,7 +260,7 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 
   if (!reload_frame) {
     /* create a "fake" pana_trans structure */
-    reload_frame = ep_alloc(sizeof(reload_frame_t));
+    reload_frame = ep_new(reload_frame_t);
     reload_frame->data_frame = (type==DATA) ? pinfo->fd->num : 0;
     reload_frame->ack_frame  = (type!=DATA) ? pinfo->fd->num : 0;
     reload_frame->req_time   = pinfo->fd->abs_ts;
@@ -329,7 +330,7 @@ dissect_reload_framing_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     proto_tree_add_item(message_tree, hf_reload_framing_message_data, tvb, offset, message_length, ENC_NA);
     next_tvb = tvb_new_subset(tvb, offset, effective_length - offset, message_length);
     if (reload_handle == NULL) {
-      expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Can not find reload dissector");
+      expert_add_info(pinfo, ti, &ei_reload_no_dissector);
       return tvb_length(tvb);
     }
     call_dissector_only(reload_handle, next_tvb, pinfo, tree, NULL);
@@ -538,12 +539,20 @@ proto_register_reload_framing(void)
     &ett_reload_framing_received,
   };
 
+  static ei_register_info ei[] = {
+     { &ei_reload_no_dissector, { "reload_framing.no_dissector", PI_PROTOCOL, PI_WARN, "Can not find reload dissector", EXPFILL }},
+  };
+
+  expert_module_t* expert_reload_framing;
+
   /* Register the protocol name and description */
   proto_reload_framing = proto_register_protocol("REsource LOcation And Discovery Framing", "RELOAD FRAMING", "reload-framing");
 
   /* Required function calls to register the header fields and subtrees used */
   proto_register_field_array(proto_reload_framing, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_reload_framing = expert_register_protocol(proto_reload_framing);
+  expert_register_field_array(expert_reload_framing, ei, array_length(ei));
 
   register_dissector("reload-framing", dissect_reload_framing_message_no_return, proto_reload_framing);
 

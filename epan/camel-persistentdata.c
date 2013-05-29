@@ -127,9 +127,9 @@ guint32 camelsrt_global_SessionId=1;
 #ifdef DEBUG_CAMELSRT
 #include <stdio.h>
 #include <stdarg.h>
-static unsigned debug_level = 99;
+static guint debug_level = 99;
 
-static void dbg(unsigned  level, char *fmt, ...) {
+static void dbg(guint level, char *fmt, ...) {
   va_list ap;
 
   if (level > debug_level) return;
@@ -194,9 +194,9 @@ new_camelsrt_call(struct camelsrt_call_info_key_t *p_camelsrt_call_key)
      with the tcap transaction Id as main Key
      Once created, this entry will be updated later */
 
-  p_new_camelsrt_call_key = se_alloc(sizeof(struct camelsrt_call_info_key_t));
+  p_new_camelsrt_call_key = se_new(struct camelsrt_call_info_key_t);
   p_new_camelsrt_call_key->SessionIdKey = p_camelsrt_call_key->SessionIdKey;
-  p_new_camelsrt_call = se_alloc(sizeof(struct camelsrt_call_t));
+  p_new_camelsrt_call = se_new(struct camelsrt_call_t);
   raz_camelsrt_call(p_new_camelsrt_call);
   p_new_camelsrt_call->session_id = camelsrt_global_SessionId++;
 #ifdef DEBUG_CAMELSRT
@@ -302,7 +302,7 @@ camelsrt_call_matching(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   case 64: /*EventReportSMS*/
     /* Session has been explicity closed without TC_END */
     camelsrt_close_call_matching(pinfo, p_camelsrt_info);
-    tcapsrt_close(p_camelsrt_info->tcap_context, pinfo);
+    tcapsrt_close((struct tcaphash_context_t *)p_camelsrt_info->tcap_context, pinfo);
     break;
 
   case 80: /*EventReportGPRS*/
@@ -352,7 +352,7 @@ camelsrt_call_matching(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   case 66: /*ReleaseSMS*/
     /* Session has been closed by Network */
     camelsrt_close_call_matching(pinfo, p_camelsrt_info);
-    tcapsrt_close(p_camelsrt_info->tcap_context,pinfo);
+    tcapsrt_close((struct tcaphash_context_t *)p_camelsrt_info->tcap_context,pinfo);
     break;
 
   case 79: /*ReleaseGPRS*/
@@ -425,7 +425,7 @@ camelsrt_begin_call_matching(packet_info *pinfo,
     dbg(10,"New key %lu ",camelsrt_call_key.SessionIdKey);
 #endif
     p_camelsrt_call = new_camelsrt_call(&camelsrt_call_key);
-    p_camelsrt_call->tcap_context=p_camelsrt_info->tcap_context;
+    p_camelsrt_call->tcap_context=(struct tcaphash_context_t *)p_camelsrt_info->tcap_context;
     update_camelsrt_call(p_camelsrt_call, pinfo,CAMELSRT_SESSION);
 
 #ifdef DEBUG_CAMELSRT
@@ -450,7 +450,7 @@ camelsrt_request_call_matching(tvbuff_t *tvb, packet_info *pinfo,
   proto_item *ti, *hidden_item;
 
 #ifdef DEBUG_CAMELSRT
-  dbg(10,"\n %s #%u\n", val_to_str(srt_type, camelSRTtype_naming, "Unk"),pinfo->fd->num);
+  dbg(10,"\n %s #%u\n", val_to_str_const(srt_type, camelSRTtype_naming, "Unk"),pinfo->fd->num);
 #endif
 
   /* look only for matching request, if matching conversation is available. */
@@ -547,7 +547,7 @@ camelsrt_request_call_matching(tvbuff_t *tvb, packet_info *pinfo,
       ti = proto_tree_add_uint_format(tree, hf_camelsrt_RequestFrame, tvb, 0, 0,
 				      p_camelsrt_call->category[srt_type].rsp_num,
 				      "Linked response %s in frame %u",
-				      val_to_str(srt_type, camelSRTtype_naming, "Unk"),
+				      val_to_str_const(srt_type, camelSRTtype_naming, "Unk"),
 				      p_camelsrt_call->category[srt_type].rsp_num);
       PROTO_ITEM_SET_GENERATED(ti);
     } /* frame valid */
@@ -571,7 +571,7 @@ camelsrt_report_call_matching(tvbuff_t *tvb, packet_info *pinfo,
   proto_item *ti, *hidden_item;
 
 #ifdef DEBUG_CAMELSRT
-  dbg(10,"\n %s #%u\n", val_to_str(srt_type, camelSRTtype_naming, "Unk"),pinfo->fd->num);
+  dbg(10,"\n %s #%u\n", val_to_str_const(srt_type, camelSRTtype_naming, "Unk"),pinfo->fd->num);
 #endif
   camelsrt_call_key.SessionIdKey = p_camelsrt_info->tcap_session_id;
   /* look only for matching request, if matching conversation is available. */
@@ -648,7 +648,7 @@ camelsrt_report_call_matching(tvbuff_t *tvb, packet_info *pinfo,
 	ti = proto_tree_add_uint_format(tree, hf_camelsrt_ResponseFrame, tvb, 0, 0,
 					p_camelsrt_call->category[srt_type].req_num,
 					"Linked request %s in frame %u",
-					val_to_str(srt_type, camelSRTtype_naming, "Unk"),
+					val_to_str_const(srt_type, camelSRTtype_naming, "Unk"),
 					p_camelsrt_call->category[srt_type].req_num);
 	PROTO_ITEM_SET_GENERATED(ti);
       }

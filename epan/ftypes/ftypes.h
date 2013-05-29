@@ -28,6 +28,7 @@
 
 #include <glib.h>
 #include "../emem.h"
+#include "ws_symbol_export.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -103,12 +104,14 @@ ftypes_initialize(void);
 /* ---------------- FTYPE ----------------- */
 
 /* Return a string representing the name of the type */
+WS_DLL_PUBLIC
 const char*
 ftype_name(ftenum_t ftype);
 
 /* Return a string presenting a "pretty" representation of the
  * name of the type. The pretty name means more to the user than
  * that "FT_*" name. */
+WS_DLL_PUBLIC
 const char*
 ftype_pretty_name(ftenum_t ftype);
 
@@ -116,33 +119,42 @@ ftype_pretty_name(ftenum_t ftype);
 int
 ftype_length(ftenum_t ftype);
 
+WS_DLL_PUBLIC
 gboolean
 ftype_can_slice(enum ftenum ftype);
 
+WS_DLL_PUBLIC
 gboolean
 ftype_can_eq(enum ftenum ftype);
 
+WS_DLL_PUBLIC
 gboolean
 ftype_can_ne(enum ftenum ftype);
 
+WS_DLL_PUBLIC
 gboolean
 ftype_can_gt(enum ftenum ftype);
 
+WS_DLL_PUBLIC
 gboolean
 ftype_can_ge(enum ftenum ftype);
 
+WS_DLL_PUBLIC
 gboolean
 ftype_can_lt(enum ftenum ftype);
 
+WS_DLL_PUBLIC
 gboolean
 ftype_can_le(enum ftenum ftype);
 
 gboolean
 ftype_can_bitwise_and(enum ftenum ftype);
 
+WS_DLL_PUBLIC
 gboolean
 ftype_can_contains(enum ftenum ftype);
 
+WS_DLL_PUBLIC
 gboolean
 ftype_can_matches(enum ftenum ftype);
 
@@ -187,7 +199,7 @@ typedef void (*LogFunc)(const char*,...);
 
 typedef gboolean (*FvalueFromUnparsed)(fvalue_t*, char*, gboolean, LogFunc);
 typedef gboolean (*FvalueFromString)(fvalue_t*, char*, LogFunc);
-typedef void (*FvalueToStringRepr)(fvalue_t*, ftrepr_t, char*);
+typedef void (*FvalueToStringRepr)(fvalue_t*, ftrepr_t, char*volatile);
 typedef int (*FvalueStringReprLen)(fvalue_t*, ftrepr_t);
 
 typedef void (*FvalueSetFunc)(fvalue_t*, gpointer, gboolean);
@@ -257,8 +269,6 @@ fvalue_init(fvalue_t *fv, ftenum_t ftype);
 /* Free all memory used by an fvalue_t. With MSVC and a
  * libwireshark.dll, we need a special declaration.
  */
-WS_VAR_IMPORT struct ws_memory_slab fvalue_t_slab;
-
 
 #define FVALUE_CLEANUP(fv)					\
 	{							\
@@ -272,10 +282,10 @@ WS_VAR_IMPORT struct ws_memory_slab fvalue_t_slab;
 #define FVALUE_FREE(fv)						\
 	{							\
 		FVALUE_CLEANUP(fv)				\
-		sl_free(&fvalue_t_slab, fv);			\
+		g_slice_free(fvalue_t, fv);			\
 	}
 
-
+WS_DLL_PUBLIC
 fvalue_t*
 fvalue_from_unparsed(ftenum_t ftype, char *s, gboolean allow_partial_value, LogFunc logfunc);
 
@@ -288,6 +298,7 @@ fvalue_from_string(ftenum_t ftype, char *s, LogFunc logfunc);
  * Returns -1 if the string cannot be represented in the given rtype.
  *
  * The length DOES NOT include the terminating NUL. */
+WS_DLL_PUBLIC
 int
 fvalue_string_repr_len(fvalue_t *fv, ftrepr_t rtype);
 
@@ -301,7 +312,7 @@ fvalue_string_repr_len(fvalue_t *fv, ftrepr_t rtype);
  * 'buf'.
  *
  * Returns NULL if the string cannot be represented in the given rtype.*/
-extern char *
+WS_DLL_PUBLIC char *
 fvalue_to_string_repr(fvalue_t *fv, ftrepr_t rtype, char *buf);
 
 ftype_t*
@@ -325,19 +336,21 @@ fvalue_set_integer64(fvalue_t *fv, guint64 value);
 void
 fvalue_set_floating(fvalue_t *fv, gdouble value);
 
+WS_DLL_PUBLIC
 gpointer
 fvalue_get(fvalue_t *fv);
 
-extern guint32
+WS_DLL_PUBLIC guint32
 fvalue_get_uinteger(fvalue_t *fv);
 
-extern gint32
+WS_DLL_PUBLIC gint32
 fvalue_get_sinteger(fvalue_t *fv);
 
+WS_DLL_PUBLIC
 guint64
 fvalue_get_integer64(fvalue_t *fv);
 
-extern double
+WS_DLL_PUBLIC double
 fvalue_get_floating(fvalue_t *fv);
 
 gboolean
@@ -371,7 +384,7 @@ guint
 fvalue_length(fvalue_t *fv);
 
 fvalue_t*
-fvalue_slice(fvalue_t *fv, drange *dr);
+fvalue_slice(fvalue_t *fv, drange_t *dr);
 
 #ifdef __cplusplus
 }

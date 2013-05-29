@@ -32,8 +32,12 @@
 extern "C" {
 #endif /* __cplusplus */
 
-wmem_allocator_t *
-wmem_create_block_allocator(void);
+void
+wmem_block_allocator_init(wmem_allocator_t *allocator);
+
+/* Exposed only for testing purposes */
+void
+wmem_block_verify(wmem_allocator_t *allocator);
 
 #ifdef __cplusplus
 }

@@ -48,6 +48,11 @@ typedef struct {
 
 } tvb_comp_t;
 
+/*
+ * Tvbuff flags.
+ */
+#define TVBUFF_FRAGMENT		0x00000001	/* this is a fragment */
+
 struct tvbuff {
 	/* Doubly linked list pointers */
 	tvbuff_t                *next;
@@ -56,6 +61,7 @@ struct tvbuff {
 	/* Record-keeping */
 	tvbuff_type		type;
 	gboolean		initialized;
+	guint			flags;
 	struct tvbuff		*ds_tvb;  /**< data source top-level tvbuff */
 
 	/** TVBUFF_SUBSET and TVBUFF_COMPOSITE keep track

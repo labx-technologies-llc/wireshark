@@ -35,11 +35,11 @@ CLEANFILES = \
 	*~
 
 DISTCLEANFILES = \
-	$(GENERATED_NODIST_FILES)
+	$(NODIST_GENERATED_FILES)
 
 MAINTAINERCLEANFILES = \
 	$(GENERATED_FILES)		\
-	$(GENERATED_NODIST_FILES)	\
+	$(NODIST_GENERATED_FILES)	\
 	Makefile.in
 
 RUNLEX=$(top_srcdir)/tools/runlex.sh
@@ -53,9 +53,9 @@ libqtui_a_SOURCES = \
 	$(GENERATED_HEADER_FILES)
 
 nodist_libqtui_a_SOURCES = \
-	$(GENERATED_NODIST_C_FILES) \
-	$(GENERATED_NODIST_CPP_FILES) \
-	$(GENERATED_NODIST_HEADER_FILES)
+	$(NODIST_GENERATED_C_FILES) \
+	$(NODIST_GENERATED_CPP_FILES) \
+	$(NODIST_GENERATED_HEADER_FILES)
 
 libqtui_a_CFLAGS = $(AM_CLEAN_CFLAGS)
 
@@ -64,6 +64,18 @@ libqtui_a_DEPENDENCIES =
 # Common headers
 AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap $(LIBGCRYPT_CFLAGS) $(LIBGNUTLS_CFLAGS) $(PORTAUDIO_INCLUDES)
 
+AM_V_MOC = $(am__v_MOC_@AM_V@)
+am__v_MOC_ = $(am__v_MOC_@AM_DEFAULT_V@)
+am__v_MOC_0 = @echo "  MOC     " $@;
+
+AM_V_RCC = $(am__v_RCC_@AM_V@)
+am__v_RCC_ = $(am__v_RCC_@AM_DEFAULT_V@)
+am__v_RCC_0 = @echo "  RCC     " $@;
+
+AM_V_UIC = $(am__v_UIC_@AM_V@)
+am__v_UIC_ = $(am__v_UIC_@AM_DEFAULT_V@)
+am__v_UIC_0 = @echo "  UIC     " $@;
+
 #
 # For building .moc.cpp files from .h files by running moc
 # and building .rcc.cpp files from .qrc files by running rcc
@@ -71,55 +83,59 @@ AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap $(LIBGCRYPT_CFLAGS) $(LIBG
 SUFFIXES = .moc.cpp .qrc .rcc.cpp
 
 .h.moc.cpp:
-	moc -o $@ $<
+	$(AM_V_MOC)$(MOC) -I.. -I../.. -o $@ $<
 
 .qrc.rcc.cpp:
-	rcc -name `basename $< .qrc` -o $@ $<
+	$(AM_V_RCC)rcc -name `basename $< .qrc` -o $@ $<
 
-export_object_dialog.h: ui_export_object_dialog.h
+ui_%.h: %.ui
+	$(AM_V_UIC)$(UIC) $< -o $@
 
-ui_export_object_dialog.h: export_object_dialog.ui
-	uic $< -o $@
+# The Qt toolchain uses the naming convention moc_FOO.cpp. Should we do the same?
+#moc_%.cpp: %.h
+#	$(MOC) $< -o $@
 
-file_set_dialog.h: ui_file_set_dialog.h
+capture_preferences_frame.cpp capture_preferences_frame.h: ui_capture_preferences_frame.h
 
-ui_file_set_dialog.h: file_set_dialog.ui
-	uic $< -o $@
+column_preferences_frame.cpp column_preferences_frame.h: ui_column_preferences_frame.h
 
-import_text_dialog.h: ui_import_text_dialog.h
+export_object_dialog.cpp export_object_dialog.h: ui_export_object_dialog.h
 
-ui_import_text_dialog.h: import_text_dialog.ui
-	uic $< -o $@
+file_set_dialog.cpp file_set_dialog.h: ui_file_set_dialog.h
 
-main_welcome.h: ui_main_welcome.h
+filter_expressions_preferences_frame.cpp filter_expressions_preferences_frame.h: ui_filter_expressions_preferences_frame.h
 
-ui_main_welcome.h: main_welcome.ui
-	uic $< -o $@
+font_color_preferences_frame.cpp font_color_preferences_frame.h: ui_font_color_preferences_frame.h
 
-main_window.h: ui_main_window.h
+import_text_dialog.cpp import_text_dialog.h: ui_import_text_dialog.h
 
-ui_main_window.h: main_window.ui
-	uic $< -o $@
+layout_preferences_frame.cpp layout_preferences_frame.h: ui_layout_preferences_frame.h
 
-packet_format_group_box.h: ui_packet_format_group_box.h
+main_welcome.cpp main_welcome.h: ui_main_welcome.h
 
-ui_packet_format_group_box.h: packet_format_group_box.ui
-	uic $< -o $@
+main_window.cpp main_window_slots.cpp main_window.h: ui_main_window.h
 
-packet_range_group_box.h: ui_packet_range_group_box.h
+main_window_preferences_frame.cpp main_window_preferences_frame.h: ui_main_window_preferences_frame.h
 
-ui_packet_range_group_box.h: packet_range_group_box.ui
-	uic $< -o $@
+module_preferences_scroll_area.cpp module_preferences_scroll_area.h: ui_module_preferences_scroll_area.h
 
-print_dialog.h: ui_print_dialog.h
+packet_comment_dialog.cpp packet_comment_dialog.h: ui_packet_comment_dialog.h
 
-ui_print_dialog.h: print_dialog.ui
-	uic $< -o $@
+packet_format_group_box.cpp packet_format_group_box.h: ui_packet_format_group_box.h
 
-splash_overlay.h: ui_splash_overlay.h
+packet_range_group_box.cpp packet_range_group_box.h: ui_packet_range_group_box.h
 
-ui_splash_overlay.h: splash_overlay.ui
-	uic $< -o $@
+preferences_dialog.cpp preferences_dialog.h: ui_preferences_dialog.h
+
+print_dialog.cpp print_dialog.h: ui_print_dialog.h
+
+profile_dialog.cpp profile_dialog.h: ui_profile_dialog.h
+
+search_frame.cpp search_frame.h: ui_search_frame.h
+
+splash_overlay.cpp splash_overlay.h: ui_splash_overlay.h
+
+time_shift_dialog.cpp time_shift_dialog.h: ui_time_shift_dialog.h
 
 doxygen:
 if HAVE_DOXYGEN
@@ -166,23 +182,15 @@ remote_icons.h:
 #	Makefile.nmake
 EXTRA_DIST = \
 	$(GENERATOR_FILES)		\
+	$(UI_FILES)			\
 	$(QRC_FILES)			\
 	$(TS_FILES)			\
 	$(QM_FILES)			\
 	CMakeLists.txt			\
 	doxygen.cfg.in			\
-	export_object_dialog.ui		\
-	file_set_dialog.ui		\
-	import_text_dialog.ui		\
 	main.cpp			\
 	Makefile.common			\
 	Makefile_custom.common		\
-	main_welcome.ui			\
-	main_window.ui			\
-	packet_format_group_box.ui	\
-	packet_range_group_box.ui	\
-	print_dialog.ui			\
 	QtShark.pro			\
-	splash_overlay.ui		\
 	display_filter_16.svg		\
 	gpl-template.txt

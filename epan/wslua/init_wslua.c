@@ -43,7 +43,6 @@ static lua_State* L = NULL;
 packet_info* lua_pinfo;
 struct _wslua_treeitem* lua_tree;
 tvbuff_t* lua_tvb;
-int lua_malformed;
 int lua_dissectors_table_ref;
 
 dissector_handle_t lua_data_handle;
@@ -69,7 +68,7 @@ int dissect_lua(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* data 
     lua_pinfo = pinfo;
     lua_tvb = tvb;
 
-    lua_tree = g_malloc(sizeof(struct _wslua_treeitem));
+    lua_tree = (struct _wslua_treeitem *)g_malloc(sizeof(struct _wslua_treeitem));
     lua_tree->tree = tree;
     lua_tree->item = proto_tree_add_text(tree,tvb,0,0,"lua fake item");
     lua_tree->expired = FALSE;
@@ -256,14 +255,10 @@ static gboolean lua_load_script(const gchar* filename) {
             fclose(file);
             return FALSE;
         default:
-	    report_failure("Lua: unspecified error during execution of %s", filename);
-	    fclose(file);
-	    return FALSE;
+            report_failure("Lua: unknown error during execution of %s: %d",filename,error);
+            fclose(file);
+            return FALSE;
     }
-
-    report_failure("Lua: unknown error during execution of %s: %d",filename,error);
-    fclose(file);
-    return FALSE;
 }
 
 static void basic_logger(const gchar *log_domain _U_,
@@ -337,12 +332,13 @@ int wslua_init(register_cb cb, gpointer client_data) {
         (*cb)(RA_LUA_PLUGINS, NULL, client_data);
 
     /* set up the logger */
-    g_log_set_handler(LOG_DOMAIN_LUA, G_LOG_LEVEL_CRITICAL|
+    g_log_set_handler(LOG_DOMAIN_LUA, (GLogLevelFlags)(G_LOG_LEVEL_CRITICAL|
                       G_LOG_LEVEL_WARNING|
                       G_LOG_LEVEL_MESSAGE|
                       G_LOG_LEVEL_INFO|
-                      G_LOG_LEVEL_DEBUG,
-                      ops ? ops->logger : basic_logger, NULL);
+                      G_LOG_LEVEL_DEBUG),
+                      ops ? ops->logger : basic_logger,
+                      NULL);
 
     if (!L) {
         L = luaL_newstate();
@@ -354,13 +350,13 @@ int wslua_init(register_cb cb, gpointer client_data) {
 
     /* the init_routines table (accessible by the user) */
     lua_newtable (L);
-	lua_setglobal(L, WSLUA_INIT_ROUTINES);
+    lua_setglobal(L, WSLUA_INIT_ROUTINES);
 
     /* the dissectors table goes in the registry (not accessible) */
     lua_newtable (L);
     lua_dissectors_table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    /* set running_superuser variable to it's propper value */
+    /* set running_superuser variable to its proper value */
     WSLUA_REG_GLOBAL_BOOL(L,"running_superuser",started_with_special_privs());
 
     /* special constant used by PDU reassembly handling */
@@ -400,7 +396,7 @@ int wslua_init(register_cb cb, gpointer client_data) {
 
     /* if we are indeed superuser run user scripts only if told to do so */
     if ( (!started_with_special_privs()) || run_anyway ) {
-        filename = get_persconffile_path("init.lua", FALSE, FALSE);
+        filename = get_persconffile_path("init.lua", FALSE);
 
         if ((file_exists(filename))) {
             lua_load_script(filename);
@@ -435,7 +431,6 @@ int wslua_init(register_cb cb, gpointer client_data) {
     lua_tvb = NULL;
 
     lua_data_handle = find_dissector("data");
-    lua_malformed = proto_get_id_by_filter_name("malformed");
 
     Proto_commit(L);
 
@@ -443,3 +438,17 @@ int wslua_init(register_cb cb, gpointer client_data) {
 }
 
 lua_State* wslua_state(void) { return L; }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 4
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=4 expandtab:
+ * :indentSize=4:tabSize=4:noTabs=true:
+ */
+

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-rtse.c                                                              */
 /* ../../tools/asn2wrs.py -b -p rtse -c ./rtse.cnf -s ./packet-rtse-template -D . -O ../../epan/dissectors rtse.asn */
 
@@ -117,8 +117,7 @@ static dissector_table_t rtse_oid_dissector_table=NULL;
 static GHashTable *oid_table=NULL;
 static gint ett_rtse_unknown = -1;
 
-static GHashTable *rtse_segment_table = NULL;
-static GHashTable *rtse_reassembled_table = NULL;
+static reassembly_table rtse_reassembly_table;
 
 static int hf_rtse_segment_data = -1;
 static int hf_rtse_fragments = -1;
@@ -195,7 +194,7 @@ call_rtse_oid_callback(const char *oid, tvbuff_t *tvb, int offset, packet_info *
 {
 	tvbuff_t *next_tvb;
 
-	next_tvb = tvb_new_subset(tvb, offset, tvb_length_remaining(tvb, offset), tvb_reported_length_remaining(tvb, offset));
+	next_tvb = tvb_new_subset_remaining(tvb, offset);
 	if(!dissector_try_string(rtse_oid_dissector_table, oid, next_tvb, pinfo, tree)){
 		proto_item *item=proto_tree_add_text(tree, next_tvb, 0, tvb_length_remaining(tvb, offset), "RTSE: Dissector for OID:%s not implemented. Contact Wireshark developers if you want this supported", oid);
 		proto_tree *next_tree=proto_item_add_subtree(item, ett_rtse_unknown);
@@ -266,7 +265,7 @@ static int
 dissect_rtse_T_open(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 53 "../../asn1/rtse/rtse.cnf"
 
-	char *oid = NULL;
+	const char *oid = NULL;
 
 	switch(app_proto)  {
 	case 1:		/* mts-transfer-protocol-1984 */
@@ -526,7 +525,7 @@ dissect_rtse_RefuseReason(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
 static int
 dissect_rtse_T_userDataRJ(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 9 "../../asn1/rtse/rtse.cnf"
-	char *oid = NULL;
+	const char *oid = NULL;
 
 	switch(app_proto)  {
 	case 1:		/* mts-transfer-protocol-1984 */
@@ -732,7 +731,7 @@ dissect_rtse_RTSE_apdus(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 
 /*--- End of included file: packet-rtse-fn.c ---*/
-#line 185 "../../asn1/rtse/packet-rtse-template.c"
+#line 184 "../../asn1/rtse/packet-rtse-template.c"
 
 /*
 * Dissect RTSE PDUs inside a PPDU.
@@ -786,8 +785,8 @@ dissect_rtse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		session->rtse_reassemble = TRUE;
 	}
 	if (rtse_reassemble && session->spdu_type == SES_MAJOR_SYNC_POINT) {
-		frag_msg = fragment_end_seq_next (pinfo, rtse_id, rtse_segment_table,
-						  rtse_reassembled_table);
+		frag_msg = fragment_end_seq_next (&rtse_reassembly_table,
+						  pinfo, rtse_id, NULL);
 		next_tvb = process_reassembled_data (tvb, offset, pinfo, "Reassembled RTSE",
 						     frag_msg, &rtse_frag_items, NULL, parent_tree);
 	}
@@ -803,9 +802,10 @@ dissect_rtse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			fragment_length = tvb_length_remaining (data_tvb, 0);
 			proto_item_append_text(asn1_ctx.created_item, " (%u byte%s)", fragment_length,
       	                              plurality(fragment_length, "", "s"));
-			frag_msg = fragment_add_seq_next (data_tvb, 0, pinfo,
-							  rtse_id, rtse_segment_table,
-							  rtse_reassembled_table, fragment_length, TRUE);
+			frag_msg = fragment_add_seq_next (&rtse_reassembly_table,
+							  data_tvb, 0, pinfo,
+							  rtse_id, NULL,
+							  fragment_length, TRUE);
 			if (frag_msg && pinfo->fd->num != frag_msg->reassembled_in) {
 				/* Add a "Reassembled in" link if not reassembled in this frame */
 				proto_tree_add_uint (tree, *(rtse_frag_items.hf_reassembled_in),
@@ -855,8 +855,8 @@ dissect_rtse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 
 static void rtse_reassemble_init (void)
 {
-	fragment_table_init (&rtse_segment_table);
-	reassembled_table_init (&rtse_reassembled_table);
+	reassembly_table_init (&rtse_reassembly_table,
+			       &addresses_reassembly_table_functions);
 }
 
 /*--- proto_register_rtse -------------------------------------------*/
@@ -906,15 +906,15 @@ void proto_register_rtse(void) {
 /*--- Included file: packet-rtse-hfarr.c ---*/
 #line 1 "../../asn1/rtse/packet-rtse-hfarr.c"
     { &hf_rtse_rtorq_apdu,
-      { "rtorq-apdu", "rtse.rtorq_apdu",
+      { "rtorq-apdu", "rtse.rtorq_apdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTORQapdu", HFILL }},
     { &hf_rtse_rtoac_apdu,
-      { "rtoac-apdu", "rtse.rtoac_apdu",
+      { "rtoac-apdu", "rtse.rtoac_apdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTOACapdu", HFILL }},
     { &hf_rtse_rtorj_apdu,
-      { "rtorj-apdu", "rtse.rtorj_apdu",
+      { "rtorj-apdu", "rtse.rtorj_apdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTORJapdu", HFILL }},
     { &hf_rtse_rttp_apdu,
@@ -926,7 +926,7 @@ void proto_register_rtse(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "RTTRapdu", HFILL }},
     { &hf_rtse_rtab_apdu,
-      { "rtab-apdu", "rtse.rtab_apdu",
+      { "rtab-apdu", "rtse.rtab_apdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTABapdu", HFILL }},
     { &hf_rtse_checkpointSize,
@@ -958,7 +958,7 @@ void proto_register_rtse(void) {
         FT_INT32, BASE_DEC, VALS(rtse_RefuseReason_vals), 0,
         NULL, HFILL }},
     { &hf_rtse_userDataRJ,
-      { "userDataRJ", "rtse.userDataRJ",
+      { "userDataRJ", "rtse.userDataRJ_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rtse_abortReason,
@@ -970,15 +970,15 @@ void proto_register_rtse(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_rtse_userdataAB,
-      { "userdataAB", "rtse.userdataAB",
+      { "userdataAB", "rtse.userdataAB_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rtse_open,
-      { "open", "rtse.open",
+      { "open", "rtse.open_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rtse_recover,
-      { "recover", "rtse.recover",
+      { "recover", "rtse.recover_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SessionConnectionIdentifier", HFILL }},
     { &hf_rtse_callingSSuserReference,

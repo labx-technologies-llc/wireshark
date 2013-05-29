@@ -24,6 +24,8 @@
 #ifndef __VWR_H__
 #define __VWR_H__
 
+#include "ws_symbol_export.h"
+
 int vwr_open(wtap *wth, int *err, gchar **err_info);
 
 #endif

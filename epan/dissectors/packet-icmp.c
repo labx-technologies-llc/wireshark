@@ -881,19 +881,22 @@ dissect_extensions(tvbuff_t * tvb, gint offset, proto_tree * tree)
 					   tvb, offset + 2, 2, cksum,
 					   "Checksum: 0x%04x [correct]",
 					   cksum);
-	} else {
 		hidden_item =
 		    proto_tree_add_boolean(ext_tree,
 					   hf_icmp_ext_checksum_bad, tvb,
-					   offset + 2, 2, TRUE);
-		PROTO_ITEM_SET_HIDDEN(hidden_item);
-
+					   offset + 2, 2, FALSE);
+	} else {
 		proto_tree_add_uint_format(ext_tree, hf_icmp_ext_checksum,
 					   tvb, offset + 2, 2, cksum,
 					   "Checksum: 0x%04x [incorrect, should be 0x%04x]",
 					   cksum, in_cksum_shouldbe(cksum,
 								    computed_cksum));
+		hidden_item =
+		    proto_tree_add_boolean(ext_tree,
+					   hf_icmp_ext_checksum_bad, tvb,
+					   offset + 2, 2, TRUE);
 	}
+	PROTO_ITEM_SET_HIDDEN(hidden_item);
 
 	if (version != 1 && version != 2) {
 		/* Unsupported version */
@@ -1019,9 +1022,9 @@ static icmp_transaction_t *transaction_start(packet_info * pinfo,
 
 	/* Handle the conversation tracking */
 	conversation = _find_or_create_conversation(pinfo);
-	icmp_info = conversation_get_proto_data(conversation, proto_icmp);
+	icmp_info = (icmp_conv_info_t *)conversation_get_proto_data(conversation, proto_icmp);
 	if (icmp_info == NULL) {
-		icmp_info = se_alloc(sizeof(icmp_conv_info_t));
+		icmp_info = se_new(icmp_conv_info_t);
 		icmp_info->unmatched_pdus =
 		    se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK,
 						  "icmp_unmatched_pdus");
@@ -1033,7 +1036,7 @@ static icmp_transaction_t *transaction_start(packet_info * pinfo,
 	}
 
 	if (!PINFO_FD_VISITED(pinfo)) {
-		/* this is a new request, create a new transaction structure and map it to the 
+		/* this is a new request, create a new transaction structure and map it to the
 		   unmatched table
 		 */
 		icmp_key[0].length = 2;
@@ -1041,7 +1044,7 @@ static icmp_transaction_t *transaction_start(packet_info * pinfo,
 		icmp_key[1].length = 0;
 		icmp_key[1].key = NULL;
 
-		icmp_trans = se_alloc(sizeof(icmp_transaction_t));
+		icmp_trans = se_new(icmp_transaction_t);
 		icmp_trans->rqst_frame = PINFO_FD_NUM(pinfo);
 		icmp_trans->resp_frame = 0;
 		icmp_trans->rqst_time = pinfo->fd->abs_ts;
@@ -1060,7 +1063,7 @@ static icmp_transaction_t *transaction_start(packet_info * pinfo,
 		icmp_key[2].key = NULL;
 
 		icmp_trans =
-		    se_tree_lookup32_array(icmp_info->matched_pdus,
+		    (icmp_transaction_t *)se_tree_lookup32_array(icmp_info->matched_pdus,
 					   icmp_key);
 	}
 	if (icmp_trans == NULL) {
@@ -1101,7 +1104,7 @@ static icmp_transaction_t *transaction_end(packet_info * pinfo,
 		return NULL;
 	}
 
-	icmp_info = conversation_get_proto_data(conversation, proto_icmp);
+	icmp_info = (icmp_conv_info_t *)conversation_get_proto_data(conversation, proto_icmp);
 	if (icmp_info == NULL) {
 		return NULL;
 	}
@@ -1114,7 +1117,7 @@ static icmp_transaction_t *transaction_end(packet_info * pinfo,
 		icmp_key[1].length = 0;
 		icmp_key[1].key = NULL;
 		icmp_trans =
-		    se_tree_lookup32_array(icmp_info->unmatched_pdus,
+		    (icmp_transaction_t *)se_tree_lookup32_array(icmp_info->unmatched_pdus,
 					   icmp_key);
 		if (icmp_trans == NULL) {
 			return NULL;
@@ -1155,7 +1158,7 @@ static icmp_transaction_t *transaction_end(packet_info * pinfo,
 		icmp_key[2].key = NULL;
 
 		icmp_trans =
-		    se_tree_lookup32_array(icmp_info->matched_pdus,
+		    (icmp_transaction_t *)se_tree_lookup32_array(icmp_info->matched_pdus,
 					   icmp_key);
 
 		if (icmp_trans == NULL) {
@@ -1362,12 +1365,12 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 						   2, 2, cksum,
 						   "Checksum: 0x%04x [correct]",
 						   cksum);
-		} else {
 			item =
 			    proto_tree_add_boolean(icmp_tree,
 						   hf_icmp_checksum_bad,
-						   tvb, 2, 2, TRUE);
+						   tvb, 2, 2, FALSE);
 			PROTO_ITEM_SET_HIDDEN(item);
+		} else {
 			proto_tree_add_uint_format(icmp_tree,
 						   hf_icmp_checksum, tvb,
 						   2, 2, cksum,
@@ -1375,6 +1378,11 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 						   cksum,
 						   in_cksum_shouldbe(cksum,
 								     computed_cksum));
+			item =
+			    proto_tree_add_boolean(icmp_tree,
+						   hf_icmp_checksum_bad,
+						   tvb, 2, 2, TRUE);
+			PROTO_ITEM_SET_HIDDEN(item);
 		}
 	} else {
 		proto_tree_add_uint(icmp_tree, hf_icmp_checksum, tvb, 2, 2,
@@ -1658,9 +1666,9 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 		{
 			guint32 frame_ts, orig_ts;
 
-			frame_ts = ((pinfo->fd->abs_ts.secs * 1000) +
+			frame_ts = (guint32)(((pinfo->fd->abs_ts.secs * 1000) +
 				    (pinfo->fd->abs_ts.nsecs / 1000000)) %
-			    86400000;
+			    86400000);
 
 			orig_ts =
 			    get_best_guess_mstimeofday(tvb, 8, frame_ts);

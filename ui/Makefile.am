@@ -32,6 +32,7 @@ endif
 noinst_LIBRARIES = libui.a libui_dirty.a
 
 CLEANFILES = \
+	doxygen-ui.tag	\
 	libui.a		\
 	libui_dirty.a	\
 	*~
@@ -68,6 +69,11 @@ doxygen:
 if HAVE_DOXYGEN
 	$(DOXYGEN) doxygen.cfg
 endif		# HAVE_DOXYGEN
+
+wsar_html: doxygen.cfg ../doxygen_global.cfg
+if HAVE_DOXYGEN
+	(umask 022 ; $(DOXYGEN) doxygen.cfg)
+endif
 
 checkapi: checkapi-base checkapi-todo
 

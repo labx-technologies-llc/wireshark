@@ -71,6 +71,8 @@ static const value_string user_dlts[] = {
 };
 static int proto_user_encap = -1;
 
+static expert_field ei_user_encap_not_handled = EI_INIT;
+
 static user_encap_t* encaps = NULL;
 static guint num_encaps = 0;
 static uat_t* encaps_uat;
@@ -80,7 +82,7 @@ static void dissect_user(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree) {
     user_encap_t* encap = NULL;
     tvbuff_t* payload_tvb;
     proto_item* item;
-    int len;
+    gint len, reported_len;
     guint i;
 
     for (i = 0; i < num_encaps; i++) {
@@ -96,7 +98,7 @@ static void dissect_user(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree) {
                                      "check your Preferences->Protocols->DLT_USER",
                          pinfo->match_uint + 147 - WTAP_ENCAP_USER0);
         proto_item_set_text(item,"%s",msg);
-        expert_add_info_format(pinfo, item, PI_UNDECODED, PI_WARN, "%s", msg);
+        expert_add_info_format_text(pinfo, item, &ei_user_encap_not_handled, "%s", msg);
 
         call_dissector(data_handle, tvb, pinfo, tree);
         return;
@@ -107,15 +109,13 @@ static void dissect_user(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree) {
                                      encap->payload_proto_name,
                                      pinfo->match_uint + 147 - WTAP_ENCAP_USER0);
         proto_item_set_text(item,"%s",msg);
-        expert_add_info_format(pinfo, item, PI_UNDECODED, PI_WARN, "%s", msg);
+        expert_add_info_format_text(pinfo, item, &ei_user_encap_not_handled, "%s", msg);
 
         call_dissector(data_handle, tvb, pinfo, tree);
         return;
     }
 
     proto_item_set_text(item,"DLT: %d",pinfo->match_uint + 147 - WTAP_ENCAP_USER0);
-
-    len = tvb_reported_length(tvb) - (encap->header_size + encap->trailer_size);
 
     if (encap->header_size) {
         tvbuff_t* hdr_tvb = tvb_new_subset(tvb, 0, encap->header_size, encap->header_size);
@@ -128,7 +128,10 @@ static void dissect_user(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree) {
         }
     }
 
-    payload_tvb = tvb_new_subset(tvb, encap->header_size, len, len);
+    len = tvb_length(tvb) - (encap->header_size + encap->trailer_size);
+    reported_len = tvb_reported_length(tvb) - (encap->header_size + encap->trailer_size);
+
+    payload_tvb = tvb_new_subset(tvb, encap->header_size, len, reported_len);
     call_dissector(encap->payload_proto, payload_tvb, pinfo, tree);
     if (encap->payload_proto_name) {
         const char *proto_name = dissector_handle_get_long_name(find_dissector(encap->payload_proto_name));
@@ -151,8 +154,8 @@ static void dissect_user(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree) {
 
 static void* user_copy_cb(void* dest, const void* orig, size_t len _U_)
 {
-    const user_encap_t *o = orig;
-    user_encap_t *d = dest;
+    const user_encap_t *o = (const user_encap_t *)orig;
+    user_encap_t *d = (user_encap_t *)dest;
 
     d->payload_proto_name = g_strdup(o->payload_proto_name);
     d->header_proto_name  = g_strdup(o->header_proto_name);
@@ -163,14 +166,14 @@ static void* user_copy_cb(void* dest, const void* orig, size_t len _U_)
 
 static void user_free_cb(void* record)
 {
-    user_encap_t *u = record;
+    user_encap_t *u = (user_encap_t *)record;
 
     g_free(u->payload_proto_name);
     g_free(u->header_proto_name);
     g_free(u->trailer_proto_name);
 }
 
-UAT_VS_DEF(user_encap, encap, user_encap_t, WTAP_ENCAP_USER0, ENCAP0_STR)
+UAT_VS_DEF(user_encap, encap, user_encap_t, guint, WTAP_ENCAP_USER0, ENCAP0_STR)
 UAT_PROTO_DEF(user_encap, payload_proto, payload_proto, payload_proto_name, user_encap_t)
 UAT_DEC_CB_DEF(user_encap, header_size, user_encap_t)
 UAT_DEC_CB_DEF(user_encap, trailer_size, user_encap_t)
@@ -194,6 +197,7 @@ void proto_reg_handoff_user_encap(void)
 void proto_register_user_encap(void)
 {
     module_t *module;
+    expert_module_t* expert_user_encap;
 
     static uat_field_t user_flds[] = {
         UAT_FLD_VS(user_encap,encap,"DLT",user_dlts,"The DLT"),
@@ -210,8 +214,13 @@ void proto_register_user_encap(void)
         UAT_END_FIELDS
     };
 
+    static ei_register_info ei[] = {
+        { &ei_user_encap_not_handled, { "user_dlt.not_handled", PI_UNDECODED, PI_WARN, "Formatted text", EXPFILL }},
+    };
 
     proto_user_encap = proto_register_protocol("DLT User","DLT_USER","user_dlt");
+    expert_user_encap = expert_register_protocol(proto_user_encap);
+    expert_register_field_array(expert_user_encap, ei, array_length(ei));
 
     module = prefs_register_protocol(proto_user_encap, NULL);
 
@@ -219,7 +228,7 @@ void proto_register_user_encap(void)
                          sizeof(user_encap_t),
                          "user_dlts",
                          TRUE,
-                         (void*) &encaps,
+                         (void**) &encaps,
                          &num_encaps,
                          UAT_AFFECTS_DISSECTION, /* affects dissection of packets, but not set of named fields */
                          "ChUserDLTsSection",

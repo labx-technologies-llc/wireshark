@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pkcs12.c                                                            */
 /* ../../tools/asn2wrs.py -b -p pkcs12 -c ./pkcs12.cnf -s ./packet-pkcs12-template -D . -O ../../epan/dissectors pkcs12.asn */
 
@@ -54,7 +54,7 @@
 #endif
 
 #ifdef HAVE_LIBGCRYPT
-#include <gcrypt.h>
+#include <wsutil/wsgcrypt.h>
 #endif
 
 #define PNAME  "PKCS#12: Personal Information Exchange"
@@ -64,6 +64,9 @@
 #define PKCS12_PBE_ARCFOUR_SHA1_OID     "1.2.840.113549.1.12.1.1"
 #define PKCS12_PBE_3DES_SHA1_OID	"1.2.840.113549.1.12.1.3"
 #define PKCS12_PBE_RC2_40_SHA1_OID	"1.2.840.113549.1.12.1.6"
+
+void proto_register_pkcs12(void);
+void proto_reg_handoff_pkcs12(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkcs12 = -1;
@@ -140,7 +143,7 @@ static int hf_pkcs12_encryptionScheme = -1;       /* AlgorithmIdentifier */
 static int hf_pkcs12_messageAuthScheme = -1;      /* AlgorithmIdentifier */
 
 /*--- End of included file: packet-pkcs12-hf.c ---*/
-#line 77 "../../asn1/pkcs12/packet-pkcs12-template.c"
+#line 80 "../../asn1/pkcs12/packet-pkcs12-template.c"
 
 /* Initialize the subtree pointers */
 
@@ -168,7 +171,7 @@ static gint ett_pkcs12_PBES2Params = -1;
 static gint ett_pkcs12_PBMAC1Params = -1;
 
 /*--- End of included file: packet-pkcs12-ett.c ---*/
-#line 80 "../../asn1/pkcs12/packet-pkcs12-template.c"
+#line 83 "../../asn1/pkcs12/packet-pkcs12-template.c"
 
 static void append_oid(proto_tree *tree, const char *oid)
 {
@@ -360,14 +363,14 @@ int PBE_decrypt_data(const char *object_identifier_id_param, tvbuff_t *encrypted
 	}
 
 	/* allocate buffers */
-	key = ep_alloc(keylen);
+	key = (char *)ep_alloc(keylen);
 
 	if(!generate_key_or_iv(1 /*LEY */, salt, iteration_count, password, keylen, key))
 		return FALSE;
 
 	if(ivlen) {
 
-		iv = ep_alloc(ivlen);
+		iv = (char *)ep_alloc(ivlen);
 
 		if(!generate_key_or_iv(2 /* IV */, salt, iteration_count, password, ivlen, iv))
 			return FALSE;
@@ -393,7 +396,7 @@ int PBE_decrypt_data(const char *object_identifier_id_param, tvbuff_t *encrypted
 	}
 
 	datalen = tvb_length(encrypted_tvb);
-	clear_data = g_malloc(datalen);
+	clear_data = (char *)g_malloc(datalen);
 
 	err = gcry_cipher_decrypt (cipher, clear_data, datalen, tvb_get_ephemeral_string(encrypted_tvb, 0, datalen), datalen);
 	if (gcry_err_code (err)) {
@@ -1124,7 +1127,7 @@ static void dissect_PBMAC1Params_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, 
 
 
 /*--- End of included file: packet-pkcs12-fn.c ---*/
-#line 381 "../../asn1/pkcs12/packet-pkcs12-template.c"
+#line 384 "../../asn1/pkcs12/packet-pkcs12-template.c"
 
 static int strip_octet_string(tvbuff_t *tvb)
 {
@@ -1195,7 +1198,7 @@ void proto_register_pkcs12(void) {
 /*--- Included file: packet-pkcs12-hfarr.c ---*/
 #line 1 "../../asn1/pkcs12/packet-pkcs12-hfarr.c"
     { &hf_pkcs12_PFX_PDU,
-      { "PFX", "pkcs12.PFX",
+      { "PFX", "pkcs12.PFX_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_AuthenticatedSafe_PDU,
@@ -1207,47 +1210,47 @@ void proto_register_pkcs12(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_KeyBag_PDU,
-      { "KeyBag", "pkcs12.KeyBag",
+      { "KeyBag", "pkcs12.KeyBag_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_PKCS8ShroudedKeyBag_PDU,
-      { "PKCS8ShroudedKeyBag", "pkcs12.PKCS8ShroudedKeyBag",
+      { "PKCS8ShroudedKeyBag", "pkcs12.PKCS8ShroudedKeyBag_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_CertBag_PDU,
-      { "CertBag", "pkcs12.CertBag",
+      { "CertBag", "pkcs12.CertBag_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_CRLBag_PDU,
-      { "CRLBag", "pkcs12.CRLBag",
+      { "CRLBag", "pkcs12.CRLBag_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_SecretBag_PDU,
-      { "SecretBag", "pkcs12.SecretBag",
+      { "SecretBag", "pkcs12.SecretBag_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_PrivateKeyInfo_PDU,
-      { "PrivateKeyInfo", "pkcs12.PrivateKeyInfo",
+      { "PrivateKeyInfo", "pkcs12.PrivateKeyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_EncryptedPrivateKeyInfo_PDU,
-      { "EncryptedPrivateKeyInfo", "pkcs12.EncryptedPrivateKeyInfo",
+      { "EncryptedPrivateKeyInfo", "pkcs12.EncryptedPrivateKeyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_PBEParameter_PDU,
-      { "PBEParameter", "pkcs12.PBEParameter",
+      { "PBEParameter", "pkcs12.PBEParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_PBKDF2Params_PDU,
-      { "PBKDF2Params", "pkcs12.PBKDF2Params",
+      { "PBKDF2Params", "pkcs12.PBKDF2Params_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_PBES2Params_PDU,
-      { "PBES2Params", "pkcs12.PBES2Params",
+      { "PBES2Params", "pkcs12.PBES2Params_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_PBMAC1Params_PDU,
-      { "PBMAC1Params", "pkcs12.PBMAC1Params",
+      { "PBMAC1Params", "pkcs12.PBMAC1Params_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_version,
@@ -1255,15 +1258,15 @@ void proto_register_pkcs12(void) {
         FT_UINT32, BASE_DEC, VALS(pkcs12_T_version_vals), 0,
         NULL, HFILL }},
     { &hf_pkcs12_authSafe,
-      { "authSafe", "pkcs12.authSafe",
+      { "authSafe", "pkcs12.authSafe_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ContentInfo", HFILL }},
     { &hf_pkcs12_macData,
-      { "macData", "pkcs12.macData",
+      { "macData", "pkcs12.macData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_mac,
-      { "mac", "pkcs12.mac",
+      { "mac", "pkcs12.mac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DigestInfo", HFILL }},
     { &hf_pkcs12_macSalt,
@@ -1275,7 +1278,7 @@ void proto_register_pkcs12(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_pkcs12_digestAlgorithm,
-      { "digestAlgorithm", "pkcs12.digestAlgorithm",
+      { "digestAlgorithm", "pkcs12.digestAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DigestAlgorithmIdentifier", HFILL }},
     { &hf_pkcs12_digest,
@@ -1283,11 +1286,11 @@ void proto_register_pkcs12(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_AuthenticatedSafe_item,
-      { "ContentInfo", "pkcs12.ContentInfo",
+      { "ContentInfo", "pkcs12.ContentInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_SafeContents_item,
-      { "SafeBag", "pkcs12.SafeBag",
+      { "SafeBag", "pkcs12.SafeBag_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_bagId,
@@ -1295,7 +1298,7 @@ void proto_register_pkcs12(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_bagValue,
-      { "bagValue", "pkcs12.bagValue",
+      { "bagValue", "pkcs12.bagValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_bagAttributes,
@@ -1303,7 +1306,7 @@ void proto_register_pkcs12(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_PKCS12Attribute", HFILL }},
     { &hf_pkcs12_bagAttributes_item,
-      { "PKCS12Attribute", "pkcs12.PKCS12Attribute",
+      { "PKCS12Attribute", "pkcs12.PKCS12Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_certId,
@@ -1311,7 +1314,7 @@ void proto_register_pkcs12(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_certValue,
-      { "certValue", "pkcs12.certValue",
+      { "certValue", "pkcs12.certValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_crlId,
@@ -1319,7 +1322,7 @@ void proto_register_pkcs12(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_crlValue,
-      { "crlValue", "pkcs12.crlValue",
+      { "crlValue", "pkcs12.crlValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_secretTypeId,
@@ -1327,7 +1330,7 @@ void proto_register_pkcs12(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_secretValue,
-      { "secretValue", "pkcs12.secretValue",
+      { "secretValue", "pkcs12.secretValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_attrId,
@@ -1339,7 +1342,7 @@ void proto_register_pkcs12(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_attrValues_item,
-      { "attrValues item", "pkcs12.attrValues_item",
+      { "attrValues item", "pkcs12.attrValues_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_privateKeyVersion,
@@ -1347,7 +1350,7 @@ void proto_register_pkcs12(void) {
         FT_UINT32, BASE_DEC, VALS(pkcs12_Version_vals), 0,
         NULL, HFILL }},
     { &hf_pkcs12_privateKeyAlgorithm,
-      { "privateKeyAlgorithm", "pkcs12.privateKeyAlgorithm",
+      { "privateKeyAlgorithm", "pkcs12.privateKeyAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_pkcs12_privateKey,
@@ -1359,11 +1362,11 @@ void proto_register_pkcs12(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_Attributes_item,
-      { "Attribute", "pkcs12.Attribute",
+      { "Attribute", "pkcs12.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs12_encryptionAlgorithm,
-      { "encryptionAlgorithm", "pkcs12.encryptionAlgorithm",
+      { "encryptionAlgorithm", "pkcs12.encryptionAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_pkcs12_encryptedData,
@@ -1387,7 +1390,7 @@ void proto_register_pkcs12(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_pkcs12_otherSource,
-      { "otherSource", "pkcs12.otherSource",
+      { "otherSource", "pkcs12.otherSource_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_pkcs12_keyLength,
@@ -1395,24 +1398,24 @@ void proto_register_pkcs12(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_MAX", HFILL }},
     { &hf_pkcs12_prf,
-      { "prf", "pkcs12.prf",
+      { "prf", "pkcs12.prf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_pkcs12_keyDerivationFunc,
-      { "keyDerivationFunc", "pkcs12.keyDerivationFunc",
+      { "keyDerivationFunc", "pkcs12.keyDerivationFunc_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_pkcs12_encryptionScheme,
-      { "encryptionScheme", "pkcs12.encryptionScheme",
+      { "encryptionScheme", "pkcs12.encryptionScheme_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_pkcs12_messageAuthScheme,
-      { "messageAuthScheme", "pkcs12.messageAuthScheme",
+      { "messageAuthScheme", "pkcs12.messageAuthScheme_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
 
 /*--- End of included file: packet-pkcs12-hfarr.c ---*/
-#line 448 "../../asn1/pkcs12/packet-pkcs12-template.c"
+#line 451 "../../asn1/pkcs12/packet-pkcs12-template.c"
   };
 
   /* List of subtrees */
@@ -1443,7 +1446,7 @@ void proto_register_pkcs12(void) {
     &ett_pkcs12_PBMAC1Params,
 
 /*--- End of included file: packet-pkcs12-ettarr.c ---*/
-#line 454 "../../asn1/pkcs12/packet-pkcs12-template.c"
+#line 457 "../../asn1/pkcs12/packet-pkcs12-template.c"
   };
   module_t *pkcs12_module;
 
@@ -1504,7 +1507,7 @@ void proto_reg_handoff_pkcs12(void) {
 
 
 /*--- End of included file: packet-pkcs12-dis-tab.c ---*/
-#line 486 "../../asn1/pkcs12/packet-pkcs12-template.c"
+#line 489 "../../asn1/pkcs12/packet-pkcs12-template.c"
 
 	register_ber_oid_dissector("1.2.840.113549.1.9.22.1", dissect_X509Certificate_OCTETSTRING_PDU, proto_pkcs12, "x509Certificate");
 

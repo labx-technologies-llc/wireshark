@@ -32,7 +32,7 @@ extern "C" {
 
 /* Add a new recent capture filename to the "Recent Files" submenu
    (duplicates will be ignored) */
-extern void add_menu_recent_capture_file(gchar *cf_name);
+extern void add_menu_recent_capture_file(const gchar *cf_name);
 
 /** Write all recent capture filenames to the user's recent file.
  * @param rf recent file
@@ -41,9 +41,9 @@ extern void menu_recent_file_write_all(FILE *rf);
 
 /** Add a capture filter coming from the user's recent file to the cfilter combo box.
  *
- * @param dftext the filter string
+ * @param s the filter string
  */
-extern gboolean cfilter_combo_add_recent(gchar *s);
+extern gboolean cfilter_combo_add_recent(const gchar *s);
 
 /** Write all non-empty capture filters (until maximum count)
  *  of the combo box GList to the user's recent file.
@@ -56,7 +56,7 @@ extern void cfilter_combo_recent_write_all(FILE *rf);
  *
  * @param dftext the filter string
  */
-extern gboolean dfilter_combo_add_recent(gchar *dftext);
+extern gboolean dfilter_combo_add_recent(const gchar *dftext);
 
 /** Write all non-empty display filters (until maximum count)
  *  of the combo box GList to the user's recent file.
@@ -79,23 +79,8 @@ capture_remote_combo_recent_write_all(FILE *rf);
  * @return TRUE if correctly added
  */
 gboolean
-capture_remote_combo_add_recent(gchar *s);
+capture_remote_combo_add_recent(const gchar *s);
 #endif
-
-/** Read in a single geometry key value pair from the recent file.
- *
- * @param name the geom_name of the window
- * @param key the subkey of this pair (e.g. "x")
- * @param value the new value (e.g. "123")
- */
-extern void window_geom_recent_read_pair(const char *name, const char *key, const char *value);
-
-/** Write all geometry values of all windows to the recent file.
- * Will call write_recent_geom() for every existing window type.
- *
- * @param rf recent file handle from caller
- */
-extern void window_geom_recent_write_all(gpointer rf);
 
 /** Write all packet list geometry values to the recent file.
  *

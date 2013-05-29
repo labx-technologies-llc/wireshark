@@ -36,6 +36,9 @@
 
 #include "packet-wps.h"
 
+void proto_register_eap(void);
+void proto_reg_handoff_eap(void);
+
 static int proto_eap = -1;
 static int hf_eap_code = -1;
 static int hf_eap_identifier = -1;
@@ -317,7 +320,7 @@ from RFC2716, pg 17
 /*
  * reassembly of EAP-TLS
  */
-static GHashTable *eap_tls_fragment_table = NULL;
+static reassembly_table eap_tls_reassembly_table;
 
 static int hf_eap_tls_flags = -1;
 static int hf_eap_tls_flag_l = -1;
@@ -410,7 +413,8 @@ test_flag(unsigned char flag, unsigned char mask)
 static void
 eap_tls_defragment_init(void)
 {
-  fragment_table_init(&eap_tls_fragment_table);
+  reassembly_table_init(&eap_tls_reassembly_table,
+                        &addresses_reassembly_table_functions);
 }
 
 static void
@@ -891,7 +895,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
             first pass through the capture.
           */
           /* See if we have a remembered defragmentation EAP ID. */
-          packet_state = (frame_state_t *)p_get_proto_data(pinfo->fd, proto_eap);
+          packet_state = (frame_state_t *)p_get_proto_data(pinfo->fd, proto_eap, 0);
           if (packet_state == NULL) {
             /*
              * We haven't - does this message require reassembly?
@@ -954,7 +958,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
                  */
                 packet_state = se_new(frame_state_t);
                 packet_state->info = eap_reass_cookie;
-                p_add_proto_data(pinfo->fd, proto_eap, packet_state);
+                p_add_proto_data(pinfo->fd, proto_eap, 0, packet_state);
               }
             }
           } else {
@@ -999,12 +1003,12 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
              */
             save_fragmented   = pinfo->fragmented;
             pinfo->fragmented = TRUE;
-            fd_head = fragment_add_seq(tvb, offset, pinfo,
-                                       eap_reass_cookie,
-                                       eap_tls_fragment_table,
+            fd_head = fragment_add_seq(&eap_tls_reassembly_table,
+                                       tvb, offset,
+                                       pinfo, eap_reass_cookie, NULL,
                                        eap_tls_seq,
                                        size,
-                                       more_fragments);
+                                       more_fragments, 0);
 
             if (fd_head != NULL)            /* Reassembled  */
             {
@@ -1074,7 +1078,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
         /* This part is state-dependent. */
 
         /* See if we've already remembered the state. */
-        packet_state = (frame_state_t *)p_get_proto_data(pinfo->fd, proto_eap);
+        packet_state = (frame_state_t *)p_get_proto_data(pinfo->fd, proto_eap, 0);
         if (packet_state == NULL) {
           /*
            * We haven't - compute the state based on the current
@@ -1095,7 +1099,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
            */
           packet_state = se_new(frame_state_t);
           packet_state->info = leap_state;
-          p_add_proto_data(pinfo->fd, proto_eap, packet_state);
+          p_add_proto_data(pinfo->fd, proto_eap, 0, packet_state);
 
           /*
            * Update the conversation's state.

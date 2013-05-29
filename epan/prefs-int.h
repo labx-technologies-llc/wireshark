@@ -27,6 +27,7 @@
 #define __PREFS_INT_H__
 
 #include <stdio.h>
+#include "ws_symbol_export.h"
 
 /**
  *@file
@@ -63,19 +64,28 @@ typedef struct {
  * Module used for protocol preferences.
  * With MSVC and a libwireshark.dll, we need a special declaration.
  */
-WS_VAR_IMPORT module_t *protocols_module;
+WS_DLL_PUBLIC module_t *protocols_module;
 
 typedef void (*pref_custom_free_cb) (pref_t* pref);
 typedef void (*pref_custom_reset_cb) (pref_t* pref);
-typedef prefs_set_pref_e (*pref_custom_set_cb) (pref_t* pref, gchar* value, gboolean* changed);
-typedef void (*pref_custom_write_cb) (pref_t* pref, write_pref_arg_t* arg);
+typedef prefs_set_pref_e (*pref_custom_set_cb) (pref_t* pref, const gchar* value, gboolean* changed);
+/* typedef void (*pref_custom_write_cb) (pref_t* pref, write_pref_arg_t* arg); Deprecated. */
+/* pref_custom_type_name_cb should return NULL for internal / hidden preferences. */
+typedef const char * (*pref_custom_type_name_cb) (void);
+typedef char * (*pref_custom_type_description_cb) (void);
+typedef gboolean (*pref_custom_is_default_cb) (pref_t* pref);
+typedef char * (*pref_custom_to_str_cb) (pref_t* pref, gboolean default_val);
 
 /** Structure to hold callbacks for PREF_CUSTOM type */
 struct pref_custom_cbs {
     pref_custom_free_cb free_cb;
     pref_custom_reset_cb reset_cb;
     pref_custom_set_cb set_cb;
-    pref_custom_write_cb write_cb;
+    /* pref_custom_write_cb write_cb; Deprecated. */
+    pref_custom_type_name_cb type_name_cb;
+    pref_custom_type_description_cb type_description_cb;
+    pref_custom_is_default_cb is_default_cb;
+    pref_custom_to_str_cb to_str_cb;
 };
 
 /**
@@ -93,7 +103,8 @@ typedef enum {
     PREF_FILENAME,
     PREF_COLOR,     /* XXX - These are only supported for "internal" (non-protocol) */
     PREF_CUSTOM,    /* use and not as a generic protocol preference */
-    PREF_OBSOLETE
+    PREF_OBSOLETE,
+    PREF_DIRNAME
 } pref_type_t;
 
 /** Struct to hold preference data */
@@ -103,14 +114,14 @@ struct preference {
     const char *description;         /**< human-readable description of preference */
     int ordinal;                     /**< ordinal number of this preference */
     pref_type_t type;                /**< type of that preference */
-    union {
+    union {                          /* The Qt preference code assumes that these will all be pointers (and unique) */
         guint *uint;
         gboolean *boolp;
         gint *enump;
         const char **string;
         range_t **range;
         void* uat;
-        color_t *color;
+        color_t *colorp;
         GList** list;
     } varp;                          /**< pointer to variable storing the value */
     union {
@@ -121,7 +132,7 @@ struct preference {
         range_t *range;
         color_t color;
         GList* list;
-    } saved_val;                     /**< original value, when editing from the GUI */
+    } stashed_val;                     /**< original value, when editing from the GUI */
     union {
         guint uint;
         gboolean boolval;
@@ -155,11 +166,12 @@ struct preference {
  * @return an indication of whether it succeeded or failed
  * in some fashion.
  */
-typedef prefs_set_pref_e (*pref_set_pair_cb) (gchar *key, gchar *value, void *private_data, gboolean return_range_errors);
+typedef prefs_set_pref_e (*pref_set_pair_cb) (gchar *key, const gchar *value, void *private_data, gboolean return_range_errors);
 
 /** read the preferences file (or similiar) and call the callback
  * function to set each key/value pair found
  */
+WS_DLL_PUBLIC
 int
 read_prefs_file(const char *pf_path, FILE *pf, pref_set_pair_cb pref_set_pair_fct, void *private_data);
 

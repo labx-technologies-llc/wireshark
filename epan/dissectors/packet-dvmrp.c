@@ -61,6 +61,8 @@
 #include "packet-igmp.h"
 #include "packet-dvmrp.h"
 
+void proto_register_dvmrp(void);
+
 static int proto_dvmrp = -1;
 static int hf_version = -1;
 static int hf_type = -1;
@@ -537,7 +539,7 @@ dissect_dvmrp_v1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int
 	offset += 2;
 
 	/* decode all the v1 commands */
-	while (tvb_reported_length_remaining(tvb, offset)) {
+	while (tvb_reported_length_remaining(tvb, offset) > 0) {
 		proto_tree *tree;
 		proto_item *item;
 		guint8 cmd,count;

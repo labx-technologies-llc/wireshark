@@ -51,7 +51,7 @@ static int hf_slsk_byte = -1;
 static int hf_slsk_message_length = -1;
 static int hf_slsk_message_code = -1;
 static int hf_slsk_client_ip = -1;
-static int hf_slsk_server_ip = -1;
+/* static int hf_slsk_server_ip = -1; */
 static int hf_slsk_string_length = -1;
 static int hf_slsk_username = -1;
 static int hf_slsk_password = -1;
@@ -82,7 +82,7 @@ static int hf_slsk_number_of_rooms = -1;
 static int hf_slsk_filename = -1;
 static int hf_slsk_directory = -1;
 static int hf_slsk_size = -1;
-static int hf_slsk_checksum = -1;
+/* static int hf_slsk_checksum = -1; */
 static int hf_slsk_code = -1;
 static int hf_slsk_number_of_users = -1;
 static int hf_slsk_number_of_days = -1;
@@ -90,7 +90,7 @@ static int hf_slsk_transfer_direction = -1;
 static int hf_slsk_user_description = -1;
 static int hf_slsk_picture_exists = -1;
 static int hf_slsk_picture = -1;
-static int hf_slsk_user_uploads = -1;
+/* static int hf_slsk_user_uploads = -1; */
 static int hf_slsk_total_uploads = -1;
 static int hf_slsk_queued_uploads = -1;
 static int hf_slsk_slots_available = -1;
@@ -109,6 +109,8 @@ static int hf_slsk_ranking = -1;
 /* Initialize the subtree pointers */
 static gint ett_slsk = -1;
 static gint ett_slsk_compr_packet = -1;
+
+static expert_field ei_slsk_unknown_data = EI_INIT;
 
 #define TCP_PORT_SLSK_1       2234
 #define TCP_PORT_SLSK_2       5534
@@ -273,7 +275,7 @@ static const char* get_message_type(tvbuff_t *tvb) {
   * Returns the Message Type.
   */
   int msg_code = tvb_get_letohl(tvb, 4);
-  const gchar *message_type =  match_strval(msg_code, slsk_tcp_msgs);
+  const gchar *message_type =  try_val_to_str(msg_code, slsk_tcp_msgs);
   if (message_type == NULL) {
     if (check_slsk_format(tvb, 4, "bisis"))
       message_type = "Distributed Search";
@@ -2379,7 +2381,7 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
 
   }
   if(offset < (int)msg_len){
-   expert_add_info_format(pinfo, ti_len, PI_UNDECODED, PI_WARN, "Unknown Data (not interpreted)");
+   expert_add_info(pinfo, ti_len, &ei_slsk_unknown_data);
   }
 
 
@@ -2419,9 +2421,11 @@ proto_register_slsk(void)
     { &hf_slsk_client_ip,
       { "Client IP", "slsk.client.ip",
       FT_IPv4, BASE_NONE, NULL, 0, "Client IP Address", HFILL } },
+#if 0
     { &hf_slsk_server_ip,
       { "SoulSeek Server IP", "slsk.server.ip",
       FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL } },
+#endif
     { &hf_slsk_string_length,
       { "String Length", "slsk.string.length",
       FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL } },
@@ -2512,9 +2516,11 @@ proto_register_slsk(void)
     { &hf_slsk_size,
       { "Size", "slsk.size",
       FT_UINT32, BASE_DEC, NULL, 0, "File Size", HFILL } },
+#if 0
     { &hf_slsk_checksum,
       { "Checksum", "slsk.checksum",
       FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL } },
+#endif
     { &hf_slsk_code,
       { "Code", "slsk.code",
       FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL } },
@@ -2536,9 +2542,11 @@ proto_register_slsk(void)
     { &hf_slsk_picture,
       { "Picture", "slsk.user.picture",
       FT_STRING, BASE_NONE, NULL, 0, "User Picture", HFILL } },
+#if 0
     { &hf_slsk_user_uploads,
       { "User uploads", "slsk.uploads.user",
       FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL } },
+#endif
     { &hf_slsk_total_uploads,
       { "Total uploads allowed", "slsk.uploads.total",
       FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL } },
@@ -2585,7 +2593,13 @@ proto_register_slsk(void)
     &ett_slsk,
     &ett_slsk_compr_packet,
   };
+
+  static ei_register_info ei[] = {
+     { &ei_slsk_unknown_data, { "slsk.unknown_data", PI_UNDECODED, PI_WARN, "Unknown Data (not interpreted)", EXPFILL }},
+  };
+
   module_t *slsk_module;
+  expert_module_t* expert_slsk;
 
 /* Registers the protocol name and description */
   proto_slsk = proto_register_protocol("SoulSeek Protocol", "SoulSeek", "slsk");
@@ -2593,6 +2607,8 @@ proto_register_slsk(void)
 /* Required function calls to register the header fields and subtrees used */
   proto_register_field_array(proto_slsk, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_slsk = expert_register_protocol(proto_slsk);
+  expert_register_field_array(expert_slsk, ei, array_length(ei));
 
   slsk_module = prefs_register_protocol(proto_slsk, NULL);
 

@@ -66,7 +66,7 @@ new_frame_data_sequence(void)
 {
 	frame_data_sequence *fds;
 
-	fds = g_malloc(sizeof *fds);
+	fds = (frame_data_sequence *)g_malloc(sizeof *fds);
 	fds->count = 0;
 	fds->ptree_root = NULL;
 	return fds;
@@ -94,63 +94,63 @@ frame_data_sequence_add(frame_data_sequence *fds, frame_data *fdata)
   if (fds->count == 0) {
     /* The tree is empty; allocate the first leaf node, which will be
        the root node. */
-    leaf = g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
+    leaf = (frame_data *)g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
     node = &leaf[0];
     fds->ptree_root = leaf;
   } else if (fds->count < NODES_PER_LEVEL) {
     /* It's a 1-level tree, and is going to stay that way for now. */
-    leaf = fds->ptree_root;
+    leaf = (frame_data *)fds->ptree_root;
     node = &leaf[fds->count];
   } else if (fds->count == NODES_PER_LEVEL) {
     /* It's a 1-level tree that will turn into a 2-level tree. */
-    level1 = g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
-    level1[0] = fds->ptree_root;
-    leaf = g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
+    level1 = (frame_data **)g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
+    level1[0] = (frame_data *)fds->ptree_root;
+    leaf = (frame_data *)g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
     level1[1] = leaf;
     node = &leaf[0];
     fds->ptree_root = level1;
   } else if (fds->count < NODES_PER_LEVEL*NODES_PER_LEVEL) {
     /* It's a 2-level tree, and is going to stay that way for now. */
-    level1 = fds->ptree_root;
+    level1 = (frame_data **)fds->ptree_root;
     leaf = level1[fds->count >> LOG2_NODES_PER_LEVEL];
     if (leaf == NULL) {
-      leaf = g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
+      leaf = (frame_data *)g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
       level1[fds->count >> LOG2_NODES_PER_LEVEL] = leaf;
     }
     node = &leaf[LEAF_INDEX(fds->count)];
   } else if (fds->count == NODES_PER_LEVEL*NODES_PER_LEVEL) {
     /* It's a 2-level tree that will turn into a 3-level tree */
-    level2 = g_malloc0((sizeof *level2)*NODES_PER_LEVEL);
-    level2[0] = fds->ptree_root;
-    level1 = g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
+    level2 = (frame_data ***)g_malloc0((sizeof *level2)*NODES_PER_LEVEL);
+    level2[0] = (frame_data **)fds->ptree_root;
+    level1 = (frame_data **)g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
     level2[1] = level1;
-    leaf = g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
+    leaf = (frame_data *)g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
     level1[0] = leaf;
     node = &leaf[0];
     fds->ptree_root = level2;
   } else if (fds->count < NODES_PER_LEVEL*NODES_PER_LEVEL*NODES_PER_LEVEL) {
     /* It's a 3-level tree, and is going to stay that way for now. */
-    level2 = fds->ptree_root;
+    level2 = (frame_data ***)fds->ptree_root;
     level1 = level2[fds->count >> (LOG2_NODES_PER_LEVEL+LOG2_NODES_PER_LEVEL)];
     if (level1 == NULL) {
-      level1 = g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
+      level1 = (frame_data **)g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
       level2[fds->count >> (LOG2_NODES_PER_LEVEL+LOG2_NODES_PER_LEVEL)] = level1;
     }
     leaf = level1[LEVEL_1_INDEX(fds->count)];
     if (leaf == NULL) {
-      leaf = g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
+      leaf = (frame_data *)g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
       level1[LEVEL_1_INDEX(fds->count)] = leaf;
     }
     node = &leaf[LEAF_INDEX(fds->count)];
   } else if (fds->count == NODES_PER_LEVEL*NODES_PER_LEVEL*NODES_PER_LEVEL) {
     /* It's a 3-level tree that will turn into a 4-level tree */
-    level3 = g_malloc0((sizeof *level3)*NODES_PER_LEVEL);
-    level3[0] = fds->ptree_root;
-    level2 = g_malloc0((sizeof *level2)*NODES_PER_LEVEL);
+    level3 = (frame_data ****)g_malloc0((sizeof *level3)*NODES_PER_LEVEL);
+    level3[0] = (frame_data ***)fds->ptree_root;
+    level2 = (frame_data ***)g_malloc0((sizeof *level2)*NODES_PER_LEVEL);
     level3[1] = level2;
-    level1 = g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
+    level1 = (frame_data **)g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
     level2[0] = level1;
-    leaf = g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
+    leaf = (frame_data *)g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
     level1[0] = leaf;
     node = &leaf[0];
     fds->ptree_root = level3;
@@ -163,20 +163,20 @@ frame_data_sequence_add(frame_data_sequence *fds, frame_data *fdata)
        make the frame numbers 64-bit and just let users run
        themselves out of address space or swap space. :-) */
     /* It's a 4-level tree, and is going to stay that way forever. */
-    level3 = fds->ptree_root;
+    level3 = (frame_data ****)fds->ptree_root;
     level2 = level3[LEVEL_3_INDEX(fds->count)];
     if (level2 == NULL) {
-      level2 = g_malloc0((sizeof *level2)*NODES_PER_LEVEL);
+      level2 = (frame_data ***)g_malloc0((sizeof *level2)*NODES_PER_LEVEL);
       level3[LEVEL_3_INDEX(fds->count)] = level2;
     }
     level1 = level2[LEVEL_2_INDEX(fds->count)];
     if (level1 == NULL) {
-      level1 = g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
+      level1 = (frame_data **)g_malloc0((sizeof *level1)*NODES_PER_LEVEL);
       level2[LEVEL_2_INDEX(fds->count)] = level1;
     }
     leaf = level1[LEVEL_1_INDEX(fds->count)];
     if (leaf == NULL) {
-      leaf = g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
+      leaf = (frame_data *)g_malloc((sizeof *leaf)*NODES_PER_LEVEL);
       level1[LEVEL_1_INDEX(fds->count)] = leaf;
     }
     node = &leaf[LEAF_INDEX(fds->count)];
@@ -211,18 +211,18 @@ frame_data_sequence_find(frame_data_sequence *fds, guint32 num)
 
   if (fds->count <= NODES_PER_LEVEL) {
     /* It's a 1-level tree. */
-    leaf = fds->ptree_root;
+    leaf = (frame_data *)fds->ptree_root;
     return &leaf[num];
   }
   if (fds->count <= NODES_PER_LEVEL*NODES_PER_LEVEL) {
     /* It's a 2-level tree. */
-    level1 = fds->ptree_root;
+    level1 = (frame_data **)fds->ptree_root;
     leaf = level1[num >> LOG2_NODES_PER_LEVEL];
     return &leaf[LEAF_INDEX(num)];
   }
   if (fds->count <= NODES_PER_LEVEL*NODES_PER_LEVEL*NODES_PER_LEVEL) {
     /* It's a 3-level tree. */
-    level2 = fds->ptree_root;
+    level2 = (frame_data ***)fds->ptree_root;
     level1 = level2[num >> (LOG2_NODES_PER_LEVEL+LOG2_NODES_PER_LEVEL)];
     leaf = level1[(num >> LOG2_NODES_PER_LEVEL) & (NODES_PER_LEVEL - 1)];
     return &leaf[LEAF_INDEX(num)];
@@ -231,11 +231,60 @@ frame_data_sequence_find(frame_data_sequence *fds, guint32 num)
      2^(LOG2_NODES_PER_LEVEL*4), and LOG2_NODES_PER_LEVEL is 10,
      so fds->count is always less < NODES_PER_LEVEL^4. */
   /* It's a 4-level tree, and is going to stay that way forever. */
-  level3 = fds->ptree_root;
+  level3 = (frame_data ****)fds->ptree_root;
   level2 = level3[num >> (LOG2_NODES_PER_LEVEL+LOG2_NODES_PER_LEVEL+LOG2_NODES_PER_LEVEL)];
   level1 = level2[(num >> (LOG2_NODES_PER_LEVEL+LOG2_NODES_PER_LEVEL)) & (NODES_PER_LEVEL - 1)];
   leaf = level1[(num >> LOG2_NODES_PER_LEVEL) & (NODES_PER_LEVEL - 1)];
   return &leaf[LEAF_INDEX(num)];
+}
+
+/* recursively frees a frame_data radix level */
+static void
+free_frame_data_array(void *array, guint count, guint level, gboolean last)
+{
+  guint i, level_count;
+
+  if (last) {
+    /* if we are the last in our given parent's row, we may not have
+     * exactly a full row, so do the bit twiddling to figure out exactly
+     * how many fields we have */
+    level_count = (count >> ((level - 1) * LOG2_NODES_PER_LEVEL)) &
+                  (NODES_PER_LEVEL - 1);
+    /* the above calculation rounds down, so make sure we count correctly
+     * if count is not an even multiple of NODES_PER_LEVEL */
+    if (count & ((1 << ((level - 1) * LOG2_NODES_PER_LEVEL)) - 1)) {
+      level_count++;
+    }
+  }
+  else {
+    /* if we're not the last in our parent, then we're guaranteed to have
+     * a full array */
+    level_count = NODES_PER_LEVEL;
+  }
+
+
+  if (level > 1) {
+    /* recurse on every sub-array, passing on our own 'last' value
+     * specially to our last child */
+    frame_data **real_array = (frame_data **) array;
+
+    for (i=0; i < level_count-1; i++) {
+      free_frame_data_array(real_array[i], count, level-1, FALSE);
+    }
+
+    free_frame_data_array(real_array[level_count-1], count, level-1, last);
+  }
+  else if (level == 1) {
+    /* bottom level, so just clean up all the frame data */
+    frame_data *real_array = (frame_data *) array;
+
+    for (i=0; i < level_count; i++) {
+      frame_data_destroy(&real_array[i]);
+    }
+  }
+
+  /* free the array itself */
+  g_free(array);
 }
 
 /*
@@ -244,54 +293,46 @@ frame_data_sequence_find(frame_data_sequence *fds, guint32 num)
 void
 free_frame_data_sequence(frame_data_sequence *fds)
 {
-  frame_data **level1;
-  frame_data ***level2;
-  frame_data ****level3;
-  guint i, j, k;
+  guint32 count  = fds->count;
+  guint   levels = 0;
 
-  if (fds->count == 0) {
-    /* Nothing to free. */
-  } else if (fds->count <= NODES_PER_LEVEL) {
-    /* It's a 1-level tree. */
-    g_free(fds->ptree_root);
-  } else if (fds->count <= NODES_PER_LEVEL*NODES_PER_LEVEL) {
-    /* It's a 2-level tree. */
-    level1 = fds->ptree_root;
-    for (i = 0; i < NODES_PER_LEVEL && level1[i] != NULL; i++) {
-      frame_data_cleanup(level1[i]);
-      g_free(level1[i]);
-    }
-    g_free(level1);
-  } else if (fds->count <= NODES_PER_LEVEL*NODES_PER_LEVEL*NODES_PER_LEVEL) {
-    /* It's a 3-level tree. */
-    level2 = fds->ptree_root;
-    for (i = 0; i < NODES_PER_LEVEL && level2[i] != NULL; i++) {
-      level1 = level2[i];
-      for (j = 0; j < NODES_PER_LEVEL && level1[j] != NULL; j++) {
-        frame_data_cleanup(level1[j]);
-        g_free(level1[j]);
-      }
-      g_free(level1);
-    }
-    g_free(level2);
-  } else {
-    /* fds->count is 2^32-1 at most, and NODES_PER_LEVEL^4
-       2^(LOG2_NODES_PER_LEVEL*4), and LOG2_NODES_PER_LEVEL is 10,
-       so fds->count is always less < NODES_PER_LEVEL^4. */
-    /* It's a 4-level tree, and is going to stay that way forever. */
-    level3 = fds->ptree_root;
-    for (i = 0; i < NODES_PER_LEVEL && level3[i] != NULL; i++) {
-      level2 = level3[i];
-      for (j = 0; j < NODES_PER_LEVEL && level2[j] != NULL; j++) {
-        level1 = level2[j];
-        for (k = 0; k < NODES_PER_LEVEL && level1[k] != NULL; k++) {
-          frame_data_cleanup(level1[k]);
-          g_free(level1[k]);
-        }
-      }
-      g_free(level2);
-    }
-    g_free(level3);
+  /* calculate how many levels we have */
+  while (count) {
+    levels++;
+    count >>= LOG2_NODES_PER_LEVEL;
   }
+
+  /* call the recursive free function */
+  if (levels > 0) {
+    free_frame_data_array(fds->ptree_root, fds->count, levels, TRUE);
+  }
+
+  /* free the header struct */
   g_free(fds);
 }
+
+void
+find_and_mark_frame_depended_upon(gpointer data, gpointer user_data)
+{
+  frame_data   *dependent_fd;
+  guint32       dependent_frame = GPOINTER_TO_UINT(data);
+  frame_data_sequence *frames   = (frame_data_sequence *)user_data;
+
+  if (dependent_frame && frames) {
+    dependent_fd = frame_data_sequence_find(frames, dependent_frame);
+    dependent_fd->flags.dependent_of_displayed = 1;
+  }
+}
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

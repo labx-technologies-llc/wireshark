@@ -32,6 +32,9 @@
 #include "packet-ieee80211.h"
 #include <epan/etypes.h>
 
+void proto_register_eapol(void);
+void proto_reg_handoff_eapol(void);
+
 static int proto_eapol = -1;
 static int hf_eapol_version = -1;
 static int hf_eapol_type = -1;
@@ -158,6 +161,7 @@ dissect_eapol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   proto_tree *keyinfo_tree = NULL;
   proto_tree *key_index_tree, *keydes_tree;
   tvbuff_t   *next_tvb;
+  guint8     counter;
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "EAPOL");
   col_clear(pinfo->cinfo, COL_INFO);
@@ -211,21 +215,44 @@ dissect_eapol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             masked = keyinfo &
               (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
                KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK);
-            switch (masked) {
-            case KEY_INFO_KEY_ACK_MASK:
-              col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 1 of 4)");
-              break;
-            case KEY_INFO_KEY_MIC_MASK:
-              col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 2 of 4)");
-              break;
-            case (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
-                  KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK):
-              col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 3 of 4)");
-              break;
-            case (KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK):
-              col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 4 of 4)");
-              break;
-            }
+
+           if (keydesc_type == EAPOL_WPA_KEY) {
+               switch (masked) {
+                       case KEY_INFO_KEY_ACK_MASK:
+                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 1 of 4)");
+                       break;
+                       case KEY_INFO_KEY_MIC_MASK:
+                       counter = tvb_get_guint8(tvb, offset+11);
+                       if (!counter)
+                               col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 2 of 4)");
+                       else
+                               col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 4 of 4)");
+                       break;
+                       case (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
+                       KEY_INFO_KEY_MIC_MASK):
+                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 3 of 4)");
+                       break;
+               }
+           }
+
+           if (keydesc_type == EAPOL_RSN_KEY) {
+               switch (masked) {
+                       case KEY_INFO_KEY_ACK_MASK:
+                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 1 of 4)");
+                       break;
+                       case KEY_INFO_KEY_MIC_MASK:
+                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 2 of 4)");
+                       break;
+                       case (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
+                       KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK):
+                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 3 of 4)");
+                       break;
+                       case (KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK):
+                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 4 of 4)");
+                       break;
+                }
+           }
+
           } else {
             if (keyinfo & KEY_INFO_KEY_ACK_MASK)
               col_set_str(pinfo->cinfo, COL_INFO, "Key (Group Message 1 of 2)");
@@ -257,19 +284,19 @@ dissect_eapol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                             offset, 8, ENC_BIG_ENDIAN);
         offset += 8;
         proto_tree_add_item(eapol_tree, hf_eapol_wpa_keydes_nonce, tvb, offset,
-                            32, ENC_BIG_ENDIAN);
+                            32, ENC_NA);
         offset += 32;
         proto_tree_add_item(eapol_tree, hf_eapol_keydes_key_iv, tvb,
-                            offset, 16, ENC_BIG_ENDIAN);
+                            offset, 16, ENC_NA);
         offset += 16;
         proto_tree_add_item(eapol_tree, hf_eapol_wpa_keydes_rsc, tvb, offset,
-                            8, ENC_BIG_ENDIAN);
+                            8, ENC_NA);
         offset += 8;
         proto_tree_add_item(eapol_tree, hf_eapol_wpa_keydes_id, tvb, offset, 8,
-                            ENC_BIG_ENDIAN);
+                            ENC_NA);
         offset += 8;
         proto_tree_add_item(eapol_tree, hf_eapol_wpa_keydes_mic, tvb, offset,
-                            16, ENC_BIG_ENDIAN);
+                            16, ENC_NA);
         offset += 16;
         eapol_data_len = tvb_get_ntohs(tvb, offset);
         proto_tree_add_item(eapol_tree, hf_eapol_wpa_keydes_data_len, tvb,
@@ -277,7 +304,7 @@ dissect_eapol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         offset += 2;
         if (eapol_data_len != 0) {
           ti = proto_tree_add_item(eapol_tree, hf_eapol_wpa_keydes_data,
-                tvb, offset, eapol_data_len, ENC_BIG_ENDIAN);
+                tvb, offset, eapol_data_len, ENC_NA);
           if ((keyinfo & KEY_INFO_ENCRYPTED_KEY_DATA_MASK) ||
               !(keyinfo & KEY_INFO_KEY_TYPE_MASK)) {
             /* RSN: EAPOL-Key Key Data is encrypted.
@@ -316,7 +343,7 @@ dissect_eapol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
           generated_locally = eapol_len <= 44; /* Size of rc4 key with no key content */
           if (!generated_locally) {
               proto_tree_add_item(eapol_tree, hf_eapol_keydes_key, tvb, offset,
-                                  eapol_key_len, ENC_BIG_ENDIAN);
+                                  eapol_key_len, ENC_NA);
           }
 
           proto_tree_add_boolean(eapol_tree, hf_eapol_keydes_key_generated_locally, tvb, offset,
@@ -518,3 +545,16 @@ proto_reg_handoff_eapol(void)
   dissector_add_uint("ethertype", ETHERTYPE_EAPOL, eapol_handle);
   dissector_add_uint("ethertype", ETHERTYPE_RSN_PREAUTH, eapol_handle);
 }
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

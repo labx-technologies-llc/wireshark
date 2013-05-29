@@ -724,7 +724,7 @@ channelised_fill_vc_id_string(emem_strbuf_t* out_string, sdh_g707_format_t* in_f
   int      i;
   gboolean is_printed  = FALSE;
 
-  static char* g_vc_size_strings[] = {
+  static const char* g_vc_size_strings[] = {
     "unknown",  /*0x0*/
     "VC3",      /*0x1*/
     "VC4",      /*0x2*/
@@ -769,7 +769,7 @@ channelised_fill_vc_id_string(emem_strbuf_t* out_string, sdh_g707_format_t* in_f
   }
   if ( ! is_printed )
   {
-    /* Not printed . possibly its a ocXc packet with (0,0,0...) */
+    /* Not printed . possibly it's a ocXc packet with (0,0,0...) */
     for ( i =0; i < in_fmt->m_vc_size - 2; i++)
     {
       ep_strbuf_append_printf(out_string, "%s0",
@@ -1208,36 +1208,36 @@ dissect_erf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       call_dissector(sdh_handle, tvb, pinfo, tree);
     }
     else{
-      call_dissector(data_handle, tvb, pinfo, erf_tree);
+      call_dissector(data_handle, tvb, pinfo, tree);
     }
     break;
 
   case ERF_TYPE_IPV4:
     if (ipv4_handle)
-      call_dissector(ipv4_handle, tvb, pinfo, erf_tree);
+      call_dissector(ipv4_handle, tvb, pinfo, tree);
     else
-      call_dissector(data_handle, tvb, pinfo, erf_tree);
+      call_dissector(data_handle, tvb, pinfo, tree);
     break;
 
   case ERF_TYPE_IPV6:
     if (ipv6_handle)
-      call_dissector(ipv6_handle, tvb, pinfo, erf_tree);
+      call_dissector(ipv6_handle, tvb, pinfo, tree);
     else
-      call_dissector(data_handle, tvb, pinfo, erf_tree);
+      call_dissector(data_handle, tvb, pinfo, tree);
     break;
 
   case ERF_TYPE_INFINIBAND:
     if (infiniband_handle)
-      call_dissector(infiniband_handle, tvb, pinfo, erf_tree);
+      call_dissector(infiniband_handle, tvb, pinfo, tree);
     else
-      call_dissector(data_handle, tvb, pinfo, erf_tree);
+      call_dissector(data_handle, tvb, pinfo, tree);
     break;
 
   case ERF_TYPE_INFINIBAND_LINK:
     if (infiniband_link_handle)
-      call_dissector(infiniband_link_handle, tvb, pinfo, erf_tree);
+      call_dissector(infiniband_link_handle, tvb, pinfo, tree);
     else
-      call_dissector(data_handle, tvb, pinfo, erf_tree);
+      call_dissector(data_handle, tvb, pinfo, tree);
     break;
 
   case ERF_TYPE_LEGACY:
@@ -1426,7 +1426,7 @@ dissect_erf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   case ERF_TYPE_COLOR_HDLC_POS:
   case ERF_TYPE_DSM_COLOR_HDLC_POS:
   case ERF_TYPE_COLOR_MC_HDLC_POS:
-    hdlc_type = erf_hdlc_type;
+    hdlc_type = (erf_hdlc_type_vals)erf_hdlc_type;
 
     if (hdlc_type == ERF_HDLC_GUESS) {
       /* Try to guess the type. */

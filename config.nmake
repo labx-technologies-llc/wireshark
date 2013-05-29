@@ -28,7 +28,7 @@ SVN_REVISION=0
 # The current Wireshark version. Recommended: Leave unchanged.
 # Updated by make-version.pl
 VERSION_MAJOR=1
-VERSION_MINOR=9
+VERSION_MINOR=11
 VERSION_MICRO=0
 VERSION_BUILD=$(SVN_REVISION)
 
@@ -122,14 +122,22 @@ PROCESSOR_ARCHITECTURE=amd64
 
 # "Microsoft Visual C++ 2012 Express Edition"
 # Visual C++ 11.0, _MSC_VER 1700, msvcr110.dll
-## Note: Sep 20,2012: *Beta*: Build with VC11 (2012) succeeds; Seems OK: Minimally tested;
-##       win32.mak is apparently not part of the MS 2012EE install;
-##       To build Windows Wireshark, win32.mak must be obtained*
+## Notes:
+##    1. Sep 20,2012: *Beta*: Build with VC11 (2012) succeeds; Seems OK: Minimally tested;
+##        win32.mak is apparently not part of the MS 2012EE install;
+##        To build Windows Wireshark, win32.mak must be obtained*
 ##        and copied to a dir specified in the Windows Environment
 ##        variable 'include' (or to a dir added to the list in 'include').
-##       *One possibility: download the Windows 7 Platform SDK and copy
+##        *One possibility: download the Windows 7 Platform SDK and copy
 ##         win32.mak from ...\Microsoft SDKs\Windows\v7.[something]\include
 ##         See: http://ask.wireshark.org/questions/14343/setting-development-project-under-visual-studio-2012
+##    2. Dec 28,2012: "VS2012 Update 1" is required to use VS 2012 to build an .exe which
+##        will run on Windows XP (as well as on later versions of Windows).
+##        ToDo: It appears that some special setup is required to to do this.
+##          https://blogs.msdn.com/b/vcblog/archive/2012/10/08/10357555.aspx
+##    3. Feb 07,2013: [WMeier] I've noted no problems to date with Wireshark built with VS2012
+##        based upon a fair amount of use while doing Wireshark testing and debugging.
+##
 #MSVC_VARIANT=MSVC2012EE
 
 # "Microsoft Visual Studio 2012"
@@ -242,7 +250,7 @@ GLIB_VERSION=2.0
 # If you want building with GTK+, set GTK_DIR to the pathname of the
 # directory in which the "include" and "lib" directories reside.
 #
-# Set the name to gtk3 if you want to use gtk3 - experimental
+# Set the name to gtk3 if you want to use gtk3
 GTK_NAME=gtk2
 GTK_DIR=$(WIRESHARK_LIB_DIR)\$(GTK_NAME)
 
@@ -265,9 +273,8 @@ XML_DLL=libxml2-2.dll
 !IF "$(GTK_NAME)" == "gtk2"
 GDK_DLL=libgdk-win32-2.0-0.dll
 GTK_DLL=libgtk-win32-2.0-0.dll
-#GTK_PKG=2.16.6-20100912
-#GTK_PKG=2.22.1-20101227
-GTK_PKG=2.24.10-2.7
+#GTK_PKG=2.24.10-2.7
+GTK_PKG=2.24.14-1.1
 PKG_SUFIX=ws
 !ELSE
 GDK_DLL=libgdk-3-0.dll
@@ -283,8 +290,6 @@ GTK_PKG=3.4.4-2.1
 # These macros are used by the nsis installer script and by the setup target.
 #
 !IF "$(GTK_NAME)" == "gtk2"
-#GTK_INST_VERSION=2.16
-#GTK_INST_VERSION=2.22
 GTK_INST_VERSION=2.24
 !ELSE
 GTK_INST_VERSION=3.4
@@ -301,7 +306,8 @@ GTK_INST_VERSION=3.4
 #
 PCAP_DIR=$(WIRESHARK_LIB_DIR)\WPdpack
 # This macro is used by the nsis installer script, by the u3/portable apps and by the setup target.
-PCAP_VERSION=4_1_2
+PCAP_VERSION=4_1_3
+WPD_VERSION=4_1_2
 
 #
 # Optional: WinPcap remote capture support and new API
@@ -349,7 +355,7 @@ ZLIB_DIR=$(WIRESHARK_LIB_DIR)\zlib125
 # If you don't have c-ares, comment this line out, so that C_ARES_DIR
 # isn't defined.
 #
-C_ARES_PKG=1.7.1
+C_ARES_PKG=1.9.1-1
 
 #
 # Optional: the GnuTLS library enables ssl decryption.
@@ -440,6 +446,13 @@ SMI_PKG=svn-40773
 #
 GEOIP_PKG=1.4.8-2
 
+#
+# Optional: WinSparkle, software updates
+#
+# Used for automatic software updates
+#
+WINSPARKLE_PKG=0.3-44-g2c8d9d3-win32ws
+
 !else
 ##### Win64 Libraries #####
 #
@@ -458,7 +471,7 @@ GLIB_VERSION=2.0
 # directory in which the "include" and "lib" directories reside.
 #
 #
-# Set the name to gtk3 if you want to use gtk3 - experimental
+# Set the name to gtk3 if you want to use gtk3 - (experimental ?)
 GTK_NAME=gtk2
 GTK_DIR=$(WIRESHARK_LIB_DIR)\$(GTK_NAME)
 
@@ -480,8 +493,8 @@ XML_DLL=libxml2-2.dll
 !IF "$(GTK_NAME)" == "gtk2"
 GDK_DLL=libgdk-win32-2.0-0.dll
 GTK_DLL=libgtk-win32-2.0-0.dll
-#GTK_PKG=2.16.6-20100912
-GTK_PKG=2.24.10-2.7
+#GTK_PKG=2.24.10-2.7
+GTK_PKG=2.24.14-1.1
 PKG_SUFIX=ws
 !ELSE
 GDK_DLL=libgdk-3-0.dll
@@ -514,7 +527,8 @@ GTK_INST_VERSION=3.4
 #
 PCAP_DIR=$(WIRESHARK_LIB_DIR)\WPdpack
 # This macro is used by the nsis installer script, by the u3/portable apps and by the setup target.
-PCAP_VERSION=4_1_2
+PCAP_VERSION=4_1_3
+WPD_VERSION=4_1_2
 
 #
 # Optional: WinPcap remote capture support and new API
@@ -562,7 +576,7 @@ ZLIB_DIR=$(WIRESHARK_LIB_DIR)\zlib125
 # If you don't have c-ares, comment this line out, so that C_ARES_DIR
 # isn't defined.
 #
-C_ARES_PKG=1.7.1
+C_ARES_PKG=1.9.1-1
 
 #
 # Optional: the GnuTLS library enables ssl decryption.
@@ -653,8 +667,15 @@ SMI_PKG=svn-40773
 #
 GEOIP_PKG=1.4.8-2
 
+#
+# Optional: WinSparkle, software updates
+#
+# Used for automatic software updates
+#
+WINSPARKLE_PKG=0.3-44-g2c8d9d3-win64ws
+
 !endif
-# win32 / win64
+##### win32 / win64 #####
 
 !IF "$(GTK_NAME)" == "gtk2"
 GTK_ETC_DIR=etc\gtk-2.0
@@ -791,6 +812,17 @@ MSC_VER_REQUIRED=1700
 ## See: http://msdn.microsoft.com/en-us/library/dd293574.aspx
 !IF ($(MSC_VER_REQUIRED) >= 1400) && ($(MSC_VER_REQUIRED) < 1600)
 MANIFEST_INFO_REQUIRED=1
+!ENDIF
+
+## VS2012 (VC11): configure subsystem version
+## See: https://blogs.msdn.com/b/vcblog/archive/2012/10/08/10357555.aspx
+## (APPVER used in win32.mak to set subsystem version)
+!IF ($(MSC_VER_REQUIRED) == 1700)
+!if "$(WIRESHARK_TARGET_PLATFORM)" == "win32"
+APPVER=5.01
+!else
+APPVER=5.02
+!endif
 !ENDIF
 
 # Compiler flags:
@@ -947,6 +979,8 @@ INSTALL_DIR=wireshark-gtk2
 # You can either place the redistributable in its own platform-
 # and compiler-specific directory or in the top-level library
 # directory.
+# Microsoft maintains a list of the latest redistributables in
+# KB 20197667: http://support.microsoft.com/kb/2019667
 !IF EXIST("$(WIRESHARK_LIB_DIR)\vcredist_$(MSVC_VARIANT)")
 VCREDIST_DIR=$(WIRESHARK_LIB_DIR)\vcredist_$(MSVC_VARIANT)
 !ELSE
@@ -1097,7 +1131,11 @@ XSLTPROC="xsltproc"
 # the XML validator (part of cygwin's libxml2 package)
 XMLLINT="xmllint"
 
-
+# Asciidoc converter (part of cygwin's asciidoc package). In order to build
+# the release notes you must have the Cygwin asciidoc and lynx packages
+# installed.
+A2X=a2x
+LYNX=lynx
 
 ##############################################################################
 #
@@ -1151,8 +1189,10 @@ GTK_CFLAGS=$(GLIB_CFLAGS) /I$(GTK_DIR)\include\gtk-2.0 \
 	/I$(GTK_DIR)\include\atk-1.0 \
 	/I$(GTK_DIR)\include\cairo \
 	/I$(GTK_DIR)\include\pango-1.0 \
-	-DGTK_DISABLE_SINGLE_INCLUDES \
+	-DGDK_DISABLE_DEPRECATED \
+	-DGDK_PIXBUF_DISABLE_DEPRECATED \
 	-DGTK_DISABLE_DEPRECATED \
+	-DGTK_DISABLE_SINGLE_INCLUDES \
 	-DGSEAL_ENABLE
 GTK_LIBS=$(GTK_DIR)\lib\gtk-win32-2.0.lib \
 	$(GTK_DIR)\lib\gdk-win32-2.0.lib \
@@ -1186,9 +1226,6 @@ NEED_JPEG_DLL=USE
 NEED_TIFF_DLL=USE
 NEED_LZMA_DLL=USE
 
-#
-# Use of GTK3+ is experimental/not working
-#
 !ELSEIF "$(GTK_INST_VERSION)" == "3.4"
 
 # GTK+
@@ -1198,6 +1235,9 @@ GTK_CFLAGS=$(GLIB_CFLAGS) /I$(GTK_DIR)\include\gtk-3.0 \
 	/I$(GTK_DIR)\include\atk-1.0 \
 	/I$(GTK_DIR)\include\cairo \
 	/I$(GTK_DIR)\include\pango-1.0 \
+	-DGDK_DISABLE_DEPRECATED \
+	-DGDK_PIXBUF_DISABLE_DEPRECATED \
+	-DGTK_DISABLE_DEPRECATED \
 	-DGTK_DISABLE_SINGLE_INCLUDES \
 	-DGSEAL_ENABLE
 GTK_LIBS=$(GTK_DIR)\lib\gtk-3.lib \
@@ -1465,8 +1505,19 @@ GEOIP_CONFIG=
 GEOIP_V6_CONFIG=
 !ENDIF
 
+!IFDEF WINSPARKLE_PKG
+WINSPARKLE_DIR=$(WIRESHARK_LIB_DIR)\WinSparkle-$(WINSPARKLE_PKG)
+WINSPARKLE_CONFIG=^#define HAVE_SOFTWARE_UPDATE 1
+WINSPARKLE_CFLAGS=/I$(WINSPARKLE_DIR)
+WINSPARKLE_LIBS=$(WINSPARKLE_DIR)\WinSparkle.lib
+!ELSE
+WINSPARKLE_DIR=
+WINSPARKLE_CONFIG=
+WINSPARKLE_CFLAGS=
+WINSPARKLE_LIBS=
+!ENDIF
+
 !IFDEF ENABLE_LIBWIRESHARK
-LIBWIRESHARK_CONFIG=^#define HAVE_LIBWIRESHARKDLL 1
 # Link plugins with the import library of libwireshark.dll
 LINK_PLUGINS_WITH_LIBWIRESHARK=USE
 !ELSE

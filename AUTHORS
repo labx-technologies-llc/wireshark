@@ -21,11 +21,11 @@ Gilbert Ramirez         <gram[AT]alumni.rice.edu> {
 }
 
 Thomas Bottom           <tom.bottom[AT]labxtechnologies.com> {
-   IEEE 1722.1 support
+	IEEE 1722.1 support
 }
 
 Chris Pane              <chris.pane[AT]labxtechnologies.com> {
-   IEEE 1722.1 support
+	IEEE 1722.1 support
 }
 
 Hannes R. Boehm         <hannes[AT]boehm.org> {
@@ -2000,7 +2000,7 @@ Brian K. Teravskis      <Brian_Teravskis[AT]Cargill.com> {
 	Support for saving RTP analysis data in CSV form
 }
 
-Nathan Jennings         <njen[AT]triad.rr.com> {
+Nathan Jennings         <njgm890[AT]gmail.com> {
 	Support for user-supplied interface descriptions
 	Support for hiding interfaces in drop-down list in capture
 	    dialog
@@ -2278,7 +2278,7 @@ Roberto Morro		<roberto.morro[AT]telecomitalia.it> {
 	    new TLVs for IF_ID (RFC4920), Path Key subobj in ERO (RFC5520),
 	    new ASSOCIATION obj c-type 4 (oif2008.389),
 	    new LSP_ATTRIBUTES and LSP_REQUIRED_ATTRIBUTES objects (RFC5420),
-            and various changes/improvements
+	    and various changes/improvements
 
 }
 
@@ -2365,6 +2365,8 @@ Francesco Fondelli	<francesco.fondelli[AT]gmail.com> {
 	Support for MPLS Packet Loss and Delay Measurement, RFC 6374
 	Support for DCCP Simultaneous-Open for NAT Traversal, RFC 5596
 	MPLS-TP Protection State Coordination (PSC) Protocol, RFC 6378
+	Support for Shared Use of Experimental TCP Options
+	Support for TCP Fast Open
 }
 
 Artem Tamazov           <artem.tamazov[AT]tellabs.com> {
@@ -2621,8 +2623,9 @@ Authesserre Samuel	<sauthess[AT]gmail.com> {
 	DTLS
 }
 
-Balint Reczey		<balint.reczey[AT]ericsson.com> {
+Balint Reczey		<balint[AT]balintreczey.hu> {
 	Lua fixes and enhancements
+	Miscellaneous enhancements and fixes
 }
 
 Stephen Fisher		<stephenfisher-wireshark[AT]outlook.com> {
@@ -2684,9 +2687,9 @@ Davide Schiera		<davide.schiera[AT]riverbed.com> {
 }
 
 Sebastien Tandel	<sebastien[AT]tandel.be> {
-        embedding python in *shark
-        subtrees management for ptvcursor
-        gcc warning hunter
+	embedding python in *shark
+	subtrees management for ptvcursor
+	gcc warning hunter
 	Homeplug support
 }
 
@@ -2716,6 +2719,7 @@ Robin Seggelmann	<seggelmann[AT]fh-muenster.de> {
 
 Chris Bontje		<cbontje[AT]gmail.com> {
 	Support for DNP3 Application Layer dissection
+	Support for SEL Fast Message dissection
 }
 
 Ryan Wamsley		<wamslers[AT]sbcglobal.net> {
@@ -2807,8 +2811,8 @@ Sake Blok		<sake[AT]euronet.nl> {
 	Ignore all packets functionality
 	Enable printing of all occurrences of fields
 	Follow TCP stream enhancements
-        Export SSL Session Keys
-        VSS-Monitoring dissector
+	Export SSL Session Keys
+	VSS-Monitoring dissector
 	Miscellaneous enhancements and fixes
 }
 
@@ -3001,7 +3005,7 @@ Harald Welte		<laforge[AT]gnumonks.org> {
 
 Chris Costa		<chcosta75[AT]hotmail.com> {
 	Add defragmentation code to NDMP dissectot
-        Properly decode SMB2 error response
+	Properly decode SMB2 error response
 }
 
 Bruno Prémont		<bonbons[AT]linux-vserver.org> {
@@ -3013,10 +3017,10 @@ Florian Forster		<octo[AT]verplant.org> {
 }
 
 Ivan Sy Jr.		<ivan_jr[AT]yahoo.com> {
-        Added DNS RRs: DLV, SSHFP, SPF, HIP, DHCID, NSEC3PARAM, APL, PX,
-                       GPOS, NSAP, NSAP-PTR, AFSDB, RP, X25, ISDN, RT, RR
-        Allow some network control block addresses with ttl != 1.
-        Miscellaneous IPv6 enhancements.
+	Added DNS RRs: DLV, SSHFP, SPF, HIP, DHCID, NSEC3PARAM, APL, PX,
+	               GPOS, NSAP, NSAP-PTR, AFSDB, RP, X25, ISDN, RT, RR
+	Allow some network control block addresses with ttl != 1.
+	Miscellaneous IPv6 enhancements.
 }
 
 Matthieu Patou		<mat[AT]matws.net> {
@@ -3052,7 +3056,7 @@ Tobias Erichsen 	<t.erichsen[AT]gmx.de> {
 }
 
 Erwin van Eijk		<erwin.vaneijk[AT]gmail.com> {
-      	ETSI ts 101 671 dissector
+	ETSI ts 101 671 dissector
 }
 
 Venkateshwaran Dorai	<venkateshwaran.d[AT]gmail.com> {
@@ -3222,7 +3226,7 @@ Srinivasa Pradeep	<sippyemail-wireshark[AT]yahoo.com> {
 
 Lori Tribble		<ljtconsulting[AT]gmail.com> {
 	Support for vendor-specific subdissectors for
-        BACnet Private Transfer Messages
+	BACnet Private Transfer Messages
 }
 
 Thomas Boehne		<TBoehne[AT]ADwin.de> {
@@ -3325,15 +3329,15 @@ Andrew Kampjes		<andrew.kampjes[AT]endace.com> {
 }
 
 Kurnia Hendrawan	<kurnia.hendrawan[AT]consistec.de> {
-        Saving User Specified Decodes into profile
+	Saving User Specified Decodes into profile
 }
 
 Leonard Tracy		<letracy[AT]cisco.com> {
-        Cisco FabricPath protocol dissector
+	Cisco FabricPath protocol dissector
 }
 
 Elliott Aldrich		<elliott[AT]aldrichart.com> {
-        Various icons
+	Various icons
 }
 
 Glenn Matthews		<glenn.matthews[AT]cisco.com> {
@@ -3417,11 +3421,11 @@ Bill Schiller		<bill.schiller[AT]emerson.com> {
 }
 
 Aditya Ambadkar		<arambadk[AT]ncsu.edu> {
-    Support for flow label sub-tlv according to RFC 6391
+	Support for flow label sub-tlv according to RFC 6391
 }
 
 Diana Chris		<dvchris[AT]ncsu.edu> {
-    Support for flow label sub-tlv according to RFC 6391
+	Support for flow label sub-tlv according to RFC 6391
 }
 
 Guy Martin		<gmsoft[AT]tuxicoman.be> {
@@ -3452,39 +3456,66 @@ Clement Marrast		<clement.marrast[AT]molex.com> {
 	WSE Remote Ethernet protocol
 }
 
-Jacob Nordgren		<jnordgren[at]gmail.com> {
+Jacob Nordgren		<jnordgren[AT]gmail.com> {
 	UMTS FP/MAC/RLC dissection enhancement based on NBAP signaling
 }
 
-Rishie Sharma		<rishie[at]kth.se> {
+Rishie Sharma		<rishie[AT]kth.se> {
 	UMTS FP/MAC/RLC dissection enhancement based on NBAP signaling
 }
 
-Richard Stearn		<richard[at]rns-stearn.demon.co.uk> {
+Richard Stearn		<richard[AT]rns-stearn.demon.co.uk> {
 	AX.25 support
 }
 
-Tobias Rutz		<tobias.rutz[at]work-microwave.de> {
+Tobias Rutz		<tobias.rutz[AT]work-microwave.de> {
 	DVB-S2 Baseband Frame and GSE support
 }
 
-Michal Labedzki		<michal.labedzki[at]tieto.com> {
+Michal Labedzki		<michal.labedzki[AT]tieto.com> {
 	Bluetooth BNEP dissector
 	Bluetooth HID dissector
 	Bluetooth SAP dissector
 	Bluetooth AVCTP dissector
 	Bluetooth AVRCP dissector
 	Bluetooth HCI USB transport dissector
+	Bluetooth MCAP dissector
+	Bluetooth HCRP dissector
+	Bluetooth AVDTP/A2DP/VDP/SBC dissectors
 }
 
-Wido Kelling		<kellingwido[At]aol.com> {
+Wido Kelling		<kellingwido[AT]aol.com> {
 	Profinet: Updated disecction regarding the IEC 61158
+}
+
+Kaushal Shah		<kshah3[AT]ncsu.edu> {
+	Support for Type Classification of Experimental
+	and Reserved sub-TLVs as per Section 6 of RFC3630
+}
+
+Subramanian Ramachandran <sramach6[AT]ncsu.edu> {
+	Support for BFD for MPLS LSP's as per RFC 5884
+}
+
+Manuel Hofer		<manuel[At]mnlhfr.at> {
+	OpenVPN dissector
+}
+
+Gaurav Patwardhan	<gspatwar[AT]ncsu.edu> {
+	Support for GTSM Flag as per RFC 6720
+}
+
+Peter Hatina		<phatina[AT]redhat.com> {
+	Gtk3 Wireshark fixes
+}
+
+Tomasz Moń		<desowin[AT]gmail.com> {
+	USBPcap support
 }
 
 
 and by:
 
-Pavel Roskin		<proski[AT]gnu.org>
 Georgi Guninski		<guninski[AT]guninski.com>
 Jason Copenhaver	<jcopenha[AT]typedef.org>
 Eric Perie		<eric.perie[AT]colubris.com>
@@ -3497,7 +3528,7 @@ Darren Steele		<steeley[AT]steeley.co.uk>
 Michael Kopp		<michael.kopp[AT]isarnet.de>
 Bernd Leibing		<bernd.leibing[AT]kiz.uni-ulm.de>
 Chris Heath		<chris[AT]heathens.co.nz>
-Gisle Vanem		<giva[AT]bgnett.no>
+Gisle Vanem		<gvanem[AT]broadpark.no>
 Ritchie			<ritchie[AT]tipsybottle.com>
 Aki Immonen		<aki.immonen[AT]golftalma.fi>
 David E. Weekly		<david[AT]weekly.org>
@@ -3650,7 +3681,7 @@ Johanna Sochos		<johanna.sochos[AT]swissqual.com>
 Felix Obenhuber		<felix[AT]obenhuber.de>
 Hilko Bengen		<bengen--wireshark[AT]hilluzination.de>
 Hadar Shoham		<hadar[AT]ti.com>
-Robert Bullen		<robert[AT]bitcricket.com>
+Robert Bullen		<robert[AT]robertbullen.com>
 Chuck Kristofek		<chuck.kristofek[AT]ngc.com>
 Markus Renz		<Markus.Renz[AT]hirschmann.de>
 Toshihiro Kataoka	<kataoka.toshihiro[AT]gmail.com>
@@ -3690,6 +3721,22 @@ Tim Hentenaar		<tim.hentenaar[AT]gmail.com>
 Krishnamurthy Mayya	<krishnamurthymayya[AT]gmail.com>
 Nikitha Malgi		<nikitha01[AT]gmail.com>
 Adam Butcher		<adam[AT]jessamine.co.uk>
+Hendrik Uhlmann		<Hendrik.Uhlmann[AT]rheinmetall.com>
+Alex Gaertner		<gaertner.alex[AT]gmx.de>
+Sebastiano Di Paola	<sebastiano.dipaola[AT]gmail.com>
+Steven J. Magnani	<steve[AT]digidescorp.com>
+David Arnold		<davida[AT]pobox.com>
+Dario Lombardo		<lomato[AT]gmail.com>
+Alexander Chemeris	<alexander.chemeris[AT]gmail.com>
+Ivan Klyuchnikov	<kluchnikovi[AT]gmail.com>
+Max Baker		<max[AT]warped.org>
+Diederik de Groot	<dkgroot[AT]talon.nl>
+Hauke Mehrtens		<hauke[AT]hauke-m.de>
+0xBismarck		<0xbismarck[AT]gmail.com>
+Peter Van Eynde		<pevaneyn[AT]cisco.com> 
+Marko Hrastovec		<marko.hrastovec[AT]sloveniacontrol.si>
+Mike Garratt		<mg.wireshark[AT]evn.co.nz>
+Fabio Tarabelloni	<fabio.tarabelloni[AT]reloc.it>
 
 Dan Lasley <dlasley[AT]promus.com> gave permission for his
 dumpit() hex-dump routine to be used.

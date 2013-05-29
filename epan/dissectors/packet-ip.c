@@ -451,14 +451,13 @@ static dissector_handle_t tapa_handle;
 /*
  * defragmentation of IPv4
  */
-static GHashTable *ip_fragment_table = NULL;
-static GHashTable *ip_reassembled_table = NULL;
+static reassembly_table ip_reassembly_table;
 
 static void
 ip_defragment_init(void)
 {
-  fragment_table_init(&ip_fragment_table);
-  reassembled_table_init(&ip_reassembled_table);
+  reassembly_table_init(&ip_reassembly_table,
+                        &addresses_reassembly_table_functions);
 }
 
 void
@@ -756,7 +755,7 @@ dissect_ipopt_security(const ip_tcp_opt *optp, tvbuff_t *tvb, int offset,
   /* Analyze payload start to decide whether it should be dissected
      according to RFC 791 or RFC 1108 */
     val = tvb_get_ntohs(tvb, curr_offset);
-    if (match_strval(val, secl_rfc791_vals)) {
+    if (try_val_to_str(val, secl_rfc791_vals)) {
       /* Dissect as RFC 791 */
       proto_tree_add_item(field_tree, hf_ip_opt_sec_rfc791_sec,
                           tvb, curr_offset, 2, ENC_BIG_ENDIAN);
@@ -906,14 +905,14 @@ dissect_ipopt_cipso(const ip_tcp_opt *optp, tvbuff_t *tvb, int offset,
         guint byte_spot = 0;
         unsigned char bitmask;
         char *cat_str;
-        char *cat_str_tmp = wmem_alloc(wmem_packet_scope(), USHRT_MAX_STRLEN);
+        char *cat_str_tmp = (char *)wmem_alloc(wmem_packet_scope(), USHRT_MAX_STRLEN);
         size_t cat_str_len;
         const guint8 *val_ptr = tvb_get_ptr(tvb, offset, taglen - 4);
 
         /* this is just a guess regarding string size, but we grow it below
          * if needed */
         cat_str_len = 256;
-        cat_str = wmem_alloc0(wmem_packet_scope(), cat_str_len);
+        cat_str = (char *)wmem_alloc0(wmem_packet_scope(), cat_str_len);
 
         /* we checked the length above so the highest category value
          * possible here is 240 */
@@ -929,7 +928,7 @@ dissect_ipopt_cipso(const ip_tcp_opt *optp, tvbuff_t *tvb, int offset,
 
                 while (cat_str_len < (strlen(cat_str) + 2 + USHRT_MAX_STRLEN))
                   cat_str_len += cat_str_len;
-                cat_str_new = wmem_alloc(wmem_packet_scope(), cat_str_len);
+                cat_str_new = (char *)wmem_alloc(wmem_packet_scope(), cat_str_len);
                 g_strlcpy(cat_str_new, cat_str, cat_str_len);
                 cat_str_new[cat_str_len - 1] = '\0';
                 cat_str = cat_str_new;
@@ -975,8 +974,8 @@ dissect_ipopt_cipso(const ip_tcp_opt *optp, tvbuff_t *tvb, int offset,
 
       if (taglen > 4) {
         int offset_max_cat = offset + taglen - 4;
-        char *cat_str = wmem_alloc0(wmem_packet_scope(), USHRT_MAX_STRLEN * 15);
-        char *cat_str_tmp = wmem_alloc(wmem_packet_scope(), USHRT_MAX_STRLEN);
+        char *cat_str = (char *)wmem_alloc0(wmem_packet_scope(), USHRT_MAX_STRLEN * 15);
+        char *cat_str_tmp = (char *)wmem_alloc(wmem_packet_scope(), USHRT_MAX_STRLEN);
 
         while ((offset + 2) <= offset_max_cat) {
           g_snprintf(cat_str_tmp, USHRT_MAX_STRLEN, "%u",
@@ -1014,8 +1013,8 @@ dissect_ipopt_cipso(const ip_tcp_opt *optp, tvbuff_t *tvb, int offset,
       if (taglen > 4) {
         guint16 cat_low, cat_high;
         int offset_max_cat = offset + taglen - 4;
-        char *cat_str = wmem_alloc0(wmem_packet_scope(), USHRT_MAX_STRLEN * 16);
-        char *cat_str_tmp = wmem_alloc(wmem_packet_scope(), USHRT_MAX_STRLEN * 2);
+        char *cat_str = (char *)wmem_alloc0(wmem_packet_scope(), USHRT_MAX_STRLEN * 16);
+        char *cat_str_tmp = (char *)wmem_alloc(wmem_packet_scope(), USHRT_MAX_STRLEN * 2);
 
         while ((offset + 2) <= offset_max_cat) {
           cat_high = tvb_get_ntohs(tvb, offset);
@@ -1946,7 +1945,7 @@ dissect_ip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
   guint16 ttl;
 
   tree = parent_tree;
-  iph = wmem_alloc(wmem_packet_scope(), sizeof(ws_ip));
+  iph = (ws_ip *)wmem_alloc(wmem_packet_scope(), sizeof(ws_ip));
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "IPv4");
   col_clear(pinfo->cinfo, COL_INFO);
@@ -2134,9 +2133,11 @@ dissect_ip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
   iph->ip_sum = tvb_get_ntohs(tvb, offset + 10);
 
   /*
-   * If we have the entire IP header available, check the checksum.
+   * If checksum checking is enabled, and we have the entire IP header
+   * available, and this isn't inside an ICMP error packet, check the
+   * checksum.
    */
-  if (ip_check_checksum && tvb_bytes_exist(tvb, offset, hlen)) {
+  if (ip_check_checksum && tvb_bytes_exist(tvb, offset, hlen)&&(!pinfo->flags.in_error_pkt)) {
     ipsum = ip_checksum(tvb_get_ptr(tvb, offset, hlen), hlen);
     if (tree) {
       if (ipsum == 0) {
@@ -2183,9 +2184,12 @@ dissect_ip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
       item = proto_tree_add_uint_format(ip_tree, hf_ip_checksum, tvb,
                                         offset + 10, 2, iph->ip_sum,
                                         "Header checksum: 0x%04x [%s]",
-                                        iph->ip_sum, ip_check_checksum ?
-                                        "not all data available" :
-                                        "validation disabled");
+                                        iph->ip_sum,
+                                        ip_check_checksum ?
+                                            (pinfo->flags.in_error_pkt ?
+                                             "in ICMP error packet" :
+                                             "not all data available") :
+                                            "validation disabled");
       checksum_tree = proto_item_add_subtree(item, ett_ip_checksum);
       item = proto_tree_add_boolean(checksum_tree, hf_ip_checksum_good, tvb,
                                     offset + 10, 2, FALSE);
@@ -2207,7 +2211,7 @@ dissect_ip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
     src_host = get_hostname(addr);
     if (ip_summary_in_tree) {
       proto_item_append_text(ti, ", Src: %s (%s)", src_host,
-                             ip_to_str(iph->ip_src.data));
+                             ip_to_str((guint8 *)iph->ip_src.data));
     }
     proto_tree_add_ipv4(ip_tree, hf_ip_src, tvb, offset + 12, 4, addr);
     item = proto_tree_add_ipv4(ip_tree, hf_ip_addr, tvb, offset + 12, 4, addr);
@@ -2277,7 +2281,7 @@ dissect_ip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
       cur_rt = tvb_get_ipv4(tvb, offset + 16);
     if (ip_summary_in_tree) {
       proto_item_append_text(ti, ", Dst: %s (%s)", dst_host,
-                             ip_to_str(iph->ip_dst.data));
+                             ip_to_str((guint8 *)iph->ip_dst.data));
       if (dst_off)
         proto_item_append_text(ti, ", Via: %s (%s)", get_hostname(cur_rt),
                                ip_to_str((gchar *)&cur_rt));
@@ -2340,9 +2344,10 @@ dissect_ip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
   if (ip_defragment && (iph->ip_off & (IP_MF|IP_OFFSET)) &&
       tvb_bytes_exist(tvb, offset, pinfo->iplen - pinfo->iphdrlen) &&
       ipsum == 0) {
-    ipfd_head = fragment_add_check(tvb, offset, pinfo,
+    ipfd_head = fragment_add_check(&ip_reassembly_table, tvb, offset,
+                                   pinfo,
                                    iph->ip_p ^ iph->ip_id ^ src32 ^ dst32,
-                                   ip_fragment_table, ip_reassembled_table,
+                                   NULL,
                                    (iph->ip_off & IP_OFFSET) * 8,
                                    pinfo->iplen - pinfo->iphdrlen,
                                    iph->ip_off & IP_MF);

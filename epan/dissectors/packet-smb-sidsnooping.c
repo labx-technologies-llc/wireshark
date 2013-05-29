@@ -39,9 +39,11 @@
 #include <epan/dissectors/packet-smb.h>
 #include "packet-smb-sidsnooping.h"
 
+#if 0
 static int hf_lsa = -1;
-static int hf_lsa_info_level = -1;
 static int hf_lsa_opnum = -1;
+#endif
+static int hf_lsa_info_level = -1;
 static int hf_lsa_domain = -1;
 static int hf_nt_domain_sid = -1;
 static int hf_samr_hnd = -1;
@@ -67,7 +69,7 @@ find_sid_name(char *sid)
 	sid_name old_sn;
 
 	old_sn.sid=sid;
-	sn=g_hash_table_lookup(sid_name_table, &old_sn);
+	sn=(sid_name *)g_hash_table_lookup(sid_name_table, &old_sn);
 	if(!sn){
 		return NULL;
 	}
@@ -81,12 +83,12 @@ add_sid_name_mapping(char *sid, char *name)
 	sid_name old_sn;
 
 	old_sn.sid=sid;
-	sn=g_hash_table_lookup(sid_name_table, &old_sn);
+	sn=(sid_name *)g_hash_table_lookup(sid_name_table, &old_sn);
 	if(sn){
 		return;
 	}
 
-	sn=se_alloc(sizeof(sid_name));
+	sn=se_new(sid_name);
 	sn->sid=g_strdup(sid);
 	sn->name=g_strdup(name);
 	g_hash_table_insert(sid_name_table, sn, sn);
@@ -101,7 +103,7 @@ add_sid_name_mapping(char *sid, char *name)
 static int
 samr_query_dispinfo(void *dummy _U_, packet_info *pinfo, epan_dissect_t *edt, const void *pri)
 {
-	const dcerpc_info *ri=pri;
+	const dcerpc_info *ri=(const dcerpc_info *)pri;
 	void *old_ctx=NULL;
 	char *pol_name;
 	char *sid;
@@ -121,7 +123,7 @@ samr_query_dispinfo(void *dummy _U_, packet_info *pinfo, epan_dissect_t *edt, co
 	if(!gp || gp->len!=1){
 		return 0;
 	}
-	fi=gp->pdata[0];
+	fi=(field_info *)gp->pdata[0];
 	info_level=fi->value.value.sinteger;
 
 	if(info_level!=1){
@@ -139,7 +141,7 @@ samr_query_dispinfo(void *dummy _U_, packet_info *pinfo, epan_dissect_t *edt, co
 		if(!gp || gp->len!=1){
 			return 0;
 		}
-		fi=gp->pdata[0];
+		fi=(field_info *)gp->pdata[0];
 
 		old_ctx=g_hash_table_lookup(ctx_handle_table, GINT_TO_POINTER(pinfo->fd->num));
 		if(old_ctx){
@@ -162,7 +164,7 @@ samr_query_dispinfo(void *dummy _U_, packet_info *pinfo, epan_dissect_t *edt, co
 		return 0;
 	}
 
-	if (!dcerpc_fetch_polhnd_data(old_ctx, &pol_name, NULL, NULL, NULL, ri->call_data->req_frame)) {
+	if (!dcerpc_fetch_polhnd_data((e_ctx_hnd *)old_ctx, &pol_name, NULL, NULL, NULL, ri->call_data->req_frame)) {
 		return 0;
 	}
 
@@ -204,8 +206,8 @@ samr_query_dispinfo(void *dummy _U_, packet_info *pinfo, epan_dissect_t *edt, co
 		if (len > 247)
 			len = 247;
 
-		fi_rid=gp_rids->pdata[num_rids-1];
-		fi_name=gp_names->pdata[num_rids-1];
+		fi_rid=(field_info *)gp_rids->pdata[num_rids-1];
+		fi_name=(field_info *)gp_names->pdata[num_rids-1];
 		g_strlcpy(sid_name_str, sid, 256);
 		sid_name_str[len++]='-';
 		g_snprintf(sid_name_str+len, 256-len, "%d",fi_rid->value.value.sinteger);
@@ -233,7 +235,7 @@ lsa_policy_information(void *dummy _U_, packet_info *pinfo _U_, epan_dissect_t *
 	if(!gp || gp->len!=1){
 		return 0;
 	}
-	fi=gp->pdata[0];
+	fi=(field_info *)gp->pdata[0];
 	info_level=fi->value.value.sinteger;
 
 	switch(info_level){
@@ -244,14 +246,14 @@ lsa_policy_information(void *dummy _U_, packet_info *pinfo _U_, epan_dissect_t *
 		if(!gp || gp->len!=1){
 			return 0;
 		}
-		fi=gp->pdata[0];
+		fi=(field_info *)gp->pdata[0];
 		domain=fi->value.value.string;
 
 		gp=proto_get_finfo_ptr_array(edt->tree, hf_nt_domain_sid);
 		if(!gp || gp->len!=1){
 			return 0;
 		}
-		fi=gp->pdata[0];
+		fi=(field_info *)gp->pdata[0];
 		sid=fi->value.value.string;
 
 		add_sid_name_mapping(sid, domain);
@@ -325,7 +327,6 @@ ctx_handle_hash(gconstpointer k)
 static void
 sid_snooping_init(void)
 {
-	header_field_info *hfi;
 	GString *error_string;
 
 	if(lsa_policy_information_tap_installed){
@@ -363,44 +364,17 @@ sid_name_snooping=0;
 	ctx_handle_table=g_hash_table_new(ctx_handle_hash, ctx_handle_equal);
 
 
-	hf_lsa=proto_get_id_by_filter_name("lsa");
-
-	hfi=proto_registrar_get_byname("lsa.opnum");
-	if(hfi){
-		hf_lsa_opnum=hfi->id;
-	}
-
-	hfi=proto_registrar_get_byname("nt.domain_sid");
-	if(hfi){
-		hf_nt_domain_sid=hfi->id;
-	}
-
-	hfi=proto_registrar_get_byname("lsa.domain");
-	if(hfi){
-		hf_lsa_domain=hfi->id;
-	}
-
-	hfi=proto_registrar_get_byname("lsa.info.level");
-	if(hfi){
-		hf_lsa_info_level=hfi->id;
-	}
-
-	hfi=proto_registrar_get_byname("samr.handle");
-	if(hfi){
-		hf_samr_hnd=hfi->id;
-	}
-	hfi=proto_registrar_get_byname("samr.rid");
-	if(hfi){
-		hf_samr_rid=hfi->id;
-	}
-	hfi=proto_registrar_get_byname("samr.acct_name");
-	if(hfi){
-		hf_samr_acct_name=hfi->id;
-	}
-	hfi=proto_registrar_get_byname("samr.level");
-	if(hfi){
-		hf_samr_level=hfi->id;
-	}
+#if 0
+	hf_lsa		  = proto_get_id_by_filter_name("lsa");
+	hf_lsa_opnum	  = proto_registrar_get_id_byname("lsa.opnum");
+#endif
+	hf_nt_domain_sid  = proto_registrar_get_id_byname("nt.domain_sid");
+	hf_lsa_domain	  = proto_registrar_get_id_byname("lsa.domain");
+	hf_lsa_info_level = proto_registrar_get_id_byname("lsa.info.level");
+	hf_samr_hnd	  = proto_registrar_get_id_byname("samr.handle");
+	hf_samr_rid	  = proto_registrar_get_id_byname("samr.rid");
+	hf_samr_acct_name = proto_registrar_get_id_byname("samr.acct_name");
+	hf_samr_level	  = proto_registrar_get_id_byname("samr.level");
 
 
 	error_string=register_tap_listener("dcerpc",

@@ -48,6 +48,8 @@
  * SUCH DAMAGE
  */
 
+#include "ws_symbol_export.h"
+
 /* radioType */
 #define FDD_RADIO 1
 #define TDD_RADIO 2
@@ -87,6 +89,14 @@ typedef enum mac_lte_crc_status {
     crc_false_dci = 5
 } mac_lte_crc_status;
 
+typedef enum mac_lte_carrier_id {
+    carrier_id_primary,
+    carrier_id_secondary_1,
+    carrier_id_secondary_2,
+    carrier_id_secondary_3,
+    carrier_id_secondary_4,
+} mac_lte_carrier_id;
+
 /* Context info attached to each LTE MAC frame */
 typedef struct mac_lte_info
 {
@@ -120,10 +130,13 @@ typedef struct mac_lte_info
 
     /* UL only.  Indicates if the R10 extendedBSR-Sizes parameter is set */
     gboolean        isExtendedBSRSizes;
-    
+
     /* DL only.  Status of CRC check */
     mac_lte_crc_status   crcStatusValid;
 
+    /* Carrier ID */
+    mac_lte_carrier_id   carrierId;
+    
     /* DL only.  Is this known to be a retransmission? */
     mac_lte_dl_retx dl_retx;
 
@@ -229,7 +242,7 @@ int is_mac_lte_frame_retx(packet_info *pinfo, guint8 direction);
    to show you display/filter/plot/add-custom-columns on these fields, so should
    be added if available.
    The format is to have the tag, followed by the value (there is no length field,
-   its implicit from the tag) */
+   it's implicit from the tag) */
 
 #define MAC_LTE_RNTI_TAG            0x02
 /* 2 bytes, network order */
@@ -266,7 +279,9 @@ void set_mac_lte_channel_mapping(guint16 ueid, guint8 lcid,
 
 /* Functions to be called from outside this module (e.g. in a plugin, where mac_lte_info
    isn't available) to get/set per-packet data */
+WS_DLL_PUBLIC
 mac_lte_info *get_mac_lte_proto_data(packet_info *pinfo);
+WS_DLL_PUBLIC
 void set_mac_lte_proto_data(packet_info *pinfo, mac_lte_info *p_mac_lte_info);
 
 /* Function to attempt to populate p_mac_lte_info using framing definition above */

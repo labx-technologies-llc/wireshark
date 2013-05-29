@@ -97,7 +97,7 @@ typedef struct  _rtp_private_conv_info {
 	emem_tree_t *multisegment_pdus;
 } rtp_private_conv_info;
 
-static GHashTable *fragment_table = NULL;
+static reassembly_table rtp_reassembly_table;
 
 static int hf_rtp_fragments = -1;
 static int hf_rtp_fragment = -1;
@@ -133,7 +133,9 @@ static const fragment_items rtp_fragment_items = {
 
 static dissector_handle_t rtp_handle;
 static dissector_handle_t classicstun_handle;
+static dissector_handle_t stun_handle;
 static dissector_handle_t classicstun_heur_handle;
+static dissector_handle_t stun_heur_handle;
 static dissector_handle_t t38_handle;
 static dissector_handle_t zrtp_handle;
 
@@ -175,6 +177,40 @@ static int hf_rtp_length       = -1;
 static int hf_rtp_hdr_exts     = -1;
 static int hf_rtp_hdr_ext      = -1;
 
+/* RTP header ED137A extension fields   */
+static int hf_rtp_hdr_ed137s    = -1;
+static int hf_rtp_hdr_ed137     = -1;
+static int hf_rtp_hdr_ed137a     = -1;
+static int hf_rtp_hdr_ed137_ptt_type  = -1;
+static int hf_rtp_hdr_ed137_squ       = -1;
+static int hf_rtp_hdr_ed137_ptt_id    = -1;
+static int hf_rtp_hdr_ed137_sct       = -1;
+static int hf_rtp_hdr_ed137_x         = -1;
+static int hf_rtp_hdr_ed137_x_nu      = -1;
+static int hf_rtp_hdr_ed137_ft_type   = -1;
+static int hf_rtp_hdr_ed137_ft_len    = -1;
+static int hf_rtp_hdr_ed137_ft_value  = -1;
+static int hf_rtp_hdr_ed137_ft_bss_qidx  = -1;
+static int hf_rtp_hdr_ed137_ft_bss_rssi_qidx  = -1;
+static int hf_rtp_hdr_ed137_ft_bss_qidx_ml  = -1;
+static int hf_rtp_hdr_ed137_ft_bss_nu  = -1;
+static int hf_rtp_hdr_ed137_vf  = -1;
+static int hf_rtp_hdr_ed137a_ptt_type  = -1;
+static int hf_rtp_hdr_ed137a_squ       = -1;
+static int hf_rtp_hdr_ed137a_ptt_id    = -1;
+static int hf_rtp_hdr_ed137a_pm        = -1;
+static int hf_rtp_hdr_ed137a_ptts      = -1;
+static int hf_rtp_hdr_ed137a_sct       = -1;
+static int hf_rtp_hdr_ed137a_reserved  = -1;
+static int hf_rtp_hdr_ed137a_x         = -1;
+static int hf_rtp_hdr_ed137a_x_nu      = -1;
+static int hf_rtp_hdr_ed137a_ft_type   = -1;
+static int hf_rtp_hdr_ed137a_ft_len    = -1;
+static int hf_rtp_hdr_ed137a_ft_value  = -1;
+static gint ett_hdr_ext_ed137s  = -1;
+static gint ett_hdr_ext_ed137   = -1;
+static gint ett_hdr_ext_ed137a   = -1;
+
 /* RTP setup fields */
 static int hf_rtp_setup        = -1;
 static int hf_rtp_setup_frame  = -1;
@@ -212,12 +248,14 @@ static int hf_rtp_ext_rfc5285_appbits = -1;
 static int hf_rtp_ext_rfc5285_data = -1;
 
 #define RTP0_INVALID 0
-#define RTP0_CLASSICSTUN    1
-#define RTP0_T38     2
-#define RTP0_SPRT    3
+#define RTP0_STUN    1
+#define RTP0_CLASSICSTUN    2
+#define RTP0_T38     3
+#define RTP0_SPRT    4
 
 static const enum_val_t rtp_version0_types[] = {
 	{ "invalid", "Invalid or ZRTP packets", RTP0_INVALID },
+	{ "stun", "STUN packets", RTP0_STUN },
 	{ "classicstun", "CLASSIC-STUN packets", RTP0_CLASSICSTUN },
 	{ "t38", "T.38 packets", RTP0_T38 },
 	{ "sprt", "SPRT packets", RTP0_SPRT },
@@ -262,6 +300,47 @@ static guint rtp_rfc2198_pt = 99;
 /* Extension bit is the fourth bit */
 #define RTP_EXTENSION(octet)	((octet) & 0x10)
 
+/* ED137 signature */
+#define RTP_ED137_SIG    0x0067
+
+/* ED137A signature */
+#define RTP_ED137A_SIG   0x0167
+
+/* ED137 PTT */
+#define RTP_ED137_ptt_mask(octet)   ((octet) & 0xE0000000)
+#define RTP_ED137A_ptt_mask(octet)   ((octet) & 0xE0000000)
+#define RTP_ED137_squ_mask(octet)   ((octet) & 0x10000000)
+#define RTP_ED137A_squ_mask(octet)   ((octet) & 0x10000000)
+
+/* ED137 extended information */
+#define RTP_ED137_extended_information(octet)   ((octet) & 0x00400000)
+#define RTP_ED137A_extended_information(octet)	((octet) & 0x00010000)
+
+/* ED137 feature type */
+#define RTP_ED137_feature_type(octet)  (((octet) & 0x003C0000) >> 18)
+#define RTP_ED137A_feature_type(octet) (((octet) & 0x0000F000) >> 12)
+
+/* ED137 feature length */
+#define RTP_ED137_feature_length(octet)  (((octet) & 0x0003C000) >> 14)
+#define RTP_ED137A_feature_length(octet) (((octet) & 0x00000F00) >> 8)
+
+/* ED137 feature value */
+#define RTP_ED137_feature_value(octet)  (((octet) & 0x00003FFE) >> 1)
+#define RTP_ED137A_feature_value(octet) (((octet) & 0x000000FF) >> 0)
+
+/* ED137 BSS constants */
+#define RTP_ED137_feature_bss_type    0x1
+#define RTP_ED137_feature_bss_len     11
+#define RTP_ED137_feature_bss_qidx(octet)   (((octet) & 0x00003FC0) >> 6)
+#define RTP_ED137_feature_bss_qidx_ml(octet)   (((octet) & 0x00000038) >> 2)
+
+/* RFC 5215 one byte header signature */
+#define RTP_RFC5215_ONE_BYTE_SIG        0xBEDE
+
+/* RFC 5215 two byte header mask and signature */
+#define RTP_RFC5215_TWO_BYTE_MASK       0xFFF0
+#define RTP_RFC5215_TWO_BYTE_SIG        0x1000
+
 /* CSRC count is the last four bits */
 #define RTP_CSRC_COUNT(octet)	((octet) & 0xF)
 
@@ -270,6 +349,136 @@ static const value_string rtp_version_vals[] =
 	{ 2, "RFC 1889 Version" }, /* First for speed */
 	{ 0, "Old VAT Version" },
 	{ 1, "First Draft Version" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_profile_vals[] =
+{
+	{ RTP_ED137_SIG, "ED137" },
+	{ RTP_ED137A_SIG, "ED137A" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_ed137_ptt_type[] =
+{
+	{ 0x00, "PTT OFF" },
+	{ 0x01, "Normal PTT ON" },
+	{ 0x02, "Coupling PTT ON" },
+	{ 0x03, "Priority PTT ON" },
+	{ 0x04, "Emergency PTT ON" },
+	{ 0x05, "Reserved" },
+	{ 0x06, "Reserved" },
+	{ 0x07, "Reserved" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_ed137_squ[] =
+{
+	{ 0x00, "SQ OFF" },
+	{ 0x01, "SQ ON" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_ed137_ft_type[] =
+{
+	{ 0x0, "No features" },
+	{ 0x1, "Best signal selection" },
+	{ 0x2, "CLIMAX time delay" },
+	{ 0x3, "Reserved" },
+	{ 0x4, "Reserved" },
+	{ 0x5, "Reserved" },
+	{ 0x6, "Reserved" },
+	{ 0x7, "Reserved" },
+	{ 0x8, "Reserved" },
+	{ 0x9, "Reserved" },
+	{ 0xA, "Reserved" },
+	{ 0xB, "Vendor reserved" },
+	{ 0xC, "Vendor reserved" },
+	{ 0xD, "Vendor reserved" },
+	{ 0xE, "Vendor reserved" },
+	{ 0xF, "Vendor reserved" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_ed137_vf[] =
+{
+	{ 0x00, "VF OFF" },
+	{ 0x01, "VF ON" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_ed137_ft_bss_rssi_qidx[] =
+{
+	{ 0x00, "lower than -100.00 dBm" },
+	{ 0x01, "lower than or equal to -97.86 dBm" },
+	{ 0x02, "lower than or equal to -95.71 dBm" },
+	{ 0x03, "lower than or equal to -93.57 dBm" },
+	{ 0x04, "lower than or equal to -91.43 dBm" },
+	{ 0x05, "lower than or equal to -89.29 dBm" },
+	{ 0x06, "lower than or equal to -87.14 dBm" },
+	{ 0x07, "lower than or equal to -85.00 dBm" },
+	{ 0x08, "lower than or equal to -82.86 dBm" },
+	{ 0x09, "lower than or equal to -80.71 dBm" },
+	{ 0x0a, "lower than or equal to -78.57 dBm" },
+	{ 0x0b, "lower than or equal to -76.43 dBm" },
+	{ 0x0c, "lower than or equal to -74.29 dBm" },
+	{ 0x0d, "lower than or equal to -72.14 dBm" },
+	{ 0x0e, "lower than or equal to -70.00 dBm" },
+	{ 0x0f, "higher than -70.00 dBm" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_ed137_ft_bss_qidx_ml[] =
+{
+	{ 0x00, "RSSI" },
+	{ 0x01, "AGC Level" },
+	{ 0x02, "C/N" },
+	{ 0x03, "Standardized PSD" },
+	{ 0x04, "Vendor specific method" },
+	{ 0x05, "Vendor specific method" },
+	{ 0x06, "Vendor specific method" },
+	{ 0x07, "Vendor specific method" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_ed137a_ptt_type[] =
+{
+	{ 0x00, "PTT OFF" },
+	{ 0x01, "Normal PTT ON" },
+	{ 0x02, "Coupling PTT ON" },
+	{ 0x03, "Priority PTT ON" },
+	{ 0x04, "Emergency PTT ON" },
+	{ 0x05, "Reserved" },
+	{ 0x06, "Reserved" },
+	{ 0x07, "Reserved" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_ed137a_squ[] =
+{
+	{ 0x00, "SQ OFF" },
+	{ 0x01, "SQ ON" },
+	{ 0, NULL },
+};
+
+static const value_string rtp_ext_ed137a_ft_type[] =
+{
+	{ 0x0, "No features" },
+	{ 0x1, "Signal Quality Information" },
+	{ 0x2, "CLIMAX time delay" },
+	{ 0x3, "Radio remote control" },
+	{ 0x4, "CLIMAX dynamic delay compensation" },
+	{ 0x5, "Reserved" },
+	{ 0x6, "Reserved" },
+	{ 0x7, "Reserved" },
+	{ 0x8, "Reserved" },
+	{ 0x9, "Reserved" },
+	{ 0xA, "Reserved" },
+	{ 0xB, "Vendor reserved" },
+	{ 0xC, "Vendor reserved" },
+	{ 0xD, "Vendor reserved" },
+	{ 0xE, "Vendor reserved" },
+	{ 0xF, "Vendor reserved" },
 	{ 0, NULL },
 };
 
@@ -585,7 +794,8 @@ static const value_string srtp_auth_alg_vals[] =
 static void
 rtp_fragment_init(void)
 {
-	fragment_table_init(&fragment_table);
+	reassembly_table_init(&rtp_reassembly_table,
+			      &addresses_reassembly_table_functions);
 }
 
 void
@@ -647,21 +857,21 @@ srtp_add_address(packet_info *pinfo, address *addr, int port, int other_port,
 	/*
 	 * Check if the conversation has data associated with it.
 	 */
-	p_conv_data = conversation_get_proto_data(p_conv, proto_rtp);
+	p_conv_data = (struct _rtp_conversation_info *)conversation_get_proto_data(p_conv, proto_rtp);
 
 	/*
 	 * If not, add a new data item.
 	 */
 	if (! p_conv_data) {
 		/* Create conversation data */
-		p_conv_data = se_alloc(sizeof(struct _rtp_conversation_info));
+		p_conv_data = se_new(struct _rtp_conversation_info);
 		p_conv_data->rtp_dyn_payload = NULL;
 
 		/* start this at 0x10000 so that we cope gracefully with the
 		 * first few packets being out of order (hence 0,65535,1,2,...)
 		 */
 		p_conv_data->extended_seqno = 0x10000;
-		p_conv_data->rtp_conv_info = se_alloc(sizeof(rtp_private_conv_info));
+		p_conv_data->rtp_conv_info = se_new(rtp_private_conv_info);
 		p_conv_data->rtp_conv_info->multisegment_pdus = se_tree_create(EMEM_TREE_TYPE_RED_BLACK,"rtp_ms_pdus");
 		conversation_add_proto_data(p_conv, proto_rtp, p_conv_data);
 	}
@@ -714,6 +924,8 @@ dissect_rtp_heur_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gbo
 			return TRUE;
 		} else {
 			switch (global_rtp_version0_type) {
+			case RTP0_STUN:
+				return call_dissector_only(stun_heur_handle, tvb, pinfo, tree, NULL);
 			case RTP0_CLASSICSTUN:
 				return call_dissector_only(classicstun_heur_handle, tvb, pinfo, tree, NULL);
 
@@ -775,7 +987,7 @@ process_rtp_payload(tvbuff_t *newtvb, packet_info *pinfo, proto_tree *tree,
 	payload_len = tvb_length_remaining(newtvb, offset);
 
 	/* first check if this is added as an SRTP stream - if so, don't try to dissector the payload data for now */
-	p_conv_data = p_get_proto_data(pinfo->fd, proto_rtp);
+	p_conv_data = (struct _rtp_conversation_info *)p_get_proto_data(pinfo->fd, proto_rtp, 0);
 	if (p_conv_data && p_conv_data->srtp_info) {
 		srtp_info = p_conv_data->srtp_info;
 		payload_len -= srtp_info->mki_len + srtp_info->auth_tag_len;
@@ -801,7 +1013,7 @@ process_rtp_payload(tvbuff_t *newtvb, packet_info *pinfo, proto_tree *tree,
 
 		if (srtp_info->auth_tag_len) {
 			proto_tree_add_item(rtp_tree, hf_srtp_auth_tag, newtvb, offset, srtp_info->auth_tag_len, ENC_NA);
-			offset += srtp_info->auth_tag_len;
+			/*offset += srtp_info->auth_tag_len;*/
 		}
 	}
 
@@ -810,7 +1022,7 @@ process_rtp_payload(tvbuff_t *newtvb, packet_info *pinfo, proto_tree *tree,
 		if (p_conv_data && p_conv_data->rtp_dyn_payload) {
 			gchar *payload_type_str = NULL;
 			encoding_name_and_rate_t *encoding_name_and_rate_pt = NULL;
-			encoding_name_and_rate_pt = g_hash_table_lookup(p_conv_data->rtp_dyn_payload, &payload_type);
+			encoding_name_and_rate_pt = (encoding_name_and_rate_t *)g_hash_table_lookup(p_conv_data->rtp_dyn_payload, &payload_type);
 			if (encoding_name_and_rate_pt) {
 				payload_type_str = encoding_name_and_rate_pt->encoding_name;
 			}
@@ -864,7 +1076,7 @@ dissect_rtp_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	guint32 seqno;
 
 	/* Retrieve RTPs idea of a converation */
-	p_conv_data = p_get_proto_data(pinfo->fd, proto_rtp);
+	p_conv_data = (struct _rtp_conversation_info *)p_get_proto_data(pinfo->fd, proto_rtp, 0);
 
 	if(p_conv_data != NULL)
 		finfo = p_conv_data->rtp_conv_info;
@@ -905,8 +1117,10 @@ dissect_rtp_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 * first pass, that's our best guess, and if it's not, what we
 		 * say gets ignored anyway.
 		 */
-		fd_head = fragment_add_seq(tvb, offset, pinfo, fid, fragment_table,
-					   seqno-msp->startseq, data_len, FALSE);
+		fd_head = fragment_add_seq(&rtp_reassembly_table,
+					   tvb, offset, pinfo, fid, NULL,
+					   seqno-msp->startseq, data_len,
+					   FALSE, 0);
 
 		newtvb = process_reassembled_data(tvb,offset, pinfo, "Reassembled RTP", fd_head,
 						  &rtp_fragment_items, NULL, tree);
@@ -929,7 +1143,8 @@ dissect_rtp_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 				g_debug("\tNo complete pdus in payload" );
 #endif
 				/* Mark the fragments and not complete yet */
-				fragment_set_partial_reassembly(pinfo, fid, fragment_table);
+				fragment_set_partial_reassembly(&rtp_reassembly_table,
+								pinfo, fid, NULL);
 
 				/* we must need another segment */
 				msp->endseq = MIN(msp->endseq,seqno) + 1;
@@ -988,7 +1203,7 @@ dissect_rtp_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			deseg_offset);
 #endif
 		/* allocate a new msp for this pdu */
-		msp = se_alloc(sizeof(rtp_multisegment_pdu));
+		msp = se_new(rtp_multisegment_pdu);
 		msp->startseq = seqno;
 		msp->endseq = seqno+1;
 		se_tree_insert32(finfo->multisegment_pdus,seqno,msp);
@@ -996,8 +1211,9 @@ dissect_rtp_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		/*
 		 * Add the fragment to the fragment table
 		 */
-		fd_head = fragment_add_seq(newtvb,deseg_offset, pinfo, seqno, fragment_table, 0, frag_len,
-					   TRUE );
+		fd_head = fragment_add_seq(&rtp_reassembly_table,
+					   newtvb, deseg_offset, pinfo, seqno, NULL, 0, frag_len,
+					   TRUE, 0);
 
 		if(fd_head != NULL)
 		{
@@ -1062,7 +1278,7 @@ dissect_rtp_rfc2198(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	gchar *payload_type_str;
 
 	/* Retrieve RTPs idea of a converation */
-	p_conv_data = p_get_proto_data(pinfo->fd, proto_rtp);
+	p_conv_data = (struct _rtp_conversation_info *)p_get_proto_data(pinfo->fd, proto_rtp, 0);
 
 	/* Add try to RFC 2198 data */
 	ti = proto_tree_add_text(tree, tvb, offset, -1, "RFC 2198: Redundant Audio Data");
@@ -1075,7 +1291,7 @@ dissect_rtp_rfc2198(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		payload_type_str = NULL;
 
 		/* Allocate and fill in header */
-		hdr_new = ep_alloc(sizeof(rfc2198_hdr));
+		hdr_new = ep_new(rfc2198_hdr);
 		hdr_new->next = NULL;
 		octet1 = tvb_get_guint8(tvb, offset);
 		hdr_new->pt = RTP_PAYLOAD_TYPE(octet1);
@@ -1085,7 +1301,7 @@ dissect_rtp_rfc2198(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		if ((hdr_new->pt > 95) && (hdr_new->pt < 128)) {
 			if (p_conv_data && p_conv_data->rtp_dyn_payload){
 				encoding_name_and_rate_t *encoding_name_and_rate_pt = NULL;
-				encoding_name_and_rate_pt = g_hash_table_lookup(p_conv_data->rtp_dyn_payload, &hdr_new->pt);
+				encoding_name_and_rate_pt = (encoding_name_and_rate_t *)g_hash_table_lookup(p_conv_data->rtp_dyn_payload, &hdr_new->pt);
 				if (encoding_name_and_rate_pt) {
 					payload_type_str = encoding_name_and_rate_pt->encoding_name;
 				}
@@ -1242,7 +1458,7 @@ static void
 dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 {
 	proto_item *ti            = NULL;
-	proto_tree *rtp_tree      = NULL;
+	proto_tree *volatile rtp_tree = NULL;
 	proto_tree *rtp_csrc_tree = NULL;
 	proto_tree *rtp_hext_tree = NULL;
 	guint8      octet1, octet2;
@@ -1255,12 +1471,12 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 	gchar *payload_type_str = NULL;
 	gboolean    is_srtp = FALSE;
 	unsigned int i            = 0;
-	unsigned int hdr_extension= 0;
+	unsigned int hdr_extension_len= 0;
 	unsigned int hdr_extension_id = 0;
-	unsigned int padding_count;
+	volatile unsigned int padding_count;
 	gint        length, reported_length;
 	int         data_len;
-	unsigned int offset = 0;
+	volatile unsigned int offset = 0;
 	guint16     seq_num;
 	guint32     timestamp;
 	guint32     sync_src;
@@ -1288,6 +1504,9 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 
 	if (version == 0) {
 		switch (global_rtp_version0_type) {
+		case RTP0_STUN:
+			call_dissector(stun_handle, tvb, pinfo, tree);
+			return;
 		case RTP0_CLASSICSTUN:
 			call_dissector(classicstun_handle, tvb, pinfo, tree);
 			return;
@@ -1395,7 +1614,7 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 
 	/* Look for conv and add to the frame if found */
 	get_conv_info(pinfo, rtp_info);
-	p_conv_data = p_get_proto_data(pinfo->fd, proto_rtp);
+	p_conv_data = (struct _rtp_conversation_info *)p_get_proto_data(pinfo->fd, proto_rtp, 0);
 
 	if (p_conv_data)
 		rtp_info->info_is_video = p_conv_data->is_video;
@@ -1406,7 +1625,7 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, (is_srtp) ? "SRTP" : "RTP" );
 
 	/* check if this is added as an SRTP stream - if so, don't try to dissect the payload data for now */
-	p_conv_data = p_get_proto_data(pinfo->fd, proto_rtp);
+	p_conv_data = (struct _rtp_conversation_info *)p_get_proto_data(pinfo->fd, proto_rtp, 0);
 
 #if 0 /* XXX: srtp_offset never actually used ?? */
 	if (p_conv_data && p_conv_data->srtp_info) {
@@ -1421,7 +1640,7 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 	if ( (payload_type>95) && (payload_type<128) ) {
 		if (p_conv_data && p_conv_data->rtp_dyn_payload){
 			encoding_name_and_rate_t *encoding_name_and_rate_pt = NULL;
-			encoding_name_and_rate_pt = g_hash_table_lookup(p_conv_data->rtp_dyn_payload, &payload_type);
+			encoding_name_and_rate_pt = (encoding_name_and_rate_t *)g_hash_table_lookup(p_conv_data->rtp_dyn_payload, &payload_type);
 			if (encoding_name_and_rate_pt) {
 				rtp_info->info_payload_type_str = payload_type_str = encoding_name_and_rate_pt->encoding_name;
 				rtp_info->info_payload_rate = encoding_name_and_rate_pt->sample_rate;
@@ -1435,7 +1654,7 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 	    sync_src,
 	    seq_num,
 	    timestamp,
-	    marker_set ? ", Mark " : " ");
+	    marker_set ? ", Mark" : "");
 
 
 	if ( tree ) {
@@ -1514,40 +1733,37 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 		if ( tree ) proto_tree_add_uint( rtp_tree, hf_rtp_prof_define, tvb, offset, 2, hdr_extension_id );
 		offset += 2;
 
-		hdr_extension = tvb_get_ntohs( tvb, offset );
-		if ( tree ) proto_tree_add_uint( rtp_tree, hf_rtp_length, tvb, offset, 2, hdr_extension);
+		hdr_extension_len = tvb_get_ntohs( tvb, offset );
+		if ( tree ) proto_tree_add_uint( rtp_tree, hf_rtp_length, tvb, offset, 2, hdr_extension_len);
 		offset += 2;
-		if ( hdr_extension > 0 ) {
+		if ( hdr_extension_len > 0 ) {
 			if ( tree ) {
-				ti = proto_tree_add_item(rtp_tree, hf_rtp_hdr_exts, tvb, offset, hdr_extension * 4, ENC_NA);
+				ti = proto_tree_add_item(rtp_tree, hf_rtp_hdr_exts, tvb, offset, hdr_extension_len * 4, ENC_NA);
 				rtp_hext_tree = proto_item_add_subtree( ti, ett_hdr_ext );
 			}
 
 			/* pass interpretation of header extension to a registered subdissector */
-			newtvb = tvb_new_subset(tvb, offset, hdr_extension * 4, hdr_extension * 4);
-			if ( !(dissector_try_uint(rtp_hdr_ext_dissector_table, hdr_extension_id, newtvb, pinfo, rtp_hext_tree)) ) {
+			newtvb = tvb_new_subset(tvb, offset, hdr_extension_len * 4, hdr_extension_len * 4);
 
-				/* 0xBEDE is defined by RFC 5215 as a header
-				 * extension with a one byte header
-				 */
-				if (hdr_extension_id == 0xBEDE) {
-					dissect_rtp_hext_rfc5215_onebyte (newtvb, pinfo, rtp_hext_tree);
-				}
-				else if ((hdr_extension_id & 0xFFF0) == 0x1000) {
-					dissect_rtp_hext_rfc5215_twobytes(tvb,
-						offset - 4, hdr_extension_id, newtvb,
-						pinfo, rtp_hext_tree);
-				}
-				else {
+			if (hdr_extension_id == RTP_RFC5215_ONE_BYTE_SIG) {
+				dissect_rtp_hext_rfc5215_onebyte (newtvb, pinfo, rtp_hext_tree);
+ 			}
+			else if ((hdr_extension_id & RTP_RFC5215_TWO_BYTE_MASK) == RTP_RFC5215_TWO_BYTE_SIG) {
+				dissect_rtp_hext_rfc5215_twobytes(tvb,
+					offset - 4, hdr_extension_id, newtvb,
+					pinfo, rtp_hext_tree);
+			}
+		 	else {
+				if ( !(dissector_try_uint(rtp_hdr_ext_dissector_table, hdr_extension_id, newtvb, pinfo, rtp_hext_tree)) ) {
 					hdrext_offset = offset;
-					for ( i = 0; i < hdr_extension; i++ ) {
+					for ( i = 0; i < hdr_extension_len; i++ ) {
 						if ( tree ) proto_tree_add_uint( rtp_hext_tree, hf_rtp_hdr_ext, tvb, hdrext_offset, 4, tvb_get_ntohl( tvb, hdrext_offset ) );
 						hdrext_offset += 4;
 					}
 				}
 			}
-			offset += hdr_extension * 4;
 		}
+		offset += hdr_extension_len * 4;
 	}
 
 	if ( padding_set ) {
@@ -1590,11 +1806,19 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 			 * There's data left over when you take out
 			 * the padding; dissect it.
 			 */
-			dissect_rtp_data( tvb, pinfo, tree, rtp_tree,
-			    offset,
-			    data_len,
-			    data_len,
-			    payload_type );
+			/* Ensure that tap is called after packet dissection, even in case of exception */
+			TRY {
+				dissect_rtp_data( tvb, pinfo, tree, rtp_tree,
+				    offset,
+				    data_len,
+				    data_len,
+				    payload_type );
+			} CATCH_ALL {
+				if (!pinfo->flags.in_error_pkt)
+					tap_queue_packet(rtp_tap, pinfo, rtp_info);
+				RETHROW;
+			}
+			ENDTRY;
 			offset += data_len;
 		} else if (data_len < 0) {
 			/*
@@ -1629,10 +1853,20 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 		/*
 		 * No padding.
 		 */
-		dissect_rtp_data( tvb, pinfo, tree, rtp_tree, offset,
-				  tvb_length_remaining( tvb, offset ),
-				  tvb_reported_length_remaining( tvb, offset ),
-				  payload_type );
+		if (tvb_reported_length_remaining(tvb, offset) > 0) {
+			/* Ensure that tap is called after packet dissection, even in case of exception */
+			TRY {
+				dissect_rtp_data( tvb, pinfo, tree, rtp_tree, offset,
+						  tvb_length_remaining( tvb, offset ),
+						  tvb_reported_length_remaining( tvb, offset ),
+						  payload_type );
+			} CATCH_ALL {
+				if (!pinfo->flags.in_error_pkt)
+					tap_queue_packet(rtp_tap, pinfo, rtp_info);
+				RETHROW;
+			}
+			ENDTRY;
+		}
 		rtp_info->info_payload_offset = offset;
 		rtp_info->info_payload_len = tvb_length_remaining(tvb, offset);
 	}
@@ -1640,6 +1874,161 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
 		tap_queue_packet(rtp_tap, pinfo, rtp_info);
 }
 
+static void
+dissect_rtp_hdr_ext_ed137(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
+{
+	unsigned int offset = 0;
+	unsigned int hdr_extension_len = 0;
+	proto_item *ti            = NULL;
+	proto_item *ti2           = NULL;
+	proto_tree *rtp_hext_tree = NULL;
+	proto_tree *rtp_hext_tree2 = NULL;
+	unsigned int i;
+	guint32 ext_value;
+	unsigned int ft_type = 0;
+	unsigned int bss_qidx = 0;
+	unsigned int bss_qidx_ml = 0;
+
+	hdr_extension_len = tvb_reported_length(tvb)/4;
+
+	if ( hdr_extension_len > 0 ) {
+		unsigned int hdrext_offset = 0;
+
+		if ( tree ) {
+		  ti = proto_tree_add_item(tree, hf_rtp_hdr_ed137s, tvb, offset, hdr_extension_len * 4, ENC_NA);
+		  rtp_hext_tree = proto_item_add_subtree( ti, ett_hdr_ext_ed137s );
+		}
+		for(i=0; i<hdr_extension_len; i++) {
+			if ( tree ) {
+				ti2 = proto_tree_add_item(rtp_hext_tree, hf_rtp_hdr_ed137, tvb, hdrext_offset, 4, ENC_NA);
+				rtp_hext_tree2 = proto_item_add_subtree( ti2, ett_hdr_ext_ed137 );
+				ext_value=tvb_get_ntohl( tvb, hdrext_offset );
+
+				if (RTP_ED137_ptt_mask(ext_value)) {
+					col_append_fstr(pinfo->cinfo, COL_INFO, ", PTT");
+				}
+				if (RTP_ED137_squ_mask(ext_value)) {
+					col_append_fstr(pinfo->cinfo, COL_INFO, ", SQU");
+				}
+
+				/* Following bits are used from ED137 RTPRx/RTPTx Information field */
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ptt_type, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_squ, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ptt_id, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_sct, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_x, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+
+				if (RTP_ED137_extended_information(ext_value)) {
+				/* Extended information is used */
+					proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ft_type, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+					proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ft_len, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+
+					ft_type=RTP_ED137_feature_type(ext_value);
+					switch (ft_type) {
+						case RTP_ED137_feature_bss_type:
+							bss_qidx=RTP_ED137_feature_bss_qidx(ext_value);
+							bss_qidx_ml=RTP_ED137_feature_bss_qidx_ml(ext_value);
+							if (0==bss_qidx_ml) {
+								/* Special handling for RSSI method */
+								if (bss_qidx<=15) {
+									/* Correct range */
+									proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ft_bss_rssi_qidx, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+								}
+								else {
+									/* Handle as other method */
+									proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ft_bss_qidx, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+								}
+							}
+							else {
+								/* Other BSS method handling */
+								proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ft_bss_qidx, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+							}
+							proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ft_bss_qidx_ml, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+							proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ft_bss_nu, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+							break;
+						default:
+							proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_ft_value, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+							break;
+					}
+				}
+				else {
+					/* Extended information is not used */
+					proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_x_nu, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				}
+
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137_vf, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+			}
+			hdrext_offset += 4;
+		}
+	}
+}
+
+static void
+dissect_rtp_hdr_ext_ed137a(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree )
+{
+	unsigned int offset = 0;
+	unsigned int hdr_extension_len = 0;
+	proto_item *ti            = NULL;
+	proto_item *ti2           = NULL;
+	proto_tree *rtp_hext_tree = NULL;
+	proto_tree *rtp_hext_tree2 = NULL;
+	unsigned int i;
+	guint32 ext_value;
+	unsigned int ft_type = 0;
+
+	hdr_extension_len = tvb_reported_length(tvb)/4;
+
+	if ( hdr_extension_len > 0 ) {
+		unsigned int hdrext_offset = 0;
+
+		if ( tree ) {
+			ti = proto_tree_add_item(tree, hf_rtp_hdr_ed137s, tvb, offset, hdr_extension_len * 4, ENC_NA);
+			rtp_hext_tree = proto_item_add_subtree( ti, ett_hdr_ext_ed137s );
+		}
+		for(i=0; i<hdr_extension_len; i++) {
+			if ( tree ) {
+				ti2 = proto_tree_add_item(rtp_hext_tree, hf_rtp_hdr_ed137a, tvb, hdrext_offset, 4, ENC_NA);
+				rtp_hext_tree2 = proto_item_add_subtree( ti2, ett_hdr_ext_ed137a );
+				ext_value=tvb_get_ntohl( tvb, hdrext_offset );
+
+				if (RTP_ED137A_ptt_mask(ext_value)) {
+					col_append_fstr(pinfo->cinfo, COL_INFO, ", PTT");
+				}
+				if (RTP_ED137A_squ_mask(ext_value)) {
+					col_append_fstr(pinfo->cinfo, COL_INFO, ", SQU");
+				}
+
+				/* Following bits are used from ED137A/B RTPRx Information field */
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_ptt_type, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_squ, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_ptt_id, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_pm, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_ptts, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_sct, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_reserved, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_x, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+
+				if (RTP_ED137A_extended_information(ext_value)) {
+					/* Extended information is used */
+					proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_ft_type, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+					proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_ft_len, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+
+					ft_type=RTP_ED137A_feature_type(ext_value);
+					switch (ft_type) {
+						default:
+							proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_ft_value, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+							break;
+					}
+				}
+				else {
+					/* Extended information is not used */
+					proto_tree_add_item( rtp_hext_tree2, hf_rtp_hdr_ed137a_x_nu, tvb, hdrext_offset, 4, ENC_BIG_ENDIAN);
+				}
+			}
+			hdrext_offset += 4;
+		}
+	}
+}
 
 /* calculate the extended sequence number - top 16 bits of the previous sequence number,
  * plus our own; then correct for wrapping */
@@ -1666,7 +2055,7 @@ get_conv_info(packet_info *pinfo, struct _rtp_info *rtp_info)
 	struct _rtp_conversation_info *p_conv_data = NULL;
 
 	/* Use existing packet info if available */
-	p_conv_data = p_get_proto_data(pinfo->fd, proto_rtp);
+	p_conv_data = (struct _rtp_conversation_info *)p_get_proto_data(pinfo->fd, proto_rtp, 0);
 
 	if (!p_conv_data)
 	{
@@ -1678,20 +2067,20 @@ get_conv_info(packet_info *pinfo, struct _rtp_info *rtp_info)
 		{
 			/* Create space for packet info */
 			struct _rtp_conversation_info *p_conv_packet_data;
-			p_conv_data = conversation_get_proto_data(p_conv, proto_rtp);
+			p_conv_data = (struct _rtp_conversation_info *)conversation_get_proto_data(p_conv, proto_rtp);
 
 			if (p_conv_data) {
 				guint32 seqno;
 
 				/* Save this conversation info into packet info */
-				p_conv_packet_data = se_alloc(sizeof(struct _rtp_conversation_info));
+				p_conv_packet_data = se_new(struct _rtp_conversation_info);
 				g_strlcpy(p_conv_packet_data->method, p_conv_data->method, MAX_RTP_SETUP_METHOD_SIZE+1);
 				p_conv_packet_data->frame_number = p_conv_data->frame_number;
 				p_conv_packet_data->is_video = p_conv_data->is_video;
 				p_conv_packet_data->rtp_dyn_payload = p_conv_data->rtp_dyn_payload;
 				p_conv_packet_data->rtp_conv_info = p_conv_data->rtp_conv_info;
 				p_conv_packet_data->srtp_info = p_conv_data->srtp_info;
-				p_add_proto_data(pinfo->fd, proto_rtp, p_conv_packet_data);
+				p_add_proto_data(pinfo->fd, proto_rtp, 0, p_conv_packet_data);
 
 				/* calculate extended sequence number */
 				seqno = calculate_extended_seqno(p_conv_data->extended_seqno,
@@ -1716,7 +2105,7 @@ show_setup_info(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_item *ti;
 
 	/* Use existing packet info if available */
-	p_conv_data = p_get_proto_data(pinfo->fd, proto_rtp);
+	p_conv_data = (struct _rtp_conversation_info *)p_get_proto_data(pinfo->fd, proto_rtp, 0);
 
 	if (!p_conv_data) return;
 
@@ -1977,7 +2366,7 @@ proto_register_rtp(void)
 				"rtp.ext.profile",
 				FT_UINT16,
 				BASE_HEX_DEC,
-				NULL,
+				VALS(rtp_ext_profile_vals),
 				0x0,
 				NULL, HFILL
 			}
@@ -2030,13 +2419,365 @@ proto_register_rtp(void)
 				NULL, HFILL
 			}
 		},
+/* ED137 and ED137A common structures */
+		{
+			&hf_rtp_hdr_ed137s,
+			{
+				"ED137 extensions",
+				"rtp.ext.ed137s",
+				FT_NONE,
+				BASE_NONE,
+				NULL,
+				0x0,
+				NULL, HFILL
+			}
+		},
+/* ED137 only structures */
+		{
+			&hf_rtp_hdr_ed137,
+			{
+				"ED137 extension",
+				"rtp.ext.ed137",
+				FT_NONE,
+				BASE_NONE,
+				NULL,
+				0x0,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_ptt_type,
+			{
+				"PTT Type",
+				"rtp.ext.ed137.ptt_type",
+				FT_UINT32,
+				BASE_DEC,
+				VALS(rtp_ext_ed137_ptt_type),
+				0xE0000000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_squ,
+			{
+				"SQU",
+				"rtp.ext.ed137.squ",
+				FT_UINT32,
+				BASE_DEC,
+				VALS(rtp_ext_ed137_squ),
+				0x10000000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_ptt_id,
+			{
+				"PTT-id",
+				"rtp.ext.ed137.ptt_id",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x0F000000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_sct,
+			{
+				"Simultaneous Call Transmissions",
+				"rtp.ext.ed137.sct",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x00800000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_x,
+			{
+				"X",
+				"rtp.ext.ed137.x",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x00400000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_x_nu,
+			{
+				"Not used",
+				"rtp.ext.ed137.x-nu",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x003FFFFE,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_ft_type,
+			{
+				"Feature type",
+				"rtp.ext.ed137.ft.type",
+				FT_UINT32,
+				BASE_HEX_DEC,
+				VALS(rtp_ext_ed137_ft_type),
+				0x003C0000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_ft_len,
+			{
+				"Feature length",
+				"rtp.ext.ed137.ft.len",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x0003C000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_ft_value,
+			{
+				"Feature value",
+				"rtp.ext.ed137.ft.value",
+				FT_UINT32,
+				BASE_HEX_DEC,
+				NULL,
+				0x00003FFE,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_vf,
+			{
+				"VF",
+				"rtp.ext.ed137.vf",
+				FT_UINT32,
+				BASE_DEC,
+				VALS(rtp_ext_ed137_vf),
+				0x00000001,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_ft_bss_qidx,
+			{
+				"BSS Quality Index",
+				"rtp.ext.ed137.ft.bss.qidx",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x00003FC0,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_ft_bss_rssi_qidx,
+			{
+				"BSS Quality Index",
+				"rtp.ext.ed137.ft.bss.qidx",
+				FT_UINT32,
+				BASE_DEC,
+				VALS(rtp_ext_ed137_ft_bss_rssi_qidx),
+				0x00003FC0,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_ft_bss_qidx_ml,
+			{
+				"BSS Quality Index Method",
+				"rtp.ext.ed137.ft.bss.qidx-ml",
+				FT_UINT32,
+				BASE_DEC,
+				VALS(rtp_ext_ed137_ft_bss_qidx_ml),
+				0x00000038,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137_ft_bss_nu,
+			{
+				"Not used",
+				"rtp.ext.ed137.ft.bss-nu",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x00000006,
+				NULL, HFILL
+			}
+		},
+/* ED137A only structures */
+		{
+			&hf_rtp_hdr_ed137a,
+			{
+				"ED137A extension",
+				"rtp.ext.ed137A",
+				FT_NONE,
+				BASE_NONE,
+				NULL,
+				0x0,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_ptt_type,
+			{
+				"PTT Type",
+				"rtp.ext.ed137A.ptt_type",
+				FT_UINT32,
+				BASE_DEC,
+				VALS(rtp_ext_ed137a_ptt_type),
+				0xE0000000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_squ,
+			{
+				"SQU",
+				"rtp.ext.ed137A.squ",
+				FT_UINT32,
+				BASE_DEC,
+				VALS(rtp_ext_ed137a_squ),
+				0x10000000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_ptt_id,
+			{
+				"PTT-id",
+				"rtp.ext.ed137A.ptt_id",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x0FC00000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_pm,
+			{
+				"PTT Mute",
+				"rtp.ext.ed137A.pm",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x00200000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_ptts,
+			{
+				"PTT Summation",
+				"rtp.ext.ed137A.ptts",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x00100000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_sct,
+			{
+				"Simultaneous Call Transmissions",
+				"rtp.ext.ed137a.sct",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x00080000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_reserved,
+			{
+				"Reserved",
+				"rtp.ext.ed137A.reserved",
+				FT_UINT32,
+				BASE_HEX_DEC,
+				NULL,
+				0x00060000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_x,
+			{
+				"X",
+				"rtp.ext.ed137A.x",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x00010000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_x_nu,
+			{
+				"Not used",
+				"rtp.ext.ed137A.x-nu",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x0000FFFF,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_ft_type,
+			{
+				"Feature type",
+				"rtp.ext.ed137A.ft.type",
+				FT_UINT32,
+				BASE_HEX_DEC,
+				VALS(rtp_ext_ed137a_ft_type),
+				0x0000F000,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_ft_len,
+			{
+				"Feature length",
+				"rtp.ext.ed137A.ft.len",
+				FT_UINT32,
+				BASE_DEC,
+				NULL,
+				0x00000F00,
+				NULL, HFILL
+			}
+		},
+		{
+			&hf_rtp_hdr_ed137a_ft_value,
+			{
+				"Feature value",
+				"rtp.ext.ed137A.ft.value",
+				FT_UINT32,
+				BASE_HEX_DEC,
+				NULL,
+				0x000000FF,
+				NULL, HFILL
+			}
+		},
+/* Other RTP structures */
 		{
 			&hf_rtp_hdr_ext,
 			{
 				"Header extension",
 				"rtp.hdr_ext",
 				FT_UINT32,
-				BASE_DEC,
+				BASE_HEX_DEC,
 				NULL,
 				0x0,
 				NULL, HFILL
@@ -2283,6 +3024,9 @@ proto_register_rtp(void)
 		&ett_csrc_list,
 		&ett_hdr_ext,
 		&ett_hdr_ext_rfc5285,
+		&ett_hdr_ext_ed137s,
+		&ett_hdr_ext_ed137,
+		&ett_hdr_ext_ed137a,
 		&ett_rtp_setup,
 		&ett_rtp_rfc2198,
 		&ett_rtp_rfc2198_hdr,
@@ -2309,10 +3053,14 @@ proto_register_rtp(void)
 									"Dynamic RTP payload type", FT_STRING, BASE_NONE);
 
 
-	rtp_hdr_ext_dissector_table = register_dissector_table("rtp_hdr_ext",
+	rtp_hdr_ext_dissector_table = register_dissector_table("rtp.hdr_ext",
 									"RTP header extension", FT_UINT32, BASE_HEX);
 	rtp_hdr_ext_rfc5285_dissector_table = register_dissector_table("rtp.ext.rfc5285.id",
 									"RTP Generic header extension (RFC 5285)", FT_UINT8, BASE_DEC);
+
+	register_dissector("rtp.ext.ed137", dissect_rtp_hdr_ext_ed137, proto_rtp);
+	register_dissector("rtp.ext.ed137a", dissect_rtp_hdr_ext_ed137a, proto_rtp);
+
 	rtp_module = prefs_register_protocol(proto_rtp, proto_reg_handoff_rtp);
 
 	prefs_register_bool_preference(rtp_module, "show_setup_info",
@@ -2352,6 +3100,8 @@ proto_reg_handoff_rtp(void)
 {
 	static gboolean rtp_prefs_initialized = FALSE;
 	static dissector_handle_t rtp_rfc2198_handle;
+	static dissector_handle_t rtp_hdr_ext_ed137_handle;
+	static dissector_handle_t rtp_hdr_ext_ed137a_handle;
 	static guint rtp_saved_rfc2198_pt;
 
 	if (!rtp_prefs_initialized) {
@@ -2363,9 +3113,16 @@ proto_reg_handoff_rtp(void)
 		heur_dissector_add( "udp", dissect_rtp_heur_udp,  proto_rtp);
 		heur_dissector_add("stun", dissect_rtp_heur_stun, proto_rtp);
 
+		rtp_hdr_ext_ed137_handle = find_dissector("rtp.ext.ed137");
+		rtp_hdr_ext_ed137a_handle = find_dissector("rtp.ext.ed137a");
+		dissector_add_uint("rtp.hdr_ext", RTP_ED137_SIG, rtp_hdr_ext_ed137_handle);
+		dissector_add_uint("rtp.hdr_ext", RTP_ED137A_SIG, rtp_hdr_ext_ed137a_handle);
+
 		data_handle = find_dissector("data");
+		stun_handle = find_dissector("stun-udp");
 		classicstun_handle = find_dissector("classicstun");
 		classicstun_heur_handle = find_dissector("classicstun-heur");
+		stun_heur_handle = find_dissector("stun-heur");
 		t38_handle = find_dissector("t38");
 		zrtp_handle = find_dissector("zrtp");
 
@@ -2383,9 +3140,14 @@ proto_reg_handoff_rtp(void)
 }
 
 /*
- * Local Variables:
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
  * c-basic-offset: 8
- * indent-tabs-mode: t
  * tab-width: 8
+ * indent-tabs-mode: t
  * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
  */

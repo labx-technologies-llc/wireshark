@@ -234,7 +234,7 @@ static int hf_ts2_crc32 = -1;
 static int hf_ts2_ackto = -1;
 static int hf_ts2_seqnum = -1;
 static int hf_ts2_protocol_string = -1;
-static int hf_ts2_string = -1;
+/* static int hf_ts2_string = -1; */
 static int hf_ts2_registeredlogin = -1;
 static int hf_ts2_name = -1;
 static int hf_ts2_password = -1;
@@ -302,8 +302,7 @@ typedef struct
 
 #define my_init_count 5
 
-static GHashTable *msg_fragment_table = NULL;
-static GHashTable *msg_reassembled_table = NULL;
+static reassembly_table msg_reassembly_table;
 
 /* forward reference */
 static gboolean ts2_add_checked_crc32(proto_tree *tree, int hf_item, tvbuff_t *tvb, guint16 offset, guint32 icrc32);
@@ -391,8 +390,8 @@ static void ts2_standard_dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 
 	/* XXX: Following fragmentation stuff should be separate from the GUI stuff ??    */
 	/* Get our stored fragmentation data or create one! */
-	if ( ! ( frag = p_get_proto_data(pinfo->fd, proto_ts2) ) ) {
-		frag = se_alloc(sizeof(ts2_frag));
+	if ( ! ( frag = (ts2_frag *)p_get_proto_data(pinfo->fd, proto_ts2, 0) ) ) {
+		frag = se_new(ts2_frag);
 		frag->frag_num=0;
 	}
 
@@ -415,17 +414,17 @@ static void ts2_standard_dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 			frag->frag_size=conversation_data->client_frag_size;
 		}
 		frag->outoforder=outoforder;
-		p_add_proto_data(pinfo->fd, proto_ts2, frag);
+		p_add_proto_data(pinfo->fd, proto_ts2, 0, frag);
 	}
 
 	/* Get our stored fragmentation data */
-	frag = p_get_proto_data(pinfo->fd, proto_ts2);
+	frag = (ts2_frag *)p_get_proto_data(pinfo->fd, proto_ts2, 0);
 
 	proto_tree_add_item(ts2_tree, hf_ts2_resend_count, tvb, 16, 2, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(ts2_tree, hf_ts2_fragmentnumber, tvb, 18, 2, ENC_LITTLE_ENDIAN);
 	ts2_add_checked_crc32(ts2_tree, hf_ts2_crc32, tvb, 20, tvb_get_letohl(tvb, 20));
 
-	/* Reassemble the packet if its fragmented */
+	/* Reassemble the packet if it's fragmented */
 	new_tvb = NULL;
 	if(frag->fragmented)
 	{
@@ -433,9 +432,9 @@ static void ts2_standard_dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 		frag_msg = NULL;
 		pinfo->fragmented = TRUE;
 		fragment_number = tvb_get_letohs(tvb, 18);
-		frag_msg = fragment_add_seq_check(tvb, 24, pinfo, type,	msg_fragment_table, msg_reassembled_table, frag->frag_num, tvb_length_remaining(tvb, 24), fragment_number);
+		frag_msg = fragment_add_seq_check(&msg_reassembly_table, tvb, 24, pinfo, type, NULL, frag->frag_num, tvb_length_remaining(tvb, 24), fragment_number);
 		new_tvb = process_reassembled_data(tvb, 24, pinfo,"Reassembled TeamSpeak2", frag_msg, &msg_frag_items, NULL, ts2_tree);
-		if (frag_msg)
+		if (frag_msg) /* XXX: should be if (new_tvb) ?? */
 		{ /* Reassembled */
 			col_append_str(pinfo->cinfo, COL_INFO, " (Message Reassembled)");
 		}
@@ -510,7 +509,6 @@ static void ts2_parse_newplayerjoined(tvbuff_t *tvb, proto_tree *ts2_tree)
 	proto_tree_add_item(ts2_tree, hf_ts2_unknown, tvb, offset, 6, ENC_NA);
 	offset+=6;
 	proto_tree_add_item(ts2_tree, hf_ts2_nick, tvb, offset, 1, ENC_ASCII|ENC_NA);
-	offset+=30;
 }
 
 /* Parses TS2_LOGINEND packet and adds it to the tree */
@@ -540,7 +538,6 @@ static void ts2_parse_switchchannel(tvbuff_t *tvb, proto_tree *ts2_tree)
 	proto_tree_add_item(ts2_tree, hf_ts2_channel_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 	offset+=4;
 	proto_tree_add_item(ts2_tree, hf_ts2_password, tvb, offset, 1, ENC_ASCII|ENC_NA);
-	offset+=30;
 }
 
 /* Parses a ts2 channel change (TS2T_CHANNELCHANGE) packet and adds it to the tree */
@@ -700,7 +697,7 @@ static ts2_conversation* ts2_get_conversation(packet_info *pinfo)
 	}
 	else
 	{
-		conversation_data = se_alloc(sizeof(*conversation_data));
+		conversation_data = se_new(ts2_conversation);
 		conversation_data->last_inorder_server_frame=0; /* sequence number should never be zero so we can use this as an initial number */
 		conversation_data->last_inorder_client_frame=0;
 		conversation_data->server_port=pinfo->srcport;
@@ -807,7 +804,7 @@ static void dissect_ts2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				}
 				break;
 			case TS2C_ACK:
-				/* Ignore the type for ACK, its always zero and clashes with CELP_5_1 */
+				/* Ignore the type for ACK, it's always zero and clashes with CELP_5_1 */
 
 				proto_tree_add_item(ts2_tree, hf_ts2_seqnum, tvb, 12, 4, ENC_LITTLE_ENDIAN);
 				break;
@@ -825,12 +822,17 @@ static void dissect_ts2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
  * */
 static gboolean ts2_add_checked_crc32(proto_tree *tree, int hf_item, tvbuff_t *tvb, guint16 offset, guint32 icrc32 )
 {
-	guint8 *zero;
-	guint32 ocrc32;
-	zero = ep_alloc0(4);
+	guint8  *zero;
+	gint     len;
+	guint32  ocrc32;
+
+	zero = (guint8 *)ep_alloc0(4);
 	ocrc32 = crc32_ccitt_tvb(tvb, offset);
 	ocrc32 = crc32_ccitt_seed(zero, 4, 0xffffffff-ocrc32);
-	ocrc32 = crc32_ccitt_tvb_offset_seed(tvb, offset+4, tvb_reported_length_remaining(tvb, offset+4), 0xffffffff-ocrc32);
+	len = tvb_reported_length_remaining(tvb, offset+4);
+	if (len<0)
+		return FALSE;
+	ocrc32 = crc32_ccitt_tvb_offset_seed(tvb, offset+4, (guint)len, 0xffffffff-ocrc32);
 	if(icrc32==ocrc32)
 	{
 		proto_tree_add_uint_format(tree, hf_item, tvb, offset, 4, tvb_get_letohl(tvb, 16), "crc32: 0x%04x [correct]", tvb_get_letohl(tvb, offset));
@@ -845,8 +847,8 @@ static gboolean ts2_add_checked_crc32(proto_tree *tree, int hf_item, tvbuff_t *t
 
 static void ts2_init(void)
 {
-	fragment_table_init(&msg_fragment_table);
-	reassembled_table_init(&msg_reassembled_table);
+	reassembly_table_init(&msg_reassembly_table,
+			      &addresses_reassembly_table_functions);
 }
 
 /*
@@ -903,12 +905,14 @@ void proto_register_ts2(void)
 		    NULL, 0x0,
 		    NULL, HFILL }
 		},
+#if 0
 		{ &hf_ts2_string,
 		  { "String", "ts2.string",
 		    FT_STRING, BASE_NONE,
 		    NULL, 0x0,
 		    NULL, HFILL }
 		},
+#endif
 		{ &hf_ts2_registeredlogin,
 		  { "Registered Login", "ts2.registeredlogin",
 		    FT_BOOLEAN, BASE_NONE,

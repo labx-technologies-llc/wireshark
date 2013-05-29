@@ -41,6 +41,11 @@
  *    http://www.nethelp.no/net/cisco-hdlc.txt
  */
 
+void proto_register_chdlc(void);
+void proto_reg_handoff_chdlc(void);
+void proto_register_slarp(void);
+void proto_reg_handoff_slarp(void);
+
 static int proto_chdlc = -1;
 static int hf_chdlc_addr = -1;
 static int hf_chdlc_proto = -1;
@@ -51,7 +56,7 @@ static int proto_slarp = -1;
 static int hf_slarp_ptype = -1;
 static int hf_slarp_address = -1;
 static int hf_slarp_mysequence = -1;
-static int hf_slarp_yoursequence = -1;
+/* static int hf_slarp_yoursequence = -1; */
 
 static gint ett_slarp = -1;
 
@@ -338,9 +343,11 @@ proto_register_slarp(void)
     { &hf_slarp_mysequence,
       { "Outgoing sequence number", "slarp.mysequence", FT_UINT32, BASE_DEC,
         NULL, 0x0, NULL, HFILL }},
+#if 0
     { &hf_slarp_yoursequence,
       { "Returned sequence number", "slarp.yoursequence", FT_UINT32, BASE_DEC,
         NULL, 0x0, NULL, HFILL }},
+#endif
   };
   static gint *ett[] = {
     &ett_slarp,

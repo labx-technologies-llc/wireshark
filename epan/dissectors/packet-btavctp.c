@@ -29,6 +29,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-btl2cap.h"
 #include "packet-btsdp.h"
@@ -51,7 +52,8 @@ static int hf_btavctp_number_of_packets         = -1;
 
 static gint ett_btavctp             = -1;
 
-static dissector_handle_t btavrcp_handle = NULL;
+static dissector_table_t avctp_service_dissector_table;
+
 static dissector_handle_t data_handle    = NULL;
 
 typedef struct _fragment_t {
@@ -60,6 +62,10 @@ typedef struct _fragment_t {
 } fragment_t;
 
 typedef struct _fragments_t {
+    guint32      interface_id;
+    guint32      adapter_id;
+    guint32      chandle;
+    guint32      psm;
     guint32      count;
     guint32      number_of_packets;
     guint32      pid;
@@ -89,6 +95,8 @@ static const value_string ipid_vals[] = {
     { 0, NULL }
 };
 
+void proto_register_btavctp(void);
+void proto_reg_handoff_btavctp(void);
 
 static void
 dissect_btavctp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
@@ -107,7 +115,6 @@ dissect_btavctp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint           number_of_packets = 0;
     guint           length;
     guint           i_frame;
-    fragment_t      *fragment;
     void            *save_private_data;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "AVCTP");
@@ -116,23 +123,16 @@ dissect_btavctp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     l2cap_data = (btl2cap_data_t *) pinfo->private_data;
 
     switch (pinfo->p2p_dir) {
-
-    case P2P_DIR_SENT:
-        col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
-        break;
-
-    case P2P_DIR_RECV:
-        col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
-        break;
-
-    case P2P_DIR_UNKNOWN:
-        col_clear(pinfo->cinfo, COL_INFO);
-        break;
-
-    default:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
-            pinfo->p2p_dir);
-        break;
+        case P2P_DIR_SENT:
+            col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
     }
 
     ti = proto_tree_add_item(tree, proto_btavctp, tvb, offset, -1, ENC_NA);
@@ -164,9 +164,12 @@ dissect_btavctp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         offset +=2;
     }
 
-    avctp_data = ep_alloc(sizeof(btavctp_data_t));
-    avctp_data->cr = cr;
-    avctp_data->psm = l2cap_data->psm;
+    avctp_data = wmem_new(wmem_packet_scope(), btavctp_data_t);
+    avctp_data->cr           = cr;
+    avctp_data->interface_id = l2cap_data->interface_id;
+    avctp_data->adapter_id   = l2cap_data->adapter_id;
+    avctp_data->chandle      = l2cap_data->chandle;
+    avctp_data->psm          = l2cap_data->psm;
 
     save_private_data = pinfo->private_data;
     pinfo->private_data = avctp_data;
@@ -180,19 +183,55 @@ dissect_btavctp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* reassembling */
     next_tvb = tvb_new_subset(tvb, offset, length, length);
     if (packet_type == PACKET_TYPE_SINGLE) {
-        if (pid == BTSDP_AVRCP_SERVICE_UUID && btavrcp_handle != NULL)
-            call_dissector(btavrcp_handle, next_tvb, pinfo, tree);
-        else
+        if (!dissector_try_uint(avctp_service_dissector_table, pid, next_tvb, pinfo, tree)) {
             call_dissector(data_handle, next_tvb, pinfo, tree);
+        }
+
     } else {
+        fragment_t     *fragment;
+        emem_tree_key_t key[6];
+        guint32         k_interface_id;
+        guint32         k_adapter_id;
+        guint32         k_chandle;
+        guint32         k_psm;
+        guint32         k_frame_number;
+        guint32         interface_id;
+        guint32         adapter_id;
+        guint32         chandle;
+        guint32         psm;
+
+        interface_id = l2cap_data->interface_id;
+        adapter_id   = l2cap_data->adapter_id;
+        chandle      = l2cap_data->chandle;
+        psm          = l2cap_data->psm;
+
+        k_interface_id = interface_id;
+        k_adapter_id   = adapter_id;
+        k_chandle      = chandle;
+        k_psm          = psm;
+        k_frame_number = pinfo->fd->num;
+
+        key[0].length = 1;
+        key[0].key = &k_interface_id;
+        key[1].length = 1;
+        key[1].key = &k_adapter_id;
+        key[2].length = 1;
+        key[2].key = &k_chandle;
+        key[3].length = 1;
+        key[3].key = &k_psm;
+        key[4].length = 1;
+        key[4].key = &k_frame_number;
+        key[5].length = 0;
+        key[5].key = NULL;
+
         if (packet_type == PACKET_TYPE_START) {
-            if(!pinfo->fd->flags.visited){
-                fragment = se_alloc(sizeof(fragment_t));
+            if (!pinfo->fd->flags.visited) {
+                fragment = wmem_new(wmem_file_scope(), fragment_t);
                 fragment->length = length;
-                fragment->data = se_alloc(fragment->length);
+                fragment->data = (guint8 *) wmem_alloc(wmem_file_scope(), fragment->length);
                 tvb_memcpy(tvb, fragment->data, offset, fragment->length);
 
-                fragments = se_alloc(sizeof(fragments_t));
+                fragments = wmem_new(wmem_file_scope(), fragments_t);
                 fragments->number_of_packets = number_of_packets;
                 fragments->pid = pid;
 
@@ -200,52 +239,114 @@ dissect_btavctp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 fragments->fragment = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "btavctp fragments");
                 se_tree_insert32(fragments->fragment, fragments->count, fragment);
 
-                se_tree_insert32(reassembling, pinfo->fd->num, fragments);
+                fragments->interface_id = interface_id;
+                fragments->adapter_id   = adapter_id;
+                fragments->chandle      = chandle;
+                fragments->psm          = psm;
+
+                se_tree_insert32_array(reassembling, key, fragments);
 
             } else {
-                    fragments = se_tree_lookup32_le(reassembling, pinfo->fd->num);
+                fragments = (fragments_t *)se_tree_lookup32_array_le(reassembling, key);
+                if (!(fragments && fragments->interface_id == interface_id &&
+                        fragments->adapter_id == adapter_id &&
+                        fragments->chandle == chandle &&
+                        fragments->psm == psm))
+                    fragments = NULL;
             }
 
             call_dissector(data_handle, next_tvb, pinfo, tree);
 
         } else if (packet_type == PACKET_TYPE_CONTINUE) {
-            if(!pinfo->fd->flags.visited) {
-                if (fragments != NULL) {
-                    fragment = se_alloc(sizeof(fragment_t));
-                    fragment->length = length;
-                    fragment->data = se_alloc(fragment->length);
-                    tvb_memcpy(tvb, fragment->data, offset, fragment->length);
+            fragments = (fragments_t *)se_tree_lookup32_array_le(reassembling, key);
+            if (!(fragments && fragments->interface_id == interface_id &&
+                    fragments->adapter_id == adapter_id &&
+                    fragments->chandle == chandle &&
+                    fragments->psm == psm))
+                fragments = NULL;
 
-                    fragments->count++;
-                    se_tree_insert32(fragments->fragment, fragments->count, fragment);
+            if (!pinfo->fd->flags.visited && fragments != NULL) {
+                fragment = wmem_new(wmem_file_scope(), fragment_t);
+                fragment->length = length;
+                fragment->data = (guint8 *) wmem_alloc(wmem_file_scope(), fragment->length);
+                tvb_memcpy(tvb, fragment->data, offset, fragment->length);
 
-                    se_tree_insert32(reassembling, pinfo->fd->num, fragments);
-                }
-            } else {
-                    fragments = se_tree_lookup32_le(reassembling, pinfo->fd->num);
+                fragments->count++;
+                se_tree_insert32(fragments->fragment, fragments->count, fragment);
+
+                fragments->interface_id = interface_id;
+                fragments->adapter_id   = adapter_id;
+                fragments->chandle      = chandle;
+                fragments->psm          = psm;
+
+                k_interface_id = interface_id;
+                k_adapter_id   = adapter_id;
+                k_chandle      = chandle;
+                k_psm          = psm;
+                k_frame_number = pinfo->fd->num;
+
+                key[0].length = 1;
+                key[0].key = &k_interface_id;
+                key[1].length = 1;
+                key[1].key = &k_adapter_id;
+                key[2].length = 1;
+                key[2].key = &k_chandle;
+                key[3].length = 1;
+                key[3].key = &k_psm;
+                key[4].length = 1;
+                key[4].key = &k_frame_number;
+                key[5].length = 0;
+                key[5].key = NULL;
+
+                se_tree_insert32_array(reassembling, key, fragments);
             }
 
             call_dissector(data_handle, next_tvb, pinfo, tree);
 
         } else if (packet_type == PACKET_TYPE_END) {
             guint    i_length = 0;
-            guint8   *reassembled;
 
-            if(!pinfo->fd->flags.visited){
+            fragments = (fragments_t *)se_tree_lookup32_array_le(reassembling, key);
+            if (!(fragments && fragments->interface_id == interface_id &&
+                    fragments->adapter_id == adapter_id &&
+                    fragments->chandle == chandle &&
+                    fragments->psm == psm))
+                fragments = NULL;
 
-                if (fragments != NULL) {
-                    fragment = se_alloc(sizeof(fragment_t));
-                    fragment->length = length;
-                    fragment->data = se_alloc(fragment->length);
-                    tvb_memcpy(tvb, fragment->data, offset, fragment->length);
+            if (!pinfo->fd->flags.visited && fragments != NULL) {
+                fragment = wmem_new(wmem_file_scope(), fragment_t);
+                fragment->length = length;
+                fragment->data = (guint8 *) wmem_alloc(wmem_file_scope(), fragment->length);
+                tvb_memcpy(tvb, fragment->data, offset, fragment->length);
 
-                    fragments->count++;
-                    se_tree_insert32(fragments->fragment, fragments->count, fragment);
+                fragments->count++;
+                se_tree_insert32(fragments->fragment, fragments->count, fragment);
 
-                    se_tree_insert32(reassembling, pinfo->fd->num, fragments);
-                }
-            } else {
-                fragments = se_tree_lookup32_le(reassembling, pinfo->fd->num);
+                fragments->interface_id = interface_id;
+                fragments->adapter_id   = adapter_id;
+                fragments->chandle      = chandle;
+                fragments->psm          = psm;
+
+                k_interface_id = interface_id;
+                k_adapter_id   = adapter_id;
+                k_chandle      = chandle;
+                k_psm          = psm;
+                k_frame_number = pinfo->fd->num;
+
+                key[0].length = 1;
+                key[0].key = &k_interface_id;
+                key[1].length = 1;
+                key[1].key = &k_adapter_id;
+                key[2].length = 1;
+                key[2].key = &k_chandle;
+                key[3].length = 1;
+                key[3].key = &k_psm;
+                key[4].length = 1;
+                key[4].key = &k_frame_number;
+                key[5].length = 0;
+                key[5].key = NULL;
+
+                se_tree_insert32_array(reassembling, key, fragments);
             }
 
             length = 0;
@@ -254,15 +355,17 @@ dissect_btavctp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     "Unexpected frame");
                 call_dissector(data_handle, next_tvb, pinfo, tree);
             } else {
+                guint8   *reassembled;
+
                 for (i_frame = 1; i_frame <= fragments->count; ++i_frame) {
-                    fragment = se_tree_lookup32_le(fragments->fragment, i_frame);
+                    fragment = (fragment_t *)se_tree_lookup32_le(fragments->fragment, i_frame);
                     length += fragment->length;
                 }
 
-                reassembled = se_alloc(length);
+                reassembled = (guint8 *) wmem_alloc(wmem_file_scope(), length);
 
                 for (i_frame = 1; i_frame <= fragments->count; ++i_frame) {
-                    fragment = se_tree_lookup32_le(fragments->fragment, i_frame);
+                    fragment = (fragment_t *)se_tree_lookup32_le(fragments->fragment, i_frame);
                     memcpy(reassembled + i_length,
                             fragment->data,
                             fragment->length);
@@ -272,9 +375,7 @@ dissect_btavctp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 next_tvb = tvb_new_child_real_data(tvb, reassembled, length, length);
                 add_new_data_source(pinfo, next_tvb, "Reassembled AVCTP");
 
-                if (fragments->pid == BTSDP_AVRCP_SERVICE_UUID && btavrcp_handle != NULL) {
-                    call_dissector(btavrcp_handle, next_tvb, pinfo, tree);
-                } else {
+                if (!dissector_try_uint(avctp_service_dissector_table, fragments->pid, next_tvb, pinfo, tree)) {
                     call_dissector(data_handle, next_tvb, pinfo, tree);
                 }
             }
@@ -337,7 +438,9 @@ proto_register_btavctp(void)
 
     reassembling = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "btavctp reassembling");
 
-    proto_btavctp = proto_register_protocol("Bluetooth AVCTP Protocol", "AVCTP", "btavctp");
+    avctp_service_dissector_table = register_dissector_table("btavctp.service", "AVCTP Service", FT_UINT16, BASE_HEX);
+
+    proto_btavctp = proto_register_protocol("Bluetooth AVCTP Protocol", "BT AVCTP", "btavctp");
     register_dissector("btavctp", dissect_btavctp, proto_btavctp);
 
     proto_register_field_array(proto_btavctp, hf, array_length(hf));
@@ -356,7 +459,6 @@ proto_reg_handoff_btavctp(void)
     dissector_handle_t btavctp_handle;
 
     btavctp_handle = find_dissector("btavctp");
-    btavrcp_handle = find_dissector("btavrcp");
     data_handle    = find_dissector("data");
 
     dissector_add_uint("btl2cap.service", BTSDP_AVCTP_PROTOCOL_UUID, btavctp_handle);

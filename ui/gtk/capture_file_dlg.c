@@ -48,7 +48,6 @@
 #include "ui/alert_box.h"
 #include "ui/file_dialog.h"
 #include "ui/recent.h"
-#include "ui/simple_dialog.h"
 #include "ui/ui_util.h"
 
 #include "ui/gtk/gtkglobals.h"
@@ -80,11 +79,12 @@
 #endif
 
 static void do_file_save(capture_file *cf, gboolean dont_reopen);
-static void file_save_as_cmd(capture_file *cf, gboolean must_support_comments,
+static void file_save_as_cmd(capture_file *cf,
+                            gboolean must_support_all_comments,
                             gboolean dont_reopen);
 static void file_select_file_type_cb(GtkWidget *w, gpointer data);
 static int set_file_type_list(GtkWidget *combo_box, capture_file *cf,
-                              gboolean must_support_comments);
+                              gboolean must_support_all_comments);
 static gboolean test_file_close(capture_file *cf, gboolean from_quit,
                                 const char *before_what);
 
@@ -108,64 +108,64 @@ static gboolean        color_selected;
 static wtap *
 preview_set_filename(GtkWidget *prev, const gchar *cf_name)
 {
-    GtkWidget  *label;
-    wtap       *wth;
-    int         err = 0;
-    gchar      *err_info;
-    gchar       string_buff[PREVIEW_STR_MAX];
-    gint64      filesize;
+  GtkWidget *label;
+  wtap      *wth;
+  int        err = 0;
+  gchar     *err_info;
+  gchar      string_buff[PREVIEW_STR_MAX];
+  gint64     filesize;
 
 
-    /* init preview labels */
+  /* init preview labels */
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FORMAT_KEY);
+  gtk_label_set_text(GTK_LABEL(label), "-");
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_SIZE_KEY);
+  gtk_label_set_text(GTK_LABEL(label), "-");
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_ELAPSED_KEY);
+  gtk_label_set_text(GTK_LABEL(label), "-");
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_PACKETS_KEY);
+  gtk_label_set_text(GTK_LABEL(label), "-");
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FIRST_KEY);
+  gtk_label_set_text(GTK_LABEL(label), "-");
+
+  if (!cf_name) {
+    return NULL;
+  }
+
+  if (test_for_directory(cf_name) == EISDIR) {
     label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FORMAT_KEY);
-    gtk_label_set_text(GTK_LABEL(label), "-");
-    label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_SIZE_KEY);
-    gtk_label_set_text(GTK_LABEL(label), "-");
-    label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_ELAPSED_KEY);
-    gtk_label_set_text(GTK_LABEL(label), "-");
-    label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_PACKETS_KEY);
-    gtk_label_set_text(GTK_LABEL(label), "-");
-    label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FIRST_KEY);
-    gtk_label_set_text(GTK_LABEL(label), "-");
+    gtk_label_set_text(GTK_LABEL(label), "directory");
+    return NULL;
+  }
 
-    if(!cf_name) {
-        return NULL;
-    }
-
-    if (test_for_directory(cf_name) == EISDIR) {
-        label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FORMAT_KEY);
-        gtk_label_set_text(GTK_LABEL(label), "directory");
-        return NULL;
-    }
-
-    wth = wtap_open_offline(cf_name, &err, &err_info, TRUE);
-    if (wth == NULL) {
-        label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FORMAT_KEY);
-        if(err == WTAP_ERR_FILE_UNKNOWN_FORMAT) {
-            gtk_label_set_text(GTK_LABEL(label), "unknown file format");
-        } else {
-            gtk_label_set_text(GTK_LABEL(label), "error opening file");
-        }
-        return NULL;
-    }
-
-    /* Find the size of the file. */
-    filesize = wtap_file_size(wth, &err);
-    if (filesize == -1) {
-        gtk_label_set_text(GTK_LABEL(label), "error getting file size");
-        wtap_close(wth);
-        return NULL;
-    }
-    g_snprintf(string_buff, PREVIEW_STR_MAX, "%" G_GINT64_MODIFIER "d bytes", filesize);
-    label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_SIZE_KEY);
-    gtk_label_set_text(GTK_LABEL(label), string_buff);
-
-    /* type */
-    g_strlcpy(string_buff, wtap_file_type_string(wtap_file_type(wth)), PREVIEW_STR_MAX);
+  wth = wtap_open_offline(cf_name, &err, &err_info, TRUE);
+  if (wth == NULL) {
     label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FORMAT_KEY);
-    gtk_label_set_text(GTK_LABEL(label), string_buff);
+    if (err == WTAP_ERR_FILE_UNKNOWN_FORMAT) {
+      gtk_label_set_text(GTK_LABEL(label), "unknown file format");
+    } else {
+      gtk_label_set_text(GTK_LABEL(label), "error opening file");
+    }
+    return NULL;
+  }
 
-    return wth;
+  /* Find the size of the file. */
+  filesize = wtap_file_size(wth, &err);
+  if (filesize == -1) {
+    gtk_label_set_text(GTK_LABEL(label), "error getting file size");
+    wtap_close(wth);
+    return NULL;
+  }
+  g_snprintf(string_buff, PREVIEW_STR_MAX, "%" G_GINT64_MODIFIER "d bytes", filesize);
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_SIZE_KEY);
+  gtk_label_set_text(GTK_LABEL(label), string_buff);
+
+  /* type */
+  g_strlcpy(string_buff, wtap_file_type_string(wtap_file_type(wth)), PREVIEW_STR_MAX);
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FORMAT_KEY);
+  gtk_label_set_text(GTK_LABEL(label), string_buff);
+
+  return wth;
 }
 
 
@@ -173,101 +173,101 @@ preview_set_filename(GtkWidget *prev, const gchar *cf_name)
 static void
 preview_do(GtkWidget *prev, wtap *wth)
 {
-    GtkWidget  *label;
-    unsigned int elapsed_time;
-    time_t      time_preview;
-    time_t      time_current;
-    int         err = 0;
-    gchar      *err_info;
-    gint64      data_offset;
-    const struct wtap_pkthdr *phdr;
-    double      start_time = 0; /* seconds, with nsec resolution */
-    double      stop_time = 0;  /* seconds, with nsec resolution */
-    double      cur_time;
-    unsigned int packets = 0;
-    gboolean    is_breaked = FALSE;
-    gchar       string_buff[PREVIEW_STR_MAX];
-    time_t      ti_time;
-    struct tm  *ti_tm;
+  GtkWidget    *label;
+  unsigned int  elapsed_time;
+  time_t        time_preview;
+  time_t        time_current;
+  int           err        = 0;
+  gchar        *err_info;
+  gint64        data_offset;
+  double        start_time   = 0; /* seconds, with nsec resolution */
+  double        stop_time    = 0; /* seconds, with nsec resolution */
+  double        cur_time;
+  unsigned int  packets    = 0;
+  gboolean      is_breaked = FALSE;
+  gchar         string_buff[PREVIEW_STR_MAX];
+  time_t        ti_time;
+  struct tm    *ti_tm;
+  const struct wtap_pkthdr *phdr;
 
 
-    time(&time_preview);
-    while ( (wtap_read(wth, &err, &err_info, &data_offset)) ) {
-        phdr = wtap_phdr(wth);
-        cur_time = wtap_nstime_to_sec(&phdr->ts);
-        if(packets == 0) {
-            start_time = cur_time;
-            stop_time = cur_time;
-        }
-        if (cur_time < start_time) {
-            start_time = cur_time;
-        }
-        if (cur_time > stop_time){
-            stop_time = cur_time;
-        }
-
-        packets++;
-        if(packets%1000 == 0) {
-            /* do we have a timeout? */
-            time(&time_current);
-            if(time_current-time_preview >= (time_t) prefs.gui_fileopen_preview) {
-                is_breaked = TRUE;
-                break;
-            }
-        }
+  time(&time_preview);
+  while ( (wtap_read(wth, &err, &err_info, &data_offset)) ) {
+    phdr = wtap_phdr(wth);
+    cur_time = wtap_nstime_to_sec(&phdr->ts);
+    if (packets == 0) {
+      start_time = cur_time;
+      stop_time = cur_time;
+    }
+    if (cur_time < start_time) {
+      start_time = cur_time;
+    }
+    if (cur_time > stop_time) {
+      stop_time = cur_time;
     }
 
-    if(err != 0) {
-        g_snprintf(string_buff, PREVIEW_STR_MAX, "error after reading %u packets", packets);
-        label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_PACKETS_KEY);
-        gtk_label_set_text(GTK_LABEL(label), string_buff);
-        wtap_close(wth);
-        return;
+    packets++;
+    if (packets%1000 == 0) {
+      /* do we have a timeout? */
+      time(&time_current);
+      if (time_current-time_preview >= (time_t) prefs.gui_fileopen_preview) {
+        is_breaked = TRUE;
+        break;
+      }
     }
+  }
 
-    /* packet count */
-    if(is_breaked) {
-        g_snprintf(string_buff, PREVIEW_STR_MAX, "more than %u packets (preview timeout)", packets);
-    } else {
-        g_snprintf(string_buff, PREVIEW_STR_MAX, "%u", packets);
-    }
-    label = g_object_get_data(G_OBJECT(prev), PREVIEW_PACKETS_KEY);
+  if (err != 0) {
+    g_snprintf(string_buff, PREVIEW_STR_MAX, "error after reading %u packets", packets);
+    label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_PACKETS_KEY);
     gtk_label_set_text(GTK_LABEL(label), string_buff);
-
-    /* first packet */
-    ti_time = (long)start_time;
-    ti_tm = localtime( &ti_time );
-    if(ti_tm) {
-        g_snprintf(string_buff, PREVIEW_STR_MAX,
-                 "%04d-%02d-%02d %02d:%02d:%02d",
-                 ti_tm->tm_year + 1900,
-                 ti_tm->tm_mon + 1,
-                 ti_tm->tm_mday,
-                 ti_tm->tm_hour,
-                 ti_tm->tm_min,
-                 ti_tm->tm_sec);
-    } else {
-        g_snprintf(string_buff, PREVIEW_STR_MAX, "?");
-    }
-    label = g_object_get_data(G_OBJECT(prev), PREVIEW_FIRST_KEY);
-    gtk_label_set_text(GTK_LABEL(label), string_buff);
-
-    /* elapsed time */
-    elapsed_time = (unsigned int)(stop_time-start_time);
-    if(elapsed_time/86400) {
-      g_snprintf(string_buff, PREVIEW_STR_MAX, "%02u days %02u:%02u:%02u",
-        elapsed_time/86400, elapsed_time%86400/3600, elapsed_time%3600/60, elapsed_time%60);
-    } else {
-      g_snprintf(string_buff, PREVIEW_STR_MAX, "%02u:%02u:%02u",
-        elapsed_time%86400/3600, elapsed_time%3600/60, elapsed_time%60);
-    }
-    if(is_breaked) {
-      g_snprintf(string_buff, PREVIEW_STR_MAX, "unknown");
-    }
-    label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_ELAPSED_KEY);
-    gtk_label_set_text(GTK_LABEL(label), string_buff);
-
     wtap_close(wth);
+    return;
+  }
+
+  /* packet count */
+  if (is_breaked) {
+    g_snprintf(string_buff, PREVIEW_STR_MAX, "more than %u packets (preview timeout)", packets);
+  } else {
+    g_snprintf(string_buff, PREVIEW_STR_MAX, "%u", packets);
+  }
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_PACKETS_KEY);
+  gtk_label_set_text(GTK_LABEL(label), string_buff);
+
+  /* first packet */
+  ti_time = (long)start_time;
+  ti_tm = localtime( &ti_time );
+  if (ti_tm) {
+    g_snprintf(string_buff, PREVIEW_STR_MAX,
+               "%04d-%02d-%02d %02d:%02d:%02d",
+               ti_tm->tm_year + 1900,
+               ti_tm->tm_mon + 1,
+               ti_tm->tm_mday,
+               ti_tm->tm_hour,
+               ti_tm->tm_min,
+               ti_tm->tm_sec);
+  } else {
+    g_snprintf(string_buff, PREVIEW_STR_MAX, "?");
+  }
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FIRST_KEY);
+  gtk_label_set_text(GTK_LABEL(label), string_buff);
+
+  /* elapsed time */
+  elapsed_time = (unsigned int)(stop_time-start_time);
+  if (elapsed_time/86400) {
+    g_snprintf(string_buff, PREVIEW_STR_MAX, "%02u days %02u:%02u:%02u",
+               elapsed_time/86400, elapsed_time%86400/3600, elapsed_time%3600/60, elapsed_time%60);
+  } else {
+    g_snprintf(string_buff, PREVIEW_STR_MAX, "%02u:%02u:%02u",
+               elapsed_time%86400/3600, elapsed_time%3600/60, elapsed_time%60);
+  }
+  if (is_breaked) {
+    g_snprintf(string_buff, PREVIEW_STR_MAX, "unknown");
+  }
+  label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_ELAPSED_KEY);
+  gtk_label_set_text(GTK_LABEL(label), string_buff);
+
+  wtap_close(wth);
 }
 
 #if 0
@@ -276,18 +276,18 @@ preview_do(GtkWidget *prev, wtap *wth)
 static void
 update_preview_cb (GtkFileChooser *file_chooser, gpointer data)
 {
-    GtkWidget *prev = GTK_WIDGET (data);
-    char *cf_name;
-    gboolean have_preview;
+  GtkWidget *prev = GTK_WIDGET(data);
+  char      *cf_name;
+  gboolean   have_preview;
 
-    cf_name = gtk_file_chooser_get_preview_filename (file_chooser);
+  cf_name = gtk_file_chooser_get_preview_filename(file_chooser);
 
-    have_preview = preview_set_filename(prev, cf_name);
+  have_preview = preview_set_filename(prev, cf_name);
 
-    g_free (cf_name);
+  g_free(cf_name);
 
-    have_preview = TRUE;
-    gtk_file_chooser_set_preview_widget_active (file_chooser, have_preview);
+  have_preview = TRUE;
+  gtk_file_chooser_set_preview_widget_active(file_chooser, have_preview);
 }
 #endif
 
@@ -296,88 +296,88 @@ update_preview_cb (GtkFileChooser *file_chooser, gpointer data)
 static void
 file_open_entry_changed(GtkWidget *w _U_, gpointer file_sel)
 {
-    GtkWidget *prev = (GtkWidget *)g_object_get_data(G_OBJECT(file_sel), PREVIEW_TABLE_KEY);
-    gchar *cf_name;
-    gboolean have_preview;
-    wtap       *wth;
+  GtkWidget *prev = (GtkWidget *)g_object_get_data(G_OBJECT(file_sel), PREVIEW_TABLE_KEY);
+  gchar     *cf_name;
+  gboolean   have_preview;
+  wtap      *wth;
 
-    /* get the filename */
-    cf_name = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file_sel));
+  /* get the filename */
+  cf_name = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file_sel));
 
-    /* set the filename to the preview */
-    wth = preview_set_filename(prev, cf_name);
-    have_preview = (wth != NULL);
+  /* set the filename to the preview */
+  wth = preview_set_filename(prev, cf_name);
+  have_preview = (wth != NULL);
 
-    g_free(cf_name);
+  g_free(cf_name);
 
-    /* make the preview widget sensitive */
-    gtk_widget_set_sensitive(prev, have_preview);
+  /* make the preview widget sensitive */
+  gtk_widget_set_sensitive(prev, have_preview);
 
-    /*
-     * XXX - if the Open button isn't sensitive, you can't type into
-     * the location bar and select the file or directory you've typed.
-     * See
-     *
-     *    https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=1791
-     *
-     * It's not as if allowing users to click Open when they've
-     * selected a file that's not a valid capture file will cause
-     * anything worse than an error dialog, so we'll leave the Open
-     * button sensitive for now.  Perhaps making it sensitive if
-     * cf_name is NULL would also work, although I don't know whether
-     * there are any cases where it would be non-null when you've
-     * typed in the location bar.
-     *
-     * XXX - Bug 1791 also notes that, with the line removed, Bill
-     * Meier "somehow managed to get the file chooser window somewhat
-     * wedged in that neither the cancel or open buttons were responsive".
-     * That seems a bit odd, given that, without this line, we're not
-     * monkeying with the Open button's sensitivity, but...
-     */
+  /*
+   * XXX - if the Open button isn't sensitive, you can't type into
+   * the location bar and select the file or directory you've typed.
+   * See
+   *
+   *    https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=1791
+   *
+   * It's not as if allowing users to click Open when they've
+   * selected a file that's not a valid capture file will cause
+   * anything worse than an error dialog, so we'll leave the Open
+   * button sensitive for now.  Perhaps making it sensitive if
+   * cf_name is NULL would also work, although I don't know whether
+   * there are any cases where it would be non-null when you've
+   * typed in the location bar.
+   *
+   * XXX - Bug 1791 also notes that, with the line removed, Bill
+   * Meier "somehow managed to get the file chooser window somewhat
+   * wedged in that neither the cancel or open buttons were responsive".
+   * That seems a bit odd, given that, without this line, we're not
+   * monkeying with the Open button's sensitivity, but...
+   */
 #if 0
-    /* make the open/save/... dialog button sensitive */
+  /* make the open/save/... dialog button sensitive */
 
-    gtk_dialog_set_response_sensitive(file_sel, GTK_RESPONSE_ACCEPT, have_preview);
+  gtk_dialog_set_response_sensitive(file_sel, GTK_RESPONSE_ACCEPT, have_preview);
 #endif
 
-    /* do the actual preview */
-    if(have_preview)
-        preview_do(prev, wth);
+  /* do the actual preview */
+  if (have_preview)
+    preview_do(prev, wth);
 }
 
 
 /* copied from summary_dlg.c */
 static GtkWidget *
-add_string_to_table_sensitive(GtkWidget *list, guint *row, const gchar *title, const gchar *value, gboolean sensitive)
+add_string_to_grid_sensitive(GtkWidget *grid, guint *row, const gchar *title, const gchar *value, gboolean sensitive)
 {
-    GtkWidget *label;
-    gchar     *indent;
+  GtkWidget *label;
+  gchar     *indent;
 
-    if(strlen(value) != 0) {
-        indent = g_strdup_printf("   %s", title);
-    } else {
-        indent = g_strdup(title);
-    }
-    label = gtk_label_new(indent);
-    g_free(indent);
-    gtk_misc_set_alignment(GTK_MISC(label), 0.0f, 0.5f);
-    gtk_widget_set_sensitive(label, sensitive);
-    gtk_table_attach_defaults(GTK_TABLE(list), label, 0, 1, *row, *row+1);
+  if (strlen(value) != 0) {
+    indent = g_strdup_printf("   %s", title);
+  } else {
+    indent = g_strdup(title);
+  }
+  label = gtk_label_new(indent);
+  g_free(indent);
+  gtk_misc_set_alignment(GTK_MISC(label), 0.0f, 0.5f);
+  gtk_widget_set_sensitive(label, sensitive);
+  ws_gtk_grid_attach_defaults(GTK_GRID(grid), label, 0, *row, 1, 1);
 
-    label = gtk_label_new(value);
-    gtk_misc_set_alignment(GTK_MISC(label), 0.0f, 0.5f);
-    gtk_widget_set_sensitive(label, sensitive);
-    gtk_table_attach_defaults(GTK_TABLE(list), label, 1, 2, *row, *row+1);
+  label = gtk_label_new(value);
+  gtk_misc_set_alignment(GTK_MISC(label), 0.0f, 0.5f);
+  gtk_widget_set_sensitive(label, sensitive);
+  ws_gtk_grid_attach_defaults(GTK_GRID(grid), label, 1, *row, 1, 1);
 
-    *row = *row + 1;
+  *row = *row + 1;
 
-    return label;
+  return label;
 }
 
 static GtkWidget *
-add_string_to_table(GtkWidget *list, guint *row, const gchar *title, const gchar *value)
+add_string_to_grid(GtkWidget *grid, guint *row, const gchar *title, const gchar *value)
 {
-    return add_string_to_table_sensitive(list, row, title, value, TRUE);
+  return add_string_to_grid_sensitive(grid, row, title, value, TRUE);
 }
 
 
@@ -385,36 +385,100 @@ add_string_to_table(GtkWidget *list, guint *row, const gchar *title, const gchar
 static GtkWidget *
 preview_new(void)
 {
-    GtkWidget *table, *label;
-    guint         row;
+  GtkWidget *grid, *label;
+  guint      row;
 
-    table = gtk_table_new(1, 2, FALSE);
-    gtk_table_set_col_spacings(GTK_TABLE(table), 6);
-    gtk_table_set_row_spacings(GTK_TABLE(table), 3);
-    row = 0;
+  grid = ws_gtk_grid_new();
+  ws_gtk_grid_set_column_spacing(GTK_GRID(grid), 6);
+  ws_gtk_grid_set_row_spacing(GTK_GRID(grid), 3);
+  row = 0;
 
-    label = add_string_to_table(table, &row, "Format:", "-");
-    g_object_set_data(G_OBJECT(table), PREVIEW_FORMAT_KEY, label);
-    label = add_string_to_table(table, &row, "Size:", "-");
-    g_object_set_data(G_OBJECT(table), PREVIEW_SIZE_KEY, label);
-    label = add_string_to_table(table, &row, "Packets:", "-");
-    g_object_set_data(G_OBJECT(table), PREVIEW_PACKETS_KEY, label);
-    label = add_string_to_table(table, &row, "First Packet:", "-");
-    g_object_set_data(G_OBJECT(table), PREVIEW_FIRST_KEY, label);
-    label = add_string_to_table(table, &row, "Elapsed time:", "-");
-    g_object_set_data(G_OBJECT(table), PREVIEW_ELAPSED_KEY, label);
+  label = add_string_to_grid(grid, &row, "Format:", "-");
+  g_object_set_data(G_OBJECT(grid), PREVIEW_FORMAT_KEY, label);
+  label = add_string_to_grid(grid, &row, "Size:", "-");
+  g_object_set_data(G_OBJECT(grid), PREVIEW_SIZE_KEY, label);
+  label = add_string_to_grid(grid, &row, "Packets:", "-");
+  g_object_set_data(G_OBJECT(grid), PREVIEW_PACKETS_KEY, label);
+  label = add_string_to_grid(grid, &row, "First Packet:", "-");
+  g_object_set_data(G_OBJECT(grid), PREVIEW_FIRST_KEY, label);
+  label = add_string_to_grid(grid, &row, "Elapsed time:", "-");
+  g_object_set_data(G_OBJECT(grid), PREVIEW_ELAPSED_KEY, label);
 
-    return table;
+  return grid;
 }
 
 #ifndef USE_WIN32_FILE_DIALOGS
+
+/*
+   ------------------------------------------------
+   |top_level win                                 |
+   |  ------------------------------------------- |
+   |  |file_chooser_dialog [vbox]               | |
+   |  |  -------------------------------------- | |
+   |  |  |[file_browser] T/T                  | | |
+   |  |  |                                    | | |
+   |  |  |                                    | | |
+   |  |  |                                    | | |
+   |  |  -------------------------------------- | |
+   |  |                                         | |
+   |  |  -------------------------------------- | |
+   |  |  |[alignment] F/F                     | | |
+   |  |  |  --------------------------------  | | |
+   |  |  |  |main_hb [extra_widget]        |  | | |
+   |  |  |  |  -------------  ----------   |  | | |
+   |  |  |  |  |main_vb F/F|  |grid F/F|   |  | | |
+   |  |  |  |  |  item     |  |  row   |   |  | | |
+   |  |  |  |  |  item     |  |  row   |   |  | | |
+   |  |  |  |  |  item     |  |  row   |   |  | | |
+   |  |  |  |  |  item     |  |  row   |   |  | | |
+   |  |  |  |  |  item     |  |  row   |   |  | | |
+   |  |  |  |  -------------  ----------   |  | | |
+   |  |  |  --------------------------------  | | |
+   |  |  -------------------------------------- | |
+   |  |                                         | |
+   |  |  -------------------------------------- | |
+   |  |  |btn_row F/F                         | | |
+   |  |  -------------------------------------- | |
+   |  ------------------------------------------- |
+   ------------------------------------------------
+
+    Notes:
+      1. T/T & F/F above refer to the
+          gtk_box_pack_start() 'expand'/'fill' args
+          used to pack the widget into the enclosing GtkBox.
+      2. The 'Alignment' widget is actually internal to
+          the GtkFileChooser widget.
+
+    Gtk3: Expand/Fill effect
+
+      Vertical
+        (file_chooser): expand/fills.
+        main_hb does not expand/fill [explicitly set via vexpand = FALSE].
+        btn_row does not expand/fill.
+        So: vertical resize (drog lower edge down).
+            expands (file_chooser) but leaves others as is.
+        Also: grid rows are "vexpand' so grid
+               vertically epands/fills in main_hb.
+              That is: it will be the same height as
+               the main_vb.
+              Since vexpand is "inherited upwards", main_hb vexpand set to FALSE
+               to prevent vertical expansion of same.
+
+      Horizontal
+        (file_chooser) & btn_row: expand/fill.
+         main_vb & grid do not expand.
+        So: horizontal resize (drag right edge to the right)
+          expands all but the "extra widget".
+*/
+
 /* Open a file */
 static gboolean
 gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
 {
-  GtkWidget     *file_open_w;
-  GtkWidget     *main_hb, *main_vb, *filter_hbox, *filter_bt, *filter_te,
-                *m_resolv_cb, *n_resolv_cb, *t_resolv_cb, *e_resolv_cb, *prev;
+  GtkWidget *file_open_w;
+  GtkWidget *main_hb, *main_vb, *filter_hbox, *filter_bt, *filter_te;
+  GtkWidget *m_resolv_cb, *n_resolv_cb, *t_resolv_cb, *e_resolv_cb, *prev;
+
   /* No Apply button, and "OK" just sets our text widget, it doesn't
      activate it (i.e., it doesn't cause us to try to open the file). */
   static construct_args_t args = {
@@ -429,6 +493,7 @@ gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
     return FALSE;
 
   file_open_w = file_selection_new("Wireshark: Open Capture File",
+                                   GTK_WINDOW(top_level),
                                    FILE_SELECTION_OPEN);
   /* it's annoying, that the file chooser dialog is already shown here,
      so we cannot use the correct gtk_window_set_default_size() to resize it */
@@ -442,26 +507,31 @@ gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
   } else {
     switch (prefs.gui_fileopen_style) {
 
-      case FO_STYLE_LAST_OPENED:
-        /* The user has specified that we should start out in the last directory
-           we looked in.  If we've already opened a file, use its containing
-           directory, if we could determine it, as the directory, otherwise
-           use the "last opened" directory saved in the preferences file if
-           there was one. */
-        /* This is now the default behaviour in file_selection_new() */
-        break;
+    case FO_STYLE_LAST_OPENED:
+      /* The user has specified that we should start out in the last directory
+         we looked in.  If we've already opened a file, use its containing
+         directory, if we could determine it, as the directory, otherwise
+         use the "last opened" directory saved in the preferences file if
+         there was one. */
+      /* This is now the default behaviour in file_selection_new() */
+      break;
 
-      case FO_STYLE_SPECIFIED:
-        /* The user has specified that we should always start out in a
-           specified directory; if they've specified that directory,
-           start out by showing the files in that dir. */
-        if (prefs.gui_fileopen_dir[0] != '\0')
-          file_selection_set_current_folder(file_open_w, prefs.gui_fileopen_dir);
-        break;
+    case FO_STYLE_SPECIFIED:
+      /* The user has specified that we should always start out in a
+         specified directory; if they've specified that directory,
+         start out by showing the files in that dir. */
+      if (prefs.gui_fileopen_dir[0] != '\0')
+        file_selection_set_current_folder(file_open_w, prefs.gui_fileopen_dir);
+      break;
     }
   }
 
   main_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
+#if GTK_CHECK_VERSION(3,0,0)
+  gtk_widget_set_vexpand(main_hb, FALSE);  /* prevents "inheritance" from child VEXPAND */
+                                           /*  so hbox doesn't expand vertically even   */
+                                           /*  tho grid rows have VEXPAND.              */
+#endif
   file_selection_set_extra_widget(file_open_w, main_hb);
   gtk_widget_show(main_hb);
 
@@ -482,7 +552,7 @@ gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
                    G_CALLBACK(display_filter_construct_cb), &args);
   g_signal_connect(filter_bt, "destroy",
                    G_CALLBACK(filter_button_destroy_cb), NULL);
-  gtk_box_pack_start(GTK_BOX(filter_hbox), filter_bt, FALSE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(filter_hbox), filter_bt, FALSE, FALSE, 0);
   gtk_widget_show(filter_bt);
   gtk_widget_set_tooltip_text(filter_bt, "Open the \"Display Filter\" dialog to edit/apply filters");
 
@@ -492,8 +562,8 @@ gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
   g_signal_connect(filter_te, "changed",
                    G_CALLBACK(filter_te_syntax_check_cb), NULL);
   g_object_set_data(G_OBJECT(filter_hbox), E_FILT_AUTOCOMP_PTR_KEY, NULL);
-  g_signal_connect(filter_te, "key-press-event", G_CALLBACK (filter_string_te_key_pressed_cb), NULL);
-  g_signal_connect(file_open_w, "key-press-event", G_CALLBACK (filter_parent_dlg_key_pressed_cb), NULL);
+  g_signal_connect(filter_te, "key-press-event", G_CALLBACK(filter_string_te_key_pressed_cb), NULL);
+  g_signal_connect(file_open_w, "key-press-event", G_CALLBACK(filter_parent_dlg_key_pressed_cb), NULL);
   colorize_filter_te_as_empty(filter_te);
   gtk_entry_set_text(GTK_ENTRY(filter_te), display_filter->str);
   gtk_widget_show(filter_te);
@@ -530,7 +600,7 @@ gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
   prev = preview_new();
   g_object_set_data(G_OBJECT(file_open_w), PREVIEW_TABLE_KEY, prev);
   gtk_widget_show_all(prev);
-  gtk_box_pack_start(GTK_BOX(main_hb), prev, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(main_hb), prev, FALSE, FALSE, 0);
 
   g_signal_connect(GTK_FILE_CHOOSER(file_open_w), "selection-changed",
                    G_CALLBACK(file_open_entry_changed), file_open_w);
@@ -591,9 +661,9 @@ gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
 static void
 file_open_cmd(capture_file *cf, GtkWidget *w _U_)
 {
-  GString   *file_name = g_string_new("");
+  GString   *file_name      = g_string_new("");
   GString   *display_filter = g_string_new("");
-  dfilter_t *rfcode = NULL;
+  dfilter_t *rfcode         = NULL;
   int        err;
 
   /*
@@ -632,27 +702,26 @@ file_open_cmd(capture_file *cf, GtkWidget *w _U_)
 
       switch (cf_read(&cfile, FALSE)) {
 
-        case CF_READ_OK:
-        case CF_READ_ERROR:
-          /* Just because we got an error, that doesn't mean we were unable
-             to read any of the file; we handle what we could get from the
-             file. */
-          break;
+      case CF_READ_OK:
+      case CF_READ_ERROR:
+        /* Just because we got an error, that doesn't mean we were unable
+           to read any of the file; we handle what we could get from the
+           file. */
+        break;
 
-        case CF_READ_ABORTED:
-          /* The user bailed out of re-reading the capture file; the
-             capture file has been closed - just free the capture file name
-             string and return (without changing the last containing
-             directory). */
-          g_string_free(file_name, TRUE);
-          g_string_free(display_filter, TRUE);
-          return;
+      case CF_READ_ABORTED:
+        /* The user bailed out of re-reading the capture file; the
+           capture file has been closed - just free the capture file name
+           string and return (without changing the last containing
+           directory). */
+        g_string_free(file_name, TRUE);
+        g_string_free(display_filter, TRUE);
+        return;
       }
       /* Save the name of the containing directory specified in the path name,
          if any; we can write over cf_name, which is a good thing, given that
          "get_dirname()" does write over its argument. */
       set_last_open_dir(get_dirname(file_name->str));
-      gtk_entry_set_text(GTK_ENTRY(main_display_filter_widget), display_filter->str);
     }
     g_string_free(file_name, TRUE);
     g_string_free(display_filter, TRUE);
@@ -672,9 +741,9 @@ file_open_cmd_cb(GtkWidget *widget, gpointer data _U_) {
 static gboolean
 gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *merge_type)
 {
-  GtkWidget     *file_merge_w;
-  GtkWidget     *main_hb, *main_vb, *filter_hbox, *filter_bt, *filter_te,
-                *prepend_rb, *chrono_rb, *append_rb, *prev;
+  GtkWidget *file_merge_w;
+  GtkWidget *main_hb, *main_vb, *filter_hbox, *filter_bt, *filter_te;
+  GtkWidget *prepend_rb, *chrono_rb, *append_rb, *prev;
 
   /* No Apply button, and "OK" just sets our text widget, it doesn't
      activate it (i.e., it doesn't cause us to try to open the file). */
@@ -692,7 +761,8 @@ gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *m
   /* Default to saving all packets, in the file's current format. */
 
   file_merge_w = file_selection_new("Wireshark: Merge with Capture File",
-                                   FILE_SELECTION_OPEN);
+                                    GTK_WINDOW(top_level),
+                                    FILE_SELECTION_OPEN);
   /* it's annoying, that the file chooser dialog is already shown here,
      so we cannot use the correct gtk_window_set_default_size() to resize it */
   gtk_widget_set_size_request(file_merge_w, DEF_WIDTH, DEF_HEIGHT);
@@ -725,6 +795,11 @@ gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *m
   }
 
   main_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
+#if GTK_CHECK_VERSION(3,0,0)
+  gtk_widget_set_vexpand(main_hb, FALSE);  /* prevents "inheritance" from child VEXPAND */
+                                           /*  so hbox doesn't expand vertically even   */
+                                           /*  tho grid rows have VEXPAND.              */
+#endif
   file_selection_set_extra_widget(file_merge_w, main_hb);
   gtk_widget_show(main_hb);
 
@@ -755,8 +830,8 @@ gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *m
   g_signal_connect(filter_te, "changed",
                    G_CALLBACK(filter_te_syntax_check_cb), NULL);
   g_object_set_data(G_OBJECT(filter_hbox), E_FILT_AUTOCOMP_PTR_KEY, NULL);
-  g_signal_connect(filter_te, "key-press-event", G_CALLBACK (filter_string_te_key_pressed_cb), NULL);
-  g_signal_connect(file_merge_w, "key-press-event", G_CALLBACK (filter_parent_dlg_key_pressed_cb), NULL);
+  g_signal_connect(filter_te, "key-press-event", G_CALLBACK(filter_string_te_key_pressed_cb), NULL);
+  g_signal_connect(file_merge_w, "key-press-event", G_CALLBACK(filter_parent_dlg_key_pressed_cb), NULL);
   colorize_filter_te_as_empty(filter_te);
   gtk_entry_set_text(GTK_ENTRY(filter_te), display_filter->str);
   gtk_widget_show(filter_te);
@@ -786,7 +861,7 @@ gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *m
   prev = preview_new();
   g_object_set_data(G_OBJECT(file_merge_w), PREVIEW_TABLE_KEY, prev);
   gtk_widget_show_all(prev);
-  gtk_box_pack_start(GTK_BOX(main_hb), prev, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(main_hb), prev, FALSE, FALSE, 0);
 
   g_signal_connect(GTK_FILE_CHOOSER(file_merge_w), "selection-changed",
                    G_CALLBACK(file_open_entry_changed), file_merge_w);
@@ -795,7 +870,7 @@ gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *m
   g_object_set_data(G_OBJECT(file_merge_w), E_DFILTER_TE_KEY,
                     g_object_get_data(G_OBJECT(w), E_DFILTER_TE_KEY));
 
-    cf_name = file_selection_run(file_merge_w);
+  cf_name = file_selection_run(file_merge_w);
   if (cf_name == NULL) {
     /* User cancelled or closed the dialog. */
     return FALSE;
@@ -834,15 +909,15 @@ gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *m
 static void
 file_merge_cmd(GtkWidget *w _U_)
 {
-  GString     *file_name = g_string_new("");
+  GString     *file_name      = g_string_new("");
   GString     *display_filter = g_string_new("");
   int          merge_type;
-  dfilter_t   *rfcode = NULL;
+  dfilter_t   *rfcode         = NULL;
   int          err;
   int          file_type;
   cf_status_t  merge_status;
   char        *in_filenames[2];
-  char        *tmpname = NULL;
+  char        *tmpname        = NULL;
 
   /*
    * Loop until the user either selects a file or gives up.
@@ -953,12 +1028,12 @@ file_merge_cmd_cb(GtkWidget *widget, gpointer data _U_) {
   gint       response;
 
   if (prefs.gui_ask_unsaved) {
-    if (cfile.is_tempfile || cfile.unsaved_changes) {
-      /* This is a temporary capture file or has unsaved changes; ask the
-         user whether to save the capture. */
+    if (cf_has_unsaved_data(&cfile)) {
+      /* This file has unsaved data; ask the user whether to save the
+         capture. */
       if (cfile.is_tempfile) {
         msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                            GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                            (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                             GTK_MESSAGE_QUESTION,
                                             GTK_BUTTONS_NONE,
                                             "Do you want to save the captured packets before merging another capture file into it?");
@@ -971,7 +1046,7 @@ file_merge_cmd_cb(GtkWidget *widget, gpointer data _U_) {
          */
         display_basename = g_filename_display_basename(cfile.filename);
         msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                            GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                            (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                             GTK_MESSAGE_QUESTION,
                                             GTK_BUTTONS_NONE,
                                             "Do you want to save the changes you've made "
@@ -982,18 +1057,16 @@ file_merge_cmd_cb(GtkWidget *widget, gpointer data _U_) {
              "The changes must be saved before the files are merged.");
       }
 
-#ifndef _WIN32
       gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
                             GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
       gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            WIRESHARK_STOCK_FILE, GTK_RESPONSE_ACCEPT);
-#else
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            WIRESHARK_STOCK_FILE, GTK_RESPONSE_ACCEPT);
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-#endif
-      gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog), GTK_RESPONSE_ACCEPT);
+                            WIRESHARK_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
+      gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                              GTK_RESPONSE_ACCEPT,
+                                              GTK_RESPONSE_CANCEL,
+                                              -1);
+      gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
+                                      GTK_RESPONSE_ACCEPT);
 
       response = gtk_dialog_run(GTK_DIALOG(msg_dialog));
       gtk_widget_destroy(msg_dialog);
@@ -1061,13 +1134,12 @@ test_file_close(capture_file *cf, gboolean from_quit, const char *before_what)
     capture_in_progress = FALSE;
 
   if (prefs.gui_ask_unsaved) {
-    if (cf->is_tempfile || capture_in_progress || cf->unsaved_changes) {
-      /* This is a temporary capture file, or there's a capture in
-         progress, or the file has unsaved changes; ask the user whether
-         to save the data. */
+    if (cf_has_unsaved_data(cf) || capture_in_progress) {
+      /* This file has unsaved data or there's a capture in progress;
+         ask the user whether to save the data. */
       if (cf->is_tempfile) {
         msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                            GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                            (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                             GTK_MESSAGE_QUESTION,
                                             GTK_BUTTONS_NONE,
                                             capture_in_progress ?
@@ -1084,14 +1156,14 @@ test_file_close(capture_file *cf, gboolean from_quit, const char *before_what)
         display_basename = g_filename_display_basename(cf->filename);
         if (capture_in_progress) {
           msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                              GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                              (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                               GTK_MESSAGE_QUESTION,
                                               GTK_BUTTONS_NONE,
                                               "Do you want to stop the capture and save the captured packets%s?",
                                               before_what);
         } else {
           msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                              GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                              (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                               GTK_MESSAGE_QUESTION,
                                               GTK_BUTTONS_NONE,
                                               "Do you want to save the changes you've made "
@@ -1105,7 +1177,6 @@ test_file_close(capture_file *cf, gboolean from_quit, const char *before_what)
              "Your changes will be lost if you don't save them.");
       }
 
-#ifndef _WIN32
       /* If this is from a Quit operation, use "quit and don't save"
          rather than just "don't save". */
       gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
@@ -1122,27 +1193,15 @@ test_file_close(capture_file *cf, gboolean from_quit, const char *before_what)
       gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
                             (capture_in_progress ?
                                 WIRESHARK_STOCK_STOP_SAVE :
-                                WIRESHARK_STOCK_FILE),
+                                WIRESHARK_STOCK_SAVE),
                             GTK_RESPONSE_ACCEPT);
-#else
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            (capture_in_progress ?
-                                WIRESHARK_STOCK_STOP_SAVE :
-                                WIRESHARK_STOCK_FILE),
-                            GTK_RESPONSE_ACCEPT);
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            (from_quit ?
-                                (capture_in_progress ?
-                                    WIRESHARK_STOCK_STOP_QUIT_DONT_SAVE :
-                                    WIRESHARK_STOCK_QUIT_DONT_SAVE) :
-                                (capture_in_progress ?
-                                    WIRESHARK_STOCK_STOP_DONT_SAVE :
-                                    WIRESHARK_STOCK_DONT_SAVE)),
-                            GTK_RESPONSE_REJECT);
-#endif
-      gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog), GTK_RESPONSE_ACCEPT);
+      gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                              GTK_RESPONSE_ACCEPT,
+                                              GTK_RESPONSE_CANCEL,
+                                              GTK_RESPONSE_REJECT,
+                                              -1);
+      gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
+                                      GTK_RESPONSE_ACCEPT);
 
       response = gtk_dialog_run(GTK_DIALOG(msg_dialog));
       gtk_widget_destroy(msg_dialog);
@@ -1216,31 +1275,24 @@ file_close_cmd_cb(GtkWidget *widget _U_, gpointer data _U_) {
 static check_savability_t
 check_save_with_comments(capture_file *cf)
 {
-  GtkWidget     *msg_dialog;
-  gint           response;
+  guint32    comment_types;
+  GtkWidget *msg_dialog;
+  gint       response;
 
-  /* Do we have any comments? */
-  if (!cf_has_comments(cf)) {
-    /* No.  Let the save happen; no comments to delete. */
+  /* What types of comments do we have? */
+  comment_types = cf_comment_types(cf);
+
+  /* Does the file's format support all the comments we have? */
+  if (wtap_dump_supports_comment_types(cf->cd_t, comment_types)) {
+    /* Yes.  Let the save happen; we can save all the comments, so
+       there's no need to delete them. */
     return SAVE;
   }
 
-  /* OK, we have comments.  Can we write them out in the file's format?
-
-     XXX - for now, we "know" that pcap-ng is the only format for which
-     we support comments.  We should really ask Wiretap what the
-     format in question supports (and handle different types of
-     comments, some but not all of which some file formats might
-     not support). */
-  if (cf->cd_t == WTAP_FILE_PCAPNG) {
-    /* Yes - the file is a pcap-ng file.  Let the save happen; we can
-       save the comments, so no need to delete them. */
-    return SAVE;
-  }
-
-  /* Is pcap-ng one of the formats in which we can write this file? */
-  if (wtap_dump_can_write_encaps(WTAP_FILE_PCAPNG, cf->linktypes)) {
-    /* Yes.  Ooffer the user a choice of "Save in a format that
+  /* No. Are there formats in which we can write this file that
+     supports all the comments in this file? */
+  if (wtap_dump_can_write(cf->linktypes, comment_types)) {
+    /* Yes.  Offer the user a choice of "Save in a format that
        supports comments", "Discard comments and save in the
        file's own format", or "Cancel", meaning "don't bother
        saving the file at all". */
@@ -1252,7 +1304,6 @@ check_save_with_comments(capture_file *cf)
   "doesn't support comments.  Do you want to save the capture "
   "in a format that supports comments, or discard the comments "
   "and save in the file's format?");
-#ifndef _WIN32
     gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
                            "Discard comments and save",
                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
@@ -1261,16 +1312,11 @@ check_save_with_comments(capture_file *cf)
                            "Save in another format",
                            RESPONSE_SAVE_IN_ANOTHER_FORMAT,
                            NULL);
-#else
-    gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
-                           "Save in another format",
-                           RESPONSE_SAVE_IN_ANOTHER_FORMAT,
-                           GTK_STOCK_CANCEL,
-                           GTK_RESPONSE_CANCEL,
-                           "Discard comments and save",
-                           RESPONSE_DISCARD_COMMENTS_AND_SAVE,
-                           NULL);
-#endif
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                            RESPONSE_SAVE_IN_ANOTHER_FORMAT,
+                                            GTK_RESPONSE_CANCEL,
+                                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
+                                            -1);
     gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
                                     RESPONSE_SAVE_IN_ANOTHER_FORMAT);
   } else {
@@ -1283,21 +1329,16 @@ check_save_with_comments(capture_file *cf)
   "The capture has comments, but no file format in which it "
   "can be saved supports comments.  Do you want to discard "
   "the comments and save in the file's format?");
-#ifndef _WIN32
-    gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
-                           "Discard comments and save",
-                           RESPONSE_DISCARD_COMMENTS_AND_SAVE,
-                           GTK_STOCK_CANCEL,
-                           GTK_RESPONSE_CANCEL,
-                           NULL);
-#else
     gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
                            GTK_STOCK_CANCEL,
                            GTK_RESPONSE_CANCEL,
                            "Discard comments and save",
                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
                            NULL);
-#endif
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
+                                            GTK_RESPONSE_CANCEL,
+                                            -1);
     gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
                                     GTK_RESPONSE_CANCEL);
   }
@@ -1332,8 +1373,8 @@ check_save_with_comments(capture_file *cf)
 static void
 do_file_save(capture_file *cf, gboolean dont_reopen)
 {
-  char *fname;
-  gboolean discard_comments;
+  char     *fname;
+  gboolean  discard_comments;
   cf_write_status_t status;
 
   if (cf->is_tempfile) {
@@ -1438,14 +1479,23 @@ file_save_cmd_cb(GtkWidget *w _U_, gpointer data _U_) {
    Returns the default file type. */
 static int
 set_file_type_list(GtkWidget *combo_box, capture_file *cf,
-                   gboolean must_support_comments)
+                   gboolean must_support_all_comments)
 {
+  guint32 required_comment_types;
   GArray *savable_file_types;
-  guint i;
-  int ft;
-  int default_ft = -1;
+  guint   i;
+  int     ft;
+  int     default_ft = -1;
 
-  savable_file_types = wtap_get_savable_file_types(cf->cd_t, cf->linktypes);
+  /* What types of comments do we have to support? */
+  if (must_support_all_comments)
+    required_comment_types = cf_comment_types(cf); /* all the ones the file has */
+  else
+    required_comment_types = 0; /* none of them */
+
+  /* What types of file can we save this file as? */
+  savable_file_types = wtap_get_savable_file_types(cf->cd_t, cf->linktypes,
+                                                   required_comment_types);
 
   if (savable_file_types != NULL) {
     /* OK, we have at least one file type we can save this file as.
@@ -1453,10 +1503,6 @@ set_file_type_list(GtkWidget *combo_box, capture_file *cf,
        place.)  Add them all to the combo box.  */
     for (i = 0; i < savable_file_types->len; i++) {
       ft = g_array_index(savable_file_types, int, i);
-      if (must_support_comments) {
-        if (ft != WTAP_FILE_PCAPNG)
-          continue;
-      }
       if (default_ft == -1)
         default_ft = ft; /* first file type is the default */
       ws_combo_box_append_text_and_pointer(GTK_COMBO_BOX(combo_box),
@@ -1472,9 +1518,9 @@ set_file_type_list(GtkWidget *combo_box, capture_file *cf,
 static void
 file_select_file_type_cb(GtkWidget *w, gpointer parent_arg)
 {
-  GtkWidget *parent = parent_arg;
-  int new_file_type;
-  gpointer ptr;
+  GtkWidget *parent = (GtkWidget *)parent_arg;
+  int        new_file_type;
+  gpointer   ptr;
   GtkWidget *compressed_cb;
 
   compressed_cb = (GtkWidget *)g_object_get_data(G_OBJECT(parent), E_COMPRESSED_CB_KEY);
@@ -1499,27 +1545,23 @@ file_select_file_type_cb(GtkWidget *w, gpointer parent_arg)
 static check_savability_t
 gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
 {
-  GtkWidget     *msg_dialog;
-  gint           response;
+  guint32    comment_types;
+  GtkWidget *msg_dialog;
+  gint       response;
 
-  /* Do we have any comments? */
-  if (!cf_has_comments(cf)) {
-    /* No.  Let the save happen; no comments to delete. */
+  /* What types of comments do we have? */
+  comment_types = cf_comment_types(cf);
+
+  /* Does the file's format support all the comments we have? */
+  if (wtap_dump_supports_comment_types(file_type, comment_types)) {
+    /* Yes.  Let the save happen; we can save all the comments, so
+       there's no need to delete them. */
     return SAVE;
   }
 
-  /* XXX - for now, we "know" that pcap-ng is the only format for which
-     we support comments.  We should really ask Wiretap what the
-     format in question supports (and handle different types of
-     comments, some but not all of which some file formats might
-     not support). */
-  if (file_type == WTAP_FILE_PCAPNG) {
-    /* Yes - they selected pcap-ng.  Let the save happen; we can
-       save the comments, so no need to delete them. */
-    return SAVE;
-  }
-  /* No. Is pcap-ng one of the formats in which we can write this file? */
-  if (wtap_dump_can_write_encaps(WTAP_FILE_PCAPNG, cf->linktypes)) {
+  /* No. Are there formats in which we can write this file that
+     supports all the comments in this file? */
+  if (wtap_dump_can_write(cf->linktypes, comment_types)) {
     /* Yes.  Offer the user a choice of "Save in a format that
        supports comments", "Discard comments and save in the
        format you selected", or "Cancel", meaning "don't bother
@@ -1532,7 +1574,6 @@ gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
   "doesn't support comments.  Do you want to save the capture "
   "in a format that supports comments, or discard the comments "
   "and save in the format you chose?");
-#ifndef _WIN32
     gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
                            "Discard comments and save",
                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
@@ -1541,16 +1582,11 @@ gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
                            "Save in another format",
                            RESPONSE_SAVE_IN_ANOTHER_FORMAT,
                            NULL);
-#else
-    gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
-                           "Save in another format",
-                           RESPONSE_SAVE_IN_ANOTHER_FORMAT,
-                           GTK_STOCK_CANCEL,
-                           GTK_RESPONSE_CANCEL,
-                           "Discard comments and save",
-                           RESPONSE_DISCARD_COMMENTS_AND_SAVE,
-                           NULL);
-#endif
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                            RESPONSE_SAVE_IN_ANOTHER_FORMAT,
+                                            GTK_RESPONSE_CANCEL,
+                                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
+                                            -1);
     gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
                                     RESPONSE_SAVE_IN_ANOTHER_FORMAT);
   } else {
@@ -1563,21 +1599,16 @@ gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
   "The capture has comments, but no file format in which it "
   "can be saved supports comments.  Do you want to discard "
   "the comments and save in the format you chose?");
-#ifndef _WIN32
-    gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
-                           "Discard comments and save",
-                           RESPONSE_DISCARD_COMMENTS_AND_SAVE,
-                           GTK_STOCK_CANCEL,
-                           GTK_RESPONSE_CANCEL,
-                           NULL);
-#else
     gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
                            GTK_STOCK_CANCEL,
                            GTK_RESPONSE_CANCEL,
                            "Discard comments and save",
                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
                            NULL);
-#endif
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
+                                            GTK_RESPONSE_CANCEL,
+                                            -1);
     gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
                                     GTK_RESPONSE_CANCEL);
   }
@@ -1620,13 +1651,13 @@ gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
 /* "Save as" */
 static gboolean
 gtk_save_as_file(GtkWidget *w _U_, capture_file *cf, GString *file_name, int *file_type,
-                 gboolean *compressed, gboolean must_support_comments)
+                 gboolean *compressed, gboolean must_support_all_comments)
 {
-  GtkWidget     *file_save_as_w;
-  GtkWidget     *main_vb, *ft_hb, *ft_lb, *ft_combo_box, *compressed_cb;
-  int            default_ft;
-  char          *cf_name;
-  gpointer       ptr;
+  GtkWidget *file_save_as_w;
+  GtkWidget *main_vb, *ft_hb, *ft_lb, *ft_combo_box, *compressed_cb;
+  int        default_ft;
+  char      *cf_name;
+  gpointer   ptr;
 
   if (!file_name || !file_type || !compressed)
     return FALSE;
@@ -1635,9 +1666,8 @@ gtk_save_as_file(GtkWidget *w _U_, capture_file *cf, GString *file_name, int *fi
 
   /* build the file selection */
   file_save_as_w = file_selection_new("Wireshark: Save Capture File As",
+                                      GTK_WINDOW(top_level),
                                       FILE_SELECTION_SAVE);
-  gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(file_save_as_w),
-                                                 TRUE);
 
   /* Container for each row of widgets */
 
@@ -1648,7 +1678,7 @@ gtk_save_as_file(GtkWidget *w _U_, capture_file *cf, GString *file_name, int *fi
 
   /* File type row */
   ft_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
-  gtk_box_pack_start(GTK_BOX (main_vb), ft_hb, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(main_vb), ft_hb, FALSE, FALSE, 0);
   gtk_widget_show(ft_hb);
 
   ft_lb = gtk_label_new("File type:");
@@ -1658,7 +1688,7 @@ gtk_save_as_file(GtkWidget *w _U_, capture_file *cf, GString *file_name, int *fi
   ft_combo_box = ws_combo_box_new_text_and_pointer();
 
   /* Generate the list of file types we can save. */
-  default_ft = set_file_type_list(ft_combo_box, cf, must_support_comments);
+  default_ft = set_file_type_list(ft_combo_box, cf, must_support_all_comments);
   gtk_box_pack_start(GTK_BOX(ft_hb), ft_combo_box, FALSE, FALSE, 0);
   gtk_widget_show(ft_combo_box);
   g_object_set_data(G_OBJECT(file_save_as_w), E_FILE_TYPE_COMBO_BOX_KEY, ft_combo_box);
@@ -1666,7 +1696,7 @@ gtk_save_as_file(GtkWidget *w _U_, capture_file *cf, GString *file_name, int *fi
   /* compressed - if the file is currently compressed, and the default
      file type supports compression, turn the checkbox on */
   compressed_cb = gtk_check_button_new_with_label("Compress with gzip");
-  gtk_box_pack_start(GTK_BOX (ft_hb), compressed_cb, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(ft_hb), compressed_cb, FALSE, FALSE, 0);
   if (cf->iscompressed && wtap_dump_can_compress(default_ft))
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(compressed_cb), TRUE);
   gtk_widget_show(compressed_cb);
@@ -1700,10 +1730,10 @@ gtk_save_as_file(GtkWidget *w _U_, capture_file *cf, GString *file_name, int *fi
 
 static void
 file_add_extension(GString *file_name, int file_type, gboolean compressed) {
-  gchar   *file_name_lower;
-  GString *file_suffix;
-  GSList  *extensions_list, *extension;
-  gboolean add_extension;
+  gchar    *file_name_lower;
+  GString  *file_suffix;
+  GSList   *extensions_list, *extension;
+  gboolean  add_extension;
 
   /*
    * Append the default file extension if there's none given by
@@ -1711,7 +1741,7 @@ file_add_extension(GString *file_name, int file_type, gboolean compressed) {
    * extensions for the file type.
    */
   file_name_lower = g_utf8_strdown(file_name->str, -1);
-  file_suffix = g_string_new("");
+  file_suffix     = g_string_new("");
   extensions_list = wtap_get_file_extensions_list(file_type, FALSE);
   if (extensions_list != NULL) {
     /* We have one or more extensions for this file type.
@@ -1768,15 +1798,15 @@ file_add_extension(GString *file_name, int file_type, gboolean compressed) {
  */
 
 static void
-file_save_as_cmd(capture_file *cf, gboolean must_support_comments,
+file_save_as_cmd(capture_file *cf, gboolean must_support_all_comments,
                 gboolean dont_reopen)
 {
-  GString *file_name = g_string_new("");
-  int file_type;
-  gboolean compressed;
+  GString  *file_name        = g_string_new("");
+  int       file_type;
+  gboolean  compressed;
+  gchar    *dirname;
+  gboolean  discard_comments = FALSE;
   cf_write_status_t status;
-  gchar   *dirname;
-  gboolean discard_comments = FALSE;
 
   /*
    * Loop until the user either selects a file or gives up.
@@ -1784,12 +1814,12 @@ file_save_as_cmd(capture_file *cf, gboolean must_support_comments,
   for (;;) {
 #ifdef USE_WIN32_FILE_DIALOGS
     if (win32_save_as_file(GDK_WINDOW_HWND(gtk_widget_get_window(top_level)), cf,
-                           file_name, &file_type, &compressed, must_support_comments)) {
+                           file_name, &file_type, &compressed, must_support_all_comments)) {
       /* They discarded comments, so redraw the packet details window
          to reflect any packets that no longer have comments. */
       packet_list_queue_draw();
 #else /* USE_WIN32_FILE_DIALOGS */
-    if (gtk_save_as_file(top_level, cf, file_name, &file_type, &compressed, must_support_comments)) {
+    if (gtk_save_as_file(top_level, cf, file_name, &file_type, &compressed, must_support_all_comments)) {
 #endif /* USE_WIN32_FILE_DIALOGS */
 
       /* If the file has comments, does the format the user selected
@@ -1823,7 +1853,7 @@ file_save_as_cmd(capture_file *cf, gboolean must_support_comments,
            so run the dialog again, to let the user decide
            whether to save in one of those formats or give up. */
         discard_comments = FALSE;
-        must_support_comments = TRUE;
+        must_support_all_comments = TRUE;
         continue;
 
       case CANCELLED:
@@ -1886,11 +1916,11 @@ static gboolean
 gtk_export_specified_packets_file(GtkWidget *w _U_, GString *file_name, int *file_type,
                                   gboolean *compressed, packet_range_t *range)
 {
-  GtkWidget     *file_export_specified_packets_w;
-  GtkWidget     *main_vb, *ft_hb, *ft_lb, *ft_combo_box, *range_fr, *range_tb,
+  GtkWidget *file_export_specified_packets_w;
+  GtkWidget *main_vb, *ft_hb, *ft_lb, *ft_combo_box, *range_fr, *range_grid,
                 *compressed_cb;
-  char          *cf_name;
-  gpointer       ptr;
+  char      *cf_name;
+  gpointer   ptr;
 
   if (!file_name || !file_type || !compressed || !range)
     return FALSE;
@@ -1899,9 +1929,8 @@ gtk_export_specified_packets_file(GtkWidget *w _U_, GString *file_name, int *fil
 
   /* build the file selection */
   file_export_specified_packets_w = file_selection_new("Wireshark: Export Specified Packets",
+                                                       GTK_WINDOW(top_level),
                                                        FILE_SELECTION_SAVE);
-  gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(file_export_specified_packets_w),
-                                                 TRUE);
 
   /* Container for each row of widgets */
 
@@ -1915,14 +1944,14 @@ gtk_export_specified_packets_file(GtkWidget *w _U_, GString *file_name, int *fil
   gtk_box_pack_start(GTK_BOX(main_vb), range_fr, FALSE, FALSE, 0);
   gtk_widget_show(range_fr);
 
-  /* range table */
-  range_tb = range_new(range, TRUE);
-  gtk_container_add(GTK_CONTAINER(range_fr), range_tb);
-  gtk_widget_show(range_tb);
+  /* grid table */
+  range_grid = range_new(range, TRUE);
+  gtk_container_add(GTK_CONTAINER(range_fr), range_grid);
+  gtk_widget_show(range_grid);
 
   /* File type row */
   ft_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
-  gtk_box_pack_start(GTK_BOX (main_vb), ft_hb, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(main_vb), ft_hb, FALSE, FALSE, 0);
 
   gtk_widget_show(ft_hb);
 
@@ -1939,11 +1968,11 @@ gtk_export_specified_packets_file(GtkWidget *w _U_, GString *file_name, int *fil
   g_object_set_data(G_OBJECT(file_export_specified_packets_w), E_FILE_TYPE_COMBO_BOX_KEY, ft_combo_box);
 
   /* dynamic values in the range frame */
-  range_update_dynamics(range_tb);
+  range_update_dynamics(range_grid);
 
   /* compressed */
   compressed_cb = gtk_check_button_new_with_label("Compress with gzip");
-  gtk_box_pack_start(GTK_BOX (ft_hb), compressed_cb, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(ft_hb), compressed_cb, FALSE, FALSE, 0);
   gtk_widget_show(compressed_cb);
   g_object_set_data(G_OBJECT(file_export_specified_packets_w), E_COMPRESSED_CB_KEY, compressed_cb);
 
@@ -1983,18 +2012,18 @@ gtk_export_specified_packets_file(GtkWidget *w _U_, GString *file_name, int *fil
 
 void
 file_export_specified_packets_cmd_cb(GtkWidget *w _U_, gpointer data _U_) {
-  GString *file_name = g_string_new("");
-  int file_type;
-  gboolean compressed;
-  packet_range_t range;
-  cf_write_status_t status;
-  gchar *dirname;
-  gchar *display_basename;
-  GtkWidget *msg_dialog;
+  GString           *file_name = g_string_new("");
+  int                file_type;
+  gboolean           compressed;
+  packet_range_t     range;
+  cf_write_status_t  status;
+  gchar             *dirname;
+  gchar             *display_basename;
+  GtkWidget         *msg_dialog;
 
   /* init the packet range */
   packet_range_init(&range, &cfile);
-  range.process_filtered = TRUE;
+  range.process_filtered   = TRUE;
   range.include_dependents = TRUE;
 
   /*
@@ -2107,7 +2136,7 @@ static void
 color_global_cb(GtkWidget *widget _U_, gpointer data)
 {
   GtkWidget *fs_widget = (GtkWidget *)data;
-  gchar *path;
+  gchar     *path;
 
   /* decide what file to open (from dfilter code) */
   path = get_datafile_path("colorfilters");
@@ -2124,13 +2153,14 @@ file_color_import_cmd_cb(GtkWidget *color_filters, gpointer filter_list _U_)
 #ifdef USE_WIN32_FILE_DIALOGS
   win32_import_color_file(GDK_WINDOW_HWND(gtk_widget_get_window(top_level)), color_filters);
 #else /* USE_WIN32_FILE_DIALOGS */
-  GtkWidget     *main_vb, *cfglobal_but;
-  gchar         *cf_name, *s;
+  GtkWidget *main_vb, *cfglobal_but;
+  gchar     *cf_name, *s;
 
   /* No Apply button, and "OK" just sets our text widget, it doesn't
      activate it (i.e., it doesn't cause us to try to open the file). */
 
   file_color_import_w = file_selection_new("Wireshark: Import Color Filters",
+                                           GTK_WINDOW(top_level),
                                            FILE_SELECTION_OPEN);
 
   /* Container for each row of widgets */
@@ -2140,7 +2170,7 @@ file_color_import_cmd_cb(GtkWidget *color_filters, gpointer filter_list _U_)
   gtk_widget_show(main_vb);
 
   cfglobal_but = gtk_button_new_with_label("Global Color Filter File");
-  gtk_box_pack_start(GTK_BOX (main_vb), cfglobal_but, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(main_vb), cfglobal_but, FALSE, FALSE, 0);
   g_signal_connect(cfglobal_but, "clicked",
                    G_CALLBACK(color_global_cb), file_color_import_w);
   gtk_widget_show(cfglobal_but);
@@ -2206,7 +2236,7 @@ color_set_export_selected_sensitive(GtkWidget * cfselect_cb)
 static void
 color_toggle_selected_cb(GtkWidget *widget, gpointer data _U_)
 {
-  color_selected = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON (widget));
+  color_selected = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget));
 }
 
 void
@@ -2224,9 +2254,8 @@ file_color_export_cmd_cb(GtkWidget *w _U_, gpointer filter_list)
   color_selected   = FALSE;
 
   file_color_export_w = file_selection_new("Wireshark: Export Color Filters",
+                                           GTK_WINDOW(top_level),
                                            FILE_SELECTION_SAVE);
-  gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(file_color_export_w),
-                                                 TRUE);
 
   /* Container for each row of widgets */
   main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
@@ -2235,7 +2264,7 @@ file_color_export_cmd_cb(GtkWidget *w _U_, gpointer filter_list)
   gtk_widget_show(main_vb);
 
   cfselect_cb = gtk_check_button_new_with_label("Export only selected filters");
-  gtk_box_pack_start(GTK_BOX (main_vb), cfselect_cb, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(main_vb), cfselect_cb, FALSE, FALSE, 0);
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(cfselect_cb), FALSE);
   g_signal_connect(cfselect_cb, "toggled",
                    G_CALLBACK(color_toggle_selected_cb), NULL);
@@ -2243,7 +2272,7 @@ file_color_export_cmd_cb(GtkWidget *w _U_, gpointer filter_list)
   color_set_export_selected_sensitive(cfselect_cb);
 
   cfglobal_but = gtk_button_new_with_label("Global Color Filter File");
-  gtk_box_pack_start(GTK_BOX (main_vb), cfglobal_but, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(main_vb), cfglobal_but, FALSE, FALSE, 0);
   g_signal_connect(cfglobal_but, "clicked",
                    G_CALLBACK(color_global_cb), file_color_export_w);
   gtk_widget_show(cfglobal_but);
@@ -2270,7 +2299,7 @@ file_color_export_cmd_cb(GtkWidget *w _U_, gpointer filter_list)
 
     /* Write out the filters (all, or only the ones that are currently
        displayed or selected) to the file with the specified name. */
-    if (!color_filters_export(cf_name, filter_list, color_selected)) {
+    if (!color_filters_export(cf_name, (GSList *)filter_list, color_selected)) {
       /* The write failed; don't dismiss the open dialog box,
          just leave it around so that the user can, after they
          dismiss the alert box popped up for the error, try again. */

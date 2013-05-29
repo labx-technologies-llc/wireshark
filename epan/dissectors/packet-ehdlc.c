@@ -36,13 +36,16 @@
 #include <epan/ipproto.h>
 #include <epan/xdlc.h>
 
+void proto_register_ehdlc(void);
+void proto_reg_handoff_ehdlc(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_ehdlc = -1;
 
 static int hf_ehdlc_data_len = -1;
 static int hf_ehdlc_protocol = -1;
-static int hf_ehdlc_sapi = -1;
-static int hf_ehdlc_c_r = -1;
+/* static int hf_ehdlc_sapi = -1; */
+/* static int hf_ehdlc_c_r = -1; */
 
 static int hf_ehdlc_xid_payload = -1;
 static int hf_ehdlc_control = -1;
@@ -217,6 +220,7 @@ proto_register_ehdlc(void)
 		    FT_UINT8, BASE_HEX, VALS(ehdlc_protocol_vals), 0x0,
 		    "The HDLC Sub-Protocol", HFILL }
 		},
+#if 0
 		{ &hf_ehdlc_sapi,
 		  { "SAPI", "ehdlc.sapi",
 		    FT_UINT8, BASE_DEC, NULL, 0x1f,
@@ -227,6 +231,7 @@ proto_register_ehdlc(void)
 		    FT_UINT8, BASE_HEX, NULL, 0x20,
 		    NULL, HFILL }
 		},
+#endif
 		{ &hf_ehdlc_xid_payload,
 		  { "XID Payload", "ehdlc.xid_payload",
 		    FT_BYTES, BASE_NONE, NULL, 0,

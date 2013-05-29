@@ -152,65 +152,16 @@ dnd_uri2filename(gchar *cf_name)
     return cf_name;
 }
 
-static void
-dnd_merge_files(int in_file_count, char **in_filenames)
-{
-    char *tmpname;
-    cf_status_t merge_status;
-    int err;
-
-    /* merge the files in chonological order */
-    tmpname = NULL;
-    merge_status = cf_merge_files(&tmpname, in_file_count, in_filenames,
-                              WTAP_FILE_PCAP, FALSE);
-
-    if (merge_status != CF_OK) {
-        /* merge failed */
-        g_free(tmpname);
-	return;
-    }
-
-    cf_close(&cfile);
-
-    /* Try to open the merged capture file. */
-    if (cf_open(&cfile, tmpname, TRUE /* temporary file */, &err) != CF_OK) {
-	/* We couldn't open it; don't dismiss the open dialog box,
-	   just leave it around so that the user can, after they
-	   dismiss the alert box popped up for the open error,
-	   try again. */
-	g_free(tmpname);
-	return;
-    }
-    g_free(tmpname);
-
-    switch (cf_read(&cfile, FALSE)) {
-
-    case CF_READ_OK:
-    case CF_READ_ERROR:
-	/* Just because we got an error, that doesn't mean we were unable
-	   to read any of the file; we handle what we could get from the
-	   file. */
-	break;
-
-    case CF_READ_ABORTED:
-	/* The user bailed out of re-reading the capture file; the
-	   capture file has been closed - just free the capture file name
-	   string and return (without changing the last containing
-	   directory). */
-	return;
-    }
-}
-
 /* open/merge the dnd file */
 void
 dnd_open_file_cmd(gchar *cf_names_freeme)
 {
     int       err;
     gchar     *cf_name;
-    int       in_files;
-    GString   *dialog_text;
+    int       in_file_count;
     int       files_work;
     char      **in_filenames;
+    char      *tmpname;
 
     if (cf_names_freeme == NULL) return;
 
@@ -222,21 +173,21 @@ dnd_open_file_cmd(gchar *cf_names_freeme)
 
     /* count the number of input files */
     cf_name = cf_names_freeme;
-    for(in_files = 0; (cf_name = strstr(cf_name, "\r\n")) != NULL; ) {
+    for(in_file_count = 0; (cf_name = strstr(cf_name, "\r\n")) != NULL; ) {
         cf_name += 2;
-        in_files++;
+        in_file_count++;
     }
-    if (in_files == 0) {
+    if (in_file_count == 0) {
       g_free(cf_names_freeme);
       return;
     }
 
-    in_filenames = g_malloc(sizeof(char*) * in_files);
+    in_filenames = (char **)g_malloc(sizeof(char*) * in_file_count);
 
     /* store the starts of the file entries in a gchar array */
     cf_name = cf_names_freeme;
     in_filenames[0] = cf_name;
-    for(files_work = 1; (cf_name = strstr(cf_name, "\r\n")) != NULL && files_work < in_files; ) {
+    for(files_work = 1; (cf_name = strstr(cf_name, "\r\n")) != NULL && files_work < in_file_count; ) {
         cf_name += 2;
         in_filenames[files_work] = cf_name;
         files_work++;
@@ -247,43 +198,38 @@ dnd_open_file_cmd(gchar *cf_names_freeme)
     g_strdelimit(cf_name, "\r\n", '\0');
 
     /* convert all filenames from URI to local filename (in place) */
-    for(files_work = 0; files_work < in_files; files_work++) {
+    for(files_work = 0; files_work < in_file_count; files_work++) {
         in_filenames[files_work] = dnd_uri2filename(in_filenames[files_work]);
     }
 
-    switch(in_files) {
-    case(0):
-        /* shouldn't happen */
-        g_error("Drag and drop to open file, but no filenames? (%s)", cf_name ? cf_name : "null");
-        break;
-    case(1):
+    if (in_file_count == 1) {
         /* open and read the capture file (this will close an existing file) */
         if (cf_open(&cfile, in_filenames[0], FALSE, &err) == CF_OK) {
-          /* XXX - add this to the menu if the read fails? */
-          cf_read(&cfile, FALSE);
-          add_menu_recent_capture_file(in_filenames[0]);
-	} else {
-          /* the capture file couldn't be read (doesn't exist, file format unknown, ...) */
-	}
-        break;
-    default:
-        /* build and show the info dialog */
-        dialog_text = g_string_sized_new(200);
-        g_string_printf(dialog_text,
-            "%sMerging the following files:%s\n\n",
-            simple_dialog_primary_start(), simple_dialog_primary_end());
-        for(files_work = 0; files_work < in_files; files_work++) {
-            g_string_append(dialog_text, in_filenames[files_work]);
-            g_string_append(dialog_text, "\n");
+            /* XXX - add this to the menu if the read fails? */
+            cf_read(&cfile, FALSE);
+            add_menu_recent_capture_file(in_filenames[0]);
+        } else {
+            /* the capture file couldn't be read (doesn't exist, file format unknown, ...) */
         }
-        g_string_append(dialog_text, "\nThe packets in these files will be merged chronologically into a new temporary file.");
-        simple_dialog(ESD_TYPE_CONFIRMATION,
-                    ESD_BTN_OK, "%s",
-                    dialog_text->str);
-        g_string_free(dialog_text, TRUE);
-
-        /* actually merge the files now */
-        dnd_merge_files(in_files, in_filenames);
+    } else {
+        /* merge the files in chronological order */
+        tmpname = NULL;
+        if (cf_merge_files(&tmpname, in_file_count, in_filenames,
+                           WTAP_FILE_PCAP, FALSE) == CF_OK) {
+            /* Merge succeeded; close the currently-open file and try
+               to open the merged capture file. */
+            cf_close(&cfile);
+            if (cf_open(&cfile, tmpname, TRUE /* temporary file */, &err) == CF_OK) {
+                g_free(tmpname);
+                cf_read(&cfile, FALSE);
+            } else {
+                /* The merged file couldn't be read. */
+                g_free(tmpname);
+            }
+        } else {
+            /* merge failed */
+            g_free(tmpname);
+        }
     }
 
     g_free(in_filenames);
@@ -308,7 +254,7 @@ dnd_data_received(GtkWidget *widget _U_, GdkDragContext *dc _U_, gint x _U_, gin
 
 #ifdef HAVE_LIBPCAP
         /* if a capture is running, do nothing but warn the user */
-        if((global_capture_opts.state != CAPTURE_STOPPED)) {
+        if((global_capture_session.state != CAPTURE_STOPPED)) {
             simple_dialog(ESD_TYPE_CONFIRMATION,
                         ESD_BTN_OK,
                         "%sDrag and Drop currently not possible!%s\n\n"
@@ -332,7 +278,7 @@ dnd_data_received(GtkWidget *widget _U_, GdkDragContext *dc _U_, gint x _U_, gin
         /* the data string is not zero terminated -> make a zero terminated "copy" of it */
         sel_data_len = gtk_selection_data_get_length(selection_data);
         sel_data_data = gtk_selection_data_get_data(selection_data);
-        cf_names_freeme = g_malloc(sel_data_len + 1);
+        cf_names_freeme = (gchar *)g_malloc(sel_data_len + 1);
         memcpy(cf_names_freeme, sel_data_data, sel_data_len);
         cf_names_freeme[sel_data_len] = '\0';
 
@@ -349,9 +295,9 @@ gtk_osx_openFile (GtkosxApplication *app _U_, gchar *path, gpointer user_data _U
 {
     GtkSelectionData selection_data;
     gchar* selection_path;
-    int length = strlen(path);
+    size_t length = strlen(path);
 
-    selection_path = g_malloc(length + 3);
+    selection_path = (gchar *)g_malloc(length + 3);
     memcpy(selection_path, path, length);
 
     selection_path[length] = '\r';
@@ -360,7 +306,7 @@ gtk_osx_openFile (GtkosxApplication *app _U_, gchar *path, gpointer user_data _U
 
     memset(&selection_data, 0, sizeof(selection_data));
 
-    gtk_selection_data_set(&selection_data, gdk_atom_intern_static_string ("text/uri-list"), 8, (guchar*) selection_path, length + 2);
+    gtk_selection_data_set(&selection_data, gdk_atom_intern_static_string ("text/uri-list"), 8, (guchar*) selection_path, (gint)(length + 2));
     dnd_data_received(NULL, NULL, 0, 0, &selection_data, DND_TARGET_URL, 0, 0);
 
     return TRUE;
@@ -375,7 +321,7 @@ dnd_init(GtkWidget *w)
     static GtkTargetEntry target_entry[] = {
          /*{"STRING", 0, DND_TARGET_STRING},*/
          /*{"text/plain", 0, DND_TARGET_STRING},*/
-         {"text/uri-list", 0, DND_TARGET_URL}
+         {(gchar *)"text/uri-list", 0, DND_TARGET_URL}
     };
 
     /* set this window as a dnd destination */

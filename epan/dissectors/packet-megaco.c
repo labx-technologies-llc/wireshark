@@ -74,7 +74,7 @@ static int hf_megaco_version        = -1;
 static int hf_megaco_transaction    = -1;
 static int hf_megaco_transid        = -1;
 static int hf_megaco_Context        = -1;
-static int hf_megaco_command_line   = -1;
+/* static int hf_megaco_command_line   = -1; */
 static int hf_megaco_command        = -1;
 static int hf_megaco_termid         = -1;
 
@@ -83,20 +83,20 @@ static int hf_megaco_termid         = -1;
 /* Define headers in subtree for megaco */
 static int hf_megaco_modem_descriptor           = -1;
 static int hf_megaco_multiplex_descriptor       = -1;
-static int hf_megaco_media_descriptor           = -1;
-static int hf_megaco_events_descriptor          = -1;
-static int hf_megaco_signal_descriptor          = -1;
+/* static int hf_megaco_media_descriptor           = -1; */
+/* static int hf_megaco_events_descriptor          = -1; */
+/* static int hf_megaco_signal_descriptor          = -1; */
 static int hf_megaco_audit_descriptor           = -1;
-static int hf_megaco_servicechange_descriptor   = -1;
+/* static int hf_megaco_servicechange_descriptor   = -1; */
 static int hf_megaco_digitmap_descriptor        = -1;
 static int hf_megaco_statistics_descriptor      = -1;
-static int hf_megaco_observedevents_descriptor  = -1;
+/* static int hf_megaco_observedevents_descriptor  = -1; */
 static int hf_megaco_topology_descriptor        = -1;
 static int hf_megaco_error_descriptor           = -1;
-static int hf_megaco_TerminationState_descriptor= -1;
-static int hf_megaco_Remote_descriptor          = -1;
-static int hf_megaco_Local_descriptor           = -1;
-static int hf_megaco_LocalControl_descriptor    = -1;
+/* static int hf_megaco_TerminationState_descriptor= -1; */
+/* static int hf_megaco_Remote_descriptor          = -1; */
+/* static int hf_megaco_Local_descriptor           = -1; */
+/* static int hf_megaco_LocalControl_descriptor    = -1; */
 static int hf_megaco_packages_descriptor        = -1;
 static int hf_megaco_error_Frame                = -1;
 static int hf_megaco_Service_State              = -1;
@@ -112,7 +112,7 @@ static int hf_megaco_streamid                   = -1;
 static int hf_megaco_requestid                  = -1;
 static int hf_megaco_pkgdname                   = -1;
 static int hf_megaco_mId                        = -1;
-static int hf_megaco_h245                       = -1;
+/* static int hf_megaco_h245                       = -1; */
 static int hf_megaco_h223Capability             = -1;
 static int hf_megaco_audititem                  = -1;
 
@@ -383,14 +383,14 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 
     if (g_ascii_strncasecmp(word, "MEGACO", 6) != 0 && tvb_get_guint8(tvb, tvb_offset ) != '!'){
-        gint8 class;
+        gint8 ber_class;
         gboolean pc;
         gint32 tag;
         dissector_handle_t handle = data_handle;
 
-        get_ber_identifier(tvb, 0, &class, &pc, &tag);
+        get_ber_identifier(tvb, 0, &ber_class, &pc, &tag);
 
-        if (class == BER_CLASS_UNI && pc && tag == BER_UNI_TAG_SEQUENCE ) {
+        if (ber_class == BER_CLASS_UNI && pc && tag == BER_UNI_TAG_SEQUENCE ) {
             handle = h248_handle;
         }
 
@@ -416,7 +416,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     tvb_previous_offset = tvb_find_guint8(tvb, 0,
         tvb_len, '/');
     if (tvb_previous_offset == -1) {
-        proto_tree_add_text(megaco_tree, tvb, 0, -1,
+        expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR,
             "Sorry, no \"/\" in the MEGACO header, I can't parse this packet");
         return;
     }
@@ -440,7 +440,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_previous_offset);
 
     if (tvb_previous_offset == tvb_current_offset) {
-        proto_tree_add_text(megaco_tree, tvb, 0, -1,
+        expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR,
             "[ Parse error: missing SEP in MEGACO header ]");
         return;
     }
@@ -459,7 +459,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     tvb_current_offset = tvb_pbrk_guint8(tvb, tvb_current_offset, -1, " \t\r\n", &needle);
     if (tvb_current_offset == -1) {
-        proto_tree_add_text(megaco_tree, tvb, 0, -1,
+        expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR,
             "[ Parse error: no body in MEGACO message (missing SEP after mId) ]");
         return;
     }
@@ -644,8 +644,8 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
             if (check_col(pinfo->cinfo, COL_INFO) )
                 col_add_fstr(pinfo->cinfo, COL_INFO, "%s Reply  ",
-                tvb_format_text(tvb,tvb_offset,len));
-                trx_id = strtoul(tvb_format_text(tvb,tvb_offset,len),NULL,10);
+                  tvb_format_text(tvb,tvb_offset,len));
+            trx_id = (guint)strtoul(tvb_format_text(tvb,tvb_offset,len),NULL,10);
 
             if(tree)
                 my_proto_tree_add_string(message_body_tree, hf_megaco_transid, tvb,
@@ -681,8 +681,8 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             }
             if (check_col(pinfo->cinfo, COL_INFO) )
                 col_append_fstr(pinfo->cinfo, COL_INFO, "%s Request",
-                tvb_format_text(tvb,tvb_offset,len));
-                trx_id = strtoul(tvb_format_text(tvb,tvb_offset,len),NULL,10);
+                  tvb_format_text(tvb,tvb_offset,len));
+            trx_id = (guint)strtoul(tvb_format_text(tvb,tvb_offset,len),NULL,10);
             if(tree)
                 my_proto_tree_add_string(message_body_tree, hf_megaco_transid, tvb, tvb_offset,len,
                     tvb_format_text(tvb,tvb_offset,len));
@@ -692,9 +692,8 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             break;
         default :
             ti = proto_tree_add_item(tree,proto_megaco,tvb, 0, -1, ENC_NA);
-            megaco_tree = proto_item_add_subtree(ti, ett_megaco);
-            proto_tree_add_text(megaco_tree, tvb, 0, -1,
-            "Sorry, can't understand errorDescriptor / transactionList = %s, can't parse it pos %u",
+            expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR,
+                    "Sorry, can't understand errorDescriptor / transactionList = %s, can't parse it pos %u",
                         tvb_format_text(tvb,tvb_previous_offset,2),tvb_previous_offset);
             return;
         } /* end switch */
@@ -728,7 +727,7 @@ nextcontext:
             tvb_transaction_end_offset, '=')+1;
         tvb_previous_offset = megaco_tvb_skip_wsp(tvb, tvb_previous_offset);
         if (tvb_current_offset >= tvb_next_offset) {
-            proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Invalid offset ]");
+            expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, "[ Parse error: Invalid offset ]");
             return;
         }
         tvb_current_offset = tvb_next_offset;
@@ -767,7 +766,7 @@ nextcontext:
                 tvb_previous_offset, tokenlen,
                 tvb_format_text(tvb, tvb_previous_offset,
                 tokenlen));
-            ctx_id = strtoul(tvb_format_text(tvb, tvb_previous_offset, tokenlen),NULL,10);
+            ctx_id = (guint)strtoul(tvb_format_text(tvb, tvb_previous_offset, tokenlen),NULL,10);
 
             if (check_col(pinfo->cinfo, COL_INFO) )
                 col_append_fstr(pinfo->cinfo, COL_INFO, " |=%s",tvb_format_text(tvb, tvb_previous_offset,tokenlen));
@@ -903,13 +902,13 @@ nextcontext:
                     if ( tempchar == 'P' || tempchar == 'O'){
                         gint tvb_topology_end_offset = tvb_find_guint8(tvb, tvb_command_start_offset, tvb_transaction_end_offset, '}');
                         if ( tvb_topology_end_offset == -1 ){
-                            proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Missing \"}\" ]");
+                            expert_add_info_format(pinfo, sub_ti, PI_MALFORMED, PI_ERROR, "[ Parse error: Missing \"}\" ]");
                             return;
                         }
 
                         tvb_command_start_offset = tvb_find_guint8(tvb, tvb_command_start_offset, tvb_transaction_end_offset, '{');
                         if ( tvb_command_start_offset == -1 ){
-                            proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Missing \"{\" ]");
+                            expert_add_info_format(pinfo, sub_ti, PI_MALFORMED, PI_ERROR, "[ Parse error: Missing \"{\" ]");
                             return;
                         }
                         dissect_megaco_topologydescriptor(tvb, megaco_tree_command_line, tvb_topology_end_offset-1, tvb_command_start_offset+1);
@@ -955,7 +954,7 @@ nextcontext:
                 tvb_offset  = tvb_find_guint8(tvb, tvb_command_start_offset,
                     tvb_transaction_end_offset, '=');
                 if (tvb_offset == -1 ) {
-                    proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Missing \"=\" ]");
+                    expert_add_info_format(pinfo, sub_ti, PI_MALFORMED, PI_ERROR, "[ Parse error: Missing \"=\" ]");
                     return;
                 }
                 tvb_offset = megaco_tvb_skip_wsp_return(tvb, tvb_offset -1);
@@ -1235,13 +1234,13 @@ nextcontext:
                     tvb_offset  = tvb_find_guint8(tvb, tvb_command_start_offset,
                         tvb_transaction_end_offset, '=');
                     if (tvb_offset == -1 ) {
-                        proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Missing \"=\" ]");
+                        expert_add_info_format(pinfo, sub_ti, PI_MALFORMED, PI_ERROR, "[ Parse error: Missing \"=\" ]");
                         return;
                     }
                     tvb_offset = megaco_tvb_skip_wsp(tvb, tvb_offset+1);
                     tokenlen = tvb_next_offset - tvb_offset;
                     if (tokenlen+1 <= 0) {
-                        proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Invalid token length (%d) ]", tokenlen+1);
+                        expert_add_info_format(pinfo, sub_ti, PI_MALFORMED, PI_ERROR, "[ Parse error: Invalid token length (%d) ]", tokenlen+1);
                         return;
                     }
 
@@ -1257,14 +1256,14 @@ nextcontext:
 
                     case 'E':
                         if ((tokenlen+1 > (int) sizeof(TermID))) {
-                            proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Invalid TermID length (%d) ]", tokenlen+1);
+                            expert_add_info_format(pinfo, sub_ti, PI_MALFORMED, PI_ERROR, "[ Parse error: Invalid TermID length (%d) ]", tokenlen+1);
                             return;
                         }
                         tvb_get_nstringz0(tvb,tvb_offset,tokenlen+1,TermID);
                         TermID[0] = 'e';
 
                         term->len = tokenlen;
-                        term->str = (gchar*)(term->buffer = TermID);
+                        term->str = (const gchar*)(term->buffer = TermID);
 
                         gcp_cmd_add_term(msg, trx, cmd, term, wild_term, keep_persistent_data);
 
@@ -1277,7 +1276,7 @@ nextcontext:
                     case '*':
                         wild_term = GCP_WILDCARD_ALL;
                         term->len = 1;
-                        term->buffer = (guint8*)(term->str = "*");
+                        term->buffer = (const guint8*)(term->str = "*");
 
                         gcp_cmd_add_term(msg, trx, cmd, term, wild_term, keep_persistent_data);
 
@@ -1309,7 +1308,7 @@ nextcontext:
                             tokenlen));
 
                         term->len = tokenlen;
-                        term->buffer = (guint8*)(term->str = tvb_format_text(tvb, tvb_offset, tokenlen));
+                        term->buffer = (const guint8*)(term->str = tvb_format_text(tvb, tvb_offset, tokenlen));
 
                         gcp_cmd_add_term(msg, trx, cmd, term, wild_term, keep_persistent_data);
 
@@ -1455,7 +1454,7 @@ dissect_megaco_descriptors(tvbuff_t *tvb, proto_tree *megaco_tree_command_line, 
 
         }
         if (tvb_current_offset <= tvb_previous_offset) {
-            proto_tree_add_text(megaco_tree_command_line, tvb, 0, 0, "[ Parse error: Invalid offset ]");
+            expert_add_info_format(pinfo, megaco_tree_command_line, PI_MALFORMED, PI_ERROR, "[ Parse error: Invalid offset ]");
             return;
         }
 
@@ -1760,7 +1759,7 @@ dissect_megaco_h245(tvbuff_t *tvb, packet_info *pinfo, proto_tree *megaco_tree, 
     if(len<20480){
         int i;
         tvbuff_t *h245_tvb;
-        guint8 *buf = g_malloc(10240);
+        guint8 *buf = (guint8 *)g_malloc(10240);
 
         /* first, skip to where the encoded pdu starts, this is
            the first hex digit after the '=' char.
@@ -1839,7 +1838,7 @@ dissect_megaco_h324_h223caprn(tvbuff_t *tvb, packet_info *pinfo, proto_tree *meg
     if(len<20480){
         int i;
         tvbuff_t *h245_tvb;
-        guint8 *buf = g_malloc(10240);
+        guint8 *buf = (guint8 *)g_malloc(10240);
 
         /* first, skip to where the encoded pdu starts, this is
            the first hex digit after the '=' char.
@@ -2235,7 +2234,7 @@ dissect_megaco_auditdescriptor(tvbuff_t *tvb, proto_tree *megaco_tree, packet_in
     tvb_next  = tvb_find_guint8(tvb, tvb_offset, tvb_stop, '{');           /* find opening LBRKT - is this already checked by caller?*/
     if( tvb_next == -1 )                                                   /* complain and give up if not there */
     {
-        proto_tree_add_text(megaco_tree, tvb, tvb_offset, tvb_stop+1-tvb_offset, "Badly constructed audit descriptor (no { )");
+        expert_add_info_format(pinfo, megaco_tree, PI_MALFORMED, PI_ERROR, "Badly constructed audit descriptor (no { )");
         return;
     }
     tokenlen = (tvb_stop + 1) - tvb_offset;
@@ -2629,7 +2628,7 @@ dissect_megaco_observedeventsdescriptor(tvbuff_t *tvb, packet_info *pinfo, proto
                 tvb_current_offset = tvb_observedevents_end_offset;
             }
             if (tvb_current_offset < tvb_previous_offset) {
-                proto_tree_add_text(megaco_observedevent_tree, tvb, 0, 0, "[ Parse error: Invalid offset ]");
+                expert_add_info_format(pinfo, megaco_observedevent_ti, PI_MALFORMED, PI_ERROR, "[ Parse error: Invalid offset ]");
                 return;
             }
 
@@ -3221,7 +3220,7 @@ dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *megaco_mediades
 
             tvb_get_nstringz0(tvb,tvb_current_offset,3,code_str);
             proto_item_append_text(item,"[ %s ]",
-                                   val_to_str_ext(strtoul(code_str,NULL,16), &dscp_vals_ext,"Unknown (%u)"));
+                                   val_to_str_ext((guint32)strtoul(code_str,NULL,16), &dscp_vals_ext,"Unknown (%u)"));
 
             tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_offset +1);
             break;
@@ -3375,9 +3374,11 @@ proto_register_megaco(void)
         { &hf_megaco_audit_descriptor,
           { "Audit Descriptor", "megaco.audit", FT_NONE, BASE_NONE, NULL, 0x0,
             "Audit Descriptor of the megaco Command", HFILL }},
+#if 0
         { &hf_megaco_command_line,
           { "Command line", "megaco.command_line", FT_STRING, BASE_NONE, NULL, 0x0,
             "Commands of this message", HFILL }},
+#endif
         { &hf_megaco_command,
           { "Command", "megaco.command", FT_STRING, BASE_NONE, NULL, 0x0,
             "Command of this message", HFILL }},
@@ -3396,18 +3397,26 @@ proto_register_megaco(void)
         { &hf_megaco_Event_Buffer_Control,
           { "Event Buffer Control", "megaco.eventbuffercontrol", FT_STRING, BASE_NONE, NULL, 0x0,
             "Event Buffer Control in Termination State Descriptor", HFILL }},
+#if 0
         { &hf_megaco_events_descriptor,
           { "Events Descriptor", "megaco.events", FT_STRING, BASE_NONE, NULL, 0x0,
             "Events Descriptor of the megaco Command", HFILL }},
+#endif
+#if 0
         { &hf_megaco_Local_descriptor,
           { "Local Descriptor", "megaco.localdescriptor", FT_STRING, BASE_NONE, NULL, 0x0,
             "Local Descriptor in Media Descriptor", HFILL }},
+#endif
+#if 0
         { &hf_megaco_LocalControl_descriptor,
           { "Local Control Descriptor", "megaco.localcontroldescriptor", FT_STRING, BASE_NONE, NULL, 0x0,
             "Local Control Descriptor in Media Descriptor", HFILL }},
+#endif
+#if 0
         { &hf_megaco_media_descriptor,
           { "Media Descriptor", "megaco.media", FT_STRING, BASE_NONE, NULL, 0x0,
             "Media Descriptor of the megaco Command", HFILL }},
+#endif
         { &hf_megaco_modem_descriptor,
           { "Modem Descriptor", "megaco.modem", FT_STRING, BASE_NONE, NULL, 0x0,
             "Modem Descriptor of the megaco Command", HFILL }},
@@ -3417,18 +3426,22 @@ proto_register_megaco(void)
         { &hf_megaco_multiplex_descriptor,
           { "Multiplex Descriptor", "megaco.multiplex", FT_STRING, BASE_NONE, NULL, 0x0,
             "Multiplex Descriptor of the megaco Command", HFILL }},
+#if 0
         { &hf_megaco_observedevents_descriptor,
           { "Observed Events Descriptor", "megaco.observedevents", FT_STRING, BASE_NONE, NULL, 0x0,
             "Observed Events Descriptor of the megaco Command", HFILL }},
+#endif
         { &hf_megaco_packages_descriptor,
           { "Packages Descriptor", "megaco.packagesdescriptor", FT_STRING, BASE_NONE, NULL, 0x0,
             NULL, HFILL }},
         { &hf_megaco_pkgdname,
           { "pkgdName", "megaco.pkgdname", FT_STRING, BASE_NONE, NULL, 0x0,
             "PackageName SLASH ItemID", HFILL }},
+#if 0
         { &hf_megaco_Remote_descriptor,
           { "Remote Descriptor", "megaco.remotedescriptor", FT_STRING, BASE_NONE, NULL, 0x0,
             "Remote Descriptor in Media Descriptor", HFILL }},
+#endif
         { &hf_megaco_reserve_group,
           { "Reserve Group", "megaco.reservegroup", FT_STRING, BASE_NONE, NULL, 0x0,
             "Reserve Group on or off", HFILL }},
@@ -3450,15 +3463,19 @@ proto_register_megaco(void)
         { &hf_megaco_requestid,
           { "RequestID", "megaco.requestid", FT_STRING, BASE_NONE, NULL, 0x0,
             "RequestID in Events or Observedevents Descriptor", HFILL }},
+#if 0
         { &hf_megaco_servicechange_descriptor,
           { "Service Change Descriptor", "megaco.servicechange", FT_STRING, BASE_NONE, NULL, 0x0,
             "Service Change Descriptor of the megaco Command", HFILL }},
+#endif
         { &hf_megaco_Service_State,
           { "Service State", "megaco.servicestates", FT_STRING, BASE_NONE, NULL, 0x0,
             "Service States in Termination State Descriptor", HFILL }},
+#if 0
         { &hf_megaco_signal_descriptor,
           { "Signal Descriptor", "megaco.signal", FT_STRING, BASE_NONE, NULL, 0x0,
             "Signal Descriptor of the megaco Command", HFILL }},
+#endif
         { &hf_megaco_statistics_descriptor,
           { "Statistics Descriptor", "megaco.statistics", FT_STRING, BASE_NONE, NULL, 0x0,
             "Statistics Descriptor of the megaco Command", HFILL }},
@@ -3468,9 +3485,11 @@ proto_register_megaco(void)
         { &hf_megaco_termid,
           { "Termination ID", "megaco.termid", FT_STRING, BASE_NONE, NULL, 0x0,
             "Termination ID of this Command", HFILL }},
+#if 0
         { &hf_megaco_TerminationState_descriptor,
           { "Termination State Descriptor", "megaco.terminationstate", FT_STRING, BASE_NONE, NULL, 0x0,
             "Termination State Descriptor in Media Descriptor", HFILL }},
+#endif
         { &hf_megaco_topology_descriptor,
           { "Topology Descriptor", "megaco.topology", FT_STRING, BASE_NONE, NULL, 0x0,
             "Topology Descriptor of the megaco Command", HFILL }},
@@ -3486,9 +3505,11 @@ proto_register_megaco(void)
         { &hf_megaco_version,
           { "Version", "megaco.version", FT_STRING, BASE_NONE, NULL, 0x0,
             NULL, HFILL }},
+#if 0
         { &hf_megaco_h245,
           { "h245", "megaco.h245", FT_STRING, BASE_NONE, NULL, 0x0,
             "Embedded H.245 message", HFILL }},
+#endif
         { &hf_megaco_h223Capability,
           { "h223Capability", "megaco.h245.h223Capability", FT_NONE, BASE_NONE, NULL, 0,
             "megaco.h245.H223Capability", HFILL }},

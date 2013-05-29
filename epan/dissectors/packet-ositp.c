@@ -1,5 +1,6 @@
 /* packet-ositp.c
- * Routines for ISO/OSI transport protocol packet disassembly
+ * Routines for ISO/OSI transport protocol (connection-oriented
+ * and connectionless) packet disassembly
  *
  * $Id$
  * Laurent Deniel <laurent.deniel@free.fr>
@@ -25,7 +26,9 @@
  */
 
 #include "config.h"
+
 #include <ctype.h>
+
 #include <glib.h>
 #include <epan/prefs.h>
 #include <epan/packet.h>
@@ -293,8 +296,7 @@ static heur_dissector_list_t cltp_heur_subdissector_list;
 /*
  * Reassembly of COTP.
  */
-static GHashTable *cotp_segment_table = NULL;
-static GHashTable *cotp_reassembled_table = NULL;
+static reassembly_table cotp_reassembly_table;
 static guint16    cotp_dst_ref = 0;
 static gboolean   cotp_frame_reset = FALSE;
 static gboolean   cotp_last_fragment = FALSE;
@@ -353,7 +355,7 @@ static gchar *print_tsap(const guchar *tsap, int length)
   gboolean allprintable;
   gint idx = 0, returned_length;
 
-  cur=ep_alloc(MAX_TSAP_LEN * 2 + 3);
+  cur=(gchar *)ep_alloc(MAX_TSAP_LEN * 2 + 3);
   cur[0] = '\0';
   if (length <= 0 || length > MAX_TSAP_LEN)
     g_snprintf(cur, MAX_TSAP_LEN * 2 + 3, "<unsupported TSAP length>");
@@ -379,8 +381,8 @@ static gchar *print_tsap(const guchar *tsap, int length)
 } /* print_tsap */
 
 static gboolean ositp_decode_var_part(tvbuff_t *tvb, int offset,
-				      int vp_length, int class_option,
-                                      packet_info *pinfo,
+				      int vp_length, int class_option, int tpdu_len,
+				      packet_info *pinfo,
 				      proto_tree *tree)
 {
   guint8  code, length;
@@ -389,16 +391,12 @@ static gboolean ositp_decode_var_part(tvbuff_t *tvb, int offset,
   guint32 t1, t2, t3, t4;
   guint32 offset_iso8073_checksum = 0;
   gint32 i = 0;
-  guint16 tpdu_length = 0;
   guint8 tmp_code = 0;
   guint tmp_len = 0;
   cksum_status_t cksum_status;
   gboolean checksum_ok = FALSE;
   guint32 pref_max_tpdu_size;
   proto_item *hidden_item;
-
-  /* TPDU length needed for ATN checksum calculations */
-  tpdu_length = offset + vp_length + tvb_length_remaining(tvb, offset + vp_length);
 
   while (vp_length != 0) {
     code = tvb_get_guint8(tvb, offset);
@@ -434,10 +432,10 @@ static gboolean ositp_decode_var_part(tvbuff_t *tvb, int offset,
             i += tmp_len;
           }
         }
-        checksum_ok = check_atn_ec_16(tvb, tpdu_length, offset,
+        checksum_ok = check_atn_ec_16(tvb, tpdu_len , offset,
                                       offset_iso8073_checksum,
-                                      pinfo->dst.len, pinfo->dst.data,
-                                      pinfo->src.len, pinfo->src.data);
+                                      pinfo->dst.len, (guint8 *)pinfo->dst.data,
+                                      pinfo->src.len, (guint8 *)pinfo->src.data);
         proto_tree_add_text(tree, tvb, offset, length,
             "ATN extended checksum : 0x%04x (%s)",
                               tvb_get_ntohs(tvb, offset),
@@ -465,10 +463,10 @@ static gboolean ositp_decode_var_part(tvbuff_t *tvb, int offset,
             i += tmp_len;
           }
         }
-        checksum_ok = check_atn_ec_32(tvb, tpdu_length, offset,
+        checksum_ok = check_atn_ec_32( tvb, tpdu_len , offset,
                                       offset_iso8073_checksum,
-                                      pinfo->dst.len, pinfo->dst.data,
-                                      pinfo->src.len, pinfo->src.data);
+                                      pinfo->dst.len, (guint8 *)pinfo->dst.data,
+                                      pinfo->src.len, (guint8 *)pinfo->src.data);
         proto_tree_add_text(tree, tvb, offset, length,
              "ATN extended checksum : 0x%08x (%s)",
                               tvb_get_ntohl(tvb, offset),
@@ -692,7 +690,7 @@ static gboolean ositp_decode_var_part(tvbuff_t *tvb, int offset,
 
     case VP_CHECKSUM:
       offset_iso8073_checksum = offset; /* save ISO 8073 checksum offset for ATN extended checksum calculation */
-      cksum_status = calc_checksum(tvb, 0, tvb_reported_length(tvb), tvb_get_ntohs(tvb, offset));
+      cksum_status = calc_checksum(tvb, 0, tpdu_len, tvb_get_ntohs(tvb, offset));
       switch (cksum_status) {
 
       default:
@@ -833,10 +831,14 @@ static int ositp_decode_DR(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   guint16 dst_ref, src_ref;
   guchar  reason;
   const char *str;
+  guint   tpdu_len;
 
   /* ATN TPDU's tend to be larger than normal OSI, so nothing to do with respect to LI checks */
   if (li < LI_MIN_DR)
     return -1;
+
+  /* DR TPDUs can have user data, so they run to the end of the containing PDU */
+  tpdu_len = tvb_reported_length_remaining(tvb, offset);
 
   dst_ref = tvb_get_ntohs(tvb, offset + P_DST_REF);
 
@@ -893,7 +895,7 @@ static int ositp_decode_DR(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   li -= 6;
 
   if (tree)
-    ositp_decode_var_part(tvb, offset, li, 4, pinfo, cotp_tree);
+    ositp_decode_var_part(tvb, offset, li, 4, tpdu_len, pinfo, cotp_tree);
   offset += li;
 
   expert_add_info_format(pinfo, ti, PI_SEQUENCE, PI_CHAT,
@@ -925,6 +927,10 @@ static int ositp_decode_DT(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   tvbuff_t *next_tvb;
   fragment_data *fd_head;
   conversation_t *conv;
+  guint     tpdu_len;
+
+  /* DT TPDUs have user data, so they run to the end of the containing PDU */
+  tpdu_len = tvb_reported_length_remaining(tvb, offset);
 
   /* The fixed part is 2 octets long, not including the length indicator,
      for classes 0 and 1; it is at least 4 octets long, not including
@@ -985,12 +991,12 @@ static int ositp_decode_DT(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
         else
           fragment = TRUE;
         is_extended = FALSE;
-        prev_dst_ref = p_get_proto_data (pinfo->fd, proto_clnp);
+        prev_dst_ref = (guint32 *)p_get_proto_data (pinfo->fd, proto_clnp, 0);
         if (!prev_dst_ref) {
           /* First COTP in frame - save previous dst_ref as offset */
-          prev_dst_ref = se_alloc (sizeof (guint32));
+          prev_dst_ref = se_new(guint32);
           *prev_dst_ref = cotp_dst_ref;
-          p_add_proto_data (pinfo->fd, proto_clnp, prev_dst_ref);
+          p_add_proto_data (pinfo->fd, proto_clnp, 0, prev_dst_ref);
         } else if (cotp_frame_reset) {
           cotp_dst_ref = *prev_dst_ref;
         }
@@ -1146,7 +1152,7 @@ static int ositp_decode_DT(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   }
 
   if (tree)
-    ositp_decode_var_part(tvb, offset, li, 4, pinfo, cotp_tree);
+    ositp_decode_var_part(tvb, offset, li, 4, tpdu_len, pinfo, cotp_tree);
   offset += li;
 
   next_tvb = tvb_new_subset_remaining(tvb, offset);
@@ -1177,10 +1183,9 @@ static int ositp_decode_DT(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
      * Note also that TP0 has no sequence number, and relies on
      * the protocol atop which it runs to guarantee in-order delivery.
      */
-    fd_head = fragment_add_seq_next(next_tvb, 0, pinfo, dst_ref,
-				     cotp_segment_table,
-				     cotp_reassembled_table,
-				     fragment_length, fragment);
+    fd_head = fragment_add_seq_next(&cotp_reassembly_table,
+				    next_tvb, 0, pinfo, dst_ref, NULL,
+				    fragment_length, fragment);
     if (fd_head && fd_head->next) {
       /* don't use -1 if fragment length is zero (throws Exception) */
       proto_tree_add_text(cotp_tree, tvb, offset, (fragment_length) ? -1 : 0,
@@ -1242,6 +1247,10 @@ static int ositp_decode_ED(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   guint16  dst_ref;
   guint    tpdu_nr;
   tvbuff_t *next_tvb;
+  guint    tpdu_len;
+
+  /* ED TPDUs have user data, so they run to the end of the containing PDU */
+  tpdu_len = tvb_reported_length_remaining(tvb, offset);
 
   /* note: in the ATN the user is up to chose between 3 different checksums: */
   /* standard OSI, 2 or 4 octet extended checksum. */
@@ -1411,7 +1420,7 @@ static int ositp_decode_ED(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   }
 
   if (tree)
-    ositp_decode_var_part(tvb, offset, li, 4, pinfo, cotp_tree);
+    ositp_decode_var_part(tvb, offset, li, 4, tpdu_len, pinfo, cotp_tree);
   offset += li;
 
   /*
@@ -1527,12 +1536,16 @@ static int ositp_decode_CC(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   guint16 dst_ref, src_ref;
   guint8  class_option;
   tvbuff_t *next_tvb;
+  guint   tpdu_len;
 
   src_ref = tvb_get_ntohs(tvb, offset + P_SRC_REF);
 
   class_option = tvb_get_guint8(tvb, offset + P_CLASS_OPTION);
   if (((class_option & 0xF0) >> 4) > 4) /* class 0..4 allowed */
     return -1;
+
+  /* CR and CC TPDUs can have user data, so they run to the end of the containing PDU */
+  tpdu_len = tvb_reported_length_remaining(tvb, offset);
 
   dst_ref = tvb_get_ntohs(tvb, offset + P_DST_REF);
   pinfo->clnp_srcref = src_ref;
@@ -1609,7 +1622,7 @@ static int ositp_decode_CC(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
 
        XXX - have TPKT know that a given session is an RDP session,
        and let us know, so we know whether to check for this stuff. */
-    ositp_decode_var_part(tvb, offset, li, class_option, pinfo, cotp_tree);
+    ositp_decode_var_part(tvb, offset, li, class_option, tpdu_len , pinfo, cotp_tree);
   }
   offset += li;
 
@@ -1642,6 +1655,7 @@ static int ositp_decode_DC(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   proto_item *ti;
   proto_item *item = NULL;
   guint16 dst_ref, src_ref;
+  guint   tpdu_len;
 
   /* ATN may use checksums different from OSI */
   /* which may result in different TPDU header length. */
@@ -1652,6 +1666,9 @@ static int ositp_decode_DC(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
     if (li > LI_ATN_MAX_DC)
       return -1;
   }
+
+  /* DC TPDUs have no user data, so the length indicator determines the length */
+  tpdu_len = li + 1;
 
   dst_ref = tvb_get_ntohs(tvb, offset + P_DST_REF);
   src_ref = tvb_get_ntohs(tvb, offset + P_SRC_REF);
@@ -1688,7 +1705,7 @@ static int ositp_decode_DC(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   li -= 2;
 
   if (tree)
-    ositp_decode_var_part(tvb, offset, li, 4, pinfo, cotp_tree);
+    ositp_decode_var_part(tvb, offset, li, 4, tpdu_len, pinfo, cotp_tree);
   offset += li;
 
   expert_add_info_format(pinfo, item, PI_SEQUENCE, PI_CHAT,
@@ -1706,6 +1723,7 @@ static int ositp_decode_AK(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   guint16    dst_ref;
   guint      tpdu_nr;
   gushort    cdt_in_ak;
+  guint      tpdu_len;
 
   if (!cotp_decode_atn) {
     if (li > LI_MAX_AK)
@@ -1714,6 +1732,9 @@ static int ositp_decode_AK(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
     if (li > LI_ATN_MAX_AK)
       return -1;
   }
+
+  /* AK TPDUs have no user data, so the length indicator determines the length */
+  tpdu_len = li + 1;
 
   /* is_LI_NORMAL_AK() works for normal ATN AK's, */
   /* for the TPDU header size may be enlarged by 2 octets */
@@ -1755,7 +1776,7 @@ static int ositp_decode_AK(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
     li -= 1;
 
     if (tree)
-      ositp_decode_var_part(tvb, offset, li, 4, pinfo, cotp_tree);
+      ositp_decode_var_part(tvb, offset, li, 4, tpdu_len, pinfo, cotp_tree);
     offset += li;
 
   } else { /* extended format */
@@ -1802,7 +1823,7 @@ static int ositp_decode_AK(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
     li -= 2;
 
     if (tree)
-      ositp_decode_var_part(tvb, offset, li, 4, pinfo, cotp_tree);
+      ositp_decode_var_part(tvb, offset, li, 4, tpdu_len, pinfo, cotp_tree);
     offset += li;
 
   } /* is_LI_NORMAL_AK */
@@ -1819,6 +1840,7 @@ static int ositp_decode_EA(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   gboolean is_extended;
   guint16  dst_ref;
   guint    tpdu_nr;
+  guint    tpdu_len;
 
   /* Due to different checksums in the ATN the TPDU header sizes */
   /* as well as the checksum parameters may be different than plain OSI EA.*/
@@ -1939,6 +1961,10 @@ static int ositp_decode_EA(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
         return -1;
     }
   }
+
+  /* ER TPDUs have no user data, so the length indicator determines the length */
+  tpdu_len = li + 1;
+
   dst_ref = tvb_get_ntohs(tvb, offset + P_DST_REF);
   pinfo->clnp_dstref = dst_ref;
 
@@ -1981,7 +2007,7 @@ static int ositp_decode_EA(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   }
 
   if (tree)
-    ositp_decode_var_part(tvb, offset, li, 4, pinfo, cotp_tree);
+    ositp_decode_var_part(tvb, offset, li, 4, tpdu_len,  pinfo, cotp_tree);
   offset += li;
 
   return offset;
@@ -1995,6 +2021,7 @@ static int ositp_decode_ER(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   proto_item *ti;
   const char *str;
   guint16 dst_ref;
+  guint8 tpdu_len;
 
   /* ATN: except for modified LI checking nothing to be done here */
   if (!cotp_decode_atn) {
@@ -2004,6 +2031,9 @@ static int ositp_decode_ER(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
     if (li > LI_ATN_MAX_ER)
       return -1;
   }
+
+  /* ER TPDUs have no user data, so the length indicator determines the length */
+  tpdu_len = li + 1;
 
   switch(tvb_get_guint8(tvb, offset + P_REJECT_ER)) {
     case 0 :
@@ -2041,7 +2071,7 @@ static int ositp_decode_ER(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   li -= 4;
 
   if (tree)
-    ositp_decode_var_part(tvb, offset, li, 4, pinfo, cotp_tree);
+    ositp_decode_var_part(tvb, offset, li, 4, tpdu_len, pinfo, cotp_tree);
   offset += li;
 
   return offset;
@@ -2055,6 +2085,10 @@ static int ositp_decode_UD(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   proto_item *ti;
   proto_tree *cltp_tree = NULL;
   tvbuff_t   *next_tvb;
+  guint      tpdu_len;
+
+  /* UD TPDUs have user data, so they run to the end of the containing PDU */
+  tpdu_len = tvb_reported_length_remaining(tvb, offset);
 
   col_append_str(pinfo->cinfo, COL_INFO, "UD TPDU");
 
@@ -2072,13 +2106,13 @@ static int ositp_decode_UD(tvbuff_t *tvb, int offset, guint8 li, guint8 tpdu,
   li -= 1;
 
   if (tree)
-    ositp_decode_var_part(tvb, offset, li, 0, pinfo, cltp_tree);
+    ositp_decode_var_part(tvb, offset, li, 0, tpdu_len, pinfo, cltp_tree);
   offset += li;
 
   next_tvb = tvb_new_subset_remaining(tvb, offset);
 
   if (dissector_try_heuristic(cltp_heur_subdissector_list, next_tvb,
-			  pinfo, tree, NULL)) {
+                              pinfo, tree, NULL)) {
     *subdissector_found = TRUE;
   } else {
     call_dissector(data_handle,next_tvb, pinfo, tree);
@@ -2129,7 +2163,10 @@ static gint dissect_ositp_internal(tvbuff_t *tvb, packet_info *pinfo,
   while (tvb_offset_exists(tvb, offset)) {
     if (!first_tpdu) {
       col_append_str(pinfo->cinfo, COL_INFO, ", ");
-	  expert_add_info_format(pinfo, NULL, PI_SEQUENCE, PI_NOTE, "Multiple TPDUs in one packet");
+      expert_add_info_format(pinfo, NULL, PI_SEQUENCE, PI_NOTE, "Multiple TPDUs in one packet");
+      /* adjust tvb and offset to the start of the current PDU */
+      tvb = tvb_new_subset_remaining(tvb, offset);
+      offset = 0 ;
     }
     if ((li = tvb_get_guint8(tvb, offset + P_LI)) == 0) {
       col_append_str(pinfo->cinfo, COL_INFO, "Length indicator is zero");
@@ -2220,8 +2257,16 @@ static gint dissect_ositp_inactive(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 static void
 cotp_reassemble_init(void)
 {
-  fragment_table_init(&cotp_segment_table);
-  reassembled_table_init(&cotp_reassembled_table);
+  /*
+   * XXX - this is a connection-oriented transport-layer protocol,
+   * so we should probably use more than just network-layer
+   * endpoint addresses to match segments together, but the functions
+   * in addresses_ports_reassembly_table_functions do matching based
+   * on port numbers, so they won't let us ensure that segments from
+   * different connections don't get assembled together.
+   */
+  reassembly_table_init(&cotp_reassembly_table,
+                        &addresses_reassembly_table_functions);
   cotp_dst_ref = 0;
 }
 

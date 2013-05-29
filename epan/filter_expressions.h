@@ -25,7 +25,11 @@
 #ifndef __FILTER_EXPRESSIONS_H__
 #define __FILTER_EXPRESSIONS_H__
 
-#include "globals.h"
+#include "ws_symbol_export.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 struct filter_expression {
 	gpointer button;	/* Filter toolbar */
@@ -34,16 +38,21 @@ struct filter_expression {
 
 	gint	index;
 	gboolean enabled;	/* Can be set to FALSE by Preferences Dialog */
-	gboolean deleted;	/* Can be set to TRUE by Preferences Dialog */
+	gboolean deleted;	/* Can be set to TRUE by Preferences Dialog (GTK+ only) */
 
 	struct filter_expression *next;
 };
 
-WS_VAR_IMPORT struct filter_expression **pfilter_expression_head;
+WS_DLL_PUBLIC struct filter_expression **pfilter_expression_head;
 
+WS_DLL_PUBLIC
 struct filter_expression *filter_expression_new(const gchar *label,
     const gchar *expr, const gboolean enabled);
 
 void filter_expression_init(gboolean prefs);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* __FILTER_EXPRESSIONS_H__ */

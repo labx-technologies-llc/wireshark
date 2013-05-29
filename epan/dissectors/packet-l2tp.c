@@ -142,6 +142,8 @@ static gint ett_l2tp_avp_sub = -1;
 static gint ett_l2tp_lcp = -1;
 static gint ett_l2tp_l2_spec = -1;
 
+static expert_field ei_l2tp_incorrect_digest = EI_INIT;
+
 static const enum_val_t l2tpv3_cookies[] = {
     {"detect",  "Detect",              -1},
     {"cookie0", "None",                 0},
@@ -806,9 +808,13 @@ static int check_control_digest(l2tpv3_tunnel_t *tunnel,
 
     switch (tvb_get_guint8(tvb, idx)) {
         case L2TP_HMAC_MD5:
+            if ((avp_len - 1) != L2TP_HMAC_MD5_DIGEST_LEN)
+                return -1;
             md5_hmac_digest(tunnel, tvb, length, idx, avp_len, msg_type, pinfo, digest);
             break;
         case L2TP_HMAC_SHA1:
+            if ((avp_len - 1) != L2TP_HMAC_SHA1_DIGEST_LEN)
+                return -1;
             sha1_hmac_digest(tunnel, tvb, length, idx, avp_len, msg_type, pinfo, digest);
             break;
         default:
@@ -836,14 +842,14 @@ static void store_cma_nonce(l2tpv3_tunnel_t *tunnel,
     switch (msg_type) {
         case MESSAGE_TYPE_SCCRQ:
             if (!tunnel->lcce1_nonce) {
-                tunnel->lcce1_nonce = se_alloc(length);
+                tunnel->lcce1_nonce = (guint8 *)se_alloc(length);
                 tunnel->lcce1_nonce_len = length;
                 nonce = tunnel->lcce1_nonce;
             }
             break;
         case MESSAGE_TYPE_SCCRP:
             if (!tunnel->lcce2_nonce) {
-                tunnel->lcce2_nonce = se_alloc(length);
+                tunnel->lcce2_nonce = (guint8 *)se_alloc(length);
                 tunnel->lcce2_nonce_len = length;
                 nonce = tunnel->lcce2_nonce;
             }
@@ -889,7 +895,7 @@ static l2tpv3_session_t *find_session(l2tpv3_tunnel_t *tunnel,
 
     iterator = tunnel->sessions;
     while (iterator) {
-        session = iterator->data;
+        session = (l2tpv3_session_t *)iterator->data;
 
         if ((session->lcce1.id == lcce1_id) ||
             (session->lcce2.id == lcce2_id)) {
@@ -911,7 +917,7 @@ static void init_session(l2tpv3_session_t *session)
 
 static l2tpv3_session_t *alloc_session(void)
 {
-    l2tpv3_session_t *session = ep_alloc0(sizeof(l2tpv3_session_t));
+    l2tpv3_session_t *session = ep_new0(l2tpv3_session_t);
     init_session(session);
 
     return session;
@@ -1113,7 +1119,7 @@ static void update_session(l2tpv3_tunnel_t *tunnel, l2tpv3_session_t *session)
 
     existing = find_session(tunnel, session->lcce1.id, session->lcce2.id);
     if (!existing) {
-        existing = se_alloc0(sizeof(l2tpv3_session_t));
+        existing = se_new0(l2tpv3_session_t);
         init_session(existing);
     }
 
@@ -1964,7 +1970,7 @@ static void process_control_avps(tvbuff_t *tvb,
     /* SCCRQ digest can only be calculated once we know whether nonces are being used */
     if (digest_avp_len) {
         if (check_control_digest(tunnel, tvb, length, digest_idx, digest_avp_len, msg_type, pinfo) < 0)
-            expert_add_info_format(pinfo, digest_item, PI_CHECKSUM, PI_WARN, "Incorrect Digest");
+            expert_add_info(pinfo, digest_item, &ei_l2tp_incorrect_digest);
     }
 
     update_session(tunnel, session);
@@ -2386,7 +2392,7 @@ process_l2tpv3_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int 
     process_control_avps(tvb, pinfo, l2tp_tree, idx, length+baseIdx, tunnel);
 
     if (tunnel == &tmp_tunnel && l2tp_conv->tunnel == NULL) {
-        l2tp_conv->tunnel = se_alloc0(sizeof(l2tpv3_tunnel_t));
+        l2tp_conv->tunnel = se_new0(l2tpv3_tunnel_t);
         memcpy(l2tp_conv->tunnel, &tmp_tunnel, sizeof(l2tpv3_tunnel_t));
     }
 }
@@ -2458,7 +2464,7 @@ dissect_l2tp_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
     case 3:
         l2tp_conv = (l2tpv3_conversation_t *)conversation_get_proto_data(conv, proto_l2tp);
         if (!l2tp_conv) {
-            l2tp_conv = se_alloc0(sizeof(l2tpv3_conversation_t));
+            l2tp_conv = se_new0(l2tpv3_conversation_t);
             l2tp_conv->pt = PT_UDP;
             conversation_add_proto_data(conv, proto_l2tp, (void *)l2tp_conv);
         }
@@ -2646,7 +2652,7 @@ dissect_l2tp_ip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     l2tp_conv = (l2tpv3_conversation_t *)conversation_get_proto_data(conv, proto_l2tp);
     if (!l2tp_conv) {
-        l2tp_conv = se_alloc0(sizeof(l2tpv3_conversation_t));
+        l2tp_conv = se_new0(l2tpv3_conversation_t);
         l2tp_conv->pt = PT_NONE;
         conversation_add_proto_data(conv, proto_l2tp, (void *)l2tp_conv);
     }
@@ -2869,12 +2875,19 @@ proto_register_l2tp(void)
         &ett_l2tp_lcp,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_l2tp_incorrect_digest, { "l2tp.incorrect_digest", PI_CHECKSUM, PI_WARN, "Incorrect Digest", EXPFILL }},
+    };
+
     module_t *l2tp_module;
+    expert_module_t* expert_l2tp;
 
     proto_l2tp = proto_register_protocol(
         "Layer 2 Tunneling Protocol", "L2TP", "l2tp");
     proto_register_field_array(proto_l2tp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_l2tp = expert_register_protocol(proto_l2tp);
+    expert_register_field_array(expert_l2tp, ei, array_length(ei));
 
     l2tp_module = prefs_register_protocol(proto_l2tp, NULL);
 

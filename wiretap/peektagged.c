@@ -44,16 +44,39 @@
 /* CREDITS
  *
  * This file decoder could not have been writen without examining
- * http://www.varsanofiev.com/inside/peektagged.htm, the help from
+ * http://www.varsanofiev.com/inside/airopeekv9.htm, the help from
  * Martin Regner and Guy Harris, and the etherpeek.c file (as it
  * was called before renaming it to peekclassic.c).
  */
 
-/* section header */
+/*
+ * Section header.
+ *
+ * A Peek tagged file consists of multiple sections, each of which begins
+ * with a header in the following format.
+ *
+ * The section ID is a 4-character string saying what type of section
+ * it is.  The section length is a little-endian field giving the
+ * length of the section, in bytes, including the section header
+ * itself.  The other field of the section header is a little-endian
+ * constant that always appears to be 0x00000200.
+ *
+ * Files we've seen have the following sections, in order:
+ *
+ * "\177vers" - version information.  The contents are XML, giving
+ * the file format version and application version information.
+ *
+ * "sess" - capture session information.  The contents are XML, giving
+ * various information about the capture session.
+ *
+ * "pkts" - captured packets.  The contents are binary records, one for
+ * each packet, with the record being a list of tagged values followed
+ * by the raw packet data.
+ */
 typedef struct peektagged_section_header {
-	gint8   section_id[4];
-	guint32 section_len;
-	guint32 section_const;
+	gint8   section_id[4];		/* string identifying the section */
+	guint32 section_len;		/* little-endian section length */
+	guint32 section_const;		/* little-endian 0x00000200 */
 } peektagged_section_header_t;
 
 /*
@@ -108,13 +131,12 @@ static int wtap_file_read_pattern (wtap *wth, const char *pattern, int *err,
     while (*cp)
     {
 	c = file_getc(wth->fh);
-	if (c == EOF) {
-	    if (file_eof(wth->fh))
-		return 0;	/* EOF */
-	    else {
-		*err = file_error(wth->fh, err_info);
+	if (c == EOF)
+	{
+	    *err = file_error(wth->fh, err_info);
+	    if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
 		return -1;	/* error */
-	    }
+	    return 0;	/* EOF */
 	}
 	if (c == *cp)
 	    cp++;
@@ -141,13 +163,12 @@ static int wtap_file_read_till_separator (wtap *wth, char *buffer, int buflen,
     for (cp = buffer, i = 0; i < buflen; i++, cp++)
     {
 	c = file_getc(wth->fh);
-	if (c == EOF) {
-	    if (file_eof(wth->fh))
-		return 0;	/* EOF */
-	    else {
-		*err = file_error(wth->fh, err_info);
+	if (c == EOF)
+	{
+	    *err = file_error(wth->fh, err_info);
+	    if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
 		return -1;	/* error */
-	    }
+	    return 0;	/* EOF */
 	}
 	if (strchr (separators, c) != NULL)
 	{
@@ -187,6 +208,7 @@ static int wtap_file_read_number (wtap *wth, guint32 *num, int *err,
 int peektagged_open(wtap *wth, int *err, gchar **err_info)
 {
     peektagged_section_header_t ap_hdr;
+    int bytes_read;
     int ret;
     guint32 fileVersion;
     guint32 mediaType;
@@ -201,8 +223,13 @@ int peektagged_open(wtap *wth, int *err, gchar **err_info)
     #define NUM_PEEKTAGGED_ENCAPS (sizeof peektagged_encap / sizeof peektagged_encap[0])
     peektagged_t *peektagged;
 
-    wtap_file_read_unknown_bytes(&ap_hdr, sizeof(ap_hdr), wth->fh, err,
-                                 err_info);
+    bytes_read = file_read(&ap_hdr, (int)sizeof(ap_hdr), wth->fh);
+    if (bytes_read != (int)sizeof(ap_hdr)) {
+    	*err = file_error(wth->fh, err_info);
+        if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
+            return -1;
+        return 0;
+    }
 
     if (memcmp (ap_hdr.section_id, "\177ver", sizeof(ap_hdr.section_id)) != 0)
 	return 0;	/* doesn't begin with a "\177ver" section */

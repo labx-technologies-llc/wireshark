@@ -28,6 +28,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
@@ -48,10 +49,9 @@
 #include <glib.h>
 
 #include "capture_opts.h"
+#include "capture_session.h"
 #include "capture_sync.h"
 #include "log.h"
-
-#include "wsutil/file_util.h"
 
 #include "capture_ifinfo.h"
 
@@ -141,9 +141,9 @@ capture_interface_list(int *err, char **err_str)
     g_free(data);
 
     for (i = 0; raw_list[i] != NULL; i++) {
-        if_parts = g_strsplit(raw_list[i], "\t", 5);
+        if_parts = g_strsplit(raw_list[i], "\t", 6);
         if (if_parts[0] == NULL || if_parts[1] == NULL || if_parts[2] == NULL ||
-                if_parts[3] == NULL || if_parts[4] == NULL) {
+                if_parts[3] == NULL || if_parts[4] == NULL || if_parts[5] == NULL) {
             g_strfreev(if_parts);
             continue;
         }
@@ -157,15 +157,16 @@ capture_interface_list(int *err, char **err_str)
             continue;
         }
 
-        if_info = g_malloc0(sizeof(if_info_t));
+        if_info = g_new0(if_info_t,1);
         if_info->name = g_strdup(name);
         if (strlen(if_parts[1]) > 0)
             if_info->vendor_description = g_strdup(if_parts[1]);
         if (strlen(if_parts[2]) > 0)
             if_info->friendly_name = g_strdup(if_parts[2]);
-        addr_parts = g_strsplit(if_parts[3], ",", 0);
+        if_info->type = (interface_type)(int)strtol(if_parts[3], NULL, 10);
+        addr_parts = g_strsplit(if_parts[4], ",", 0);
         for (j = 0; addr_parts[j] != NULL; j++) {
-            if_addr = g_malloc0(sizeof(if_addr_t));
+            if_addr = g_new0(if_addr_t,1);
             if (inet_pton(AF_INET, addr_parts[j], &if_addr->addr.ip4_addr)) {
                 if_addr->ifat_type = IF_AT_IPv4;
             } else if (inet_pton(AF_INET6, addr_parts[j],
@@ -179,7 +180,7 @@ capture_interface_list(int *err, char **err_str)
                 if_info->addrs = g_slist_append(if_info->addrs, if_addr);
             }
         }
-        if (strcmp(if_parts[4], "loopback") == 0)
+        if (strcmp(if_parts[5], "loopback") == 0)
             if_info->loopback = TRUE;
         g_strfreev(if_parts);
         g_strfreev(addr_parts);
@@ -252,7 +253,7 @@ capture_get_if_capabilities(const gchar *ifname, gboolean monitor_mode,
     /*
      * Allocate the interface capabilities structure.
      */
-    caps = g_malloc(sizeof *caps);
+    caps = (if_capabilities_t *)g_malloc(sizeof *caps);
     switch (*raw_list[0]) {
 
     case '0':
@@ -284,7 +285,7 @@ capture_get_if_capabilities(const gchar *ifname, gboolean monitor_mode,
             continue;
         }
 
-        data_link_info = g_malloc(sizeof (data_link_info_t));
+        data_link_info = g_new(data_link_info_t,1);
         data_link_info->dlt = (int) strtol(lt_parts[0], NULL, 10);
         data_link_info->name = g_strdup(lt_parts[1]);
         if (strcmp(lt_parts[2], "(not supported)") != 0)
@@ -340,129 +341,4 @@ void add_interface_to_remote_list(if_info_t *if_info)
     remote_interface_list = g_list_append(remote_interface_list, temp);
 }
 #endif
-
-guint
-get_interface_type(gchar *name, gchar *description)
-{
-#if defined(__linux__)
-    ws_statb64 statb;
-    char *wireless_path;
-#endif
-#if defined(_WIN32)
-    /*
-     * Much digging failed to reveal any obvious way to get something such
-     * as the SNMP MIB-II ifType value for an interface:
-     *
-     *    http://www.iana.org/assignments/ianaiftype-mib
-     *
-     * by making some NDIS request.
-     */
-    if (description && (strstr(description,"generic dialup") != NULL ||
-            strstr(description,"PPP/SLIP") != NULL )) {
-        return IF_DIALUP;
-    } else if (description && (strstr(description,"Wireless") != NULL ||
-            strstr(description,"802.11") != NULL)) {
-        return IF_WIRELESS;
-    } else if (description && strstr(description,"AirPcap") != NULL ||
-            strstr(name,"airpcap")) {
-        return IF_AIRPCAP;
-    } else if (description && strstr(description, "Bluetooth") != NULL ) {
-        return IF_BLUETOOTH;
-    }
-#elif defined(__APPLE__)
-    /*
-     * XXX - yes, fetching all the network addresses for an interface
-     * gets you an AF_LINK address, of type "struct sockaddr_dl", and,
-     * yes, that includes an SNMP MIB-II ifType value.
-     *
-     * However, it's IFT_ETHER, i.e. Ethernet, for AirPort interfaces,
-     * not IFT_IEEE80211 (which isn't defined in OS X in any case).
-     *
-     * Perhaps some other BSD-flavored OSes won't make this mistake;
-     * however, FreeBSD 7.0 and OpenBSD 4.2, at least, appear to have
-     * made the same mistake, at least for my Belkin ZyDAS stick.
-     *
-     * XXX - this is wrong on a MacBook Air, as en0 is the AirPort
-     * interface, and it's also wrong on a Mac that has no AirPort
-     * interfaces and has multiple Ethernet interfaces.
-     *
-     * The SystemConfiguration framework is your friend here.
-     * SCNetworkInterfaceGetInterfaceType() will get the interface
-     * type.  SCNetworkInterfaceCopyAll() gets all network-capable
-     * interfaces on the system; SCNetworkInterfaceGetBSDName()
-     * gets the "BSD name" of the interface, so we look for
-     * an interface with the specified "BSD name" and get its
-     * interface type.  The interface type is a CFString, and:
-     *
-     *    kSCNetworkInterfaceTypeIEEE80211 means IF_WIRELESS;
-     *    kSCNetworkInterfaceTypeBluetooth means IF_BLUETOOTH;
-     *    kSCNetworkInterfaceTypeModem or
-     *    kSCNetworkInterfaceTypePPP or
-     *    maybe kSCNetworkInterfaceTypeWWAN means IF_DIALUP
-     */
-    if (strcmp(name, "en1") == 0) {
-        return IF_WIRELESS;
-    }
-    /*
-     * XXX - PPP devices have names beginning with "ppp" and an IFT_ of
-     * IFT_PPP, but they could be dial-up, or PPPoE, or mobile phone modem,
-     * or VPN, or... devices.  One might have to dive into the bowels of
-     * IOKit to find out.
-     */
-
-    /*
-     * XXX - there's currently no support for raw Bluetooth capture,
-     * and IP-over-Bluetooth devices just look like fake Ethernet
-     * devices.  There's also Bluetooth modem support, but that'll
-     * probably just give you a device that looks like a PPP device.
-     */
-#elif defined(__linux__)
-    /*
-     * Look for /sys/class/net/{device}/wireless.
-     */
-    wireless_path = g_strdup_printf("/sys/class/net/%s/wireless", name);
-    if (wireless_path != NULL) {
-        if (ws_stat64(wireless_path, &statb) == 0) {
-            g_free(wireless_path);
-            return IF_WIRELESS;
-        }
-        g_free(wireless_path);
-    }
-    /*
-     * Bluetooth devices.
-     *
-     * XXX - this is for raw Bluetooth capture; what about IP-over-Bluetooth
-     * devices?
-     */
-    if ( strstr(name,"bluetooth") != NULL) {
-        return IF_BLUETOOTH;
-    }
-
-    /*
-     * USB devices.
-     */
-    if ( strstr(name,"usbmon") != NULL ) {
-        return IF_USB;
-    }
-#endif
-    /*
-     * Bridge, NAT, or host-only interfaces on VMWare hosts have the name
-     * vmnet[0-9]+ or VMnet[0-9+ on Windows. Guests might use a native
-     * (LANCE or E1000) driver or the vmxnet driver. These devices have an
-     * IFT_ of IFT_ETHER, so we have to check the name.
-     */
-    if ( g_ascii_strncasecmp(name, "vmnet", 5) == 0) {
-        return IF_VIRTUAL;
-    }
-
-    if ( g_ascii_strncasecmp(name, "vmxnet", 6) == 0) {
-        return IF_VIRTUAL;
-    }
-
-    if (description && strstr(description, "VMware") != NULL ) {
-        return IF_VIRTUAL;
-    }
-
-    return IF_WIRED;
-}
 #endif /* HAVE_LIBPCAP */

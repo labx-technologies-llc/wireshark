@@ -807,7 +807,7 @@ dissect_ssc_readposition (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tre
                                      "Number of Bytes in Buffer: %u",
                                      tvb_get_ntohl (tvb, offset));
             }
-            offset += 4;
+            /*offset += 4;*/
             break;
 
         case LONG_FORM:
@@ -842,9 +842,9 @@ dissect_ssc_readposition (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tre
                 proto_tree_add_text (tree, tvb, offset, 8,
                                      "Set Number: %" G_GINT64_MODIFIER "u",
                                      tvb_get_ntoh64 (tvb, offset));
-                offset += 8;
+                /*offset += 8;*/
             } else
-                offset += 16;
+                /*offset += 16;*/
             break;
 
         case EXTENDED_FORM:
@@ -894,7 +894,7 @@ dissect_ssc_readposition (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tre
                                      "Number of Bytes in Buffer: %" G_GINT64_MODIFIER "u",
                                      tvb_get_ntoh64 (tvb, offset));
             }
-            offset += 8;
+            /*offset += 8;*/
             break;
 
         default:
@@ -919,6 +919,7 @@ const value_string scsi_ssc_vals[] = {
     {SCSI_SSC_LOCATE_16                    , "Locate(16)"},
     {SCSI_SPC_LOGSELECT                    , "Log Select"},
     {SCSI_SPC_LOGSENSE                     , "Log Sense"},
+    {SCSI_SPC_MGMT_PROTOCOL_IN             , "Mgmt Protocol In"},
     {SCSI_SPC_MODESELECT6                  , "Mode Select(6)"},
     {SCSI_SPC_RESERVE6                     , "Reserve(6)"},
     {SCSI_SPC_RELEASE6                     , "Release(6)"},
@@ -1123,7 +1124,7 @@ scsi_cdb_table_t scsi_ssc_table[256] = {
 /*SPC 0xa0*/{dissect_spc_reportluns},
 /*SSC 0xa1*/{NULL},
 /*SSC 0xa2*/{NULL},
-/*SSC 0xa3*/{NULL},
+/*SPC 0xa3*/{dissect_spc_mgmt_protocol_in},
 /*SSC 0xa4*/{NULL},
 /*SSC 0xa5*/{dissect_smc_movemedium},
 /*SSC 0xa6*/{NULL},

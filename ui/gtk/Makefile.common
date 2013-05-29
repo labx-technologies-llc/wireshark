@@ -113,7 +113,7 @@ WIRESHARK_GTK_SRC = \
 	prefs_filter_expressions.c	\
 	prefs_gui.c	\
 	prefs_layout.c	\
-	prefs_stream.c	\
+	prefs_font_color.c	\
 	print_dlg.c	\
 	profile_dlg.c	\
 	progress_dlg.c	\
@@ -142,10 +142,14 @@ WIRESHARK_GTK_SRC = \
 	webbrowser.c	\
 	$(WIRESHARK_CUSTOM_GTK_SRC)
 
-about_dlg.c main_welcome.c: ../../image/wssplash.xpm ../../image/wssplash-dev.xpm remote_icons.h
-main_statusbar.c: expert_indicators.h capture_comment_icons.h
+about_dlg.c main_welcome.c: wssplash.h remote_icons.h
 capture_if_dlg.c: network_icons.h remote_icons.h pipe_icon.h
-stock_icons.c: toolbar_icons.h
+gui_utils.c: wsicon.h
+main.c: wsicon.h wsiconcap.h
+main_statusbar.c: expert_indicators.h capture_comment_icons.h
+main_welcome.c: wssplash.h
+prefs_layout.c: layouts.h
+stock_icons.c: stock_icons.h toolbar_icons.h wsicon.h
 
 WIRESHARK_TAP_SRC = \
 	afp_stat.c	\
@@ -173,6 +177,7 @@ WIRESHARK_TAP_SRC = \
 	dcerpc_stat.c	\
 	diameter_stat.c	\
 	expert_comp_dlg.c     \
+	export_pdu_dlg.c	\
 	fc_stat.c	\
 	flow_graph.c	\
 	funnel_stat.c	\
@@ -256,6 +261,7 @@ noinst_HEADERS = \
 	expert_comp_table.h	\
 	expert_indicators.h	\
 	export_object_dlg.h	\
+	export_pdu_dlg.h	\
 	export_sslkeys.h	\
 	file_dlg.h	\
 	file_import_dlg.h	\
@@ -283,6 +289,7 @@ noinst_HEADERS = \
 	hostlist_table.h \
 	iax2_analysis.h	\
 	keys.h		\
+	layouts.h	\
 	macros_dlg.h	\
 	main.h		\
 	main_airpcap_toolbar.h	\
@@ -315,7 +322,7 @@ noinst_HEADERS = \
 	prefs_filter_expressions.h	\
 	prefs_gui.h	\
 	prefs_layout.h	\
-	prefs_stream.h	\
+	prefs_font_color.h	\
 	profile_dlg.h	\
 	proto_dlg.h	\
 	proto_help.h	\
@@ -342,4 +349,7 @@ noinst_HEADERS = \
 	voip_calls.h	\
 	voip_calls_dlg.h \
 	webbrowser.h	\
+	wsiconcap.h \
+	wsicon.h \
+	wssplash.h \
 	$(WIRESHARK_CUSTOM_HDRS)

@@ -23,6 +23,7 @@
 #ifndef __W_BTSNOOP_H__
 #define __W_BTSNOOP_H__
 #include <glib.h>
+#include "ws_symbol_export.h"
 
 int btsnoop_open(wtap *wth, int *err, gchar **err_info);
 gboolean btsnoop_dump_open_h1(wtap_dumper *wdh, int *err);

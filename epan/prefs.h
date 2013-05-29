@@ -36,6 +36,7 @@ extern "C" {
 #include <epan/params.h>
 #include <epan/range.h>
 #include <epan/addr_resolv.h>
+#include "ws_symbol_export.h"
 
 #define PR_DEST_CMD  0
 #define PR_DEST_FILE 1
@@ -55,7 +56,8 @@ extern "C" {
  * Set "*name_resolve" to the bitmask, and return '\0', on success;
  * return the bad character in the string on error.
  */
-char string_to_name_resolve(char *string, e_addr_resolve *name_resolve);
+WS_DLL_PUBLIC
+char string_to_name_resolve(const char *string, e_addr_resolve *name_resolve);
 
 /*
  * Modes for the starting directory in File Open dialogs.
@@ -113,75 +115,94 @@ typedef enum {
     version_neither
 } version_info_e;
 
+typedef enum {
+    pref_default,
+    pref_stashed,
+    pref_current
+} pref_source_t;
+
+/* 
+ * Update channel.
+ */
+typedef enum {
+    UPDATE_CHANNEL_DEVELOPMENT,
+    UPDATE_CHANNEL_STABLE
+} software_update_channel_e;
 
 typedef struct _e_prefs {
-  gint     pr_format;
-  gint     pr_dest;
-  gchar   *pr_file;
-  gchar   *pr_cmd;
-  GList   *col_list;
-  gint     num_cols;
-  color_t  st_client_fg, st_client_bg, st_server_fg, st_server_bg;
-  gboolean gui_scrollbar_on_right;
-  gboolean gui_plist_sel_browse;
-  gboolean gui_ptree_sel_browse;
-  gboolean gui_altern_colors;
-  gboolean gui_expert_composite_eyecandy;
-  gboolean filter_toolbar_show_in_statusbar;
-  gint     gui_ptree_line_style;
-  gint     gui_ptree_expander_style;
-  gboolean gui_hex_dump_highlight_style;
-  gint     gui_toolbar_main_style;
-  gint     gui_toolbar_filter_style;
-  gchar   *gui_font_name;
-  color_t  gui_marked_fg;
-  color_t  gui_marked_bg;
-  color_t  gui_ignored_fg;
-  color_t  gui_ignored_bg;
-  gchar   *gui_colorized_fg;
-  gchar   *gui_colorized_bg;
-  gboolean gui_geometry_save_position;
-  gboolean gui_geometry_save_size;
-  gboolean gui_geometry_save_maximized;
-  gboolean gui_macosx_style;
+  gint          pr_format;
+  gint          pr_dest;
+  const gchar *pr_file;
+  const gchar *pr_cmd;
+  GList       *col_list;
+  gint         num_cols;
+  color_t      st_client_fg, st_client_bg, st_server_fg, st_server_bg;
+  gboolean     gui_altern_colors;
+  gboolean     gui_expert_composite_eyecandy;
+  gboolean     filter_toolbar_show_in_statusbar;
+  gint         gui_ptree_line_style;
+  gint         gui_ptree_expander_style;
+  gboolean     gui_hex_dump_highlight_style;
+  gint         gui_toolbar_main_style;
+  gint         gui_toolbar_filter_style;
+  gchar       *gui_gtk2_font_name;
+  gchar       *gui_qt_font_name;
+  color_t      gui_marked_fg;
+  color_t      gui_marked_bg;
+  color_t      gui_ignored_fg;
+  color_t      gui_ignored_bg;
+  const gchar *gui_colorized_fg;
+  const gchar *gui_colorized_bg;
+  gboolean     gui_geometry_save_position;
+  gboolean     gui_geometry_save_size;
+  gboolean     gui_geometry_save_maximized;
+  gboolean     gui_macosx_style;
   console_open_e gui_console_open;
-  guint    gui_recent_df_entries_max;
-  guint    gui_recent_files_count_max;
-  guint    gui_fileopen_style;
-  gchar	   *gui_fileopen_dir;
-  guint    gui_fileopen_preview;
-  gboolean gui_ask_unsaved;
-  gboolean gui_find_wrap;
-  gboolean gui_use_pref_save;
-  gchar   *gui_webbrowser;
-  gchar   *gui_window_title;
-  gchar   *gui_start_title;
+  guint        gui_recent_df_entries_max;
+  guint        gui_recent_files_count_max;
+  guint        gui_fileopen_style;
+  gchar	      *gui_fileopen_dir;
+  guint        gui_fileopen_preview;
+  gboolean     gui_ask_unsaved;
+  gboolean     gui_find_wrap;
+  gboolean     gui_use_pref_save;
+  gchar       *gui_webbrowser;
+  gchar       *gui_window_title;
+  const gchar *gui_start_title;
   version_info_e gui_version_placement;
-  gboolean gui_auto_scroll_on_expand;
-  guint    gui_auto_scroll_percentage;
+  gboolean     gui_auto_scroll_on_expand;
+  guint        gui_auto_scroll_percentage;
   layout_type_e gui_layout_type;
   layout_pane_content_e gui_layout_content_1;
   layout_pane_content_e gui_layout_content_2;
   layout_pane_content_e gui_layout_content_3;
-  gint     console_log_level;
-  gchar   *capture_device;
-  gchar   *capture_devices_linktypes;
-  gchar   *capture_devices_descr;
-  gchar   *capture_devices_hide;
-  gchar   *capture_devices_monitor_mode;
-  gboolean capture_prom_mode;
-  gboolean capture_pcap_ng;
-  gboolean capture_real_time;
-  gboolean capture_auto_scroll;
-  gboolean capture_show_info;
-  GList   *capture_columns;
-  guint    rtp_player_max_visible;
-  guint    tap_update_interval;
-  gboolean display_hidden_proto_items;
-  gpointer filter_expressions;	/* Actually points to &head */
+  gint         console_log_level;
+  gchar       *capture_device;
+  gchar       *capture_devices_linktypes;
+  gchar       *capture_devices_descr;
+  gchar       *capture_devices_hide;
+  gchar       *capture_devices_monitor_mode;
+#if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
+  gchar       *capture_devices_buffersize;
+#endif
+  gchar       *capture_devices_snaplen;
+  gchar       *capture_devices_pmode;
+  gboolean     capture_prom_mode;
+  gboolean     capture_pcap_ng;
+  gboolean     capture_real_time;
+  gboolean     capture_auto_scroll;
+  gboolean     capture_show_info;
+  GList       *capture_columns;
+  guint        rtp_player_max_visible;
+  guint        tap_update_interval;
+  gboolean     display_hidden_proto_items;
+  gpointer     filter_expressions;	/* Actually points to &head */
+  gboolean     gui_update_enabled;
+  software_update_channel_e gui_update_channel;
+  gint         gui_update_interval;
 } e_prefs;
 
-WS_VAR_IMPORT e_prefs prefs;
+WS_DLL_PUBLIC e_prefs prefs;
 
 /*
  * Routines to let modules that have preference settings register
@@ -195,13 +216,13 @@ struct pref_custom_cbs;
 typedef struct pref_module module_t;
 
 /** Sets up memory used by proto routines. Called at program startup */
-extern void prefs_init(void);
+void prefs_init(void);
 
 /** Reset preferences to default values.  Called at profile change */
-extern void prefs_reset(void);
+WS_DLL_PUBLIC void prefs_reset(void);
 
 /** Frees memory used by proto routines. Called at program shutdown */
-extern void prefs_cleanup(void);
+void prefs_cleanup(void);
 
 /*
  * Register a module that will have preferences.
@@ -217,7 +238,7 @@ extern void prefs_cleanup(void);
  * name is the protocol name specified at the "proto_register_protocol()"
  * call so that the "Protocol Properties..." menu item works.
  */
-extern module_t *prefs_register_module(module_t *parent, const char *name,
+module_t *prefs_register_module(module_t *parent, const char *name,
     const char *title, const char *description, void (*apply_cb)(void),
     const gboolean use_gui);
 
@@ -227,13 +248,13 @@ extern module_t *prefs_register_module(module_t *parent, const char *name,
  * at the top level and the title used in the tab for it in a preferences
  * dialog box.
  */
-extern module_t *prefs_register_subtree(module_t *parent, const char *title,
+module_t *prefs_register_subtree(module_t *parent, const char *title,
     const char *description, void (*apply_cb)(void));
 
 /*
  * Register that a protocol has preferences.
  */
-extern module_t *prefs_register_protocol(int id, void (*apply_cb)(void));
+WS_DLL_PUBLIC module_t *prefs_register_protocol(int id, void (*apply_cb)(void));
 
 /*
  * Register that a statistical tap has preferences.
@@ -245,7 +266,7 @@ extern module_t *prefs_register_protocol(int id, void (*apply_cb)(void));
  *
  * "description" is a longer human-readable description of the tap.
  */
-extern module_t *prefs_register_stat(const char *name, const char *title,
+WS_DLL_PUBLIC module_t *prefs_register_stat(const char *name, const char *title,
                                      const char *description,
                                      void (*apply_cb)(void));
 
@@ -254,14 +275,14 @@ extern module_t *prefs_register_stat(const char *name, const char *title,
  * subtree
  */
 #define PREFERENCE_GROUPING
-extern module_t *prefs_register_protocol_subtree(const char *subtree, int id,
+WS_DLL_PUBLIC module_t *prefs_register_protocol_subtree(const char *subtree, int id,
 						 void (*apply_cb)(void));
 
 /*
  * Register that a protocol used to have preferences but no longer does,
  * by creating an "obsolete" module for it.
  */
-extern module_t *prefs_register_protocol_obsolete(int id);
+module_t *prefs_register_protocol_obsolete(int id);
 
 /*
  * Callback function for module list scanners.
@@ -271,7 +292,7 @@ typedef guint (*module_cb)(module_t *module, gpointer user_data);
 /*
  * Returns TRUE if module has any submodules
  */
-extern gboolean prefs_module_has_submodules(module_t *module);
+WS_DLL_PUBLIC gboolean prefs_module_has_submodules(module_t *module);
 
 /*
  * Call a callback function, with a specified argument, for each module
@@ -281,7 +302,7 @@ extern gboolean prefs_module_has_submodules(module_t *module);
  * preferences for dissectors that no longer have preferences to be
  * silently ignored in preference files.
  */
-extern guint prefs_modules_foreach(module_cb callback, gpointer user_data);
+WS_DLL_PUBLIC guint prefs_modules_foreach(module_cb callback, gpointer user_data);
 
 /*
  * Call a callback function, with a specified argument, for each submodule
@@ -293,7 +314,7 @@ extern guint prefs_modules_foreach(module_cb callback, gpointer user_data);
  * silently ignored in preference files.  Does not ignore subtrees,
  * as this can be used when walking the display tree of modules.
  */
-extern guint prefs_modules_foreach_submodules(module_t *module, module_cb callback, gpointer user_data);
+WS_DLL_PUBLIC guint prefs_modules_foreach_submodules(module_t *module, module_cb callback, gpointer user_data);
 
 /*
  * Call the "apply" callback function for each module if any of its
@@ -301,7 +322,7 @@ extern guint prefs_modules_foreach_submodules(module_t *module, module_cb callba
  * preferences have changed, as the module has been notified of that
  * fact.
  */
-extern void prefs_apply_all(void);
+WS_DLL_PUBLIC void prefs_apply_all(void);
 
 /*
  * Call the "apply" callback function for a specific module if any of
@@ -309,7 +330,7 @@ extern void prefs_apply_all(void);
  * preferences have changed, as the module has been notified of that
  * fact.
  */
-extern void prefs_apply(module_t *module);
+WS_DLL_PUBLIC void prefs_apply(module_t *module);
 
 
 struct preference;
@@ -319,12 +340,12 @@ typedef struct preference pref_t;
 /*
  * Returns TRUE if the given protocol has registered preferences.
  */
-extern gboolean prefs_is_registered_protocol(const char *name);
+WS_DLL_PUBLIC gboolean prefs_is_registered_protocol(const char *name);
 
 /*
  * Returns the module title of a registered protocol (or NULL if unknown).
  */
-extern const char *prefs_get_title_by_name(const char *name);
+WS_DLL_PUBLIC const char *prefs_get_title_by_name(const char *name);
 
 /** Given a module name, return a pointer to its pref_module struct,
  * or NULL if it's not found.
@@ -334,7 +355,7 @@ extern const char *prefs_get_title_by_name(const char *name);
  * @return A pointer to the corresponding preference module, or NULL if it
  * wasn't found.
  */
-extern module_t *prefs_find_module(const char *name);
+WS_DLL_PUBLIC module_t *prefs_find_module(const char *name);
 
 /** Given a module name, and a preference name return a pointer to the given
  * module's given preference or NULL if it's not found.
@@ -345,32 +366,32 @@ extern module_t *prefs_find_module(const char *name);
  * @return A pointer to the corresponding preference, or NULL if it
  * wasn't found.
  */
-extern pref_t *prefs_find_preference(module_t * module, const char *pref);
+WS_DLL_PUBLIC pref_t *prefs_find_preference(module_t * module, const char *pref);
 
 /*
  * Register a preference with an unsigned integral value.
  */
-extern void prefs_register_uint_preference(module_t *module, const char *name,
+WS_DLL_PUBLIC void prefs_register_uint_preference(module_t *module, const char *name,
     const char *title, const char *description, guint base, guint *var);
 
 /*
  * Register a preference with an Boolean value.
  * Note that the name must be in lowercase letters only (underscore allowed).
  */
-extern void prefs_register_bool_preference(module_t *module, const char *name,
+WS_DLL_PUBLIC void prefs_register_bool_preference(module_t *module, const char *name,
     const char *title, const char *description, gboolean *var);
 
 /*
  * Register a preference with an enumerated value.
  */
-extern void prefs_register_enum_preference(module_t *module, const char *name,
+WS_DLL_PUBLIC void prefs_register_enum_preference(module_t *module, const char *name,
     const char *title, const char *description, gint *var,
     const enum_val_t *enumvals, gboolean radio_buttons);
 
 /*
  * Register a preference with a character-string value.
  */
-extern void prefs_register_string_preference(module_t *module, const char *name,
+WS_DLL_PUBLIC void prefs_register_string_preference(module_t *module, const char *name,
     const char *title, const char *description, const char **var);
 
 /*
@@ -379,27 +400,36 @@ extern void prefs_register_string_preference(module_t *module, const char *name,
  * except that the GUI gives the user the ability to browse for the
  * file.
  */
-extern void prefs_register_filename_preference(module_t *module, const char *name,
+WS_DLL_PUBLIC void prefs_register_filename_preference(module_t *module, const char *name,
+    const char *title, const char *description, const char **var);
+
+/*
+ * Register a preference with a directory name (string) value.
+ * Directory name preferences are basically like string preferences
+ * except that the GUI gives the user the ability to browse for a
+ * directory.
+ */
+WS_DLL_PUBLIC void prefs_register_directory_preference(module_t *module, const char *name,
     const char *title, const char *description, const char **var);
 
 /*
  * Register a preference with a ranged value.
  */
-extern void prefs_register_range_preference(module_t *module, const char *name,
+WS_DLL_PUBLIC void prefs_register_range_preference(module_t *module, const char *name,
     const char *title, const char *description, range_t **var,
     guint32 max_value);
 
 /*
  * Register a static text 'preference'. It can be used to add some info/explanation.
  */
-extern void prefs_register_static_text_preference(module_t *module, const char *name,
+WS_DLL_PUBLIC void prefs_register_static_text_preference(module_t *module, const char *name,
     const char *title, const char *description);
 
 /*
  * Register a uat 'preference'. It adds a button that opens the uat's window in the
  * preferences tab of the module.
  */
-extern void prefs_register_uat_preference(module_t *module,
+WS_DLL_PUBLIC void prefs_register_uat_preference(module_t *module,
 										  const char *name,
 										  const char* title,
 										  const char *description,
@@ -411,7 +441,7 @@ extern void prefs_register_uat_preference(module_t *module,
  * "GUI preferences" to aid in reading/writing the preferences file, but the 
  * "data" is still managed by the specific "GUI preferences" dialog.
  */
-extern void prefs_register_color_preference(module_t *module, const char *name,
+void prefs_register_color_preference(module_t *module, const char *name,
     const char *title, const char *description, color_t *color);
 
 /*
@@ -420,14 +450,14 @@ extern void prefs_register_color_preference(module_t *module, const char *name,
  * "GUI preferences" to aid in reading/writing the preferences file, but the 
  * "data" is still managed by the specific "GUI preferences" dialog.
  */
-extern void prefs_register_custom_preference(module_t *module, const char *name,
+void prefs_register_custom_preference(module_t *module, const char *name,
     const char *title, const char *description, struct pref_custom_cbs* custom_cbs,
     void** custom_data);
 
 /*
  * Register a preference that used to be supported but no longer is.
  */
-extern void prefs_register_obsolete_preference(module_t *module,
+WS_DLL_PUBLIC void prefs_register_obsolete_preference(module_t *module,
     const char *name);
 
 
@@ -440,21 +470,51 @@ typedef guint (*pref_cb)(pref_t *pref, gpointer user_data);
  * If any of the callbacks return a non-zero value, stop and return that
  * value, otherwise return 0.
  */
-extern guint prefs_pref_foreach(module_t *module, pref_cb callback,
+WS_DLL_PUBLIC guint prefs_pref_foreach(module_t *module, pref_cb callback,
     gpointer user_data);
 
 /* Parse through a list of comma-separated, possibly quoted strings.
  *  Return a list of the string data.
  */
-extern GList *prefs_get_string_list(gchar *str);
+WS_DLL_PUBLIC GList *prefs_get_string_list(const gchar *str);
 
 /* Clear the given list of string data. */
-extern void prefs_clear_string_list(GList *sl);
+WS_DLL_PUBLIC void prefs_clear_string_list(GList *sl);
 
 /*
  * Register all non-dissector modules' preferences.
  */
-extern void prefs_register_modules(void);
+WS_DLL_PUBLIC void prefs_register_modules(void);
+
+/** Fetch a short preference type name, e.g. "Integer".
+ *
+ * @param pref A preference.
+ *
+ * @return The preference type name. May be NULL.
+ */
+WS_DLL_PUBLIC
+const char *prefs_pref_type_name(pref_t *pref);
+
+/** Fetch a long description of the preference type
+ *
+ * @param pref A preference.
+ *
+ * @return A description of the preference type including allowed
+ * values for enums. The description may include newlines. Must be
+ * g_free()d.
+ */
+WS_DLL_PUBLIC
+char *prefs_pref_type_description(pref_t *pref);
+
+/** Fetch a string representation of the preference.
+ *
+ * @param pref A preference.
+ * @param source Which value of the preference to return, see pref_source_t.
+ *
+ * @return A string representation of the preference. Must be g_free()d.
+ */
+WS_DLL_PUBLIC
+char *prefs_pref_to_str(pref_t *pref, pref_source_t source);
 
 /* Read the preferences file, fill in "prefs", and return a pointer to it.
 
@@ -469,13 +529,13 @@ extern void prefs_register_modules(void);
    on an open error and into "*pf_read_errno_return" on a read error,
    stuff a pointer to the path of the file into "*pf_path_return", and
    return NULL. */
-extern e_prefs *read_prefs(int *, int *, char **, int *, int *, char **);
+WS_DLL_PUBLIC e_prefs *read_prefs(int *, int *, char **, int *, int *, char **);
 
 /* Write out "prefs" to the user's preferences file, and return 0.
 
    If we got an error, stuff a pointer to the path of the preferences file
    into "*pf_path_return", and return the errno. */
-extern int write_prefs(char **);
+WS_DLL_PUBLIC int write_prefs(char **);
 
 /*
  * Given a string of the form "<pref name>:<pref value>", as might appear
@@ -493,28 +553,28 @@ typedef enum {
     PREFS_SET_OBSOLETE		/* preference used to exist but no longer does */
 } prefs_set_pref_e;
 
-extern prefs_set_pref_e prefs_set_pref(char *prefarg);
+WS_DLL_PUBLIC prefs_set_pref_e prefs_set_pref(char *prefarg);
 
 /*
  * Get or set a preference's obsolete status. These can be used to make a
  * preference obsolete after startup so that we can fetch its value but
  * keep it from showing up in the prefrences dialog.
  */
-extern gboolean prefs_get_preference_obsolete(pref_t *pref);
-extern prefs_set_pref_e prefs_set_preference_obsolete(pref_t *pref);
+gboolean prefs_get_preference_obsolete(pref_t *pref);
+prefs_set_pref_e prefs_set_preference_obsolete(pref_t *pref);
 
 
 /*
  * Returns TRUE if the given device is hidden
  */
-extern gboolean prefs_is_capture_device_hidden(const char *name);
+WS_DLL_PUBLIC gboolean prefs_is_capture_device_hidden(const char *name);
 
 /*
  * Returns TRUE if the given device should capture in monitor mode by default
  */
-extern gboolean prefs_capture_device_monitor_mode(const char *name);
+WS_DLL_PUBLIC gboolean prefs_capture_device_monitor_mode(const char *name);
 
-extern gboolean prefs_capture_options_dialog_column_is_visible(const gchar *column);
+WS_DLL_PUBLIC gboolean prefs_capture_options_dialog_column_is_visible(const gchar *column);
 
 #ifdef __cplusplus
 }

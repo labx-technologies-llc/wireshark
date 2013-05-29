@@ -25,6 +25,8 @@
 #ifndef __ETYPES_H__
 #define __ETYPES_H__
 
+#include "ws_symbol_export.h"
+
 /*
  * Maximum length of an IEEE 802.3 frame; Ethernet type/length values
  * less than or equal to it are lengths.
@@ -85,7 +87,7 @@
 #endif
 
 #ifndef ETHERTYPE_BPQ
-#define ETHERTYPE_BPQ			0x08ff	/* AX.25 over ethernet (not officially registered) */
+#define ETHERTYPE_BPQ			0x08FF	/* AX.25 over ethernet (not officially registered) */
 #endif
 
 #ifndef ETHERTYPE_VINES_IP
@@ -456,9 +458,13 @@
 
 #ifndef ETHERTYPE_PTP
 #define ETHERTYPE_PTP			0x88F7	/* IEEE1588v2 (PTPv2) over Ethernet */
-#endif									/* in particular for the information exchange between IED's in a power */
-										/* transmission or distribution substation. */
-										/*  There are three types of application services */
+#endif						/* in particular for the information exchange between IED's in a power */
+						/* transmission or distribution substation. */
+						/*  There are three types of application services */
+
+#ifndef ETHERTYPE_NCSI
+#define ETHERTYPE_NCSI			0x88F8	/*  DMTF NC-SI: Network Controller Sideband Interface */
+#endif
 
 #ifndef ETHERTYPE_PRP
 #define ETHERTYPE_PRP			0x88FB  /* Parallel Redundancy Protocol (IEC62439 Part 3) */
@@ -490,6 +496,10 @@
 
 #ifndef ETHERTYPE_FIP
 #define ETHERTYPE_FIP			0x8914	/* FCoE Initialization Protocol */
+#endif
+
+#ifndef ETHERTYPE_MIH
+#define ETHERTYPE_MIH			0x8917	/* Media Independent Handover Protocol */
 #endif
 
 #ifndef ETHERTYPE_TTE_PCF
@@ -528,6 +538,6 @@
 #define ETHERTYPE_ROCE			0x8915 /* Infiniband RDMA over Converged Ethernet */
 #endif
 
-WS_VAR_IMPORT const value_string etype_vals[];
+WS_DLL_PUBLIC const value_string etype_vals[];
 
 #endif /* etypes.h */

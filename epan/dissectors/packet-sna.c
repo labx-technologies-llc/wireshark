@@ -129,8 +129,8 @@ static int hf_sna_nlp_opti_0e_nabsp = -1;
 static int hf_sna_nlp_opti_0e_sync = -1;
 static int hf_sna_nlp_opti_0e_echo = -1;
 static int hf_sna_nlp_opti_0e_rseq = -1;
-static int hf_sna_nlp_opti_0e_abspbeg = -1;
-static int hf_sna_nlp_opti_0e_abspend = -1;
+/* static int hf_sna_nlp_opti_0e_abspbeg = -1; */
+/* static int hf_sna_nlp_opti_0e_abspend = -1; */
 static int hf_sna_nlp_opti_0f_bits = -1;
 static int hf_sna_nlp_opti_10_tcid = -1;
 static int hf_sna_nlp_opti_12_sense = -1;
@@ -196,7 +196,7 @@ static int hf_sna_gds_len = -1;
 static int hf_sna_gds_type = -1;
 static int hf_sna_gds_cont = -1;
 
-static int hf_sna_xid = -1;
+/* static int hf_sna_xid = -1; */
 static int hf_sna_xid_0 = -1;
 static int hf_sna_xid_id = -1;
 static int hf_sna_xid_format = -1;
@@ -298,7 +298,7 @@ static dissector_handle_t data_handle;
 
 /* Defragment fragmented SNA BIUs*/
 static gboolean sna_defragment = TRUE;
-static GHashTable *sna_fragment_table = NULL;
+static reassembly_table sna_reassembly_table;
 
 /* Format Identifier */
 static const value_string sna_th_fid_vals[] = {
@@ -1684,9 +1684,9 @@ defragment_by_sequence(packet_info *pinfo, tvbuff_t *tvb, int offset, int mpf,
 		/* XXX - check length ??? */
 		frag_len = tvb_reported_length_remaining(tvb, offset);
 		if (tvb_bytes_exist(tvb, offset, frag_len)) {
-			fd_head = fragment_add_seq(tvb, offset, pinfo, id,
-			    sna_fragment_table, frag_number, frag_len,
-			    more_frags);
+			fd_head = fragment_add_seq(&sna_reassembly_table,
+			    tvb, offset, pinfo, id, NULL,
+			    frag_number, frag_len, more_frags, 0);
 
 			/* We added the LAST segment and reassembly didn't
 			 * complete. Insert a zero-length MIDDLE segment to
@@ -1695,9 +1695,9 @@ defragment_by_sequence(packet_info *pinfo, tvbuff_t *tvb, int offset, int mpf,
 		         * See above long comment about this trickery. */
 
 			if (mpf == MPF_LAST_SEGMENT && !fd_head) {
-				fd_head = fragment_add_seq(tvb, offset, pinfo,
-				    id, sna_fragment_table,
-				    MIDDLE_FRAG_NUMBER, 0, TRUE);
+				fd_head = fragment_add_seq(&sna_reassembly_table,
+				    tvb, offset, pinfo, id, NULL,
+				    MIDDLE_FRAG_NUMBER, 0, TRUE, 0);
 			}
 
 			if (fd_head != NULL) {
@@ -2512,15 +2512,11 @@ dissect_gds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	guint16		length;
 	guint16		type;
 	int		cont;
-	int		offset;
+	int		offset = 0;
 	proto_tree	*gds_tree;
 	proto_item	*gds_item;
 
-	offset = 0;
-	cont   = 1;
-	type   = tvb_get_ntohs(tvb, offset+2);
-
-	while (cont) {
+	do {
 		length = tvb_get_ntohs(tvb, offset) & 0x7fff;
 		cont   = (tvb_get_ntohs(tvb, offset) & 0x8000) ? 1 : 0;
 		type   = tvb_get_ntohs(tvb, offset+2);
@@ -2541,7 +2537,7 @@ dissect_gds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			    offset+2, 2, type);
 		}
 		offset += length;
-	}
+	} while(cont);
 	if (tvb_offset_exists(tvb, offset))
 		call_dissector(data_handle,
 		    tvb_new_subset_remaining(tvb, offset), pinfo, parent_tree);
@@ -2614,7 +2610,8 @@ dissect_sna_xid(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static void
 sna_init(void)
 {
-	fragment_table_init(&sna_fragment_table);
+	reassembly_table_init(&sna_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 
@@ -2976,13 +2973,17 @@ proto_register_sna(void)
                 { "Received Sequence Number", "sna.nlp.thdr.optional.0e.rseq",
 		    FT_UINT32, BASE_HEX, NULL, 0x0, NULL, HFILL }},
 
+#if 0
                 { &hf_sna_nlp_opti_0e_abspbeg,
                 { "ABSP Begin", "sna.nlp.thdr.optional.0e.abspbeg",
 		    FT_UINT32, BASE_HEX, NULL, 0x0, NULL, HFILL }},
+#endif
 
+#if 0
                 { &hf_sna_nlp_opti_0e_abspend,
                 { "ABSP End", "sna.nlp.thdr.optional.0e.abspend",
 		    FT_UINT32, BASE_HEX, NULL, 0x0, NULL, HFILL }},
+#endif
 
                 { &hf_sna_nlp_opti_0f_bits,
                 { "Client Bits", "sna.nlp.thdr.optional.0f.bits",
@@ -3257,9 +3258,11 @@ proto_register_sna(void)
 		{ "Type of Variable", "sna.gds.type", FT_UINT16, BASE_HEX,
 		    VALS(sna_gds_var_vals), 0x0, NULL, HFILL }},
 
+#if 0
 		{ &hf_sna_xid,
 		{ "XID", "sna.xid", FT_NONE, BASE_NONE, NULL, 0x0,
 		    "XID Frame", HFILL }},
+#endif
 
 		{ &hf_sna_xid_0,
 		{ "XID Byte 0", "sna.xid.0", FT_UINT8, BASE_HEX, NULL, 0x0,

@@ -25,6 +25,7 @@
 #define __CSIDS_H__
 #include <glib.h>
 #include <wtap.h>
+#include "ws_symbol_export.h"
 
 int csids_open(wtap *wth, int *err, gchar **err_info);
 

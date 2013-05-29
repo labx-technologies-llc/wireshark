@@ -91,7 +91,8 @@ enum {
 
 static const gchar *ue_titles[] = { "RNTI", "Type", "UEId",
                                     "UL Frames", "UL Bytes", "UL MBit/sec", "UL Padding %", "UL ReTX",
-                                    "DL Frames", "DL Bytes", "DL MBit/sec", "DL Padding %", "DL CRC Failed", "DL CRC High Code Rate", "DL CRC PDSCH Lost", "DL CRC Dup NonZero RV", "DL ReTX"};
+                                    "DL Frames", "DL Bytes", "DL MBit/sec", "DL Padding %", "DL CRC Failed",
+                                    "DL CRC High Code Rate", "DL CRC PDSCH Lost", "DL CRC Dup NonZero RV", "DL ReTX"};
 
 static const gchar *channel_titles[] = { "CCCH",
                                          "LCID 1", "LCID 2", "LCID 3", "LCID 4", "LCID 5",
@@ -138,7 +139,7 @@ typedef struct mac_lte_row_data {
 
 /* One row/UE in the UE table */
 typedef struct mac_lte_ep {
-    struct mac_lte_ep* next;
+    struct mac_lte_ep *next;
     struct mac_lte_row_data stats;
     GtkTreeIter iter;
     gboolean iter_valid;
@@ -160,66 +161,66 @@ typedef struct mac_lte_common_stats {
 } mac_lte_common_stats;
 
 
-static const char * selected_ue_row_names[] = {"UL SDUs", "UL Bytes", "DL SDUs", "DL Bytes"};
+static const char *selected_ue_row_names[] = {"UL SDUs", "UL Bytes", "DL SDUs", "DL Bytes"};
 
 
 /* Used to keep track of whole MAC LTE statistics window */
 typedef struct mac_lte_stat_t {
     /* Stats window itself */
-    GtkWidget  *mac_lte_stat_dlg_w;
+    GtkWidget    *mac_lte_stat_dlg_w;
 
-    char       *filter;
+    char         *filter;
 
     /* Labels */
-    GtkWidget  *mac_lte_stat_ues_lb;
-    GtkWidget  *ul_filter_bt;
-    GtkWidget  *dl_filter_bt;
-    GtkWidget  *uldl_filter_bt;
+    GtkWidget    *mac_lte_stat_ues_lb;
+    GtkWidget    *ul_filter_bt;
+    GtkWidget    *dl_filter_bt;
+    GtkWidget    *uldl_filter_bt;
 
-    GtkWidget  *show_mac_rach_cb;
-    GtkWidget  *show_mac_srs_cb;
-    GtkWidget  *show_dct_errors_cb;
-    GtkWidget  *dct_error_substring_lb;
-    GtkWidget  *dct_error_substring_te;
+    GtkWidget    *show_mac_rach_cb;
+    GtkWidget    *show_mac_srs_cb;
+    GtkWidget    *show_dct_errors_cb;
+    GtkWidget    *dct_error_substring_lb;
+    GtkWidget    *dct_error_substring_te;
 
-    GtkWidget  *ul_max_ues_per_tti;
-    GtkWidget  *dl_max_ues_per_tti;
+    GtkWidget    *ul_max_ues_per_tti;
+    GtkWidget    *dl_max_ues_per_tti;
 
     /* Common stats */
     mac_lte_common_stats common_stats;
-    GtkWidget *common_bch_frames;
-    GtkWidget *common_bch_bytes;
-    GtkWidget *common_pch_frames;
-    GtkWidget *common_pch_bytes;
-    GtkWidget *common_rar_frames;
-    GtkWidget *common_rar_entries;
+    GtkWidget    *common_bch_frames;
+    GtkWidget    *common_bch_bytes;
+    GtkWidget    *common_pch_frames;
+    GtkWidget    *common_pch_bytes;
+    GtkWidget    *common_rar_frames;
+    GtkWidget    *common_rar_entries;
 
     /* Keep track of unique rntis & ueids */
-    guint8 used_ueids[65535];
-    guint8 used_rntis[65535];
-    guint16 number_of_ueids;
-    guint16 number_of_rntis;
+    guint8        used_ueids[65535];
+    guint8        used_rntis[65535];
+    guint16       number_of_ueids;
+    guint16       number_of_rntis;
 
-    guint16 selected_rnti;
-    guint16 selected_ueid;
+    guint16       selected_rnti;
+    guint16       selected_ueid;
 
     /* Labels in selected UE 'table' */
-    GtkWidget *selected_ue_column_entry[NUM_CHANNEL_COLUMNS][5];
+    GtkWidget    *selected_ue_column_entry[NUM_CHANNEL_COLUMNS][5];
 
-    GtkTreeView   *ue_table;
-    mac_lte_ep_t  *ep_list;
+    GtkTreeView  *ue_table;
+    mac_lte_ep_t *ep_list;
 } mac_lte_stat_t;
 
 
 /* Reset the statistics window */
 static void mac_lte_stat_reset(void *phs)
 {
-    mac_lte_stat_t* mac_lte_stat = (mac_lte_stat_t *)phs;
-    mac_lte_ep_t* list = mac_lte_stat->ep_list;
-    char *display_name;
-    gchar title[256];
-    GtkListStore *store;
-    gint i, n;
+    mac_lte_stat_t *mac_lte_stat = (mac_lte_stat_t *)phs;
+    mac_lte_ep_t   *list         = mac_lte_stat->ep_list;
+    char           *display_name;
+    gchar           title[256];
+    GtkListStore   *store;
+    gint            i, n;
 
     /* Set the title */
     if (mac_lte_stat->mac_lte_stat_dlg_w != NULL) {
@@ -263,16 +264,16 @@ static void mac_lte_stat_reset(void *phs)
 
 
 /* Allocate a mac_lte_ep_t struct to store info for new UE */
-static mac_lte_ep_t* alloc_mac_lte_ep(struct mac_lte_tap_info *si, packet_info *pinfo _U_)
+static mac_lte_ep_t* alloc_mac_lte_ep(const struct mac_lte_tap_info *si, packet_info *pinfo _U_)
 {
-    mac_lte_ep_t* ep;
+    mac_lte_ep_t *ep;
     int n;
 
     if (!si) {
         return NULL;
     }
 
-    if (!(ep = g_malloc(sizeof(mac_lte_ep_t)))) {
+    if (!(ep = (mac_lte_ep_t *)g_malloc(sizeof(mac_lte_ep_t)))) {
         return NULL;
     }
 
@@ -341,7 +342,7 @@ static int mac_lte_stat_packet(void *phs, packet_info *pinfo, epan_dissect_t *ed
     mac_lte_ep_t *tmp = NULL, *te = NULL;
 
     /* Cast tap info struct */
-    struct mac_lte_tap_info *si = (struct mac_lte_tap_info *)phi;
+    const struct mac_lte_tap_info *si = (const struct mac_lte_tap_info *)phi;
 
     if (!hs) {
         return 0;
@@ -400,7 +401,7 @@ static int mac_lte_stat_packet(void *phs, packet_info *pinfo, epan_dissect_t *ed
         for (tmp = hs->ep_list;(tmp != NULL); tmp = tmp->next) {
             /* Match only by RNTI and UEId together */
             if ((tmp->stats.rnti == si->rnti) &&
-                (tmp->stats.ueid == si->ueid)){
+                (tmp->stats.ueid == si->ueid)) {
                 te = tmp;
                 break;
             }
@@ -530,8 +531,8 @@ static int mac_lte_stat_packet(void *phs, packet_info *pinfo, epan_dissect_t *ed
 /* Draw the UE details table according to the current UE selection */
 static void mac_lte_ue_details(mac_lte_ep_t *mac_stat_ep, mac_lte_stat_t *hs)
 {
-    int n;
-    gchar buff[32];
+    int    n;
+    gchar  buff[32];
     guint8 show_dct_errors;
 
     /**********************************/
@@ -638,12 +639,12 @@ static float calculate_bw(nstime_t *start_time, nstime_t *stop_time, guint32 byt
         /* Only really meaningful if have a few frames spread over time...
            For now at least avoid dividing by something very close to 0.0 */
         if (elapsed_ms < 2.0) {
-           return 0.0;
+           return 0.0f;
         }
         return ((bytes * 8) / elapsed_ms) / 1000;
     }
     else {
-        return 0.0;
+        return 0.0f;
     }
 }
 
@@ -651,19 +652,19 @@ static float calculate_bw(nstime_t *start_time, nstime_t *stop_time, guint32 byt
 /* (Re)draw the whole dialog window */
 static void mac_lte_stat_draw(void *phs)
 {
-    gchar   buff[32];
-    guint16 number_of_ues = 0;
-    char *display_name;
-    gchar title[256];
+    gchar    buff[32];
+    guint16  number_of_ues = 0;
+    char    *display_name;
+    gchar    title[256];
 
     /* Look up the statistics window */
-    mac_lte_stat_t *hs = (mac_lte_stat_t *)phs;
-    mac_lte_ep_t* list = hs->ep_list, *tmp = 0;
+    mac_lte_stat_t   *hs   = (mac_lte_stat_t *)phs;
+    mac_lte_ep_t     *list = hs->ep_list, *tmp = 0;
 
-    GtkListStore *ues_store;
+    GtkListStore     *ues_store;
     GtkTreeSelection *sel;
-    GtkTreeModel *model;
-    GtkTreeIter iter;
+    GtkTreeModel     *model;
+    GtkTreeIter       iter;
 
     /* System data */
     g_snprintf(buff, sizeof(buff), "Max UL UEs/TTI: %u", hs->common_stats.max_ul_ues_in_tti);
@@ -785,21 +786,20 @@ static void mac_lte_stat_draw(void *phs)
 /* Compose and set appropriate display filter */
 typedef enum Direction_t {UL_Only, DL_Only, UL_and_DL} Direction_t;
 
-static void set_filter_expression(guint16  ueid,
-                                  guint16  rnti,
-                                  Direction_t direction,
-                                  gint     showRACH,
-                                  gint     showSRs,
-                                  gint     showDCTErrors,
+static void set_filter_expression(guint16         ueid,
+                                  guint16         rnti,
+                                  Direction_t     direction,
+                                  gint            showRACH,
+                                  gint            showSRs,
+                                  gint            showDCTErrors,
                                   const gchar    *DCTErrorSubstring,
                                   mac_lte_stat_t *hs)
 {
     #define MAX_FILTER_LEN 512
     static char buffer[MAX_FILTER_LEN];
-    int offset = 0;
+    int         offset = 0;
 
     /* Create the filter expression */
-
 
     /* Show MAC RACH (preamble attempts and RAR PDUs) */
     if (showRACH) {
@@ -877,8 +877,8 @@ static void set_filter_expression(guint16  ueid,
 static void ul_filter_clicked(GtkWindow *win _U_, mac_lte_stat_t* hs)
 {
     GtkTreeSelection *sel;
-    GtkTreeModel *model;
-    GtkTreeIter iter;
+    GtkTreeModel     *model;
+    GtkTreeIter       iter;
 
     /* If there is a UE selected, update its counters in details window */
     sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(hs->ue_table));
@@ -898,11 +898,11 @@ static void ul_filter_clicked(GtkWindow *win _U_, mac_lte_stat_t* hs)
 }
 
 /* Respond to DL filter button being clicked by building and using filter */
-static void dl_filter_clicked(GtkWindow *win _U_, mac_lte_stat_t* hs)
+static void dl_filter_clicked(GtkWindow *win _U_, mac_lte_stat_t *hs)
 {
     GtkTreeSelection *sel;
-    GtkTreeModel *model;
-    GtkTreeIter iter;
+    GtkTreeModel     *model;
+    GtkTreeIter       iter;
 
     /* If there is a UE selected, update its counters in details window */
     sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(hs->ue_table));
@@ -923,11 +923,11 @@ static void dl_filter_clicked(GtkWindow *win _U_, mac_lte_stat_t* hs)
 }
 
 /* Respond to UL/DL filter button being clicked by building and using filter */
-static void uldl_filter_clicked(GtkWindow *win _U_, mac_lte_stat_t* hs)
+static void uldl_filter_clicked(GtkWindow *win _U_, mac_lte_stat_t *hs)
 {
     GtkTreeSelection *sel;
-    GtkTreeModel *model;
-    GtkTreeIter iter;
+    GtkTreeModel     *model;
+    GtkTreeIter       iter;
 
     /* If there is a UE selected, update its counters in details window */
     sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(hs->ue_table));
@@ -954,7 +954,7 @@ static void mac_lte_select_cb(GtkTreeSelection *sel, gpointer data)
     mac_lte_stat_t *hs = (mac_lte_stat_t *)data;
     mac_lte_ep_t   *ep;
     GtkTreeModel   *model;
-    GtkTreeIter    iter;
+    GtkTreeIter     iter;
 
     if (gtk_tree_selection_get_selected(sel, &model, &iter)) {
         /* Show details of selected UE */
@@ -995,41 +995,41 @@ static void win_destroy_cb(GtkWindow *win _U_, gpointer data)
 
 
 /* Create a new MAC LTE stats dialog */
-static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
+void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
 {
-    mac_lte_stat_t    *hs;
-    const char    *filter = NULL;
-    GString       *error_string;
-    GtkWidget     *ues_scrolled_window;
-    GtkWidget     *bbox;
-    GtkWidget     *top_level_vbox;
+    mac_lte_stat_t *hs;
+    const char *filter = NULL;
+    GString    *error_string;
+    GtkWidget  *ues_scrolled_window;
+    GtkWidget  *bbox;
+    GtkWidget  *top_level_vbox;
 
-    GtkWidget     *system_row_hbox;
-    GtkWidget     *common_row_hbox;
-    GtkWidget     *ues_vb;
-    GtkWidget     *selected_ue_hb;
+    GtkWidget  *system_row_hbox;
+    GtkWidget  *common_row_hbox;
+    GtkWidget  *ues_vb;
+    GtkWidget  *selected_ue_hb;
 
-    GtkWidget     *mac_lte_stat_system_lb;
-    GtkWidget     *mac_lte_stat_common_channel_lb;
-    GtkWidget     *mac_lte_stat_selected_ue_lb;
-    GtkWidget     *selected_ue_vbox[NUM_CHANNEL_COLUMNS];
-    GtkWidget     *selected_ue_column_titles[5];
+    GtkWidget  *mac_lte_stat_system_lb;
+    GtkWidget  *mac_lte_stat_common_channel_lb;
+    GtkWidget  *mac_lte_stat_selected_ue_lb;
+    GtkWidget  *selected_ue_vbox[NUM_CHANNEL_COLUMNS];
+    GtkWidget  *selected_ue_column_titles[5];
 
-    GtkWidget     *mac_lte_stat_filters_lb;
-    GtkWidget     *filter_buttons_hb;
+    GtkWidget  *mac_lte_stat_filters_lb;
+    GtkWidget  *filter_buttons_hb;
 
-    GtkWidget     *close_bt;
-    GtkWidget     *help_bt;
+    GtkWidget  *close_bt;
+    GtkWidget  *help_bt;
 
-    GtkListStore  *store;
+    GtkListStore *store;
 
     GtkTreeView       *tree_view;
     GtkCellRenderer   *renderer;
     GtkTreeViewColumn *column;
     GtkTreeSelection  *sel;
     gchar *display_name;
-    gchar title[256];
-    gint i, n;
+    gchar  title[256];
+    gint   i, n;
 
     /* Check for a filter string */
     if (strncmp(opt_arg, "mac-lte,stat,", 13) == 0) {
@@ -1043,7 +1043,7 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
 
 
     /* Create dialog */
-    hs = g_malloc(sizeof(mac_lte_stat_t));
+    hs = (mac_lte_stat_t *)g_malloc(sizeof(mac_lte_stat_t));
     hs->ep_list = NULL;
 
     /* Copy filter (so can be used for window title at reset) */
@@ -1089,12 +1089,12 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     /* Create labels (that will hold label and counter value) */
     hs->ul_max_ues_per_tti = gtk_label_new("Max UL UEs/TTI:");
     gtk_misc_set_alignment(GTK_MISC(hs->ul_max_ues_per_tti), 0.0f, .5f);
-    gtk_container_add(GTK_CONTAINER(system_row_hbox), hs->ul_max_ues_per_tti);
+    gtk_box_pack_start(GTK_BOX(system_row_hbox), hs->ul_max_ues_per_tti, TRUE, TRUE, 0);
     gtk_widget_show(hs->ul_max_ues_per_tti);
 
     hs->dl_max_ues_per_tti = gtk_label_new("Max DL UEs/TTI:");
     gtk_misc_set_alignment(GTK_MISC(hs->dl_max_ues_per_tti), 0.0f, .5f);
-    gtk_container_add(GTK_CONTAINER(system_row_hbox), hs->dl_max_ues_per_tti);
+    gtk_box_pack_start(GTK_BOX(system_row_hbox), hs->dl_max_ues_per_tti, TRUE, TRUE, 0);
     gtk_widget_show(hs->dl_max_ues_per_tti);
 
 
@@ -1113,32 +1113,32 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     /* Create labels (that will hold label and counter value) */
     hs->common_bch_frames = gtk_label_new("BCH Frames:");
     gtk_misc_set_alignment(GTK_MISC(hs->common_bch_frames), 0.0f, .5f);
-    gtk_container_add(GTK_CONTAINER(common_row_hbox), hs->common_bch_frames);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_bch_frames, TRUE, TRUE, 0);
     gtk_widget_show(hs->common_bch_frames);
 
     hs->common_bch_bytes = gtk_label_new("BCH Bytes:");
     gtk_misc_set_alignment(GTK_MISC(hs->common_bch_bytes), 0.0f, .5f);
-    gtk_container_add(GTK_CONTAINER(common_row_hbox), hs->common_bch_bytes);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_bch_bytes, TRUE, TRUE, 0);
     gtk_widget_show(hs->common_bch_bytes);
 
     hs->common_pch_frames = gtk_label_new("PCH Frames:");
     gtk_misc_set_alignment(GTK_MISC(hs->common_pch_frames), 0.0f, .5f);
-    gtk_container_add(GTK_CONTAINER(common_row_hbox), hs->common_pch_frames);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_pch_frames, TRUE, TRUE, 0);
     gtk_widget_show(hs->common_pch_frames);
 
     hs->common_pch_bytes = gtk_label_new("PCH Bytes:");
     gtk_misc_set_alignment(GTK_MISC(hs->common_pch_bytes), 0.0f, .5f);
-    gtk_container_add(GTK_CONTAINER(common_row_hbox), hs->common_pch_bytes);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_pch_bytes, TRUE, TRUE, 0);
     gtk_widget_show(hs->common_pch_bytes);
 
     hs->common_rar_frames = gtk_label_new("RAR Frames:");
     gtk_misc_set_alignment(GTK_MISC(hs->common_rar_frames), 0.0f, .5f);
-    gtk_container_add(GTK_CONTAINER(common_row_hbox), hs->common_rar_frames);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_rar_frames, TRUE, TRUE, 0);
     gtk_widget_show(hs->common_rar_frames);
 
     hs->common_rar_entries = gtk_label_new("RAR Entries:");
     gtk_misc_set_alignment(GTK_MISC(hs->common_rar_entries), 0.0f, .5f);
-    gtk_container_add(GTK_CONTAINER(common_row_hbox), hs->common_rar_entries);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_rar_entries, TRUE, TRUE, 0);
     gtk_widget_show(hs->common_rar_entries);
 
     /**********************************************/
@@ -1158,7 +1158,8 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     /* Create the table of UE data */
     store = gtk_list_store_new(NUM_UE_COLUMNS, G_TYPE_INT, G_TYPE_STRING, G_TYPE_INT,
                                G_TYPE_INT, G_TYPE_INT, G_TYPE_FLOAT, G_TYPE_FLOAT, G_TYPE_INT, /* UL */
-                               G_TYPE_INT, G_TYPE_INT, G_TYPE_FLOAT, G_TYPE_FLOAT, G_TYPE_INT, G_TYPE_INT, G_TYPE_INT,  G_TYPE_INT, G_TYPE_INT, /* DL */
+                               G_TYPE_INT, G_TYPE_INT, G_TYPE_FLOAT, G_TYPE_FLOAT, G_TYPE_INT,
+                               G_TYPE_INT, G_TYPE_INT,  G_TYPE_INT, G_TYPE_INT, /* DL */
                                G_TYPE_POINTER);
     hs->ue_table = GTK_TREE_VIEW(tree_view_new(GTK_TREE_MODEL(store)));
     gtk_container_add(GTK_CONTAINER (ues_scrolled_window), GTK_WIDGET(hs->ue_table));
@@ -1173,6 +1174,7 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
         if ((i == UL_PADDING_PERCENT_COLUMN) ||
             (i == DL_PADDING_PERCENT_COLUMN)) {
             /* Show % as progress bar */
+            /* XXX: "progess" rendering doesn't seem to work for Gtk3 ?? */
             renderer = gtk_cell_renderer_progress_new();
             column = gtk_tree_view_column_new_with_attributes(ue_titles[i], renderer,
                                                               "text", i,
@@ -1219,16 +1221,16 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     /********************************/
     /* First (row titles) column    */
     selected_ue_vbox[0] = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
-    gtk_container_add(GTK_CONTAINER(selected_ue_hb), selected_ue_vbox[0]);
+    gtk_box_pack_start(GTK_BOX(selected_ue_hb), selected_ue_vbox[0], TRUE, TRUE, 0);
 
     selected_ue_column_titles[0] = gtk_label_new("");
     gtk_misc_set_alignment(GTK_MISC(selected_ue_column_titles[0]), 0.0f, 0.0f);
-    gtk_container_add(GTK_CONTAINER(selected_ue_vbox[0]), selected_ue_column_titles[0]);
+    gtk_box_pack_start(GTK_BOX(selected_ue_vbox[0]), selected_ue_column_titles[0], FALSE, FALSE, 0);
 
     for (n=1; n < 5; n++) {
         selected_ue_column_titles[n] = gtk_label_new(selected_ue_row_names[n-1]);
         gtk_misc_set_alignment(GTK_MISC(selected_ue_column_titles[n]), 0.0f, 0.0f);
-        gtk_container_add(GTK_CONTAINER(selected_ue_vbox[0]), selected_ue_column_titles[n]);
+        gtk_box_pack_start(GTK_BOX(selected_ue_vbox[0]), selected_ue_column_titles[n], FALSE, FALSE, 0);
         gtk_widget_show(selected_ue_column_titles[n]);
     }
 
@@ -1237,18 +1239,18 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     /* Other columns         */
     for (i=CCCH_COLUMN; i < NUM_CHANNEL_COLUMNS; i++) {
         selected_ue_vbox[i] = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
-        gtk_container_add(GTK_CONTAINER(selected_ue_hb), selected_ue_vbox[i]);
+        gtk_box_pack_start(GTK_BOX(selected_ue_hb), selected_ue_vbox[i], TRUE, TRUE, 0);
 
         /* Channel title */
         hs->selected_ue_column_entry[i][0] = gtk_label_new(channel_titles[i-1]);
         gtk_misc_set_alignment(GTK_MISC(hs->selected_ue_column_entry[i][0]), 0.5f, 0.0f);
-        gtk_container_add(GTK_CONTAINER(selected_ue_vbox[i]), hs->selected_ue_column_entry[i][0]);
+        gtk_box_pack_start(GTK_BOX(selected_ue_vbox[i]), hs->selected_ue_column_entry[i][0], FALSE, FALSE, 0);
 
         /* Counts for this channel */
         for (n=1; n < 5; n++) {
             hs->selected_ue_column_entry[i][n] = gtk_label_new("0");
             gtk_misc_set_alignment(GTK_MISC(hs->selected_ue_column_entry[i][n]), 1.0f, 0.0f);
-            gtk_container_add(GTK_CONTAINER(selected_ue_vbox[i]), hs->selected_ue_column_entry[i][n]);
+            gtk_box_pack_start(GTK_BOX(selected_ue_vbox[i]), hs->selected_ue_column_entry[i][n], FALSE, FALSE, 0);
             gtk_widget_show(hs->selected_ue_column_entry[i][n]);
         }
     }
@@ -1301,7 +1303,7 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     /* Show MAC RACH */
     hs->show_mac_rach_cb = gtk_check_button_new_with_mnemonic("Show MAC RACH");
     gtk_widget_set_sensitive(hs->show_mac_rach_cb, FALSE);
-    gtk_container_add(GTK_CONTAINER(filter_buttons_hb), hs->show_mac_rach_cb);
+    gtk_box_pack_start(GTK_BOX(filter_buttons_hb), hs->show_mac_rach_cb, TRUE, TRUE, 0);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hs->show_mac_rach_cb), FALSE);
     gtk_widget_set_tooltip_text(hs->show_mac_rach_cb, "When checked, generated filters will show "
                          "MAC RACH attempts for the UE");
@@ -1309,7 +1311,7 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     /* Show MAC SRs */
     hs->show_mac_srs_cb = gtk_check_button_new_with_mnemonic("Show MAC SRs");
     gtk_widget_set_sensitive(hs->show_mac_srs_cb, FALSE);
-    gtk_container_add(GTK_CONTAINER(filter_buttons_hb), hs->show_mac_srs_cb);
+    gtk_box_pack_start(GTK_BOX(filter_buttons_hb), hs->show_mac_srs_cb, TRUE, TRUE, 0);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hs->show_mac_srs_cb), FALSE);
     gtk_widget_set_tooltip_text(hs->show_mac_srs_cb, "When checked, generated filters will show "
                          "MAC SRs for the UE");
@@ -1317,7 +1319,7 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
 
     /* Allow DCT errors to be shown... */
     hs->show_dct_errors_cb = gtk_check_button_new_with_mnemonic("Show DCT2000 error strings");
-    gtk_container_add(GTK_CONTAINER(filter_buttons_hb), hs->show_dct_errors_cb);
+    gtk_box_pack_start(GTK_BOX(filter_buttons_hb), hs->show_dct_errors_cb, TRUE, TRUE, 0);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hs->show_dct_errors_cb), FALSE);
     g_signal_connect(hs->show_dct_errors_cb, "toggled", G_CALLBACK(mac_lte_dct_errors_cb), hs);
     gtk_widget_set_tooltip_text(hs->show_dct_errors_cb, "When checked, generated filters will "
@@ -1364,10 +1366,10 @@ static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     gtk_box_pack_end (GTK_BOX(top_level_vbox), bbox, FALSE, FALSE, 0);
 
     /* Add the close button */
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(hs->mac_lte_stat_dlg_w, close_bt, window_cancel_button_cb);
 
-    help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_STATS_LTE_MAC_TRAFFIC_DIALOG);
 
     /* Set callbacks */
@@ -1399,10 +1401,9 @@ static tap_param_dlg mac_lte_stat_dlg = {
 
 
 /* Register this tap listener (need void on own so line register function found) */
-void
-register_tap_listener_mac_lte_stat(void)
+void register_tap_listener_mac_lte_stat(void)
 {
-    register_dfilter_stat(&mac_lte_stat_dlg, "_LTE/_MAC", REGISTER_STAT_GROUP_TELEPHONY);
+    register_param_stat(&mac_lte_stat_dlg, "_LTE/_MAC", REGISTER_STAT_GROUP_TELEPHONY);
 }
 
 void mac_lte_stat_cb(GtkAction *action, gpointer user_data _U_)

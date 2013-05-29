@@ -252,7 +252,7 @@ static void dissect_web_cache_list_entry(tvbuff_t *tvb, int offset,
     int idx, proto_tree *wccp_tree);
 static guint32 wccp_bucket_info(guint8 bucket_info, proto_tree *bucket_tree,
     guint32 start, tvbuff_t *tvb, int offset);
-static gchar *bucket_name(guint8 bucket);
+static const gchar *bucket_name(guint8 bucket);
 static guint16 dissect_wccp2_header(tvbuff_t *tvb, int offset,
     proto_tree *wccp_tree);
 static void dissect_wccp2_info(tvbuff_t *tvb, int offset, guint16 length,
@@ -296,7 +296,7 @@ dissect_wccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 	wccp_message_type = tvb_get_ntohl(tvb, offset);
 
 	/* Check if this is really a WCCP message */
-	if (match_strval(wccp_message_type, wccp_type_vals) == NULL)
+	if (try_val_to_str(wccp_message_type, wccp_type_vals) == NULL)
 		return 0;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "WCCP");
@@ -326,7 +326,7 @@ dissect_wccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 			offset += HASH_INFO_SIZE;
 			proto_tree_add_item(wccp_tree, hf_recvd_id, tvb, offset,
 			    4, ENC_BIG_ENDIAN);
-			offset += 4;
+			/*offset += 4;*/
 			break;
 
 		case WCCP_I_SEE_YOU:
@@ -456,10 +456,10 @@ wccp_bucket_info(guint8 bucket_info, proto_tree *bucket_tree, guint32 start,
 	return(start);
 }
 
-static gchar *
+static const gchar *
 bucket_name(guint8 bucket)
 {
-	gchar *cur;
+	const gchar *cur;
 
 	if (bucket == 0xff) {
 		cur="Unassigned";
@@ -956,10 +956,10 @@ dissect_wccp2_router_assignment_element(tvbuff_t *tvb, int offset,
 	proto_tree_add_item(tree, hf_router_assignment_element_change_num, tvb, offset+8, 4, ENC_BIG_ENDIAN);
 }
 
-static gchar *
+static const gchar *
 assignment_bucket_name(guint8 bucket)
 {
-	gchar *cur;
+	const gchar *cur;
 
 	if (bucket == 0xff) {
 		cur="Unassigned";

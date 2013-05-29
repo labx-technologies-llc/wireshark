@@ -43,13 +43,13 @@ static guint cfilter_combo_max_recent = 20;
 static gboolean
 cfilter_combo_add(gchar *s) {
   GList     *li;
-  GList     *fl = g_object_get_data(G_OBJECT(top_level), E_CFILTER_FL_KEY);
+  GList     *fl = (GList*)g_object_get_data(G_OBJECT(top_level), E_CFILTER_FL_KEY);
 
   li = g_list_first(fl);
   while (li) {
     /* If the filter is already in the list, remove the old one and
      * append the new one at the latest position (at g_list_append() below) */
-    if (li->data && strcmp(s, li->data) == 0) {
+    if (li->data && strcmp(s, (char *)li->data) == 0) {
       fl = g_list_remove(fl, li->data);
       break;
     }
@@ -65,14 +65,14 @@ cfilter_combo_add(gchar *s) {
  * of the combo box GList to the user's recent file */
 void
  cfilter_combo_recent_write_all(FILE *rf) {
-   GList     *cfilter_list = g_object_get_data(G_OBJECT(top_level), E_CFILTER_FL_KEY);
+   GList     *cfilter_list = (GList*)g_object_get_data(G_OBJECT(top_level), E_CFILTER_FL_KEY);
    GList     *li;
    guint      max_count = 0;
 
    /* write all non empty capture filter strings to the recent file (until max count) */
    li = g_list_first(cfilter_list);
    while (li && (max_count++ <= cfilter_combo_max_recent) ) {
-     if (li->data && strlen(li->data)) {
+     if (li->data && strlen((const char *)li->data)) {
        fprintf (rf, RECENT_KEY_CAPTURE_FILTER ": %s\n", (char *)li->data);
      }
      li = li->next;
@@ -81,7 +81,7 @@ void
 
 /* add a capture filter coming from the user's recent file to the cfilter combo box */
 gboolean
- cfilter_combo_add_recent(gchar *s) {
+ cfilter_combo_add_recent(const gchar *s) {
    gchar *dupstr;
 
    if (s) {

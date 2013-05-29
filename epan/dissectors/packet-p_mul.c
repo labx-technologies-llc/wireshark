@@ -201,8 +201,7 @@ static gint decode_option = DECODE_NONE;
 static gboolean use_relative_msgid = TRUE;
 static gboolean use_seq_ack_analysis = TRUE;
 
-static GHashTable *p_mul_fragment_table = NULL;
-static GHashTable *p_mul_reassembled_table = NULL;
+static reassembly_table p_mul_reassembly_table;
 
 static guint32 message_id_offset = 0;
 
@@ -296,14 +295,14 @@ static guint16 checksum (guint8 *buffer, gint len, gint offset)
 
 static guint p_mul_id_hash (gconstpointer k)
 {
-  p_mul_id_key *p_mul = (p_mul_id_key *)k;
+  const p_mul_id_key *p_mul = (const p_mul_id_key *)k;
   return p_mul->id;
 }
 
 static gint p_mul_id_hash_equal (gconstpointer k1, gconstpointer k2)
 {
-  p_mul_id_key *p_mul1 = (p_mul_id_key *)k1;
-  p_mul_id_key *p_mul2 = (p_mul_id_key *)k2;
+  const p_mul_id_key *p_mul1 = (const p_mul_id_key *)k1;
+  const p_mul_id_key *p_mul2 = (const p_mul_id_key *)k2;
 
   if (p_mul1->id != p_mul2->id)
     return 0;
@@ -318,7 +317,7 @@ static p_mul_seq_val *lookup_seq_val (guint32 message_id, guint16 seq_no,
                                       address *addr)
 {
   p_mul_seq_val *pkg_data;
-  p_mul_id_key  *p_mul_key = se_alloc (sizeof (p_mul_id_key));
+  p_mul_id_key  *p_mul_key = se_new(p_mul_id_key);
 
   p_mul_key->id = message_id;
   p_mul_key->seq = seq_no;
@@ -346,7 +345,7 @@ static void copy_hashtable_data (gpointer key, p_mul_ack_data *ack_data1, GHashT
 {
   p_mul_ack_data *ack_data2;
 
-  ack_data2 = se_alloc (sizeof (p_mul_ack_data));
+  ack_data2 = se_new(p_mul_ack_data);
   ack_data2->ack_id = ack_data1->ack_id;
   ack_data2->ack_resend_count = ack_data1->ack_resend_count;
 
@@ -374,7 +373,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
   nstime_set_zero(&addr_time);
   nstime_set_zero(&prev_time);
 
-  p_mul_key = se_alloc (sizeof (p_mul_id_key));
+  p_mul_key = se_new(p_mul_id_key);
 
   if (!pinfo->fd->flags.visited &&
       (pdu_type == Address_PDU || pdu_type == Data_PDU || pdu_type == Discard_Message_PDU))
@@ -424,12 +423,12 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
     }
   }
 
-  pkg_list = p_get_proto_data (pinfo->fd, proto_p_mul);
+  pkg_list = (GHashTable *)p_get_proto_data(pinfo->fd, proto_p_mul, 0);
   if (!pkg_list) {
     /* Never saved list for this packet, create a new */
     pkg_list = g_hash_table_new (NULL, NULL);
     p_mul_package_data_list = g_list_append (p_mul_package_data_list, pkg_list);
-    p_add_proto_data (pinfo->fd, proto_p_mul, pkg_list);
+    p_add_proto_data (pinfo->fd, proto_p_mul, 0, pkg_list);
   }
 
   if (!pinfo->fd->flags.visited) {
@@ -444,10 +443,10 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
       if (pdu_type == Ack_PDU) {
         /* Only save this data if positive ack */
         if (no_missing == 0) {
-          ack_data = g_hash_table_lookup (p_mul_data->ack_data, GUINT_TO_POINTER(dstIP));
+          ack_data = (p_mul_ack_data *)g_hash_table_lookup (p_mul_data->ack_data, GUINT_TO_POINTER(dstIP));
           if (!ack_data) {
             /* Only save reference to first ACK */
-            ack_data = se_alloc0 (sizeof (p_mul_ack_data));
+            ack_data = se_new0(p_mul_ack_data);
             ack_data->ack_id = pinfo->fd->num;
             g_hash_table_insert (p_mul_data->ack_data, GUINT_TO_POINTER(dstIP), ack_data);
           } else {
@@ -470,9 +469,9 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
     } else {
       /* New message */
       if (pdu_type == Ack_PDU) {
-        p_mul_data = se_alloc0 (sizeof (p_mul_seq_val));
+        p_mul_data = se_new0(p_mul_seq_val);
       } else {
-        p_mul_data = g_malloc0 (sizeof (p_mul_seq_val));
+        p_mul_data = (p_mul_seq_val *)g_malloc0(sizeof (p_mul_seq_val));
       }
       p_mul_data->msg_type = pdu_type;
       if (pdu_type == Address_PDU || pdu_type == Ack_PDU) {
@@ -481,7 +480,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
 
       if (pdu_type == Ack_PDU) {
         /* No matching message for this ack */
-        ack_data = se_alloc0 (sizeof (p_mul_ack_data));
+        ack_data = se_new0(p_mul_ack_data);
         ack_data->ack_id = pinfo->fd->num;
         g_hash_table_insert (p_mul_data->ack_data, GUINT_TO_POINTER(dstIP), ack_data);
       } else {
@@ -501,7 +500,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
     }
 
     /* Copy the current package data to the frame */
-    pkg_data = se_alloc (sizeof (p_mul_seq_val));
+    pkg_data = se_new(p_mul_seq_val);
     *pkg_data = *p_mul_data;
     if (p_mul_data->ack_data) {
       /* Copy the hash table for ack data */
@@ -511,7 +510,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
     g_hash_table_insert (pkg_list, GUINT_TO_POINTER(message_id), pkg_data);
   } else {
     /* Fetch last values from data saved in packet */
-    pkg_data = g_hash_table_lookup (pkg_list, GUINT_TO_POINTER(message_id));
+    pkg_data = (p_mul_seq_val *)g_hash_table_lookup (pkg_list, GUINT_TO_POINTER(message_id));
   }
 
   DISSECTOR_ASSERT (pkg_data);
@@ -570,7 +569,7 @@ static void add_ack_analysis (tvbuff_t *tvb, packet_info *pinfo, proto_tree *p_m
     } else {
       memcpy((guint8 *)&dstIp, dst->data, 4);
       if (pkg_data->ack_data) {
-        ack_data = g_hash_table_lookup (pkg_data->ack_data, GUINT_TO_POINTER(dstIp));
+        ack_data = (p_mul_ack_data *)g_hash_table_lookup (pkg_data->ack_data, GUINT_TO_POINTER(dstIp));
       }
 
       /* Add reference to Ack_PDU */
@@ -609,7 +608,7 @@ static void add_ack_analysis (tvbuff_t *tvb, packet_info *pinfo, proto_tree *p_m
       return;
     }
     if (pkg_data->ack_data) {
-      ack_data = g_hash_table_lookup (pkg_data->ack_data, GUINT_TO_POINTER(dstIp));
+      ack_data = (p_mul_ack_data *)g_hash_table_lookup (pkg_data->ack_data, GUINT_TO_POINTER(dstIp));
     }
 
     /* Add reference to Address_PDU */
@@ -1294,8 +1293,8 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     if (pdu_type == Address_PDU && no_pdus > 0) {
       /* Start fragment table */
-      fragment_start_seq_check (pinfo, message_id, p_mul_fragment_table,
-                                no_pdus - 1);
+      fragment_start_seq_check (&p_mul_reassembly_table,
+                                pinfo, message_id, NULL, no_pdus - 1);
     } else if (pdu_type == Data_PDU) {
       fragment_data *frag_msg;
       tvbuff_t      *new_tvb;
@@ -1303,10 +1302,9 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       pinfo->fragmented = TRUE;
 
       /* Add fragment to fragment table */
-      frag_msg = fragment_add_seq_check (tvb, offset, pinfo, message_id,
-                                         p_mul_fragment_table,
-                                         p_mul_reassembled_table, seq_no - 1,
-                                         data_len, TRUE);
+      frag_msg = fragment_add_seq_check (&p_mul_reassembly_table,
+                                         tvb, offset, pinfo, message_id, NULL,
+                                         seq_no - 1, data_len, TRUE);
       new_tvb = process_reassembled_data (tvb, offset, pinfo,
                                           "Reassembled P_MUL", frag_msg,
                                           &p_mul_frag_items, NULL, tree);
@@ -1338,8 +1336,8 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 static void p_mul_init_routine (void)
 {
-  fragment_table_init (&p_mul_fragment_table);
-  reassembled_table_init (&p_mul_reassembled_table);
+  reassembly_table_init (&p_mul_reassembly_table,
+                         &addresses_reassembly_table_functions);
   message_id_offset = 0;
 
   if (p_mul_id_hash_table) {

@@ -184,10 +184,10 @@ dissect_netrom_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
 						);
 		type_tree = proto_item_add_subtree( tc, ett_netrom_type_param );
 
-		proto_tree_add_item( type_tree, *type_items->hf_tf_op, tvb, offset, 1, FALSE );
-		proto_tree_add_item( type_tree, *type_items->hf_tf_choke, tvb, offset, 1, FALSE );
-		proto_tree_add_item( type_tree, *type_items->hf_tf_nak, tvb, offset, 1, FALSE );
-		proto_tree_add_item( type_tree, *type_items->hf_tf_more, tvb, offset, 1, FALSE );
+		proto_tree_add_item( type_tree, *type_items->hf_tf_op, tvb, offset, 1, ENC_BIG_ENDIAN );
+		proto_tree_add_item( type_tree, *type_items->hf_tf_choke, tvb, offset, 1, ENC_BIG_ENDIAN );
+		proto_tree_add_item( type_tree, *type_items->hf_tf_nak, tvb, offset, 1, ENC_BIG_ENDIAN );
+		proto_tree_add_item( type_tree, *type_items->hf_tf_more, tvb, offset, 1, ENC_BIG_ENDIAN );
 		}
 }
 
@@ -449,7 +449,7 @@ dissect_netrom_proto(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* Call sub-dissectors here */
 
 	saved_private_data = pinfo->private_data;
-	next_tvb = tvb_new_subset(tvb, offset, -1, -1);
+	next_tvb = tvb_new_subset_remaining(tvb, offset);
 
 	switch ( op_code )
 		{
@@ -493,7 +493,7 @@ dissect_netrom_routing(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		}
 
 	saved_private_data = pinfo->private_data;
-	next_tvb = tvb_new_subset(tvb, 7, -1, -1);
+	next_tvb = tvb_new_subset_remaining(tvb, 7);
 
 	call_dissector( default_handle , next_tvb, pinfo, tree );
 

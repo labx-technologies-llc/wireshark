@@ -50,6 +50,7 @@
 #include <epan/addr_resolv.h>
 #include <epan/conversation.h>
 #include <epan/emem.h>
+#include <epan/expert.h>
 
 #include "packet-tcp.h"
 #include "packet-udp.h"
@@ -68,7 +69,7 @@ static int hf_msproxy_clntport = -1;
 
 static int hf_msproxy_dstaddr = -1;
 
-static int hf_msproxy_srcport = -1;
+/* static int hf_msproxy_srcport = -1; */
 static int hf_msproxy_dstport = -1;
 static int hf_msproxy_serverport = -1;
 static int hf_msproxy_serveraddr = -1;
@@ -78,10 +79,22 @@ static int hf_msproxy_boundport = -1;
 static int hf_msproxy_bind_id = -1;
 static int hf_msproxy_resolvaddr = -1;
 
+static int hf_msproxy_client_id = -1;
+static int hf_msproxy_version = -1;
+static int hf_msproxy_server_id = -1;
+static int hf_msproxy_server_ack = -1;
+static int hf_msproxy_client_ack = -1;
+static int hf_msproxy_seq_num = -1;
+static int hf_msproxy_rwsp_signature = -1;
+static int hf_msproxy_ntlmssp_signature = -1;
+
 static int hf_msproxy_server_int_addr = -1;
 static int hf_msproxy_server_int_port = -1;
 static int hf_msproxy_server_ext_addr = -1;
 static int hf_msproxy_server_ext_port = -1;
+
+static expert_field ei_msproxy_unknown = EI_INIT;
+static expert_field ei_msproxy_unhandled = EI_INIT;
 
 static dissector_handle_t msproxy_sub_handle;
 
@@ -196,7 +209,7 @@ static void msproxy_sub_dissector( tvbuff_t *tvb, packet_info *pinfo,
 
 	DISSECTOR_ASSERT( conversation);	/* should always find a conversation */
 
-	redirect_info = conversation_get_proto_data(conversation,
+	redirect_info = (redirect_entry_t *)conversation_get_proto_data(conversation,
 		proto_msproxy);
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "MS Proxy");
@@ -220,7 +233,7 @@ static void msproxy_sub_dissector( tvbuff_t *tvb, packet_info *pinfo,
 
 	}
 
-/* set pinfo->{src/dst port} and call the UDP sub-dissector lookup */
+/* set pinfo->{src/dst port} and call the TCP or UDP sub-dissector lookup */
 
 	if ( pinfo->srcport == redirect_info->clnt_port)
        		ptr = &pinfo->destport;
@@ -267,17 +280,17 @@ static void add_msproxy_conversation( packet_info *pinfo,
 	}
 
 	conversation = find_conversation( pinfo->fd->num, &pinfo->src,
-		&pinfo->dst, hash_info->proto, hash_info->server_int_port,
+		&pinfo->dst, (port_type)hash_info->proto, hash_info->server_int_port,
 		hash_info->clnt_port, 0);
 
 	if ( !conversation) {
 		conversation = conversation_new( pinfo->fd->num, &pinfo->src, &pinfo->dst,
-			hash_info->proto, hash_info->server_int_port,
+			(port_type)hash_info->proto, hash_info->server_int_port,
 			hash_info->clnt_port, 0);
 	}
 	conversation_set_dissector(conversation, msproxy_sub_handle);
 
-	new_conv_info = se_alloc(sizeof(redirect_entry_t));
+	new_conv_info = se_new(redirect_entry_t);
 
 	new_conv_info->remote_addr = hash_info->dst_addr;
 	new_conv_info->clnt_port = hash_info->clnt_port;
@@ -445,8 +458,7 @@ static int dissect_auth(tvbuff_t *tvb, int offset,
 
 	offset += 134;
 	if ( tree) {
-		proto_tree_add_text( tree, tvb, offset, 7, "NTLMSSP signature: %.7s",
-			tvb_get_ephemeral_string( tvb, offset, 7));
+		proto_tree_add_item( tree, hf_msproxy_ntlmssp_signature, tvb, offset, 7, ENC_NA|ENC_ASCII);
 	}
 	offset += 7;
 
@@ -651,28 +663,22 @@ static void dissect_msproxy_request(tvbuff_t *tvb,
 	int cmd;
 
 	if ( tree) {
-		proto_tree_add_text( tree, tvb, offset, 4, "Client id: 0x%0x",
-			tvb_get_letohl( tvb, offset));
+		proto_tree_add_item( tree, hf_msproxy_client_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 		offset += 4;
 
-		proto_tree_add_text( tree, tvb, offset, 4, "Version: 0x%04x",
-			tvb_get_letohl( tvb, offset));
+		proto_tree_add_item( tree, hf_msproxy_version, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 		offset += 4;
 
-		proto_tree_add_text( tree, tvb, offset, 4, "Server id: 0x%0x",
-			tvb_get_letohl( tvb, offset));
+		proto_tree_add_item( tree, hf_msproxy_server_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 		offset += 4;
 
-		proto_tree_add_text( tree, tvb, offset, 1, "Server ack: %u",
-			tvb_get_guint8( tvb, offset));
+		proto_tree_add_item( tree, hf_msproxy_server_ack, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 		offset += 4;
 
-		proto_tree_add_text( tree, tvb, offset, 1, "Sequence Number: %u",
-			tvb_get_guint8( tvb, offset));
+		proto_tree_add_item( tree, hf_msproxy_seq_num, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 		offset += 8;
 
-		proto_tree_add_text( tree, tvb, offset, 4, "RWSP signature: %.4s",
-			tvb_get_ephemeral_string( tvb, offset, 4));
+		proto_tree_add_item( tree, hf_msproxy_rwsp_signature, tvb, offset, 4, ENC_NA|ENC_ASCII);
 		offset += 12;
 	}
 	else 			/* no tree */
@@ -682,8 +688,9 @@ static void dissect_msproxy_request(tvbuff_t *tvb,
 
 	if ( tree)
 		proto_tree_add_uint_format( tree, hf_msproxy_cmd, tvb, offset, 2,
-			cmd, "Command: 0x%02x (%s)", cmd,
-			get_msproxy_cmd_name( cmd, FROM_CLIENT));
+			cmd, "Command: %s (0x%02x)",
+			get_msproxy_cmd_name( cmd, FROM_CLIENT),
+			cmd);
 
 	offset += 2;
 
@@ -802,8 +809,7 @@ static void dissect_auth_1_ack(tvbuff_t *tvb, int offset,
 
 	offset += 134;
 	if ( tree) {
-		proto_tree_add_text( tree, tvb, offset, 7, "NTLMSSP signature: %.7s",
-			tvb_get_ephemeral_string( tvb, offset, 7));
+		proto_tree_add_item( tree, hf_msproxy_ntlmssp_signature, tvb, offset, 7, ENC_NA|ENC_ASCII);
 		offset += 48;
 
 		/* XXX - always 255? */
@@ -975,32 +981,25 @@ static void dissect_msproxy_response(tvbuff_t *tvb, packet_info *pinfo,
 
 	int offset = 0;
 	int cmd;
+	proto_item* ti;
 
 	if ( tree) {
-		proto_tree_add_text( tree, tvb, offset, 4, "Client id: 0x%0x",
-			tvb_get_letohl( tvb, offset));
+		proto_tree_add_item( tree, hf_msproxy_client_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 		offset += 4;
 
-		proto_tree_add_text( tree, tvb, offset, 4, "Version: 0x%04x",
-			tvb_get_letohl( tvb, offset));
+		proto_tree_add_item( tree, hf_msproxy_version, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 		offset += 4;
 
-		proto_tree_add_text( tree, tvb, offset, 4, "Server id: 0x%04x",
-			tvb_get_letohl( tvb, offset));
+		proto_tree_add_item( tree, hf_msproxy_server_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 		offset += 4;
 
-		proto_tree_add_text( tree, tvb, offset, 1, "Client ack: 0x%02x",
-			tvb_get_guint8( tvb, offset));
+		proto_tree_add_item( tree, hf_msproxy_client_ack, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 		offset += 4;
 
-		proto_tree_add_text( tree, tvb, offset, 1, "Sequence Number: 0x%02x",
-			tvb_get_guint8( tvb, offset));
-
+		proto_tree_add_item( tree, hf_msproxy_seq_num, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 		offset += 8;
 
-		proto_tree_add_text( tree, tvb, offset, 4, "RWSP signature: %.4s",
-			tvb_get_ephemeral_string( tvb, offset, 4));
-
+		proto_tree_add_item( tree, hf_msproxy_rwsp_signature, tvb, offset, 4, ENC_NA|ENC_ASCII);
 		offset += 12;
 	}
 	else
@@ -1008,8 +1007,7 @@ static void dissect_msproxy_response(tvbuff_t *tvb, packet_info *pinfo,
 
 	cmd = tvb_get_ntohs( tvb, offset);
 
-	if ( tree)
-		proto_tree_add_uint_format( tree, hf_msproxy_cmd, tvb, offset, 2,
+	ti = proto_tree_add_uint_format( tree, hf_msproxy_cmd, tvb, offset, 2,
 			cmd, "Command: 0x%02x (%s)", cmd,
 			get_msproxy_cmd_name( cmd, FROM_SERVER));
 	offset += 2;
@@ -1057,20 +1055,16 @@ static void dissect_msproxy_response(tvbuff_t *tvb, packet_info *pinfo,
 
 		case MSPROXY_CONNECT_AUTHFAILED:
 		case MSPROXY_BIND_AUTHFAILED:
-			proto_tree_add_text( tree, tvb, offset, 0, "No know information (help wanted)");
+			expert_add_info(pinfo, ti, &ei_msproxy_unknown);
 			break;
 
 		default:
 
-			if (tree &&
-			   (((cmd >> 8) ==  MSPROXY_CONNREFUSED) ||
-			    ((cmd >> 12) ==  MSPROXY_CONNREFUSED)))
-				proto_tree_add_text( tree, tvb, offset, 0,
-					"No know information (help wanted)");
-
-			else if ( tree)
-				proto_tree_add_text( tree, tvb, offset, 0,
-					"Unhandled response command (report this, please)");
+			if ((((cmd >> 8) ==  MSPROXY_CONNREFUSED) ||
+				((cmd >> 12) ==  MSPROXY_CONNREFUSED)))
+				expert_add_info(pinfo, ti, &ei_msproxy_unknown);
+			else
+				expert_add_info(pinfo, ti, &ei_msproxy_unhandled);
 	}
 
 
@@ -1094,9 +1088,9 @@ static void dissect_msproxy(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	conversation = find_or_create_conversation(pinfo);
 
-	hash_info = conversation_get_proto_data(conversation, proto_msproxy);
+	hash_info = (hash_entry_t *)conversation_get_proto_data(conversation, proto_msproxy);
 	if ( !hash_info) {
-    		hash_info = se_alloc(sizeof(hash_entry_t));
+    		hash_info = se_new(hash_entry_t);
 		conversation_add_proto_data(conversation, proto_msproxy,
 			hash_info);
 	}
@@ -1162,11 +1156,13 @@ proto_register_msproxy( void){
 			}
 		},
 
+#if 0
 		{ &hf_msproxy_srcport,
 			{ "Source Port", "msproxy.srcport", FT_UINT16,
 				BASE_DEC, NULL, 0x0, NULL, HFILL
 			}
 		},
+#endif
 		{ &hf_msproxy_dstport,
 			{ "Destination Port", "msproxy.dstport", FT_UINT16,
 				BASE_DEC, NULL, 0x0, NULL, HFILL
@@ -1234,20 +1230,68 @@ proto_register_msproxy( void){
 			{ "Address", "msproxy.resolvaddr", FT_IPv4, BASE_NONE, NULL,
 			 	0x0, NULL, HFILL
 			}
-		}
-
+		},
+		{ &hf_msproxy_client_id,
+			{ "Client Id",	"msproxy.client_id", FT_UINT32,
+				BASE_HEX, NULL, 0x0, NULL, HFILL
+			}
+		},
+		{ &hf_msproxy_version,
+			{ "Version",	"msproxy.version", FT_UINT32,
+				BASE_HEX, NULL, 0x0, NULL, HFILL
+			}
+		},
+		{ &hf_msproxy_server_id,
+			{ "Server id",	"msproxy.server_id", FT_UINT32,
+				BASE_HEX, NULL, 0x0, NULL, HFILL
+			}
+		},
+		{ &hf_msproxy_server_ack,
+			{ "Server ack",	"msproxy.server_ack", FT_UINT8,
+				BASE_DEC, NULL, 0x0, NULL, HFILL
+			}
+		},
+		{ &hf_msproxy_client_ack,
+			{ "Client ack",	"msproxy.client_ack", FT_UINT8,
+				BASE_DEC, NULL, 0x0, NULL, HFILL
+			}
+		},
+		{ &hf_msproxy_seq_num,
+			{ "Sequence Number",	"msproxy.seq_num", FT_UINT8,
+				BASE_DEC, NULL, 0x0, NULL, HFILL
+			}
+		},
+ 		{ &hf_msproxy_rwsp_signature,
+			{ "RWSP signature", "msproxy.rwsp_signature", FT_STRING, BASE_NONE, NULL,
+			 	0x0, NULL, HFILL
+			}
+		},
+ 		{ &hf_msproxy_ntlmssp_signature,
+			{ "NTLMSSP signature", "msproxy.ntlmssp_signature", FT_STRING, BASE_NONE, NULL,
+			 	0x0, NULL, HFILL
+			}
+		},
 	};
 
-   	proto_msproxy = proto_register_protocol( "MS Proxy Protocol",
-	    "MS Proxy", "msproxy");
+	static ei_register_info ei[] = {
+		{ &ei_msproxy_unknown, { "msproxy.unknown", PI_UNDECODED, PI_WARN, "No know information (help wanted)", EXPFILL }},
+		{ &ei_msproxy_unhandled, { "msproxy.command.unhandled", PI_UNDECODED, PI_WARN, "Unhandled response command (report this, please)", EXPFILL }},
+	};
+
+	expert_module_t* expert_msproxy;
+
+	proto_msproxy = proto_register_protocol( "MS Proxy Protocol",
+		"MS Proxy", "msproxy");
 
 	proto_register_field_array(proto_msproxy, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_msproxy = expert_register_protocol(proto_msproxy);
+	expert_register_field_array(expert_msproxy, ei, array_length(ei));
 
 	register_init_routine( &msproxy_reinit);	/* register re-init routine */
 
 	msproxy_sub_handle = create_dissector_handle(msproxy_sub_dissector,
-	    proto_msproxy);
+		proto_msproxy);
 }
 
 
@@ -1259,6 +1303,6 @@ proto_reg_handoff_msproxy(void) {
 	dissector_handle_t msproxy_handle;
 
 	msproxy_handle = create_dissector_handle(dissect_msproxy,
-	    proto_msproxy);
+		proto_msproxy);
 	dissector_add_uint("udp.port", UDP_PORT_MSPROXY, msproxy_handle);
 }

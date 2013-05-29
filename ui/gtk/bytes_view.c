@@ -361,7 +361,7 @@ _pango_runs_build(BytesView *bv, const char *str, int len)
 
 	for (tmp_list = run_list; tmp_list; tmp_list = tmp_list->next) {
 		PangoLayoutRun *run = g_slice_new(PangoLayoutRun);
-		PangoItem *run_item = tmp_list->data;
+		PangoItem *run_item = (PangoItem *)tmp_list->data;
 
 		run->item = run_item;
 
@@ -400,7 +400,7 @@ static int
 xtext_draw_layout_line(cairo_t *cr, gint x, gint y, GSList *runs)
 {
 	while (runs) {
-		PangoLayoutRun *run = runs->data;
+		PangoLayoutRun *run = (PangoLayoutRun *)runs->data;
 
 		cairo_move_to(cr, x, y);
 		pango_cairo_show_glyph_string(cr, run->item->analysis.font, run->glyphs);
@@ -417,7 +417,7 @@ _pango_runs_width(GSList *runs)
 	int width = 0;
 
 	while (runs) {
-		PangoLayoutRun *run = runs->data;
+		PangoLayoutRun *run = (PangoLayoutRun *)runs->data;
 
 		width += _pango_glyph_string_to_pixels(run->glyphs, run->item->analysis.font);
 		runs = runs->next;
@@ -431,7 +431,7 @@ _pango_runs_free(GSList *runs)
 	GSList *list = runs;
 
 	while (list) {
-		PangoLayoutRun *run = list->data;
+		PangoLayoutRun *run = (PangoLayoutRun *)list->data;
 
 		pango_item_free(run->item);
 		pango_glyph_string_free(run->glyphs);
@@ -447,7 +447,7 @@ typedef int bytes_view_line_cb(BytesView *, void *data, int x, int arg1, const c
 static int
 bytes_view_flush_render(BytesView *bv, void *data, int x, int y, const char *str, int len)
 {
-	cairo_t *cr = data;
+	cairo_t *cr = (cairo_t *)data;
 	GSList *line_runs;
 	int str_width;
 
@@ -472,7 +472,7 @@ bytes_view_flush_render(BytesView *bv, void *data, int x, int y, const char *str
 
 		/* background */
 #if GTK_CHECK_VERSION(3, 0, 0)
-		gtk_style_context_get_background_color(context, GTK_STATE_FLAG_FOCUSED | GTK_STATE_FLAG_SELECTED, &bg_color);
+		gtk_style_context_get_background_color(context, (GtkStateFlags)(GTK_STATE_FLAG_FOCUSED | GTK_STATE_FLAG_SELECTED), &bg_color);
 		gdk_cairo_set_source_rgba(cr, &bg_color);
 #else
 		gdk_cairo_set_source_color(cr, &gtk_widget_get_style(GTK_WIDGET(bv))->base[bv->state]);
@@ -483,7 +483,7 @@ bytes_view_flush_render(BytesView *bv, void *data, int x, int y, const char *str
 
 	/* text */
 #if GTK_CHECK_VERSION(3, 0, 0)
-	gtk_style_context_get_color(context, GTK_STATE_FLAG_FOCUSED | (bv->state == GTK_STATE_SELECTED ? GTK_STATE_FLAG_SELECTED : GTK_STATE_FLAG_NORMAL), &fg_color);
+	gtk_style_context_get_color(context, (GtkStateFlags)(GTK_STATE_FLAG_FOCUSED | (bv->state == GTK_STATE_SELECTED ? GTK_STATE_FLAG_SELECTED : GTK_STATE_FLAG_NORMAL)), &fg_color);
 	gdk_cairo_set_source_rgba(cr, &fg_color);
 #else
 	gdk_cairo_set_source_color(cr, &gtk_widget_get_style(GTK_WIDGET(bv))->text[bv->state]);
@@ -501,7 +501,7 @@ _pango_runs_find_index(GSList *runs, int x_pos, const char *str)
 	int start_pos = 0;
 
 	while (runs) {
-		PangoLayoutRun *run = runs->data;
+		PangoLayoutRun *run = (PangoLayoutRun *)runs->data;
 		int width;
 
 		width = _pango_glyph_string_to_pixels(run->glyphs, run->item->analysis.font);
@@ -528,7 +528,7 @@ _pango_runs_find_index(GSList *runs, int x_pos, const char *str)
 static int
 bytes_view_flush_pos(BytesView *bv, void *data, int x, int search_x, const char *str, int len)
 {
-	int *pos_x = data;
+	int *pos_x = (int *)data;
 	GSList *line_runs;
 	int line_width;
 
@@ -808,13 +808,12 @@ bytes_view_render(BytesView *bv, cairo_t *cr, GdkRectangle *area)
 	}
 	/* g_print("from %d to %d\n", line, lines_max); */
 
-	off = 0;
 	y = (bv->fontsize * line);
 
 	/* clear */
 #if GTK_CHECK_VERSION(3, 0, 0)
 	context = gtk_widget_get_style_context(GTK_WIDGET(bv));
-	gtk_style_context_get_background_color(context, GTK_STATE_FLAG_FOCUSED | GTK_STATE_FLAG_NORMAL, &bg_color);
+	gtk_style_context_get_background_color(context, (GtkStateFlags)(GTK_STATE_FLAG_FOCUSED | GTK_STATE_FLAG_NORMAL), &bg_color);
 	gdk_cairo_set_source_rgba(cr, &bg_color);
 #else
 	gdk_cairo_set_source_color(cr, &gtk_widget_get_style(GTK_WIDGET(bv))->base[GTK_STATE_NORMAL]);
@@ -1070,11 +1069,11 @@ bytes_view_set_property(GObject *object, guint prop_id, const GValue *value, GPa
 
 	switch (prop_id) {
 		case PROP_HADJUSTMENT:
-			bytes_view_set_scroll_adjustments(bv, g_value_get_object(value), bv->vadj);
+			bytes_view_set_scroll_adjustments(bv, (GtkAdjustment *)g_value_get_object(value), bv->vadj);
 			break;
 
 		case PROP_VADJUSTMENT:
-			bytes_view_set_scroll_adjustments(bv, bv->hadj, g_value_get_object(value));
+			bytes_view_set_scroll_adjustments(bv, bv->hadj, (GtkAdjustment *)g_value_get_object(value));
 			break;
 
 		case PROP_HSCROLL_POLICY:
@@ -1213,7 +1212,7 @@ bytes_view_class_init(BytesViewClass *klass)
 	widget_class->set_scroll_adjustments_signal =
 		g_signal_new(g_intern_static_string("set-scroll-adjustments"),
 			G_OBJECT_CLASS_TYPE(object_class),
-			G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
+			(GSignalFlags)(G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION),
 			G_STRUCT_OFFSET(BytesViewClass, set_scroll_adjustments),
 			NULL, NULL,
 			bv_VOID__OBJECT_OBJECT,
@@ -1372,7 +1371,7 @@ void
 bytes_view_set_data(BytesView *bv, const guint8 *data, int len)
 {
 	g_free(bv->pd);
-	bv->pd = g_memdup(data, len);
+	bv->pd = (guint8 *)g_memdup(data, len);
 	bv->len = len;
 
 	/*
@@ -1401,7 +1400,7 @@ bytes_view_set_encoding(BytesView *bv, int enc)
 {
 	g_assert(enc == PACKET_CHAR_ENC_CHAR_ASCII || enc == PACKET_CHAR_ENC_CHAR_EBCDIC);
 
-	bv->encoding = enc;
+	bv->encoding = (packet_char_enc)enc;
 }
 
 void
@@ -1409,7 +1408,7 @@ bytes_view_set_format(BytesView *bv, int format)
 {
 	g_assert(format == BYTES_HEX || format == BYTES_BITS);
 
-	bv->format = format;
+	bv->format = (bytes_view_type)format;
 
 	switch (format) {
 		case BYTES_BITS:

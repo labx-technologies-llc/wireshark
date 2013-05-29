@@ -49,6 +49,7 @@ LIBWIRESHARK_SRC = 		\
 	ex-opt.c		\
 	except.c		\
 	expert.c		\
+	exported_pdu.c	\
 	filesystem.c		\
 	filter_expressions.c	\
 	follow.c		\
@@ -76,6 +77,7 @@ LIBWIRESHARK_SRC = 		\
 	reedsolomon.c		\
 	report_err.c		\
 	req_resp_hdrs.c		\
+	show_exception.c	\
 	sigcomp_state_hdlr.c	\
 	sigcomp-udvm.c		\
 	sminmpec.c		\
@@ -97,11 +99,14 @@ LIBWIRESHARK_SRC = 		\
 	xdlc.c
 
 #
-# These get removed on "make distclean", as the tools we use to generate
-# them are part of the Wireshark distribution.
+# We distribute Lemon with Wireshark, so we don't distribute the files
+# it produces.
 #
-LIBWIRESHARK_DISTCLEAN_GENERATED_SRC = \
+NODIST_LIBWIRESHARK_GENERATED_C_FILES = \
 	dtd_grammar.c
+
+NODIST_LIBWIRESHARK_GENERATED_HEADER_FILES = \
+	dtd_grammar.h
 
 #
 # These don't get removed on "make distclean", as the tools we use to
@@ -110,16 +115,23 @@ LIBWIRESHARK_DISTCLEAN_GENERATED_SRC = \
 # from a tarball (e.g., make and a C compiler are assumed to be present,
 # but Flex isn't).
 #
-LIBWIRESHARK_NODISTCLEAN_GENERATED_SRC = \
+LIBWIRESHARK_GENERATED_C_FILES = \
 	diam_dict.c		\
 	dtd_parse.c 		\
 	dtd_preparse.c 		\
 	radius_dict.c 		\
 	uat_load.c
 
+LIBWIRESHARK_GENERATED_HEADER_FILES = \
+	diam_dict_lex.h		\
+	dtd_parse_lex.h		\
+	dtd_preparse_lex.h	\
+	radius_dict_lex.h	\
+	uat_load_lex.h
+
 LIBWIRESHARK_GENERATED_SRC = 	\
-	$(LIBWIRESHARK_DISTCLEAN_GENERATED_SRC) \
-	$(LIBWIRESHARK_NODISTCLEAN_GENERATED_SRC)
+	$(LIBWIRESHARK_GENERATED_C_FILES) \
+	$(NODIST_LIBWIRESHARK_GENERATED_C_FILES)
 
 LIBWIRESHARK_ALL_SRC = \
 	$(LIBWIRESHARK_SRC) 	\
@@ -166,6 +178,7 @@ LIBWIRESHARK_INCLUDES = 	\
 	except.h		\
 	exceptions.h		\
 	expert.h		\
+	exported_pdu.h	\
 	filter_expressions.h	\
 	filesystem.h		\
 	follow.h		\
@@ -211,9 +224,9 @@ LIBWIRESHARK_INCLUDES = 	\
 	req_resp_hdrs.h		\
 	rtp_pt.h		\
 	sctpppids.h		\
+	show_exception.h	\
 	sigcomp_state_hdlr.h	\
 	sigcomp-udvm.h		\
-	slab.h			\
 	sminmpec.h		\
 	sna-utils.h		\
 	stat_cmd_args.h		\
@@ -237,25 +250,3 @@ LIBWIRESHARK_INCLUDES = 	\
 	value_string.h		\
 	x264_prt_id.h		\
 	xdlc.h
-
-#
-# As with LIBWIRESHARK_DISTCLEAN_GENERATED_SRC, so with
-# LIBWIRESHARK_DISTCLEAN_GENERATED_INCLUDES.
-#
-LIBWIRESHARK_DISTCLEAN_GENERATED_INCLUDES = \
-	dtd_grammar.h
-
-#
-# As with LIBWIRESHARK_NODISTCLEAN_GENERATED_SRC, so with
-# LIBWIRESHARK_NODISTCLEAN_GENERATED_INCLUDES.
-#
-LIBWIRESHARK_NODISTCLEAN_GENERATED_INCLUDES = \
-	diam_dict_lex.h		\
-	dtd_parse_lex.h		\
-	dtd_preparse_lex.h	\
-	radius_dict_lex.h	\
-	uat_load_lex.h
-
-LIBWIRESHARK_GENERATED_INCLUDES = 	\
-	$(LIBWIRESHARK_DISTCLEAN_GENERATED_INCLUDES) \
-	$(LIBWIRESHARK_NODISTCLEAN_GENERATED_INCLUDES)

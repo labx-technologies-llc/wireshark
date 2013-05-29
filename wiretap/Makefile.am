@@ -30,20 +30,21 @@ include Makefile.common
 noinst_LTLIBRARIES = libwiretap_generated.la
 lib_LTLIBRARIES = libwiretap.la
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-libwiretap_la_LDFLAGS = -version-info 0:0:0 -export-symbols wtap.sym @LDFLAGS_SHAREDLIB@
+libwiretap_la_LDFLAGS = -version-info 0:0:0 @LDFLAGS_SHAREDLIB@
+
+AM_NON_GENERATED_CFLAGS =-DWS_BUILD_DLL
 
 if HAVE_WARNINGS_AS_ERRORS
-AM_NON_GENERATED_CFLAGS = -Werror
+AM_NON_GENERATED_CFLAGS += -Werror
 endif
 
-INCLUDES = -I$(srcdir)/..
+AM_CPPFLAGS = -I$(srcdir)/..
 
 CLEANFILES = \
 	libwiretap.a		\
 	libwiretap.la		\
 	libwiretap_generated.a	\
 	libwiretap_generated.la	\
-	wtap.sym		\
 	*~
 
 MAINTAINERCLEANFILES = \
@@ -68,12 +69,11 @@ EXTRA_DIST = \
 	Makefile.common		\
 	Makefile.nmake		\
 	libwiretap.vcproj	\
-	wtap.def		\
 	$(GENERATOR_FILES) 	\
 	$(GENERATED_FILES)
 
 libwiretap_la_LIBADD = libwiretap_generated.la ${top_builddir}/wsutil/libwsutil.la $(GLIB_LIBS)
-libwiretap_la_DEPENDENCIES = libwiretap_generated.la ${top_builddir}/wsutil/libwsutil.la wtap.sym
+libwiretap_la_DEPENDENCIES = libwiretap_generated.la ${top_builddir}/wsutil/libwsutil.la
 
 RUNLEX = $(top_srcdir)/tools/runlex.sh
 
@@ -93,11 +93,11 @@ ascend.c ascend.h: ascend.y
 # ABI compliance checker can be obtained from
 # http://ispras.linux-foundation.org/index.php/ABI_compliance_checker
 # Checked using version 1.21.12
-dumpabi: all abi-descriptor.xml
+dumpabi-libwiretap: all abi-descriptor.xml
 	rm -rf abi-check-headers abi_dumps .libs/*.abi.tar.gz
 	mkdir abi-check-headers
-	cp *.h abi-check-headers/
-	abi-compliance-checker -l libwiretap -v1 `ls  .libs/libwiretap.so.?.?.?|sed 's/.*\.so\.//'` \
+	cp *.h ../ws_symbol_export.h abi-check-headers/
+	abi-compliance-checker -l libwiretap -v1 `readlink .libs/libwiretap.so | sed 's/.*\.so\.//'` \
 		-relpath $(abs_srcdir) -dump-abi abi-descriptor.xml || \
 		cat logs/libwiretap/[0-9]*/log.txt
 	cp -f abi_dumps/libwiretap/libwiretap_* .libs/

@@ -41,11 +41,10 @@ LDFLAGS = /NOLOGO /INCREMENTAL:NO $(LOCAL_LDFLAGS)
 # We use GENERATED_CFLAGS to get around flex's non-LLP64-compliant output
 GENERATED_CFLAGS=\
 	$(STANDARD_CFLAGS) \
-	-D_NEED_VAR_IMPORT_ \
 	/I.  /Iwiretap $(GLIB_CFLAGS) \
 	$(ZLIB_CFLAGS) /I$(PCAP_DIR)\include $(AIRPCAP_CFLAGS) \
 	$(C_ARES_CFLAGS) $(ADNS_CFLAGS) $(GNUTLS_CFLAGS) \
-	$(PYTHON_CFLAGS) $(SMI_CFLAGS) $(GEOIP_CFLAGS)
+	$(PYTHON_CFLAGS) $(SMI_CFLAGS) $(GEOIP_CFLAGS) $(WINSPARKLE_CFLAGS)
 
 CFLAGS=$(WARNINGS_ARE_ERRORS) $(GENERATED_CFLAGS)
 
@@ -80,6 +79,7 @@ wireshark_LIBS= wiretap\wiretap-$(WTAP_VERSION).lib \
 	$(GNUTLS_LIBS) \
 	$(PYTHON_LIBS) \
 	$(ZLIB_LIBS) \
+	$(WINSPARKLE_LIBS) \
 !IFDEF ENABLE_LIBWIRESHARK
 	epan\libwireshark.lib \
 !ELSE
@@ -152,7 +152,7 @@ reordercap_LIBS= wiretap\wiretap-$(WTAP_VERSION).lib \
 	wsutil\libwsutil.lib \
 	$(GLIB_LIBS)
 
-text2pcap_LIBS= wiretap\wiretap-$(WTAP_VERSION).lib \
+text2pcap_LIBS= \
 	wsock32.lib user32.lib \
 	wsutil\libwsutil.lib \
 	$(GLIB_LIBS)
@@ -186,7 +186,8 @@ randpkt_LIBS= wiretap\wiretap-$(WTAP_VERSION).lib \
 	$(GLIB_LIBS)
 
 EXECUTABLES=wireshark.exe tshark.exe rawshark.exe \
-	capinfos.exe editcap.exe mergecap.exe text2pcap.exe randpkt.exe reordercap.exe dumpcap.exe
+	capinfos.exe editcap.exe mergecap.exe text2pcap.exe randpkt.exe \
+	reordercap.exe dumpcap.exe dftest.exe
 
 RESOURCES=image\wireshark.res image\file_dlg_win32.res \
 	image\libwireshark.res image\tshark.res image\capinfos.res \
@@ -291,12 +292,15 @@ pdb_zip: all
 
 $(RESOURCES): image
 
+## Note: The proper "SUBSYSTEM" link option to be used for linking each of the Wireshark executables
+##       is specified in '$(guiflags)' or '$(conflags)' as used as part of the link options.
+##       (These variables are defined in win32.mak).
 wiretap\wiretap-$(WTAP_VERSION).lib: image $(ZLIB_DLL) wiretap
 
 wireshark.exe	: $(LIBS_CHECK) config.h $(wireshark_OBJECTS) codecs epan ui gtk win32 image\wireshark.res image\file_dlg_win32.res wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib codecs\codecs.lib ui\libui.lib ui\gtk\libgtkui.lib ui\win32\libgtkui_win32.lib plugins
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:$(PROGRAM_NAME).exe $(guiflags) $(guilibsdll) $(LDFLAGS) /LARGEADDRESSAWARE /SUBSYSTEM:windows $(wireshark_LIBS) $(GTK_LIBS) codecs\codecs.lib ui\gtk\libgtkui.lib ui\win32\libgtkui_win32.lib ui\libui.lib $(wireshark_OBJECTS) image\wireshark.res image\file_dlg_win32.res
+		/OUT:$(PROGRAM_NAME).exe $(guiflags) $(guilibsdll) $(LDFLAGS) /LARGEADDRESSAWARE $(wireshark_LIBS) $(GTK_LIBS) codecs\codecs.lib ui\gtk\libgtkui.lib ui\win32\libgtkui_win32.lib ui\libui.lib $(wireshark_OBJECTS) image\wireshark.res image\file_dlg_win32.res
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "wireshark.exe.manifest" -outputresource:$(PROGRAM_NAME).exe;1
@@ -305,7 +309,7 @@ wireshark.exe	: $(LIBS_CHECK) config.h $(wireshark_OBJECTS) codecs epan ui gtk w
 tshark.exe	: $(LIBS_CHECK) config.h $(tshark_OBJECTS) epan ui cli image\tshark.res wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib plugins
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:tshark.exe $(conflags) $(conlibsdll) $(LDFLAGS) /LARGEADDRESSAWARE /SUBSYSTEM:console $(tshark_LIBS) $(tshark_OBJECTS) ui\cli\libcliui.lib ui\libui.lib image\tshark.res
+		/OUT:tshark.exe $(conflags) $(conlibsdll) $(LDFLAGS) /LARGEADDRESSAWARE $(tshark_LIBS) $(tshark_OBJECTS) ui\cli\libcliui.lib ui\libui.lib image\tshark.res
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "tshark.exe.manifest" -outputresource:tshark.exe;1
@@ -314,7 +318,7 @@ tshark.exe	: $(LIBS_CHECK) config.h $(tshark_OBJECTS) epan ui cli image\tshark.r
 rawshark.exe	: $(LIBS_CHECK) config.h $(rawshark_OBJECTS) epan ui image\rawshark.res wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib plugins
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:rawshark.exe $(conflags) $(conlibsdll) $(LDFLAGS) /LARGEADDRESSAWARE /SUBSYSTEM:console $(rawshark_LIBS) $(rawshark_OBJECTS) ui\libui.lib image\rawshark.res
+		/OUT:rawshark.exe $(conflags) $(conlibsdll) $(LDFLAGS) /LARGEADDRESSAWARE $(rawshark_LIBS) $(rawshark_OBJECTS) ui\libui.lib image\rawshark.res
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "rawshark.exe.manifest" -outputresource:rawshark.exe;1
@@ -326,7 +330,7 @@ rawshark.exe	: $(LIBS_CHECK) config.h $(rawshark_OBJECTS) epan ui image\rawshark
 capinfos.exe	: $(LIBS_CHECK) config.h $(capinfos_OBJECTS) wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib image\capinfos.res
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:capinfos.exe $(conflags) $(conlibsdll) $(LDFLAGS) /SUBSYSTEM:console $(capinfos_OBJECTS) $(capinfos_LIBS) setargv.obj image\capinfos.res
+		/OUT:capinfos.exe $(conflags) $(conlibsdll) $(LDFLAGS) $(capinfos_OBJECTS) $(capinfos_LIBS) setargv.obj image\capinfos.res
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "capinfos.exe.manifest" -outputresource:capinfos.exe;1
@@ -337,7 +341,7 @@ capinfos.exe	: $(LIBS_CHECK) config.h $(capinfos_OBJECTS) wsutil\libwsutil.lib w
 editcap.exe	: $(LIBS_CHECK) config.h $(editcap_OBJECTS) wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib image\editcap.res
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:editcap.exe $(conflags) $(conlibsdll) $(LDFLAGS) /SUBSYSTEM:console $(editcap_OBJECTS) $(editcap_LIBS) image\editcap.res
+		/OUT:editcap.exe $(conflags) $(conlibsdll) $(LDFLAGS) $(editcap_OBJECTS) $(editcap_LIBS) image\editcap.res
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "editcap.exe.manifest" -outputresource:editcap.exe;1
@@ -347,7 +351,7 @@ editcap.exe	: $(LIBS_CHECK) config.h $(editcap_OBJECTS) wsutil\libwsutil.lib wir
 mergecap.exe	: $(LIBS_CHECK)  config.h mergecap.obj merge.obj wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib image\mergecap.res
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:mergecap.exe $(conflags) $(conlibsdll) $(LDFLAGS) /SUBSYSTEM:console mergecap.obj merge.obj $(mergecap_LIBS) setargv.obj image\mergecap.res
+		/OUT:mergecap.exe $(conflags) $(conlibsdll) $(LDFLAGS) mergecap.obj merge.obj $(mergecap_LIBS) setargv.obj image\mergecap.res
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "mergecap.exe.manifest" -outputresource:mergecap.exe;1
@@ -356,16 +360,16 @@ mergecap.exe	: $(LIBS_CHECK)  config.h mergecap.obj merge.obj wsutil\libwsutil.l
 reordercap.exe	: $(LIBS_CHECK)  config.h reordercap.obj wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib image\reordercap.res
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:reordercap.exe $(conflags) $(conlibsdll) $(LDFLAGS) /SUBSYSTEM:console reordercap.obj $(reordercap_LIBS) setargv.obj image\reordercap.res
+		/OUT:reordercap.exe $(conflags) $(conlibsdll) $(LDFLAGS) reordercap.obj $(reordercap_LIBS) setargv.obj image\reordercap.res
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "reordercap.exe.manifest" -outputresource:reordercap.exe;1
 !ENDIF
 
-text2pcap.exe	: $(LIBS_CHECK) config.h text2pcap.obj text2pcap-scanner.obj wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib image\text2pcap.res
+text2pcap.exe	: $(LIBS_CHECK) config.h text2pcap.obj text2pcap-scanner.obj pcapio.obj wsutil\libwsutil.lib wiretap\wiretap-$(WTAP_VERSION).lib image\text2pcap.res
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:text2pcap.exe $(conflags) $(conlibsdll) $(LDFLAGS) /SUBSYSTEM:console text2pcap.obj text2pcap-scanner.obj $(text2pcap_LIBS) image\text2pcap.res
+		/OUT:text2pcap.exe $(conflags) $(conlibsdll) $(LDFLAGS) text2pcap.obj text2pcap-scanner.obj pcapio.obj $(text2pcap_LIBS) image\text2pcap.res
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "text2pcap.exe.manifest" -outputresource:text2pcap.exe;1
@@ -374,7 +378,7 @@ text2pcap.exe	: $(LIBS_CHECK) config.h text2pcap.obj text2pcap-scanner.obj wsuti
 dftest.exe	: $(dftest_OBJECTS) epan ui
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:dftest.exe $(conflags) $(conlibsdll) $(LDFLAGS) /SUBSYSTEM:console $(dftest_LIBS) ui\libui.lib $(dftest_OBJECTS)
+		/OUT:dftest.exe $(conflags) $(conlibsdll) $(LDFLAGS) $(dftest_LIBS) ui\libui.lib $(dftest_OBJECTS)
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "dftest.exe.manifest" -outputresource:dftest.exe;1
@@ -383,7 +387,7 @@ dftest.exe	: $(dftest_OBJECTS) epan ui
 randpkt.exe	: $(randpkt_OBJECTS)
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:randpkt.exe $(conflags) $(conlibsdll) $(LDFLAGS) /SUBSYSTEM:console $(randpkt_LIBS) $(randpkt_OBJECTS)
+		/OUT:randpkt.exe $(conflags) $(conlibsdll) $(LDFLAGS) $(randpkt_LIBS) $(randpkt_OBJECTS)
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "randpkt.exe.manifest" -outputresource:randpkt.exe;1
@@ -392,7 +396,7 @@ randpkt.exe	: $(randpkt_OBJECTS)
 dumpcap.exe	: $(LIBS_CHECK) config.h $(dumpcap_OBJECTS) wsutil\libwsutil.lib image\dumpcap.res
 	@echo Linking $@
 	$(LINK) @<<
-		/OUT:dumpcap.exe $(conflags) $(conlibsdll) $(LDFLAGS) /SUBSYSTEM:console $(dumpcap_LIBS) $(dumpcap_OBJECTS) image\dumpcap.res
+		/OUT:dumpcap.exe $(conflags) $(conlibsdll) $(LDFLAGS) $(dumpcap_LIBS) $(dumpcap_OBJECTS) image\dumpcap.res
 <<
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "dumpcap.exe.manifest" -outputresource:dumpcap.exe;1
@@ -424,7 +428,6 @@ config.h	: config.h.win32 config.nmake
 	    -e "s/@HAVE_PCAP_SET_DATALINK@/$(PCAP_SET_DATALINK_CONFIG)/" \
 	    -e "s/@HAVE_PCAP_SETSAMPLING@/$(PCAP_SETSAMPLING_CONFIG)/" \
 	    -e "s/@HAVE_BPF_IMAGE@/$(BPF_IMAGE_CONFIG)/" \
-	    -e "s/@HAVE_LIBWIRESHARKDLL@/$(LIBWIRESHARK_CONFIG)/" \
 	    -e "s/@HAVE_LIBGNUTLS@/$(GNUTLS_CONFIG)/" \
 	    -e "s/@HAVE_LIBGCRYPT@/$(LIBGCRYPT_CONFIG)/" \
 	    -e "s/@HAVE_LUA@/$(LUA_CONFIG)/" \
@@ -437,6 +440,7 @@ config.h	: config.h.win32 config.nmake
 	    -e "s/@HAVE_SMI@/$(SMI_CONFIG)/" \
 	    -e "s/@HAVE_GEOIP@/$(GEOIP_CONFIG)/" \
 	    -e "s/@HAVE_GEOIP_V6@/$(GEOIP_V6_CONFIG)/" \
+	    -e "s/@HAVE_SOFTWARE_UPDATE@/$(WINSPARKLE_CONFIG)/" \
 	    -e "s/@INET6@/$(INET6_CONFIG)/" \
 	    -e "s/@HAVE_NTDDNDIS_H@/$(NTDDNDIS_CONFIG)/" \
 	    -e "s/@PCAP_NG_DEFAULT@/$(PCAP_NG_DEFAULT)/" \
@@ -468,6 +472,7 @@ KFW_DIR = $(KFW_DIR:\=/)
 LUA_DIR = $(LUA_DIR:\=/)
 PORTAUDIO_DIR = $(PORTAUDIO_DIR:\=/)
 GEOIP_DIR = $(GEOIP_DIR:\=/)
+WINSPARKLE_DIR = $(WINSPARKLE_DIR:\=/)
 
 INTL_DLL = $(INTL_DLL)
 
@@ -481,8 +486,6 @@ MSVCR_DLL = "$(MSVCR_DLL:\=/)"
 QMAKE_CFLAGS         *= $(STANDARD_CFLAGS) $(PORTAUDIO_CFLAGS:\=/)
 QMAKE_CXXFLAGS       *= $(STANDARD_CFLAGS) $(PORTAUDIO_CFLAGS:\=/)
 QMAKE_LFLAGS         *= /LARGEADDRESSAWARE $(LDFLAGS)
-
-DEFINES += _NEED_VAR_IMPORT_
 
 <<KEEP
 
@@ -518,12 +521,13 @@ text2pcap.obj mergecap.obj capinfos.obj editcap.obj reordercap.obj version_info.
 
 clean-local:
 	rm -f $(wireshark_OBJECTS) $(tshark_OBJECTS) $(dumpcap_OBJECTS) $(rawshark_OBJECTS) \
- 		$(EXECUTABLES) *.pdb *.sbr *.exe.manifest \
-		capinfos.obj editcap.obj mergecap.obj text2pcap.obj \
+		$(EXECUTABLES) *.pdb *.sbr *.exe.manifest \
+		capinfos.obj capinfos.exp editcap.obj editcap.exp \
+		mergecap.obj text2pcap.obj \
 		reordercap.obj nio-ie5.obj update.obj \
 		text2pcap-scanner.obj text2pcap-scanner.c rdps.obj \
 		rdps.pdb rdps.exe rdps.ilk config.h ps.c $(LIBS_CHECK) \
-		dftest.obj dftest.exe randpkt.obj randpkt.ext \
+		dftest.obj dftest.exe randpkt.obj randpkt.exe \
 		doxygen.cfg \
 		$(RESOURCES) libwireshark.dll wiretap-$(WTAP_VERSION).dll \
 		libwsutil.dll \
@@ -893,7 +897,7 @@ process_libs:
 !ENDIF
 !IFDEF PCAP_DIR
 	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
-		. WpdPack_$(PCAP_VERSION).zip
+		. WpdPack_$(WPD_VERSION).zip
 !ENDIF
 !IFDEF AIRPCAP_DIR
 	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
@@ -936,6 +940,10 @@ process_libs:
 	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
 		GeoIP-$(GEOIP_PKG)-$(WIRESHARK_TARGET_PLATFORM)ws GeoIP-$(GEOIP_PKG)-$(WIRESHARK_TARGET_PLATFORM)ws.zip
 !ENDIF
+!IFDEF WINSPARKLE_DIR
+	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
+		. WinSparkle-$(WINSPARKLE_PKG).zip
+!ENDIF
 !IFDEF HHC_DIR
 	@$(SH) $(WIN_SETUP) "$(WIN_SETUP_OPT)" "$(WIRESHARK_LIB_DIR)" \
 		user-guide user-guide-46501.zip
@@ -965,6 +973,7 @@ clean_setup:
     rm -r -f c-ares-1.6.0ws
     rm -r -f c-ares-1.7.0-win??ws
     rm -r -f c-ares-1.7.1-win??ws
+    rm -r -f c-ares-1.9.1-win??ws
     rm -r -f gettext-0.14.5
     rm -r -f gettext-runtime-0.17
     rm -r -f gettext-runtime-0.17-1
@@ -1012,6 +1021,7 @@ clean_setup:
     rm -r -f GeoIP-1.4.6-win??ws
     rm -r -f GeoIP-1.4.8-win??ws
     rm -r -f GeoIP-1.4.8-*-win??ws
+    rm -r -f WinSparkle-0.3-44-g2c8d9d3-win??ws
     rm -r -f WpdPack
     cd "$(MAKEDIR)"
 
@@ -1118,6 +1128,11 @@ install-generated-files:
 	cd plugins
 	$(MAKE) /$(MAKEFLAGS) -f Makefile.nmake install-plugins
 	cd ..
+	if not exist $(INSTALL_DIR)\profiles mkdir $(INSTALL_DIR)\profiles
+	if not exist $(INSTALL_DIR)\profiles\Bluetooth mkdir $(INSTALL_DIR)\profiles\Bluetooth
+	xcopy ".\profiles\Bluetooth\colorfilters" $(INSTALL_DIR)\profiles\Bluetooth /d
+	if not exist $(INSTALL_DIR)\profiles\Classic mkdir $(INSTALL_DIR)\profiles\Classic
+	xcopy ".\profiles\Classic\colorfilters" $(INSTALL_DIR)\profiles\Classic /d
 
 # "install-all" will copy all files needed to run Wireshark/Tshark
 # to the INSTALL_DIR, so you can run/debug Wireshark/Tshark from there.
@@ -1250,12 +1265,16 @@ install-all: install-generated-files
 	xcopy "$(SMI_DIR)\share\mibs\iana\*" $(INSTALL_DIR)\snmp\mibs /d
 	xcopy "$(SMI_DIR)\share\mibs\ietf\*" $(INSTALL_DIR)\snmp\mibs /d
 	xcopy "$(SMI_DIR)\share\mibs\irtf\*" $(INSTALL_DIR)\snmp\mibs /d
+	xcopy "$(SMI_DIR)\share\mibs\site\*" $(INSTALL_DIR)\snmp\mibs /d
 	xcopy "$(SMI_DIR)\share\mibs\tubs\*" $(INSTALL_DIR)\snmp\mibs /d
 	xcopy "$(SMI_DIR)\share\pibs\*" $(INSTALL_DIR)\snmp\mibs /d
 	xcopy "$(SMI_DIR)\share\yang\*.yang" $(INSTALL_DIR)\snmp\mibs /d
 !ENDIF
 !IFDEF GEOIP_DIR
 	xcopy "$(GEOIP_DIR)\bin\libGeoip-1.dll" $(INSTALL_DIR) /d
+!ENDIF
+!IFDEF WINSPARKLE_DIR
+	xcopy "$(WINSPARKLE_DIR)\WinSparkle.dll" $(INSTALL_DIR) /d
 !ENDIF
 	cd $(INSTALL_DIR)
 	peflags --dynamicbase=true --nxcompat=true *.dll

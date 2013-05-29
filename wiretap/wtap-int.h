@@ -39,6 +39,7 @@
 
 #include "wtap.h"
 
+WS_DLL_PUBLIC
 int wtap_fstat(wtap *wth, ws_statb64 *statb, int *err);
 
 typedef gboolean (*subtype_read_func)(struct wtap*, int*, char**, gint64*);
@@ -112,10 +113,10 @@ struct wtap_dumper {
     GArray                  *interface_data;        /**< An array holding the interface data from pcapng IDB:s or equivalent(?) NULL if not present.*/
 };
 
-extern gboolean wtap_dump_file_write(wtap_dumper *wdh, const void *buf,
+gboolean wtap_dump_file_write(wtap_dumper *wdh, const void *buf,
     size_t bufsize, int *err);
-extern gint64 wtap_dump_file_seek(wtap_dumper *wdh, gint64 offset, int whence, int *err);
-extern gint64 wtap_dump_file_tell(wtap_dumper *wdh);
+gint64 wtap_dump_file_seek(wtap_dumper *wdh, gint64 offset, int whence, int *err);
+gint64 wtap_dump_file_tell(wtap_dumper *wdh, int *err);
 
 
 extern gint wtap_num_file_types;

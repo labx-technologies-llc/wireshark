@@ -30,6 +30,7 @@
 
 #include <QStatusBar>
 #include <QLabel>
+#include <QMenu>
 
 #include "cfile.h"
 
@@ -40,6 +41,7 @@ public:
     explicit MainStatusBar(QWidget *parent = 0);
     void showExpert();
     void hideExpert();
+    void expertUpdate();
 
 private:
     QLabel expert_status_;
@@ -48,8 +50,10 @@ private:
     LabelStack packet_status_;
     LabelStack profile_status_;
     capture_file *cap_file_;
-
-    void expertUpdate();
+    QMenu profile_menu_;
+    QMenu ctx_menu_;
+    QAction *edit_action_;
+    QAction *delete_action_;
 
 signals:
 
@@ -63,14 +67,18 @@ public slots:
     void popFieldStatus();
     void pushFilterStatus(QString &message);
     void popFilterStatus();
+    void pushProfileName();
+    void updateCaptureStatistics(capture_session * cap_session);
+
+private slots:
     void pushPacketStatus(QString &message);
     void popPacketStatus();
     void pushProfileStatus(QString &message);
     void popProfileStatus();
-    void updateCaptureStatistics(capture_options * capture_opts);
-
-private slots:
     void toggleBackground(bool enabled);
+    void switchToProfile();
+    void manageProfile();
+    void showProfileMenu(const QPoint &global_pos, Qt::MouseButton button);
 };
 
 #endif // MAIN_STATUS_BAR_H

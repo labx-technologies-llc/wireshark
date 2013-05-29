@@ -74,7 +74,7 @@ fcstat_reset(void *pfc)
 static int
 fcstat_packet(void *pfc, packet_info *pinfo, epan_dissect_t *edt _U_, const void *psi)
 {
-	const fc_hdr *fc=psi;
+	const fc_hdr *fc=(fc_hdr *)psi;
 	fcstat_t *fs=(fcstat_t *)pfc;
 
 	/* we are only interested in reply packets */
@@ -133,7 +133,7 @@ gtk_fcstat_init(const char *opt_arg, void *userdata _U_)
 		filter=NULL;
 	}
 
-	fc=g_malloc(sizeof(fcstat_t));
+	fc=(fcstat_t *)g_malloc(sizeof(fcstat_t));
 
 	fc->win = dlg_window_new("fc-stat");  /* transient_for top_level */
 	gtk_window_set_destroy_with_parent (GTK_WINDOW(fc->win), TRUE);
@@ -178,7 +178,7 @@ gtk_fcstat_init(const char *opt_arg, void *userdata _U_)
 	bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
 	gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-	close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(fc->win, close_bt, window_cancel_button_cb);
 
 	g_signal_connect(fc->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -207,12 +207,6 @@ static tap_param_dlg fc_stat_dlg = {
 void
 register_tap_listener_gtkfcstat(void)
 {
-	register_dfilter_stat(&fc_stat_dlg, "Fibre Channel",
+	register_param_stat(&fc_stat_dlg, "Fibre Channel",
 	    REGISTER_STAT_GROUP_RESPONSE_TIME);
 }
-
-void fc_srt_cb(GtkAction *action, gpointer user_data _U_)
-{
-	tap_param_dlg_cb(action, &fc_stat_dlg);
-}
-

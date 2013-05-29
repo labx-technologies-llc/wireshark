@@ -100,6 +100,9 @@
 #define BPDU_FLAGS_PROPOSAL		0x02
 #define BPDU_FLAGS_TC			0x01
 
+void proto_register_bpdu(void);
+void proto_reg_handoff_bpdu(void);
+
 static int proto_bpdu = -1;
 static int hf_bpdu_proto_id = -1;
 static int hf_bpdu_version_id = -1;
@@ -228,11 +231,11 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   guint8  flags;
   guint16 root_identifier_bridge_priority;
   guint16 root_identifier_system_id_extension = 0;
-  gchar   *root_identifier_mac_str;
+  const gchar *root_identifier_mac_str;
   guint32 root_path_cost;
   guint16 bridge_identifier_bridge_priority;
   guint16 bridge_identifier_system_id_extension = 0;
-  gchar   *bridge_identifier_mac_str;
+  const gchar *bridge_identifier_mac_str;
   guint16 port_identifier;
   double message_age;
   double max_age;
@@ -245,12 +248,12 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   guint8 config_format_selector;
   guint16 cist_bridge_identifier_bridge_priority;
   guint16 cist_bridge_identifier_system_id_extension = 0;
-  gchar   *cist_bridge_identifier_mac_str;
+  const gchar *cist_bridge_identifier_mac_str;
   guint16 msti_mstid;
   guint32 msti_regional_root_mstid, msti_regional_root_priority;
-  gchar   *msti_regional_root_mac_str;
+  const gchar *msti_regional_root_mac_str;
   guint16 msti_bridge_identifier_priority, msti_port_identifier_priority;
-  gchar   *msti_bridge_identifier_mac_str;
+  const gchar *msti_bridge_identifier_mac_str;
   int   total_msti_length, offset, msti, msti_format;
   int   msti_length_remaining;
   guint8 agree_num = 0, dagree_num = 0;
@@ -289,7 +292,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   if (pinfo->dl_dst.type == AT_ETHER) {
     const guint8 *dstaddr;
 
-    dstaddr = pinfo->dl_dst.data;
+    dstaddr = (const guint8 *)pinfo->dl_dst.data;
     if(dstaddr[0] == 0x01 && dstaddr[1] == 0x80 &&
        dstaddr[2] == 0xC2 && dstaddr[3] == 0x00 &&
        dstaddr[4] == 0x00 && ((dstaddr[5] == 0x0D) || ((dstaddr[5] & 0xF0) == 0x20))) {
@@ -1045,7 +1048,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                               "Agreement Digest Format Id: %d",
                               (spt_agree_data & 0xf0) >> 4);
           proto_tree_add_text(agreement_tree, tvb, spt_offset, 1,
-                              "Agreement Digest Format Capabilites: %d",
+                              "Agreement Digest Format Capabilities: %d",
                               (spt_agree_data & 0x0f));
           spt_offset += 1;
 
@@ -1055,7 +1058,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                               "Agreement Digest Convention Id: %d",
                               (spt_agree_data & 0xf0) >> 4);
           proto_tree_add_text(agreement_tree, tvb, spt_offset, 1,
-                              "Agreement Digest Convention Capabilites: %d",
+                              "Agreement Digest Convention Capabilities: %d",
                               (spt_agree_data & 0x0f));
           spt_offset += 1;
 

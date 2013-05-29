@@ -31,17 +31,17 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-
-#include <epan/dissectors/packet-dcerpc.h>
-#include <epan/dissectors/packet-gssapi.h>
-#include <epan/dissectors/packet-frame.h>
 #include <epan/conversation.h>
 #include <epan/emem.h>
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
 #include <epan/asn1.h>
-#include "packet-ber.h"
 #include <epan/to_str.h>
+#include <epan/show_exception.h>
+
+#include <epan/dissectors/packet-ber.h>
+#include <epan/dissectors/packet-dcerpc.h>
+#include <epan/dissectors/packet-gssapi.h>
 
 static int proto_gssapi = -1;
 
@@ -98,12 +98,13 @@ static const fragment_items gssapi_frag_items = {
 };
 
 
-static GHashTable *gssapi_fragment_table = NULL;
+static reassembly_table gssapi_reassembly_table;
 
 static void
 gssapi_reassembly_init(void)
 {
-	fragment_table_init(&gssapi_fragment_table);
+	reassembly_table_init(&gssapi_reassembly_table,
+	                      &addresses_reassembly_table_functions);
 }
 
 /*
@@ -144,7 +145,7 @@ gssapi_init_oid(const char *oid, int proto, int ett, dissector_handle_t handle,
 		dissector_handle_t wrap_handle, const gchar *comment)
 {
 	char *key = g_strdup(oid);
-	gssapi_oid_value *value = g_malloc(sizeof(*value));
+	gssapi_oid_value *value = (gssapi_oid_value *)g_malloc(sizeof(*value));
 
 	value->proto = find_protocol_by_id(proto);
 	value->ett = ett;
@@ -167,7 +168,7 @@ gssapi_lookup_oid_str(const char *oid_key)
 	if(!oid_key){
 		return NULL;
 	}
-	value = g_hash_table_lookup(gssapi_oids, oid_key);
+	value = (gssapi_oid_value *)g_hash_table_lookup(gssapi_oids, oid_key);
 	return value;
 }
 
@@ -185,7 +186,7 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	tvbuff_t *oid_tvb;
 	int len, start_offset, oid_start_offset;
 	volatile int offset;
-	gint8 class;
+	gint8 appclass;
 	gboolean pc, ind_field;
 	gint32 tag;
 	guint32 len1;
@@ -212,9 +213,9 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	 */
 	conversation = find_or_create_conversation(pinfo);
 
-	gss_info = conversation_get_proto_data(conversation, proto_gssapi);
+	gss_info = (gssapi_conv_info_t *)conversation_get_proto_data(conversation, proto_gssapi);
 	if (!gss_info) {
-		gss_info = se_alloc(sizeof(gssapi_conv_info_t));
+		gss_info = se_new(gssapi_conv_info_t);
 		gss_info->oid=NULL;
 		gss_info->do_reassembly=FALSE;
 		gss_info->frags=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "gssapi_frags");
@@ -244,19 +245,20 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		gss_tvb=tvb;
 
 
-		/* First of all, if its the first time we see this packet
+		/* First of all, if it's the first time we see this packet
 		 * then check whether we are in the middle of reassembly or not
 		 */
 		if( (!pinfo->fd->flags.visited)
 		&&  (gss_info->do_reassembly)
 		&&  (gssapi_reassembly) ){
-			fi=se_tree_lookup32(gss_info->frags, gss_info->first_frame);
+			fi=(gssapi_frag_info_t *)se_tree_lookup32(gss_info->frags, gss_info->first_frame);
 			if(!fi){
 				goto done;
 			}
 			se_tree_insert32(gss_info->frags, pinfo->fd->num, fi);
-			fd_head=fragment_add(tvb, 0, pinfo, fi->first_frame,
-				gssapi_fragment_table, gss_info->frag_offset,
+			fd_head=fragment_add(&gssapi_reassembly_table,
+				tvb, 0, pinfo, fi->first_frame, NULL,
+				gss_info->frag_offset,
 				tvb_length(tvb), TRUE);
 			gss_info->frag_offset+=tvb_length(tvb);
 
@@ -277,9 +279,10 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 */
 		if( (pinfo->fd->flags.visited)
 		&&  (gssapi_reassembly) ){
-			fi=se_tree_lookup32(gss_info->frags, pinfo->fd->num);
+			fi=(gssapi_frag_info_t *)se_tree_lookup32(gss_info->frags, pinfo->fd->num);
 			if(fi){
-				fd_head=fragment_get(pinfo, fi->first_frame, gssapi_fragment_table);
+				fd_head=fragment_get(&gssapi_reassembly_table,
+					pinfo, fi->first_frame, NULL);
 				if(fd_head && (fd_head->flags&FD_DEFRAGMENTED)){
 					if(pinfo->fd->num==fi->reassembled_in){
 					        proto_item *frag_tree_item;
@@ -297,11 +300,11 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		}
 
 		/* Read header */
-		offset = get_ber_identifier(gss_tvb, offset, &class, &pc, &tag);
+		offset = get_ber_identifier(gss_tvb, offset, &appclass, &pc, &tag);
 		offset = get_ber_length(gss_tvb, offset, &len1, &ind_field);
 
 
-		if (!(class == BER_CLASS_APP && pc && tag == 0)) {
+		if (!(appclass == BER_CLASS_APP && pc && tag == 0)) {
 		  /* It could be NTLMSSP, with no OID.  This can happen
 		     for anything that microsoft calls 'Negotiate' or GSS-SPNEGO */
 			if ((tvb_length_remaining(gss_tvb, start_offset)>7) && (tvb_strneql(gss_tvb, start_offset, "NTLMSSP", 7) == 0)) {
@@ -314,7 +317,7 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			if ((tvb_length_remaining(gss_tvb, start_offset)>16) &&
 			   ((tvb_memeql(gss_tvb, start_offset, "\x01\x00\x00\x00", 4) == 0))) {
 				return_offset = call_dissector(ntlmssp_payload_handle,
-							tvb_new_subset(gss_tvb, start_offset, -1, -1),
+							tvb_new_subset_remaining(gss_tvb, start_offset),
 							pinfo, subtree);
 				pinfo->gssapi_data_encrypted = TRUE;
 				goto done;
@@ -323,12 +326,12 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			   ((tvb_memeql(gss_tvb, start_offset, "\x01\x00\x00\x00", 4) == 0))) {
 				if( is_verifier ) {
 					return_offset = call_dissector(ntlmssp_verf_handle,
-									tvb_new_subset(gss_tvb, start_offset, -1, -1),
+									tvb_new_subset_remaining(gss_tvb, start_offset),
 									pinfo, subtree);
 				}
 				else if( pinfo->gssapi_encrypted_tvb ) {
 					return_offset = call_dissector(ntlmssp_data_only_handle,
-									tvb_new_subset(pinfo->gssapi_encrypted_tvb, 0, -1, -1),
+									tvb_new_subset_remaining(pinfo->gssapi_encrypted_tvb, 0),
 									pinfo, subtree);
 					pinfo->gssapi_data_encrypted = TRUE;
 				}
@@ -364,20 +367,20 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		   * pointer; it just treats it as an opaque pointer, it
 		   * doesn't dereference it or free what it points to.)
 		   */
-		  oidvalue = p_get_proto_data(pinfo->fd, proto_gssapi);
+		  oidvalue = (gssapi_oid_value *)p_get_proto_data(pinfo->fd, proto_gssapi, 0);
 		  if (!oidvalue && !pinfo->fd->flags.visited)
 		  {
 		    /* No handle attached to this frame, but it's the first */
 		    /* pass, so it'd be attached to the conversation. */
 		    oidvalue = gss_info->oid;
 		    if (gss_info->oid)
-		      p_add_proto_data(pinfo->fd, proto_gssapi, gss_info->oid);
+		      p_add_proto_data(pinfo->fd, proto_gssapi, 0, gss_info->oid);
 		  }
 		  if (!oidvalue)
 		  {
                     proto_tree_add_text(subtree, gss_tvb, start_offset, 0,
 					  "Unknown header (class=%d, pc=%d, tag=%d)",
-					  class, pc, tag);
+					  appclass, pc, tag);
 		    return_offset = tvb_length(gss_tvb);
 		    goto done;
 		  } else {
@@ -419,15 +422,16 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		&&  (tvb_length(gss_tvb)==tvb_reported_length(gss_tvb))
 		&&  (len1>(guint32)tvb_length_remaining(gss_tvb, oid_start_offset))
 		&&  (gssapi_reassembly) ){
-			fi=se_alloc(sizeof(gssapi_frag_info_t));
+			fi=se_new(gssapi_frag_info_t);
 			fi->first_frame=pinfo->fd->num;
 			fi->reassembled_in=0;
 			se_tree_insert32(gss_info->frags, pinfo->fd->num, fi);
 
-			fragment_add(gss_tvb, 0, pinfo, pinfo->fd->num,
-				gssapi_fragment_table, 0,
-				tvb_length(gss_tvb), TRUE);
-			fragment_set_tot_len(pinfo, pinfo->fd->num, gssapi_fragment_table, len1+oid_start_offset);
+			fragment_add(&gssapi_reassembly_table,
+				gss_tvb, 0, pinfo, pinfo->fd->num, NULL,
+				0, tvb_length(gss_tvb), TRUE);
+			fragment_set_tot_len(&gssapi_reassembly_table,
+				pinfo, pinfo->fd->num, NULL, len1+oid_start_offset);
 
 			gss_info->do_reassembly=TRUE;
 			gss_info->first_frame=pinfo->fd->num;
@@ -496,15 +500,25 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 	 done:
 		;
-	} CATCH(BoundsError) {
-		RETHROW;
-	} CATCH(ReportedBoundsError) {
-		/*  Restore the private_data structure in case one of the
-		 *  called dissectors modified it (and, due to the exception,
-		 *  was unable to restore it).
+	} CATCH_NONFATAL_ERRORS {
+		/*
+		 * Somebody threw an exception that means that there
+		 * was a problem dissecting the payload; that means
+		 * that a dissector was found, so we don't need to
+		 * dissect the payload as data or update the protocol
+		 * or info columns.
+		 *
+		 * Just show the exception and then drive on to show
+		 * the trailer, after noting that a dissector was found
+		 * and restoring the protocol value that was in effect
+		 * before we called the subdissector.
+		 *
+		 * Restore the private_data structure in case one of the
+		 * called dissectors modified it (and, due to the exception,
+		 * was unable to restore it).
 		 */
 		pinfo->private_data = pd_save;
-		show_reported_bounds_error(gss_tvb, pinfo, tree);
+		show_exception(gss_tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
 	} ENDTRY;
 
 	proto_item_set_len(item, return_offset);

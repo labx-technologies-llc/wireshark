@@ -23,18 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/*
- * Routine used to add an indication of an arbitrary exception to the tree.
- */
-void show_exception(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-    unsigned long exception, const char *exception_message);
-
-/*
- * Routine used to add an indication of a ReportedBoundsError exception
- * to the tree.
- */
-void
-show_reported_bounds_error(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+#include "ws_symbol_export.h"
 
 /*
  * Routine used to register frame end routine.  The routine should only
@@ -45,12 +34,6 @@ void
 register_frame_end_routine(packet_info *pinfo, void (*func)(void));
 
 /*
- * "Protocol" used for "malformed frame" errors (other than
- * ReportedBoundsError exceptions).
- */
-extern int proto_malformed;
-
-/*
  * The frame dissector and the PPI dissector both use this
  */
 extern dissector_table_t wtap_encap_dissector_table;
@@ -58,8 +41,8 @@ extern dissector_table_t wtap_encap_dissector_table;
 /* following variables are exported from libwireshark.dll.
  * Thus we need a special declaration.
  */
-WS_VAR_IMPORT int proto_frame;
-WS_VAR_IMPORT int hf_frame_arrival_time;
-WS_VAR_IMPORT int hf_frame_number;
-WS_VAR_IMPORT int hf_frame_len;
-WS_VAR_IMPORT int hf_frame_capture_len;
+WS_DLL_PUBLIC int proto_frame;
+WS_DLL_PUBLIC int hf_frame_arrival_time;
+WS_DLL_PUBLIC int hf_frame_number;
+WS_DLL_PUBLIC int hf_frame_len;
+WS_DLL_PUBLIC int hf_frame_capture_len;

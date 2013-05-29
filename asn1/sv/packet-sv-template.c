@@ -29,6 +29,8 @@
 #include <epan/packet.h>
 #include <epan/asn1.h>
 #include <epan/etypes.h>
+#include <epan/expert.h>
+#include <epan/nstime.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -69,6 +71,8 @@
 /* see UCA Implementation Guideline for IEC 61850-9-2 */
 #define Q_DERIVED				(1 << 13)
 
+void proto_register_sv(void);
+void proto_reg_handoff_sv(void);
 
 /* Data for SV tap */
 static int sv_tap = -1;
@@ -80,6 +84,7 @@ static int hf_sv_appid = -1;
 static int hf_sv_length = -1;
 static int hf_sv_reserve1 = -1;
 static int hf_sv_reserve2 = -1;
+#if 0
 static int hf_sv_phmeas_instmag_i = -1;
 static int hf_sv_phsmeas_q = -1;
 static int hf_sv_phsmeas_q_validity = -1;
@@ -95,7 +100,7 @@ static int hf_sv_phsmeas_q_source = -1;
 static int hf_sv_phsmeas_q_test = -1;
 static int hf_sv_phsmeas_q_operatorblocked = -1;
 static int hf_sv_phsmeas_q_derived = -1;
-
+#endif
 #include "packet-sv-hf.c"
 
 /* Initialize the subtree pointers */
@@ -105,6 +110,7 @@ static int ett_phsmeas_q = -1;
 
 #include "packet-sv-ett.c"
 
+#if 0
 static const value_string sv_q_validity_vals[] = {
   {   0, "good" },
   {   1, "invalid" },
@@ -182,6 +188,7 @@ dissect_PhsMeas1(gboolean implicit_tag, packet_info *pinfo, proto_tree *tree, tv
 	return offset;
 }
 
+#endif
 #include "packet-sv-fn.c"
 
 /*
@@ -252,7 +259,7 @@ void proto_register_sv(void) {
 
 		{ &hf_sv_reserve2,
 		{ "Reserved 2",	"sv.reserve2", FT_UINT16, BASE_HEX_DEC, NULL, 0x0, NULL, HFILL }},
-
+#if 0
 		{ &hf_sv_phmeas_instmag_i,
 		{ "value", "sv.meas_value", FT_INT32, BASE_DEC, NULL, 0x0, NULL, HFILL}},
 
@@ -297,7 +304,7 @@ void proto_register_sv(void) {
 
 		{ &hf_sv_phsmeas_q_derived,
 		{ "derived", "sv.meas_quality.derived", FT_BOOLEAN, 32, NULL, Q_DERIVED, NULL, HFILL}},
-
+#endif
 
 #include "packet-sv-hfarr.c"
 	};

@@ -61,6 +61,7 @@
 #include "packet-frame.h"
 #include "packet-eth.h"
 #include "packet-ieee80211.h"
+#include "packet-ppi.h"
 
 /*
  * Per-Packet Information (PPI) header.
@@ -273,7 +274,7 @@ static int hf_80211n_mac_phy_evm3 = -1;
 
 /* 802.11n-Extensions A-MPDU fragments */
 static int hf_ampdu_reassembled_in = -1;
-static int hf_ampdu_segments = -1;
+/* static int hf_ampdu_segments = -1; */
 static int hf_ampdu_segment = -1;
 static int hf_ampdu_count  = -1;
 
@@ -361,9 +362,8 @@ static const value_string vs_80211_common_phy_type[] = {
 };
 /* XXX - End - Copied from packet-radiotap.c */
 
-/* Tables for A-MPDU reassembly */
-static GHashTable *ampdu_fragment_table = NULL;
-static GHashTable *ampdu_reassembled_table = NULL;
+/* Table for A-MPDU reassembly */
+static reassembly_table ampdu_reassembly_table;
 
 /* Reassemble A-MPDUs? */
 static gboolean ppi_ampdu_reassemble = TRUE;
@@ -536,7 +536,7 @@ dissect_80211_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int of
     ptvcursor_add(csr, hf_80211_common_fhss_pattern, 1, ENC_LITTLE_ENDIAN);
 
     if (check_col(pinfo->cinfo, COL_RSSI)) {
-        col_add_fstr(pinfo->cinfo, COL_RSSI, "%d",
+        col_add_fstr(pinfo->cinfo, COL_RSSI, "%d dBm",
             (gint8) tvb_get_guint8(tvb, ptvcursor_current_offset(csr)));
     }
     ptvcursor_add_invalid_check(csr, hf_80211_common_dbm_antsignal, 1, 0x80); /* -128 */
@@ -903,7 +903,7 @@ dissect_ppi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         /* Make sure we aren't going to go past AGGREGATE_MAX
          * and caclulate our full A-MPDU length */
-        fd_head = fragment_get(pinfo, ampdu_id, ampdu_fragment_table);
+        fd_head = fragment_get(&ampdu_reassembly_table, pinfo, ampdu_id, NULL);
         while (fd_head) {
             ampdu_len += fd_head->len + PADDING4(fd_head->len) + 4;
             fd_head = fd_head->next;
@@ -925,13 +925,12 @@ dissect_ppi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          * routine which would un-do the work we just did.  We're using
          * the reassembly code to track MPDU sizes and frame numbers.
          */
-        /*??fd_head = */fragment_add_seq_next(tvb, offset, pinfo, ampdu_id,
-            ampdu_fragment_table, ampdu_reassembled_table,
-            len_remain, TRUE);
+        /*??fd_head = */fragment_add_seq_next(&ampdu_reassembly_table,
+            tvb, offset, pinfo, ampdu_id, NULL, len_remain, TRUE);
         pinfo->fragmented = TRUE;
 
         /* Do reassembly? */
-        fd_head = fragment_get(pinfo, ampdu_id, ampdu_fragment_table);
+        fd_head = fragment_get(&ampdu_reassembly_table, pinfo, ampdu_id, NULL);
 
         /* Show our fragments */
         if (fd_head && tree) {
@@ -1013,8 +1012,8 @@ dissect_ppi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static void
 ampdu_reassemble_init(void)
 {
-    fragment_table_init(&ampdu_fragment_table);
-    reassembled_table_init(&ampdu_reassembled_table);
+    reassembly_table_init(&ampdu_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 void
@@ -1259,9 +1258,11 @@ proto_register_ppi(void)
     { &hf_ampdu_segment,
         { "A-MPDU", "ppi.80211n-mac.ampdu",
             FT_FRAMENUM, BASE_NONE, NULL, 0x0, "802.11n Aggregated MAC Protocol Data Unit (A-MPDU)", HFILL }},
+#if 0
     { &hf_ampdu_segments,
         { "Reassembled A-MPDU", "ppi.80211n-mac.ampdu.reassembled",
             FT_NONE, BASE_NONE, NULL, 0x0, "Reassembled Aggregated MAC Protocol Data Unit (A-MPDU)", HFILL }},
+#endif
     { &hf_ampdu_reassembled_in,
         { "Reassembled A-MPDU in frame", "ppi.80211n-mac.ampdu.reassembled_in",
             FT_FRAMENUM, BASE_NONE, NULL, 0x0,

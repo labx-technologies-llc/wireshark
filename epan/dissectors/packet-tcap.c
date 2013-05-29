@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-tcap.c                                                              */
 /* ../../tools/asn2wrs.py -b -p tcap -c ./tcap.cnf -s ./packet-tcap-template -D . -O ../../epan/dissectors tcap.asn UnidialoguePDUs.asn DialoguePDUs.asn */
 
@@ -41,11 +41,11 @@
 #include <epan/oids.h>
 #include <epan/asn1.h>
 #include <epan/strutil.h>
+#include <epan/show_exception.h>
 
 #include <string.h>
 #include "packet-ber.h"
 #include "packet-tcap.h"
-#include "packet-frame.h"
 #include <epan/tcap-persistentdata.h>
 
 #define PNAME  "Transaction Capabilities Application Part"
@@ -673,11 +673,8 @@ TRY {
                                  NULL);
 
 }
-CATCH(BoundsError) {
-  RETHROW;
-}
-CATCH(ReportedBoundsError) {
-  show_reported_bounds_error(tvb, actx->pinfo, tree);
+CATCH_NONFATAL_ERRORS {
+  show_exception(tvb, actx->pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
 }
 ENDTRY;
 
@@ -742,7 +739,7 @@ dissect_tcap_OCTET_STRING_SIZE_1_4(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_tcap_OrigTransactionID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 126 "../../asn1/tcap/tcap.cnf"
+#line 123 "../../asn1/tcap/tcap.cnf"
 tvbuff_t *parameter_tvb;
 guint8 len, i;
 proto_item *tid_item;
@@ -797,7 +794,7 @@ static const ber_sequence_t Begin_sequence[] = {
 
 static int
 dissect_tcap_Begin(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 204 "../../asn1/tcap/tcap.cnf"
+#line 201 "../../asn1/tcap/tcap.cnf"
 gp_tcapsrt_info->ope=TC_BEGIN;
 
 /*  Do not change col_add_str() to col_append_str() here: we _want_ this call
@@ -819,7 +816,7 @@ gp_tcapsrt_info->ope=TC_BEGIN;
 
 static int
 dissect_tcap_DestTransactionID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 167 "../../asn1/tcap/tcap.cnf"
+#line 164 "../../asn1/tcap/tcap.cnf"
 tvbuff_t *parameter_tvb;
 guint8 len , i;
 proto_item *tid_item;
@@ -871,7 +868,7 @@ static const ber_sequence_t End_sequence[] = {
 
 static int
 dissect_tcap_End(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 218 "../../asn1/tcap/tcap.cnf"
+#line 215 "../../asn1/tcap/tcap.cnf"
 gp_tcapsrt_info->ope=TC_END;
 
 	col_set_str(actx->pinfo->cinfo, COL_INFO, "End ");
@@ -893,7 +890,7 @@ static const ber_sequence_t Continue_sequence[] = {
 
 static int
 dissect_tcap_Continue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 225 "../../asn1/tcap/tcap.cnf"
+#line 222 "../../asn1/tcap/tcap.cnf"
 gp_tcapsrt_info->ope=TC_CONT;
 
 	col_set_str(actx->pinfo->cinfo, COL_INFO, "Continue ");
@@ -964,7 +961,7 @@ static const ber_sequence_t Abort_sequence[] = {
 
 static int
 dissect_tcap_Abort(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 232 "../../asn1/tcap/tcap.cnf"
+#line 229 "../../asn1/tcap/tcap.cnf"
 gp_tcapsrt_info->ope=TC_ABORT;
 
 	col_set_str(actx->pinfo->cinfo, COL_INFO, "Abort ");
@@ -1044,7 +1041,7 @@ dissect_tcap_AUDT_protocol_version(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_tcap_AUDT_application_context_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 111 "../../asn1/tcap/tcap.cnf"
+#line 108 "../../asn1/tcap/tcap.cnf"
   offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &cur_oid);
 
 	tcap_private.oid= (void*) cur_oid;
@@ -1141,7 +1138,7 @@ dissect_tcap_AARQ_protocol_version(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_tcap_AARQ_application_context_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 116 "../../asn1/tcap/tcap.cnf"
+#line 113 "../../asn1/tcap/tcap.cnf"
   offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &cur_oid);
 
 	tcap_private.oid= (void*) cur_oid;
@@ -1209,7 +1206,7 @@ dissect_tcap_AARE_protocol_version(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_tcap_AARE_application_context_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 121 "../../asn1/tcap/tcap.cnf"
+#line 118 "../../asn1/tcap/tcap.cnf"
   offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &cur_oid);
 
 	tcap_private.oid= (void*) cur_oid;
@@ -1627,23 +1624,23 @@ proto_register_tcap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "Dialog1", HFILL }},
     { &hf_tcap_unidirectional,
-      { "unidirectional", "tcap.unidirectional",
+      { "unidirectional", "tcap.unidirectional_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_begin,
-      { "begin", "tcap.begin",
+      { "begin", "tcap.begin_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_end,
-      { "end", "tcap.end",
+      { "end", "tcap.end_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_continue,
-      { "continue", "tcap.continue",
+      { "continue", "tcap.continue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_abort,
-      { "abort", "tcap.abort",
+      { "abort", "tcap.abort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_dialoguePortion,
@@ -1679,23 +1676,23 @@ proto_register_tcap(void)
         FT_UINT32, BASE_DEC, VALS(tcap_Component_vals), 0,
         NULL, HFILL }},
     { &hf_tcap_invoke,
-      { "invoke", "tcap.invoke",
+      { "invoke", "tcap.invoke_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_returnResultLast,
-      { "returnResultLast", "tcap.returnResultLast",
+      { "returnResultLast", "tcap.returnResultLast_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReturnResult", HFILL }},
     { &hf_tcap_returnError,
-      { "returnError", "tcap.returnError",
+      { "returnError", "tcap.returnError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_reject,
-      { "reject", "tcap.reject",
+      { "reject", "tcap.reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_returnResultNotLast,
-      { "returnResultNotLast", "tcap.returnResultNotLast",
+      { "returnResultNotLast", "tcap.returnResultNotLast_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReturnResult", HFILL }},
     { &hf_tcap_invokeID,
@@ -1711,11 +1708,11 @@ proto_register_tcap(void)
         FT_UINT32, BASE_DEC, VALS(tcap_OPERATION_vals), 0,
         "OPERATION", HFILL }},
     { &hf_tcap_parameter,
-      { "parameter", "tcap.parameter",
+      { "parameter", "tcap.parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_resultretres,
-      { "resultretres", "tcap.resultretres",
+      { "resultretres", "tcap.resultretres_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_errorCode,
@@ -1731,7 +1728,7 @@ proto_register_tcap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "InvokeIdType", HFILL }},
     { &hf_tcap_not_derivable,
-      { "not-derivable", "tcap.not_derivable",
+      { "not-derivable", "tcap.not_derivable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tcap_problem,
@@ -1771,7 +1768,7 @@ proto_register_tcap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_tcap_unidialoguePDU,
-      { "unidialoguePDU", "tcap.unidialoguePDU",
+      { "unidialoguePDU", "tcap.unidialoguePDU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AUDT_apdu", HFILL }},
     { &hf_tcap_audt_protocol_version,
@@ -1787,19 +1784,19 @@ proto_register_tcap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "AUDT_user_information", HFILL }},
     { &hf_tcap_audt_user_information_item,
-      { "user-information item", "tcap.user_information_item",
+      { "user-information item", "tcap.user_information_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_tcap_dialogueRequest,
-      { "dialogueRequest", "tcap.dialogueRequest",
+      { "dialogueRequest", "tcap.dialogueRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AARQ_apdu", HFILL }},
     { &hf_tcap_dialogueResponse,
-      { "dialogueResponse", "tcap.dialogueResponse",
+      { "dialogueResponse", "tcap.dialogueResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AARE_apdu", HFILL }},
     { &hf_tcap_dialogueAbort,
-      { "dialogueAbort", "tcap.dialogueAbort",
+      { "dialogueAbort", "tcap.dialogueAbort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ABRT_apdu", HFILL }},
     { &hf_tcap_aarq_protocol_version,
@@ -1815,7 +1812,7 @@ proto_register_tcap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "AARQ_user_information", HFILL }},
     { &hf_tcap_aarq_user_information_item,
-      { "user-information item", "tcap.user_information_item",
+      { "user-information item", "tcap.user_information_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_tcap_aare_protocol_version,
@@ -1839,7 +1836,7 @@ proto_register_tcap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "AARE_user_information", HFILL }},
     { &hf_tcap_aare_user_information_item,
-      { "user-information item", "tcap.user_information_item",
+      { "user-information item", "tcap.user_information_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_tcap_abort_source,
@@ -1851,7 +1848,7 @@ proto_register_tcap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "ABRT_user_information", HFILL }},
     { &hf_tcap_abrt_user_information_item,
-      { "user-information item", "tcap.user_information_item",
+      { "user-information item", "tcap.user_information_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_tcap_dialogue_service_user,

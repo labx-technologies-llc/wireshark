@@ -23,7 +23,7 @@
 
 include Custom.make
 
-SUBDIRS = 		\
+SUBDIRS =		\
 	$(CUSTOM_SUBDIRS)	\
 	acp133		\
 	acse		\
@@ -63,7 +63,7 @@ SUBDIRS = 		\
 	hnbap		\
 	idmp		\
 	inap		\
-	kerberos	\
+	isdn-sup	\
 	lcsap		\
 	ldap		\
 	logotypecertextn \
@@ -71,7 +71,7 @@ SUBDIRS = 		\
 	lppa		\
 	lppe		\
 	lte-rrc		\
-	m3ap	\
+	m3ap		\
 	mms		\
 	mpeg-audio	\
 	mpeg-pes	\
@@ -121,8 +121,15 @@ SUBDIRS = 		\
 	x509af		\
 	x509ce		\
 	x509if		\
-	x509sat		\
+	x509sat
+
+# kerberos is a handwritten dissector, don't replace
+# x721 doesn't build
+DONT_BUILD_SUBDIRS = \
+	kerberos \
 	x721
+
+DIST_SUBDIRS = $(SUBDIRS) $(DONT_BUILD_SUBDIRS)
 
 EXTRA_DIST = \
 	Makefile.nmake	\

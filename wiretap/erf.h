@@ -40,6 +40,7 @@
 
 #include <glib.h>
 #include <wiretap/wtap.h>
+#include "ws_symbol_export.h"
 
 /* Record type defines */
 #define ERF_TYPE_LEGACY             0

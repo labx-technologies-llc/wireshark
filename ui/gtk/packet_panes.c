@@ -120,7 +120,7 @@ get_byte_view_data_and_length(GtkWidget *byte_view, guint *data_len)
     tvbuff_t *byte_view_tvb;
     const guint8 *data_ptr;
 
-    byte_view_tvb = g_object_get_data(G_OBJECT(byte_view), E_BYTE_VIEW_TVBUFF_KEY);
+    byte_view_tvb = (tvbuff_t *)g_object_get_data(G_OBJECT(byte_view), E_BYTE_VIEW_TVBUFF_KEY);
     if (byte_view_tvb == NULL)
         return NULL;
 
@@ -146,7 +146,7 @@ set_notebook_page(GtkWidget *nb_ptr, tvbuff_t *tvb)
          (bv_page = gtk_notebook_get_nth_page(GTK_NOTEBOOK(nb_ptr), num)) != NULL;
          num++) {
         bv = gtk_bin_get_child(GTK_BIN(bv_page));
-        bv_tvb = g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_TVBUFF_KEY);
+        bv_tvb = (tvbuff_t *)g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_TVBUFF_KEY);
         if (bv_tvb == tvb) {
             /* Found it. */
             gtk_notebook_set_current_page(GTK_NOTEBOOK(nb_ptr), num);
@@ -205,7 +205,7 @@ expand_tree(GtkTreeView *tree_view, GtkTreeIter *iter,
     /* scroll the expanded item to reduce the need to do a manual scroll down
      * and provide faster navigation of deeper trees */
 
-    if(prefs.gui_auto_scroll_on_expand) 
+    if(prefs.gui_auto_scroll_on_expand)
         gtk_tree_view_scroll_to_cell(tree_view, path, NULL, TRUE, (prefs.gui_auto_scroll_percentage/100.0f), 0.0f);
 
     /*
@@ -289,7 +289,7 @@ byte_view_select(GtkWidget *widget, GdkEventButton *event)
     int           byte = -1;
     tvbuff_t     *tvb;
 
-    tree = g_object_get_data(G_OBJECT(widget), E_BYTE_VIEW_TREE_PTR);
+    tree = (proto_tree *)g_object_get_data(G_OBJECT(widget), E_BYTE_VIEW_TREE_PTR);
     if (tree == NULL) {
         /*
          * Somebody clicked on the dummy byte view; do nothing.
@@ -306,7 +306,7 @@ byte_view_select(GtkWidget *widget, GdkEventButton *event)
     }
 
     /* Get the data source tvbuff */
-    tvb = g_object_get_data(G_OBJECT(widget), E_BYTE_VIEW_TVBUFF_KEY);
+    tvb = (tvbuff_t *)g_object_get_data(G_OBJECT(widget), E_BYTE_VIEW_TVBUFF_KEY);
 
     return highlight_field(tvb, byte, tree_view, tree);
 }
@@ -512,7 +512,7 @@ add_byte_views(epan_dissect_t *edt, GtkWidget *tree_view,
      * of all the data sources for the specified frame.
      */
     for (src_le = edt->pi.data_src; src_le != NULL; src_le = src_le->next) {
-        src = src_le->data;
+        src = (struct data_source *)src_le->data;
         add_byte_tab(byte_nb_ptr, get_data_source_name(src), get_data_source_tvb(src), edt->tree,
                      tree_view);
     }
@@ -522,17 +522,6 @@ add_byte_views(epan_dissect_t *edt, GtkWidget *tree_view,
      */
     gtk_notebook_set_current_page(GTK_NOTEBOOK(byte_nb_ptr), 0);
 }
-
-
-
-static GtkWidget *savehex_dlg=NULL;
-
-static void
-savehex_dlg_destroy_cb(GtkWidget *w _U_, gpointer user_data _U_)
-{
-    savehex_dlg = NULL;
-}
-
 
 static void
 copy_hex_all_info(GString* copy_buffer, const guint8* data_p, int data_len, gboolean append_text)
@@ -639,7 +628,7 @@ copy_hex_cb(GtkWidget * w _U_, gpointer data _U_, copy_data_type data_type)
     bv = get_notebook_bv_ptr(byte_nb_ptr_gbl);
     if (bv == NULL) {
         /* shouldn't happen */
-        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "Could not find the corresponding text window!");
+        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "Could not find the corresponding text window.");
         return;
     }
 
@@ -647,7 +636,7 @@ copy_hex_cb(GtkWidget * w _U_, gpointer data _U_, copy_data_type data_type)
     g_assert(data_p != NULL);
 
     flags = data_type & CD_FLAGSMASK;
-    data_type = data_type & CD_TYPEMASK;
+    data_type = (copy_data_type)(data_type & CD_TYPEMASK);
 
     if(flags & CD_FLAGS_SELECTEDONLY) {
         int start, end;
@@ -706,79 +695,25 @@ copy_hex_cb(GtkWidget * w _U_, gpointer data _U_, copy_data_type data_type)
 
 /* save the current highlighted hex data */
 static gboolean
-savehex_save_clicked_cb(GtkWidget * w _U_, gpointer data _U_)
+savehex_save_clicked_cb(gchar *file, int start, int end, const guint8 *data_p)
 {
-    GtkWidget *bv;
-    int fd, start, end;
-    guint len;
-    const guint8 *data_p = NULL;
-    char *file;
-
-    file = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(savehex_dlg));
-
-#if 0 /* Not req'd: GtkFileChooserWidget currently being used won't return with a Null filename */
-    if (!file ||! *file) {
-        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "Please enter a filename!");
-        g_free(file);
-        return TRUE;
-    }
-#endif
-    if (test_for_directory(file) == EISDIR) {
-        /* It's a directory - set the file selection box to display that
-           directory, and leave the selection box displayed. */
-        set_last_open_dir(file);
-        g_free(file);
-        file_selection_set_current_folder(savehex_dlg, get_last_open_dir());
-        gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(savehex_dlg), "");
-        return FALSE; /* do gtk_dialog_run again */
-    }
-
-    /* XXX: Must check if file name exists first */
-
-    bv = get_notebook_bv_ptr(byte_nb_ptr_gbl);
-    if (bv == NULL) {
-        /* shouldn't happen */
-        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "Could not find the corresponding text window!");
-        g_free(file);
-        return TRUE;
-    }
-    /*
-     * Retrieve the info we need
-     */
-    start = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_START_KEY));
-    end = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_END_KEY));
-    data_p = get_byte_view_data_and_length(bv, &len);
-
-    if (data_p == NULL || start == -1 || start > end) {
-        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
-                      "No data selected to save!");
-        g_free(file);
-        return TRUE;
-    }
+    int fd;
 
     fd = ws_open(file, O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, 0666);
     if (fd == -1) {
         open_failure_alert_box(file, errno, TRUE);
-        g_free(file);
-        return TRUE;
+        return FALSE;
     }
     if (ws_write(fd, data_p + start, end - start) < 0) {
         write_failure_alert_box(file, errno);
         ws_close(fd);
-        g_free(file);
-        return TRUE;
+        return FALSE;
     }
     if (ws_close(fd) < 0) {
         write_failure_alert_box(file, errno);
-        g_free(file);
-        return TRUE;
+        return FALSE;
     }
 
-    /* Get rid of the dialog box */
-    g_free(file);
-#if 0 /* being handled by caller  (for now) */
-    window_destroy(GTK_WIDGET(savehex_dlg));
-#endif
     return TRUE;
 }
 
@@ -791,44 +726,18 @@ savehex_cb(GtkWidget * w _U_, gpointer data _U_)
     return;
 }
 #else
-void
-savehex_cb(GtkWidget * w _U_, gpointer data _U_)
+static char *
+gtk_export_raw_file(int start, int end)
 {
-    int start, end;
-    guint len;
-    const guint8 *data_p = NULL;
+    GtkWidget *savehex_dlg;
     gchar *label;
-    GtkWidget   *bv;
     GtkWidget   *dlg_lb;
+    char *pathname;
 
-    /* don't show up the dialog, if no data has to be saved */
-    bv = get_notebook_bv_ptr(byte_nb_ptr_gbl);
-    if (bv == NULL) {
-        /* shouldn't happen */
-        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "Could not find the corresponding text window!");
-        return;
-    }
-    start = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_START_KEY));
-    end = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_END_KEY));
-    data_p = get_byte_view_data_and_length(bv, &len);
-
-    if (data_p == NULL || start == -1 || start > end) {
-        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "No data selected to save!");
-        return;
-    }
-
-#if 0  /* XXX: GtkFileChooserDialog/gtk_dialog_run currently being used is effectively modal so this is not req'd */
-    /* if the window is already open, bring it to front */
-    if(savehex_dlg){
-        reactivate_window(savehex_dlg);
-        return;
-    }
-#endif
     /*
      * Build the dialog box we need.
      */
-    savehex_dlg = file_selection_new("Wireshark: Export Selected Packet Bytes", FILE_SELECTION_SAVE);
-    gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(savehex_dlg), TRUE);
+    savehex_dlg = file_selection_new("Wireshark: Export Selected Packet Bytes", GTK_WINDOW(top_level), FILE_SELECTION_SAVE);
 
     /* label */
     label = g_strdup_printf("Will save %u %s of raw binary data to specified file.",
@@ -838,34 +747,60 @@ savehex_cb(GtkWidget * w _U_, gpointer data _U_)
     file_selection_set_extra_widget(savehex_dlg, dlg_lb);
     gtk_widget_show(dlg_lb);
 
-    g_signal_connect(savehex_dlg, "destroy", G_CALLBACK(savehex_dlg_destroy_cb), NULL);
+    pathname = file_selection_run(savehex_dlg);
+    if (pathname == NULL) {
+        /* User cancelled or closed the dialog. */
+        return NULL;
+    }
 
-#if 0
-    if (gtk_dialog_run(GTK_DIALOG(savehex_dlg)) == GTK_RESPONSE_ACCEPT) {
-        savehex_save_clicked_cb(savehex_dlg, savehex_dlg);
-    } else {
-        window_destroy(savehex_dlg);
-    }
-#endif
-    /* "Run" the GtkFileChooserDialog.                                              */
-    /* Upon exit: If "Accept" run the OK callback.                                  */
-    /*            If the OK callback returns with a FALSE status, re-run the dialog.*/
-    /*            If not accept (ie: cancel) destroy the window.                    */
-    /* XXX: If the OK callback pops up an alert box (eg: for an error) it *must*    */
-    /*      return with a TRUE status so that the dialog window will be destroyed.  */
-    /*      Trying to re-run the dialog after popping up an alert box will not work */
-    /*       since the user will not be able to dismiss the alert box.              */
-    /*      The (somewhat unfriendly) effect: the user must re-invoke the           */
-    /*      GtkFileChooserDialog whenever the OK callback pops up an alert box.     */
-    /*                                                                              */
-    /*      ToDo: use GtkFileChooserWidget in a dialog window instead of            */
-    /*            GtkFileChooserDialog.                                             */
-    while (gtk_dialog_run(GTK_DIALOG(savehex_dlg)) == GTK_RESPONSE_ACCEPT) {
-        if (savehex_save_clicked_cb(NULL, savehex_dlg)) {
-            break; /* we're done */
-        }
-    }
+    /* We've crosed the Rubicon; get rid of the dialog box. */
     window_destroy(savehex_dlg);
+
+    return pathname;
+}
+
+void
+savehex_cb(GtkWidget * w _U_, gpointer data _U_)
+{
+    int start, end;
+    guint len;
+    const guint8 *data_p = NULL;
+    GtkWidget   *bv;
+    char *pathname;
+
+    /* don't show up the dialog, if no data has to be saved */
+    bv = get_notebook_bv_ptr(byte_nb_ptr_gbl);
+    if (bv == NULL) {
+        /* shouldn't happen */
+        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "Could not find the corresponding text window.");
+        return;
+    }
+    start = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_START_KEY));
+    end = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_END_KEY));
+    data_p = get_byte_view_data_and_length(bv, &len);
+
+    if (data_p == NULL || start == -1 || start > end) {
+        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "No data selected to save.");
+        return;
+    }
+
+    /*
+     * Loop until the user either selects a file or gives up.
+     */
+    for (;;) {
+        pathname = gtk_export_raw_file(start, end);
+        if (pathname == NULL) {
+            /* User gave up. */
+            break;
+        }
+        if (savehex_save_clicked_cb(pathname, start, end, data_p)) {
+            /* We succeeded. */
+            g_free(pathname);
+            break;
+        }
+        /* Dump failed; let the user select another file or give up. */
+        g_free(pathname);
+    }
 }
 #endif
 
@@ -877,12 +812,12 @@ packet_hex_update(GtkWidget *bv, const guint8 *pd, int len, int bstart,
 	bytes_view_set_encoding(BYTES_VIEW(bv), encoding);
 	bytes_view_set_format(BYTES_VIEW(bv), recent.gui_bytes_view);
 	bytes_view_set_data(BYTES_VIEW(bv), pd, len);
- 
+
 	bytes_view_set_highlight_style(BYTES_VIEW(bv), prefs.gui_hex_dump_highlight_style);
- 
+
 	bytes_view_set_highlight(BYTES_VIEW(bv), bstart, bend, bmask, bmask_le);
 	bytes_view_set_highlight_appendix(BYTES_VIEW(bv), astart, aend);
- 
+
 	if (bstart != -1 && bend != -1)
 		bytes_view_scroll_to_byte(BYTES_VIEW(bv), bstart);
 	bytes_view_refresh(BYTES_VIEW(bv));
@@ -906,7 +841,14 @@ packet_hex_print(GtkWidget *bv, const guint8 *pd, frame_data *fd,
             /* In the hex view, only highlight the target bytes or string. The entire
                field can then be displayed by clicking on any of the bytes in the field. */
             if (cfile.hex) {
-                blen = (int)strlen(cfile.sfilter)/2;
+                char *p = cfile.sfilter;
+
+                blen = 0;
+                while (*p) {
+                    if (g_ascii_isxdigit(*p++))
+                        blen++;
+                }
+                blen = (blen + 1) / 2;
             } else {
                 blen = (int)strlen(cfile.sfilter);
             }
@@ -1071,37 +1013,6 @@ forget_ptree_widget(GtkWidget *ptreew, gpointer data _U_)
     ptree_widgets = g_list_remove(ptree_widgets, ptreew);
 }
 
-/* Set the selection mode of a given packet tree window. */
-static void
-set_ptree_sel_browse(GtkWidget *tree, gboolean val)
-{
-    GtkTreeSelection *selection;
-
-    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(tree));
-    /* Yeah, GTK uses "browse" in the case where we do not, but oh well.
-       I think "browse" in Wireshark makes more sense than "SINGLE" in
-       GTK+ */
-    if (val) {
-        gtk_tree_selection_set_mode(selection, GTK_SELECTION_SINGLE);
-    }
-    else {
-        gtk_tree_selection_set_mode(selection, GTK_SELECTION_BROWSE);
-    }
-}
-
-static void
-set_ptree_sel_browse_cb(gpointer data, gpointer user_data)
-{
-    set_ptree_sel_browse((GtkWidget *)data, *(gboolean *)user_data);
-}
-
-/* Set the selection mode of all packet tree windows. */
-void
-set_ptree_sel_browse_all(gboolean val)
-{
-    g_list_foreach(ptree_widgets, set_ptree_sel_browse_cb, &val);
-}
-
 static void
 set_ptree_font_cb(gpointer data, gpointer user_data)
 {
@@ -1127,7 +1038,7 @@ set_ptree_font_all(PangoFontDescription *font)
  */
 static gboolean colors_ok = FALSE;
 
-GdkColor        expert_color_comment    = {0,  0x0000, 0xffff, 0x0000 };        /* Green */
+GdkColor        expert_color_comment    = { 0, 0xb7b7, 0xf7f7, 0x7474 };        /* Green */
 GdkColor        expert_color_chat       = { 0, 0x8080, 0xb7b7, 0xf7f7 };        /* light blue */
 GdkColor        expert_color_note       = { 0, 0xa0a0, 0xffff, 0xffff };        /* bright turquoise */
 GdkColor        expert_color_warn       = { 0, 0xf7f7, 0xf2f2, 0x5353 };        /* yellow */
@@ -1271,7 +1182,7 @@ tree_cell_renderer(GtkTreeViewColumn *tree_column _U_, GtkCellRenderer *cell,
 }
 
 GtkWidget *
-proto_tree_view_new(e_prefs *prefs_p, GtkWidget **tree_view_p)
+proto_tree_view_new(GtkWidget **tree_view_p)
 {
     GtkWidget *tv_scrollw, *tree_view;
     ProtoTreeModel *store;
@@ -1303,7 +1214,6 @@ proto_tree_view_new(e_prefs *prefs_p, GtkWidget **tree_view_p)
     g_signal_connect(tree_view, "row-expanded", G_CALLBACK(expand_tree), NULL);
     g_signal_connect(tree_view, "row-collapsed", G_CALLBACK(collapse_tree), NULL);
     gtk_container_add( GTK_CONTAINER(tv_scrollw), tree_view );
-    set_ptree_sel_browse(tree_view, prefs_p->gui_ptree_sel_browse);
 #if GTK_CHECK_VERSION(3,0,0)
     gtk_widget_override_font(tree_view, user_font_get_regular());
 #else
@@ -1377,8 +1287,13 @@ tree_view_select(GtkWidget *widget, GdkEventButton *event)
             field_info   *fi;
 
             if(gtk_tree_selection_get_selected (sel, &model, &iter)) {
-                gtk_tree_model_get(model, &iter, 1, &fi, -1);
-                tree_view_follow_link(fi);
+                if (event->state & GDK_SHIFT_MASK) {
+                    new_packet_window(NULL, TRUE, FALSE);
+                }
+                else {
+                    gtk_tree_model_get(model, &iter, 1, &fi, -1);
+                    tree_view_follow_link(fi);
+                }
             }
         }
         else if (((GdkEventButton *)event)->button != 1) {
@@ -1411,7 +1326,7 @@ expand_finfos(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointe
     return FALSE;
 }
 
-void 
+void
 proto_tree_draw_resolve(proto_tree *protocol_tree, GtkWidget *tree_view, const e_addr_resolve *resolv)
 {
     ProtoTreeModel *model;

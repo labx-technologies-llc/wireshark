@@ -359,7 +359,7 @@ any_test(dfilter_t *df, FvalueCmpFunc cmp, int reg1, int reg2)
 	while (list_a) {
 		list_b = df->registers[reg2];
 		while (list_b) {
-			if (cmp(list_a->data, list_b->data)) {
+			if (cmp((fvalue_t *)list_a->data, (fvalue_t *)list_b->data)) {
 				return TRUE;
 			}
 			list_b = g_list_next(list_b);
@@ -390,7 +390,7 @@ free_register_overhead(dfilter_t* df)
  * to make a new list of fvalue_t's (which are ranges, or byte-slices),
  * and puts the new list into a new register. */
 static void
-mk_range(dfilter_t *df, int from_reg, int to_reg, drange *d_range)
+mk_range(dfilter_t *df, int from_reg, int to_reg, drange_t *d_range)
 {
 	GList		*from_list, *to_list;
 	fvalue_t	*old_fv, *new_fv;

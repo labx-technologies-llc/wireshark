@@ -54,6 +54,8 @@
 #define CSM_ENCAPS_TYPE_QUERY_RESPONSE       0x04
 #define CSM_ENCAPS_TYPE_INDICATION_RESPONSE  0x05
 
+void proto_register_csm_encaps(void);
+void proto_reg_handoff_csm_encaps(void);
 
 static const value_string opcode_vals[] = {
     { OPCODE_NOOP,           "No Operation" },
@@ -155,7 +157,7 @@ static gint ett_csm_encaps_control = -1;
 
 
 /* returns the command name */
-static gchar *
+static const gchar *
 csm_fc(guint16 fc, guint16 ct)
 {
     if (fc == 0x0000) {
@@ -175,11 +177,11 @@ csm_to_host(guint16 fc, guint16 ct)
 {
     if (fc == 0x0000)
     {
-        return (match_strval(ct, exclusive_to_host_ct_vals) != NULL);
+        return (try_val_to_str(ct, exclusive_to_host_ct_vals) != NULL);
     }
     else
     {
-        return (match_strval(fc, exclusive_to_host_vals) != NULL);
+        return (try_val_to_str(fc, exclusive_to_host_vals) != NULL);
     }
 }
 
@@ -196,7 +198,7 @@ dissect_csm_encaps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint        control, type, sequence, length;
     guint        i;
     gboolean     show_error_param= FALSE;
-    gchar       *str_function_name;
+    const gchar *str_function_name;
 
 
     function_code = tvb_get_letohs(tvb, 10);

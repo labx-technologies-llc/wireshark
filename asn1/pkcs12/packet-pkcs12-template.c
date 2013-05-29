@@ -46,7 +46,7 @@
 #endif
 
 #ifdef HAVE_LIBGCRYPT
-#include <gcrypt.h>
+#include <wsutil/wsgcrypt.h>
 #endif
 
 #define PNAME  "PKCS#12: Personal Information Exchange"
@@ -56,6 +56,9 @@
 #define PKCS12_PBE_ARCFOUR_SHA1_OID     "1.2.840.113549.1.12.1.1"
 #define PKCS12_PBE_3DES_SHA1_OID	"1.2.840.113549.1.12.1.3"
 #define PKCS12_PBE_RC2_40_SHA1_OID	"1.2.840.113549.1.12.1.6"
+
+void proto_register_pkcs12(void);
+void proto_reg_handoff_pkcs12(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkcs12 = -1;
@@ -268,14 +271,14 @@ int PBE_decrypt_data(const char *object_identifier_id_param, tvbuff_t *encrypted
 	}
 
 	/* allocate buffers */
-	key = ep_alloc(keylen);
+	key = (char *)ep_alloc(keylen);
 
 	if(!generate_key_or_iv(1 /*LEY */, salt, iteration_count, password, keylen, key))
 		return FALSE;
 
 	if(ivlen) {
 
-		iv = ep_alloc(ivlen);
+		iv = (char *)ep_alloc(ivlen);
 
 		if(!generate_key_or_iv(2 /* IV */, salt, iteration_count, password, ivlen, iv))
 			return FALSE;
@@ -301,7 +304,7 @@ int PBE_decrypt_data(const char *object_identifier_id_param, tvbuff_t *encrypted
 	}
 
 	datalen = tvb_length(encrypted_tvb);
-	clear_data = g_malloc(datalen);
+	clear_data = (char *)g_malloc(datalen);
 
 	err = gcry_cipher_decrypt (cipher, clear_data, datalen, tvb_get_ephemeral_string(encrypted_tvb, 0, datalen), datalen);
 	if (gcry_err_code (err)) {

@@ -49,7 +49,7 @@
 static gint proto_mpls_y1711 = -1;
 
 static int hf_mpls_y1711_function_type = -1;
-static int hf_mpls_y1711_ttsi = -1;
+/* static int hf_mpls_y1711_ttsi = -1; */
 static int hf_mpls_y1711_frequency = -1;
 static int hf_mpls_y1711_defect_type = -1;
 static int hf_mpls_y1711_defect_location = -1;
@@ -100,7 +100,7 @@ static const value_string y1711_defect_type_vals[] = {
 static int
 dissect_mpls_y1711(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    struct mplsinfo *mplsinfo        = pinfo->private_data;
+    struct mplsinfo *mplsinfo        = (struct mplsinfo *)pinfo->private_data;
     int              offset          = 0;
     proto_item      *ti;
     proto_tree      *mpls_y1711_tree;
@@ -360,6 +360,7 @@ proto_register_mpls_y1711(void)
                 0x0, "Function Type codepoint", HFILL
             }
         },
+#if 0
         {
             &hf_mpls_y1711_ttsi,
             {
@@ -368,6 +369,7 @@ proto_register_mpls_y1711(void)
                 FT_UINT32, BASE_HEX, NULL, 0x0, NULL, HFILL
             }
         },
+#endif
         {
             &hf_mpls_y1711_frequency,
             {

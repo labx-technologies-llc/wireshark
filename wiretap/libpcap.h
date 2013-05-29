@@ -25,6 +25,7 @@
 
 #include <glib.h>
 #include <wtap.h>
+#include "ws_symbol_export.h"
 
 /* Magic numbers in "libpcap" files.
 

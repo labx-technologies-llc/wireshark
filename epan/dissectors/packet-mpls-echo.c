@@ -14,6 +14,8 @@
  *                     - Support for LSP Ping extensions as per RFC 6426
  *                     Mayuresh Raut    <msraut@ncsu.edu>
  *                     - Support for LSP ping over MPLS as per RFC 6424
+ * (c) Copyright 2012, Subramanian Ramachandran <sramach6@ncsu.edu>
+ *                     - Support for BFD for MPLS as per RFC 5884
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -137,10 +139,10 @@ static int hf_mpls_echo_sub_tlv_multipath_length = -1;
 static int hf_mpls_echo_sub_tlv_multipath_value = -1;
 static int hf_mpls_echo_sub_tlv_resv = -1;
 static int hf_mpls_echo_sub_tlv_multipath_info = -1;
-static int hf_mpls_echo_tlv_ddstlv_map_mp_label = -1;
+/* static int hf_mpls_echo_tlv_ddstlv_map_mp_label = -1; */
 static int hf_mpls_echo_tlv_ddstlv_map_mp_proto = -1;
-static int hf_mpls_echo_tlv_ddstlv_map_mp_exp = -1;
-static int hf_mpls_echo_tlv_ddstlv_map_mp_bos = -1;
+/* static int hf_mpls_echo_tlv_ddstlv_map_mp_exp = -1; */
+/* static int hf_mpls_echo_tlv_ddstlv_map_mp_bos = -1; */
 static int hf_mpls_echo_sub_tlv_multipath_ip = -1;
 static int hf_mpls_echo_sub_tlv_mp_ip_low = -1;
 static int hf_mpls_echo_sub_tlv_mp_ip_high = -1;
@@ -168,8 +170,10 @@ static int hf_mpls_echo_tlv_ilso_label = -1;
 static int hf_mpls_echo_tlv_ilso_exp = -1;
 static int hf_mpls_echo_tlv_ilso_bos = -1;
 static int hf_mpls_echo_tlv_ilso_ttl = -1;
+#if 0
 static int hf_mpls_echo_tlv_rto_ipv4 = -1;
 static int hf_mpls_echo_tlv_rto_ipv6 = -1;
+#endif
 static int hf_mpls_echo_tlv_reply_tos = -1;
 static int hf_mpls_echo_tlv_reply_tos_mbz = -1;
 static int hf_mpls_echo_tlv_errored_type = -1;
@@ -188,9 +192,9 @@ static int hf_mpls_echo_lspping_tlv_src_addr_nid=-1;
 static int hf_mpls_echo_lspping_tlv_pw_serv_identifier = -1;
 static int hf_mpls_echo_lspping_tlv_pw_src_ac_id = -1;
 static int hf_mpls_echo_lspping_tlv_pw_dst_ac_id = -1;
-static int hf_mpls_echo_lspping_tlv_pw_agi_type = -1;
-static int hf_mpls_echo_lspping_tlv_pw_agi_len = -1;
-static int hf_mpls_echo_lspping_tlv_pw_agi_val = -1;
+/* static int hf_mpls_echo_lspping_tlv_pw_agi_type = -1; */
+/* static int hf_mpls_echo_lspping_tlv_pw_agi_len = -1; */
+/* static int hf_mpls_echo_lspping_tlv_pw_agi_val = -1; */
 static int hf_mpls_echo_tlv_fec_rsvp_p2mp_ipv4_p2mp_id = -1;
 static int hf_mpls_echo_tlv_fec_rsvp_p2mp_ip_mbz1 = -1;
 static int hf_mpls_echo_tlv_fec_rsvp_p2mp_ip_tunnel_id = -1;
@@ -205,7 +209,8 @@ static int hf_mpls_echo_tlv_echo_jitter = -1;
 static int hf_mpls_echo_tlv_responder_indent_type = -1;
 static int hf_mpls_echo_tlv_responder_indent_len = -1;
 static int hf_mpls_echo_tlv_responder_indent_ipv4 = -1;
-static int hf_mpls_echo_tlv_responder_indent_ipv6 = -1;
+/* static int hf_mpls_echo_tlv_responder_indent_ipv6 = -1; */
+static int hf_mpls_echo_tlv_bfd = -1;
 
 static gint ett_mpls_echo = -1;
 static gint ett_mpls_echo_gflags = -1;
@@ -277,6 +282,8 @@ static value_string_ext mpls_echo_returncode_ext = VALUE_STRING_EXT_INIT(mpls_ec
 /* As per RFC 6426 http://tools.ietf.org/html/rfc6426 Section: 2.2.1 */
 #define TLV_SRC_IDENTIFIER         0x000D
 #define TLV_DST_IDENTIFIER         0x000E
+/* As per RFC 5884 http://tools.ietf.org/html/rfc5884 Section: 6.1 */
+#define TLV_BFD_DISCRIMINATOR      0x000F
 /* As per RFC 6426 http://tools.ietf.org/html/rfc6426 Section: 7.3 */
 #define TLV_REVERSE_PATH_FEC_STACK 0x0010
 #define TLV_DETAILED_DOWNSTREAM    0x0014 /* [RFC6424] */
@@ -303,6 +310,7 @@ static const value_string mpls_echo_tlv_type_names[] = {
     { TLV_P2MP_ECHO_JITTER,          "P2MP Echo Jitter" },
     { TLV_SRC_IDENTIFIER,            "Source Identifier TLV" },
     { TLV_DST_IDENTIFIER,            "Destination Identifier TLV" },
+    { TLV_BFD_DISCRIMINATOR,         "BFD Discriminator TLV" },
     { TLV_REVERSE_PATH_FEC_STACK,    "Reverse-path Target FEC Stack" },
     { TLV_DETAILED_DOWNSTREAM,       "Detailed Downstream Mapping"},
     { TLV_VENDOR_PRIVATE_START,      "Vendor Private" },
@@ -1633,6 +1641,10 @@ dissect_mpls_echo_tlv(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tre
         proto_tree_add_item(mpls_echo_tlv_tree, hf_mpls_echo_lspping_tlv_src_addr_nid,
                             tvb, (offset + 8), 4, ENC_BIG_ENDIAN);
         break;
+    case TLV_BFD_DISCRIMINATOR:
+        proto_tree_add_item(mpls_echo_tlv_tree, hf_mpls_echo_tlv_bfd,
+                            tvb, (offset + 4), 4, ENC_BIG_ENDIAN);
+        break;
     case TLV_REVERSE_PATH_FEC_STACK:
         dissect_mpls_echo_tlv_fec (tvb, pinfo, (offset + 4), mpls_echo_tlv_tree, length);
         break ;
@@ -2116,6 +2128,7 @@ proto_register_mpls_echo(void)
           { "TTL", "mpls_echo.tlv.ilso_ipv4.ttl",
             FT_UINT8, BASE_DEC, NULL, 0x0, "MPLS ECHO TLV Interface and Label Stack TTL", HFILL}
         },
+#if 0
         { &hf_mpls_echo_tlv_rto_ipv4,
           { "Reply-to IPv4 Address", "mpls_echo.tlv.rto.ipv4",
             FT_IPv4, BASE_NONE, NULL, 0x0, "MPLS ECHO TLV IPv4 Reply-To Object", HFILL}
@@ -2124,6 +2137,7 @@ proto_register_mpls_echo(void)
           { "Reply-to IPv6 Address", "mpls_echo.tlv.rto.ipv6",
             FT_IPv6, BASE_NONE, NULL, 0x0, "MPLS ECHO TLV IPv6 Reply-To Object", HFILL}
         },
+#endif
         { &hf_mpls_echo_tlv_reply_tos,
           { "Reply-TOS Byte", "mpls_echo.tlv.reply.tos",
             FT_UINT8, BASE_DEC, NULL, 0x0, "MPLS ECHO TLV Reply-TOS Byte", HFILL}
@@ -2199,18 +2213,24 @@ proto_register_mpls_echo(void)
           { "DST AC ID", "mpls_echo.lspping.tlv.pw.dst.ac.id",
             FT_UINT32, BASE_DEC, NULL, 0x0, "PW FEC DST AC ID", HFILL}
         },
+#if 0
         { &hf_mpls_echo_lspping_tlv_pw_agi_type,
           { "AGI TYPE", "mpls_echo.lspping.tlv.pw.agi.type",
             FT_UINT8, BASE_DEC, NULL, 0x0, "PW AGI TYPE", HFILL}
         },
+#endif
+#if 0
         { &hf_mpls_echo_lspping_tlv_pw_agi_len,
           { "AGI Length", "mpls_echo.lspping.tlv.pw.agi.len",
             FT_UINT8, BASE_DEC, NULL, 0x0, "PW AGI LENGTH", HFILL}
         },
+#endif
+#if 0
         { &hf_mpls_echo_lspping_tlv_pw_agi_val,
           { "AGI VALUE", "mpls_echo.lspping.tlv.pw.agi.val",
             FT_STRING, BASE_NONE, NULL, 0x0, "PW AGI VALUE", HFILL}
         },
+#endif
         { &hf_mpls_echo_tlv_dd_map_mtu,
           { "MTU", "mpls_echo.lspping.tlv.dd_map.mtu",
             FT_UINT16, BASE_DEC, NULL, 0x0, "MPLS ECHO TLV Detailed Downstream Map MTU", HFILL}
@@ -2259,6 +2279,16 @@ proto_register_mpls_echo(void)
           { "Return Subcode", "mpls_echo.tlv.dd_map.return_subcode",
             FT_UINT8, BASE_DEC, NULL, 0x0, "MPLS ECHO TLV Detailed Downstream Map Return Subcode", HFILL}
         },
+        { &hf_mpls_echo_tlv_dd_map_ingress_if_num,
+          { "Ingress Interface Number", "mpls_echo.tlv.dd_map.ingress.if.num",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            "MPLS ECHO TLV Detailed DownStream Map Ingress Interface Number", HFILL}
+        },
+        { &hf_mpls_echo_tlv_dd_map_egress_if_num,
+          { "Egress Interface Number", "mpls_echo.tlv.dd_map.egress.if.num",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            "MPLS ECHO TLV Detailed DownStream Map Egress Interface Number", HFILL}
+        },
         { &hf_mpls_echo_tlv_dd_map_subtlv_len,
           { "Subtlv Length", "mpls_echo.tlv.dd_map.subtlv_len",
             FT_UINT16, BASE_DEC, NULL, 0x0, "MPLS ECHO TLV Detailed Downstream Map Subtlv Length", HFILL}
@@ -2283,23 +2313,29 @@ proto_register_mpls_echo(void)
           { "Multipath Information", "mpls_echo.subtlv.dd_map.multipath_info",
             FT_BYTES, BASE_NONE, NULL, 0x0, "Detailed Downstream Mapping TLV Multipath Data Sub-TLV Value", HFILL}
         },
+#if 0
         { &hf_mpls_echo_tlv_ddstlv_map_mp_label,
           { "Downstream Label", "mpls_echo.tlv.ddstlv_map.mp_label",
             FT_UINT24, BASE_DEC, VALS(special_labels), 0x0, "MPLS ECHO TLV Detailed Downstream Map Downstream Label", HFILL}
         },
+#endif
         { &hf_mpls_echo_tlv_ddstlv_map_mp_proto,
           { "Downstream Protocol", "mpls_echo.tlv.ddstlv_map.mp_proto",
             FT_UINT8, BASE_DEC, VALS(mpls_echo_tlv_ds_map_mp_proto), 0x0,
             "MPLS ECHO TLV Detailed Downstream Map Downstream Protocol", HFILL}
         },
+#if 0
         { &hf_mpls_echo_tlv_ddstlv_map_mp_exp,
           { "Downstream Experimental", "mpls_echo.tlv.ddstlv_map.mp_exp",
             FT_UINT8, BASE_DEC, NULL, 0x0, "MPLS ECHO TLV Detailed Downstream Map Downstream Experimental", HFILL}
         },
+#endif
+#if 0
         { &hf_mpls_echo_tlv_ddstlv_map_mp_bos,
           { "Downstream BOS", "mpls_echo.tlv.ddstlv_map.mp_bos",
             FT_UINT8, BASE_DEC, NULL, 0x0, "MPLS ECHO TLV Detailed Downstream Map Downstream BOS", HFILL}
         },
+#endif
         { &hf_mpls_echo_sub_tlv_multipath_ip,
           { "IP Address", "mpls_echo.tlv.ddstlv_map_mp.ip",
             FT_IPv4, BASE_NONE, NULL, 0x0, "MPLS ECHO TLV Detailed Downstream Map Multipath IP Address", HFILL}
@@ -2406,13 +2442,19 @@ proto_register_mpls_echo(void)
           { "Target IPv4 Address", "mpls_echo.tlv.resp_id.ipv4",
             FT_IPv4, BASE_NONE, NULL, 0x0, "P2MP Responder ID TLV IPv4 Address", HFILL}
         },
+#if 0
         { &hf_mpls_echo_tlv_responder_indent_ipv6,
           { "Target IPv6 Address", "mpls_echo.tlv.resp_id.ipv6",
             FT_IPv6, BASE_NONE, NULL, 0x0, "P2MP Responder ID TLV IPv6 Address", HFILL}
         },
+#endif
         { &hf_mpls_echo_tlv_echo_jitter,
           { "Echo Jitter time", "mpls_echo.tlv.echo_jitter",
             FT_UINT32, BASE_DEC, NULL, 0x0, "MPLS ECHO Jitter time", HFILL}
+        },
+        { &hf_mpls_echo_tlv_bfd,
+          { "BFD Discriminator", "mpls_echo.bfd_discriminator",
+            FT_UINT32, BASE_HEX, NULL, 0x0, "MPLS ECHO BFD Discriminator", HFILL}
         },
     };
 

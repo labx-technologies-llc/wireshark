@@ -139,10 +139,13 @@ static gint  hf_netanalyzer_status_short_frame       = -1;
 static gint  hf_netanalyzer_status_short_preamble    = -1;
 static gint  hf_netanalyzer_status_long_preamble     = -1;
 
-static gint  ett_netanalyzer             = -1;
+static gint  ett_netanalyzer                         = -1;
 static gint  ett_netanalyzer_status                  = -1;
 static gint  ett_netanalyzer_transparent             = -1;
 
+static expert_field ei_netanalyzer_header_version_wrong = EI_INIT;
+static expert_field ei_netanalyzer_gpio_def_none = EI_INIT;
+static expert_field ei_netanalyzer_header_version_none = EI_INIT;
 
 /* common routine for Ethernet and transparent mode */
 static int
@@ -179,7 +182,7 @@ dissect_netanalyzer_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       if (version != 1)
       {
         /* something is wrong */
-        expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, "Wrong netANALYZER header version");
+        expert_add_info(pinfo, ti, &ei_netanalyzer_header_version_wrong);
         return FALSE;
       }
 
@@ -267,7 +270,7 @@ dissect_netanalyzer_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
            (tvb_get_guint8(tvb, INFO_TYPE_OFFSET) == 0x00) )
       {
 #define MAX_BUFFER 255
-        szTemp=ep_alloc(MAX_BUFFER);
+        szTemp=(guchar *)ep_alloc(MAX_BUFFER);
 
         /* everything ok */
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "netANALYZER");
@@ -293,7 +296,7 @@ dissect_netanalyzer_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       else
       {
         /* something is wrong */
-        expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, "No valid netANALYZER GPIO definition found");
+        expert_add_info(pinfo, ti, &ei_netanalyzer_gpio_def_none);
       }
       return FALSE;
     }
@@ -315,18 +318,15 @@ dissect_netanalyzer(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if (dissect_netanalyzer_common(tvb, pinfo, tree))
     {
       /* hand off to eth dissector with the new tvb subset */
-      next_tvb = tvb_new_subset(tvb, 4, tvb_length(tvb)-4, tvb_reported_length(tvb)-4);
+      next_tvb = tvb_new_subset_remaining(tvb, 4);
       call_dissector(eth_dissector_handle, next_tvb, pinfo, tree);
     }
   }
   else
   {
     /* something is wrong */
-    if (tree)
-    {
-      ti = proto_tree_add_text(tree, tvb, 4, tvb_length(tvb)-4, "netANALYZER");
-      expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, "No netANALYZER header found");
-    }
+    ti = proto_tree_add_text(tree, tvb, 4, tvb_length(tvb)-4, "netANALYZER");
+    expert_add_info(pinfo, ti, &ei_netanalyzer_header_version_none);
   }
 }
 
@@ -350,7 +350,7 @@ dissect_netanalyzer_transparent(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
        * use data dissector instead */
       ti = proto_tree_add_text(tree, tvb, 4, tvb_length(tvb)-4, "Raw packet data");
       transparent_payload_tree = proto_item_add_subtree(ti, ett_netanalyzer_transparent);
-      next_tvb = tvb_new_subset(tvb, 4, tvb_length(tvb)-4, tvb_reported_length(tvb)-4);
+      next_tvb = tvb_new_subset_remaining(tvb, 4);
       call_dissector(data_dissector_handle, next_tvb, pinfo, transparent_payload_tree);
 
       col_set_str(pinfo->cinfo, COL_PROTOCOL, "netANALYZER");
@@ -360,11 +360,8 @@ dissect_netanalyzer_transparent(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
   else
   {
     /* something is wrong */
-    if (tree)
-    {
-      ti = proto_tree_add_text(tree, tvb, 4, tvb_length(tvb)-4, "netANALYZER transparent mode");
-      expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, "No netANALYZER header found");
-    }
+    ti = proto_tree_add_text(tree, tvb, 4, tvb_length(tvb)-4, "netANALYZER transparent mode");
+    expert_add_info(pinfo, ti, &ei_netanalyzer_header_version_none);
   }
 }
 
@@ -445,6 +442,14 @@ void proto_register_netanalyzer(void)
         &ett_netanalyzer_transparent,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_netanalyzer_header_version_wrong, { "netanalyzer.header_version.wrong", PI_PROTOCOL, PI_ERROR, "Wrong netANALYZER header version", EXPFILL }},
+        { &ei_netanalyzer_gpio_def_none, { "netanalyzer.gpio_def_none", PI_MALFORMED, PI_ERROR, "No valid netANALYZER GPIO definition found", EXPFILL }},
+        { &ei_netanalyzer_header_version_none, { "netanalyzer.header_version.none", PI_MALFORMED, PI_ERROR, "No netANALYZER header found", EXPFILL }},
+    };
+
+    expert_module_t* expert_netanalyzer;
+
     proto_netanalyzer = proto_register_protocol (
                           "netANALYZER",            /* name */
                           "netANALYZER",            /* short name */
@@ -452,6 +457,8 @@ void proto_register_netanalyzer(void)
 
     proto_register_field_array(proto_netanalyzer, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_netanalyzer = expert_register_protocol(proto_netanalyzer);
+    expert_register_field_array(expert_netanalyzer, ei, array_length(ei));
 
 }
 

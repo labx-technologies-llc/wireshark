@@ -23,7 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Documentation: http://www.fixprotocol.org/
- * Fields and messages from http://www.quickfixengine.org/ xml
+ * Fields and messages from http://www.quickfixengine.org/ and http://sourceforge.net/projects/quickfix/files/ xml
  *
  */
 
@@ -40,6 +40,7 @@
 #include <epan/conversation.h>
 
 #include "packet-tcp.h"
+#include "packet-ssl.h"
 
 typedef struct _fix_parameter {
     int field_len;
@@ -61,6 +62,8 @@ static gint ett_fix = -1;
 static gint ett_unknow = -1;
 static gint ett_badfield = -1;
 static gint ett_checksum = -1;
+
+static expert_field ei_fix_checksum_bad = EI_INIT;
 
 static int hf_fix_data = -1; /* continuation data */
 static int hf_fix_checksum_good = -1;
@@ -317,15 +320,15 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     switch (fix_fields[i].type) {
                     case 1: /* strings */
                         proto_tree_add_string_format_value(fix_tree, fix_fields[i].hf_id, tvb, field_offset, tag->field_len, value,
-                            "%s (%s)", value, str_to_str(value, fix_fields[i].table, "unknown %s"));
+                            "%s (%s)", value, str_to_str(value, (string_string *)fix_fields[i].table, "unknown %s"));
                         break;
                     case 2: /* char */
                         proto_tree_add_string_format_value(fix_tree, fix_fields[i].hf_id, tvb, field_offset, tag->field_len, value,
-                            "%s (%s)", value, val_to_str(*value, fix_fields[i].table, "unknown %d"));
+                            "%s (%s)", value, val_to_str(*value, (value_string *)fix_fields[i].table, "unknown %d"));
                         break;
                     default:
                         proto_tree_add_string_format_value(fix_tree, fix_fields[i].hf_id, tvb, field_offset, tag->field_len, value,
-                            "%s (%s)", value, val_to_str(atoi(value), fix_fields[i].table, "unknown %d"));
+                            "%s (%s)", value, val_to_str(atoi(value), (value_string *)fix_fields[i].table, "unknown %d"));
                         break;
                     }
                 }
@@ -361,7 +364,7 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     item = proto_tree_add_boolean(checksum_tree, hf_fix_checksum_bad, tvb, field_offset, tag->field_len, !sum_ok);
                     PROTO_ITEM_SET_GENERATED(item);
                     if (!sum_ok)
-                        expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR, "Bad checksum");
+                        expert_add_info(pinfo, item, &ei_fix_checksum_bad);
                 }
                 break;
               default:
@@ -444,10 +447,12 @@ dissect_fix_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 /* Register the protocol with Wireshark */
 static void range_delete_fix_tcp_callback(guint32 port) {
     dissector_delete_uint("tcp.port", port, fix_handle);
+    ssl_dissector_delete(port, "fix", TRUE);
 }
 
 static void range_add_fix_tcp_callback(guint32 port) {
     dissector_add_uint("tcp.port", port, fix_handle);
+    ssl_dissector_add(port, "fix", TRUE);
 }
 
 static void fix_prefs(void)
@@ -496,7 +501,12 @@ proto_register_fix(void)
         &ett_checksum,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_fix_checksum_bad, { "fix.checksum_bad.expert", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+    };
+
     module_t *fix_module;
+    expert_module_t* expert_fix;
 
     /* register re-init routine */
     register_init_routine(&dissect_fix_init);
@@ -505,9 +515,14 @@ proto_register_fix(void)
     proto_fix = proto_register_protocol("Financial Information eXchange Protocol",
                                         "FIX", "fix");
 
+    /* Allow dissector to find be found by name. */
+    register_dissector("fix", dissect_fix, proto_fix);
+
     proto_register_field_array(proto_fix, hf, array_length(hf));
     proto_register_field_array(proto_fix, hf_FIX, array_length(hf_FIX));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_fix = expert_register_protocol(proto_fix);
+    expert_register_field_array(expert_fix, ei, array_length(ei));
 
     fix_module = prefs_register_protocol(proto_fix, fix_prefs);
     prefs_register_bool_preference(fix_module, "desegment",

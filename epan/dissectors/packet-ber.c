@@ -84,6 +84,9 @@
  */
 #define BER_MAX_NESTING 500
 
+void proto_register_ber(void);
+void proto_reg_handoff_ber(void);
+
 static gint proto_ber = -1;
 static gint hf_ber_id_class = -1;
 static gint hf_ber_id_pc = -1;
@@ -290,8 +293,8 @@ static const fragment_items octet_string_frag_items = {
 static void *
 oid_copy_cb(void *dest, const void *orig, size_t len _U_)
 {
-    oid_user_t       *u = dest;
-    const oid_user_t *o = orig;
+    oid_user_t       *u = (oid_user_t *)dest;
+    const oid_user_t *o = (const oid_user_t *)orig;
 
     u->oid = g_strdup(o->oid);
     u->name = g_strdup(o->name);
@@ -303,7 +306,7 @@ oid_copy_cb(void *dest, const void *orig, size_t len _U_)
 static void
 oid_free_cb(void *r)
 {
-    oid_user_t *u = r;
+    oid_user_t *u = (oid_user_t *)r;
 
     g_free(u->oid);
     g_free(u->name);
@@ -312,8 +315,8 @@ oid_free_cb(void *r)
 static int
 cmp_value_string(const void *v1, const void *v2)
 {
-    value_string *vs1 = (value_string *)v1;
-    value_string *vs2 = (value_string *)v2;
+    const value_string *vs1 = (const value_string *)v1;
+    const value_string *vs2 = (const value_string *)v2;
 
     return strcmp(vs1->strptr, vs2->strptr);
 }
@@ -430,7 +433,7 @@ ber_decode_as(const gchar *syntax)
 static const gchar *
 get_ber_oid_syntax(const char *oid)
 {
-    return g_hash_table_lookup(syntax_table, oid);
+    return (const char *)g_hash_table_lookup(syntax_table, oid);
 }
 
 void
@@ -1320,12 +1323,11 @@ printf("dissect BER length %d, offset %d (remaining %d)\n", tmp_length, offset, 
     return offset;
 }
 
-static GHashTable *octet_segment_table     = NULL;
-static GHashTable *octet_reassembled_table = NULL;
+static reassembly_table octet_segment_reassembly_table;
 
 static void ber_defragment_init(void) {
-    fragment_table_init(&octet_segment_table);
-    reassembled_table_init(&octet_reassembled_table);
+    reassembly_table_init(&octet_segment_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 static int
@@ -1391,9 +1393,8 @@ reassemble_octet_string(asn1_ctx_t *actx, proto_tree *tree, gint hf_id, tvbuff_t
             /* Don't cause an assertion in the reassembly code. */
             THROW(ReportedBoundsError);
         }
-        fd_head = fragment_add_seq_next(next_tvb, 0, actx->pinfo, dst_ref,
-                                        octet_segment_table,
-                                        octet_reassembled_table,
+        fd_head = fragment_add_seq_next(&octet_segment_reassembly_table,
+                                        next_tvb, 0, actx->pinfo, dst_ref, NULL,
                                         tvb_length(next_tvb),
                                         fragment);
 
@@ -1709,9 +1710,13 @@ printf("INTEGERnew dissect_ber_integer(%s) entered implicit_tag:%d \n", name, im
 
     val=0;
     if (len > 0) {
-        /* extend sign bit */
-        guint8 first = tvb_get_guint8(tvb, offset);
-        if (first & 0x80) {
+        /* extend sign bit for signed fields */
+        guint8      first = tvb_get_guint8(tvb, offset);
+        enum ftenum type  = FT_INT32; /* Default to signed, is this correct? */
+        if (hf_id >= 0) {
+            type = proto_registrar_get_ftype(hf_id);
+        }
+        if (first & 0x80 && IS_FT_INT(type)) {
             val = -1;
         }
         if ((len > 1) && decode_warning_leading_zero_bits) {
@@ -2243,7 +2248,7 @@ printf("SEQUENCE dissect_ber_sequence(%s) subdissector ate %d bytes\n", name, co
         offset = eoffset;
         if (!(seq->flags & BER_FLAGS_NOOWNTAG) ) {
             /* if we stripped the tag and length we should also strip the EOC is ind_len
-             * Unless its a zero length field (len = 2)
+             * Unless it's a zero length field (len = 2)
              */
             if ((ind_field == 1) && (len > 2))
             {
@@ -2615,7 +2620,7 @@ printf("SEQUENCE dissect_ber_old_sequence(%s) subdissector ate %d bytes\n", name
         seq++;
         if (!(seq->flags & BER_FLAGS_NOOWNTAG) ) {
             /* if we stripped the tag and length we should also strip the EOC is ind_len
-             * Unless its a zero length field (len = 2)
+             * Unless it's a zero length field (len = 2)
              */
             if ((ind_field == 1) && (len > 2))
             {
@@ -3263,6 +3268,10 @@ printf("CHOICE dissect_ber_choice(%s) entered len:%d\n", name, tvb_length_remain
 
     start_offset = offset;
 
+    if (branch_taken) {
+        *branch_taken = -1;
+    }
+
     if (tvb_length_remaining(tvb, offset) == 0) {
         item = proto_tree_add_string_format(
             parent_tree, hf_ber_error, tvb, offset, 0, "empty_choice",
@@ -3303,9 +3312,6 @@ printf("CHOICE dissect_ber_choice(%s) entered len:%d\n", name, tvb_length_remain
     /* loop over all entries until we find the right choice or
        run out of entries */
     ch = choice;
-    if (branch_taken) {
-        *branch_taken = -1;
-    }
     first_pass = TRUE;
     while (ch->func || first_pass) {
         if (branch_taken) {
@@ -4044,7 +4050,7 @@ printf("SQ OF dissect_ber_sq_of(%s) entered\n", name);
             }
         }
     } else {
-        /* the tvb length should be correct now nope we could be comming from an implicit choice or sequence, thus we
+        /* the tvb length should be correct now nope we could be coming from an implicit choice or sequence, thus we
         read the items we match and return the length*/
         lenx = tvb_length_remaining(tvb, offset);
         end_offset = offset + lenx;
@@ -4281,7 +4287,7 @@ printf("SQ OF dissect_ber_old_sq_of(%s) entered\n", name);
             }
         }
     } else {
-        /* the tvb length should be correct now nope we could be comming from an implicit choice or sequence, thus we
+        /* the tvb length should be correct now nope we could be coming from an implicit choice or sequence, thus we
         read the items we match and return the length*/
         lenx = tvb_length_remaining(tvb, offset);
         end_offset = offset + lenx;
@@ -4612,7 +4618,7 @@ dissect_ber_UTCTime(gboolean implicit_tag, asn1_ctx_t *actx, proto_tree *tree, t
     int           hoffset;
     proto_item   *cause;
     proto_tree   *error_tree;
-    gchar        *error_str = NULL;
+    const gchar  *error_str = NULL;
 
     if (!implicit_tag) {
         hoffset = offset;
@@ -5338,7 +5344,7 @@ proto_register_ber(void)
                                sizeof(oid_user_t),
                                "oid",
                                FALSE,
-                               (void*) &oid_users,
+                               (void**) &oid_users,
                                &num_oid_users,
                                UAT_AFFECTS_DISSECTION, /* affects dissection of packets, but not set of named fields */
                                "ChObjectIdentifiers",

@@ -160,7 +160,7 @@ init_dissection(void)
 	stream_init();
 
 	/* Initialize the expert infos */
-	expert_init();
+	expert_packet_init();
 }
 
 void
@@ -185,8 +185,8 @@ cleanup_dissection(void)
 	stream_cleanup();
 
 	/* Initialize the expert infos */
-	expert_cleanup();
-	
+	expert_packet_cleanup();
+
 	wmem_leave_file_scope();
 
 	/*
@@ -234,7 +234,7 @@ add_new_data_source(packet_info *pinfo, tvbuff_t *tvb, const char *name)
 {
 	struct data_source *src;
 
-	src = g_malloc(sizeof(struct data_source));
+	src = g_slice_new(struct data_source);
 	src->tvb = tvb;
 	src->name = g_strdup(name);
 	pinfo->data_src = g_slist_append(pinfo->data_src, src);
@@ -243,7 +243,10 @@ add_new_data_source(packet_info *pinfo, tvbuff_t *tvb, const char *name)
 const char*
 get_data_source_name(const struct data_source *src)
 {
-	return ep_strdup_printf("%s (%u bytes)", src->name, tvb_length(src->tvb));
+	guint length = tvb_length(src->tvb);
+
+	return ep_strdup_printf("%s (%u byte%s)", src->name, length,
+				plurality(length, "", "s"));
 }
 
 tvbuff_t *
@@ -262,10 +265,10 @@ free_data_sources(packet_info *pinfo)
 		GSList *l;
 
 		for (l = pinfo->data_src; l; l = l->next) {
-			struct data_source *src = l->data;
+			struct data_source *src = (struct data_source *)l->data;
 
 			g_free(src->name);
-			g_free(src);
+			g_slice_free(struct data_source, src);
 		}
 		g_slist_free(pinfo->data_src);
 		pinfo->data_src = NULL;
@@ -392,16 +395,13 @@ dissect_packet(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
 	CATCH(BoundsError) {
 		g_assert_not_reached();
 	}
-	CATCH(ReportedBoundsError) {
+	CATCH2(FragmentBoundsError, ReportedBoundsError) {
 		if(proto_malformed != -1){
 			proto_tree_add_protocol_format(edt->tree, proto_malformed, edt->tvb, 0, 0,
 						       "[Malformed Frame: Packet Length]" );
 		} else {
 			g_assert_not_reached();
 		}
-	}
-	CATCH(OutOfMemoryError) {
-		RETHROW;
 	}
 	ENDTRY;
 
@@ -420,7 +420,7 @@ struct dissector_handle {
 	gboolean	is_new;		/* TRUE if new-style dissector */
 	union {
 		dissector_t	old;
-		new_dissector_t	new;
+		new_dissector_t	new_d;
 	} dissector;
 	protocol_t	*protocol;
 };
@@ -450,9 +450,9 @@ call_dissector_through_handle(dissector_handle_t handle, tvbuff_t *tvb,
 	}
 
 	if (handle->is_new) {
-		EP_CHECK_CANARY(("before calling handle->dissector.new for %s",handle->name));
-		ret = (*handle->dissector.new)(tvb, pinfo, tree, data);
-		EP_CHECK_CANARY(("after calling handle->dissector.new for %s",handle->name));
+		EP_CHECK_CANARY(("before calling handle->dissector.new_d for %s",handle->name));
+		ret = (*handle->dissector.new_d)(tvb, pinfo, tree, data);
+		EP_CHECK_CANARY(("after calling handle->dissector.new_d for %s",handle->name));
 	} else {
 		EP_CHECK_CANARY(("before calling handle->dissector.old for %s",handle->name));
 		(*handle->dissector.old)(tvb, pinfo, tree);
@@ -532,11 +532,14 @@ call_dissector_work(dissector_handle_t handle, tvbuff_t *tvb, packet_info *pinfo
 		 * Add the protocol name to the layers
 		 * if not told not to. Asn2wrs generated dissectors may be added multiple times otherwise.
 		 */
-		if ((pinfo->layer_names)&&(add_proto_name)) {
-			if (pinfo->layer_names->len > 0)
-				g_string_append(pinfo->layer_names, ":");
-				g_string_append(pinfo->layer_names,
-				proto_get_protocol_filter_name(proto_get_id(handle->protocol)));
+		if (add_proto_name) {
+			pinfo->curr_layer_num++;
+			if (pinfo->layer_names) {
+				if (pinfo->layer_names->len > 0)
+					g_string_append(pinfo->layer_names, ":");
+					g_string_append(pinfo->layer_names,
+					proto_get_protocol_filter_name(proto_get_id(handle->protocol)));
+			}
 		}
 	}
 
@@ -644,7 +647,7 @@ call_dissector_work_error(dissector_handle_t handle, tvbuff_t *tvb,
 		*/
 		RETHROW;
 	}
-	CATCH(ReportedBoundsError) {
+	CATCH2(FragmentBoundsError, ReportedBoundsError) {
 		/*
 		* "ret" wasn't set because an exception was thrown
 		* before "call_dissector_through_handle()" returned.
@@ -656,9 +659,6 @@ call_dissector_work_error(dissector_handle_t handle, tvbuff_t *tvb,
 		* the entire tvbuff was dissected.
 		*/
 		ret = tvb_length(tvb);
-	}
-	CATCH(OutOfMemoryError) {
-		RETHROW;
 	}
 	ENDTRY;
 
@@ -717,7 +717,7 @@ dissector_table_t
 find_dissector_table(const char *name)
 {
 	g_assert(dissector_tables);
-	return g_hash_table_lookup( dissector_tables, name );
+	return (dissector_table_t)g_hash_table_lookup( dissector_tables, name );
 }
 
 /* Find an entry in a uint dissector table. */
@@ -746,7 +746,7 @@ find_uint_dtbl_entry(dissector_table_t sub_dissectors, const guint32 pattern)
 	/*
 	 * Find the entry.
 	 */
-	return g_hash_table_lookup(sub_dissectors->hash_table,
+	return (dtbl_entry_t *)g_hash_table_lookup(sub_dissectors->hash_table,
 				   GUINT_TO_POINTER(pattern));
 }
 
@@ -817,7 +817,7 @@ dissector_add_uint(const char *name, const guint32 pattern, dissector_handle_t h
 	dissector_add_uint_sanity_check(name, pattern, handle, sub_dissectors);
 #endif
 
-	dtbl_entry = g_malloc(sizeof (dtbl_entry_t));
+	dtbl_entry = (dtbl_entry_t *)g_malloc(sizeof (dtbl_entry_t));
 	dtbl_entry->current = handle;
 	dtbl_entry->initial = dtbl_entry->current;
 
@@ -892,7 +892,7 @@ dissector_change_uint(const char *name, const guint32 pattern, dissector_handle_
 	if (handle == NULL)
 		return;
 
-	dtbl_entry = g_malloc(sizeof (dtbl_entry_t));
+	dtbl_entry = (dtbl_entry_t *)g_malloc(sizeof (dtbl_entry_t));
 	dtbl_entry->initial = NULL;
 	dtbl_entry->current = handle;
 
@@ -1033,7 +1033,7 @@ find_string_dtbl_entry(dissector_table_t const sub_dissectors, const gchar *patt
 	/*
 	 * Find the entry.
 	 */
-	return g_hash_table_lookup(sub_dissectors->hash_table, pattern);
+	return (dtbl_entry_t *)g_hash_table_lookup(sub_dissectors->hash_table, pattern);
 }
 
 /* Add an entry to a string dissector table. */
@@ -1076,7 +1076,7 @@ dissector_add_string(const char *name, const gchar *pattern,
 		g_assert_not_reached();
 	}
 
-	dtbl_entry = g_malloc(sizeof (dtbl_entry_t));
+	dtbl_entry = (dtbl_entry_t *)g_malloc(sizeof (dtbl_entry_t));
 	dtbl_entry->current = handle;
 	dtbl_entry->initial = dtbl_entry->current;
 
@@ -1152,7 +1152,7 @@ dissector_change_string(const char *name, const gchar *pattern,
 	if (handle == NULL)
 		return;
 
-	dtbl_entry = g_malloc(sizeof (dtbl_entry_t));
+	dtbl_entry = (dtbl_entry_t *)g_malloc(sizeof (dtbl_entry_t));
 	dtbl_entry->initial = NULL;
 	dtbl_entry->current = handle;
 
@@ -1267,11 +1267,11 @@ dtbl_entry_get_handle (dtbl_entry_t *dtbl_entry)
 	return dtbl_entry->current;
 }
 
-gint
+static gint
 dissector_compare_filter_name(gconstpointer dissector_a, gconstpointer dissector_b)
 {
-	dissector_handle_t a = (dissector_handle_t)dissector_a;
-	dissector_handle_t b = (dissector_handle_t)dissector_b;
+	const dissector_handle_t a = (const dissector_handle_t)dissector_a;
+	const dissector_handle_t b = (const dissector_handle_t)dissector_b;
 	const char *a_name, *b_name;
 	gint ret;
 
@@ -1356,7 +1356,7 @@ dissector_table_foreach_func (gpointer key, gpointer value, gpointer user_data)
 	g_assert(value);
 	g_assert(user_data);
 
-	dtbl_entry = value;
+	dtbl_entry = (dtbl_entry_t *)value;
 	if (dtbl_entry->current == NULL ||
 	    dtbl_entry->current->protocol == NULL) {
 		/*
@@ -1369,7 +1369,7 @@ dissector_table_foreach_func (gpointer key, gpointer value, gpointer user_data)
 		return;
 	}
 
-	info = user_data;
+	info = (dissector_foreach_info_t *)user_data;
 	info->caller_func(info->table_name, info->selector_type, key, value,
 			  info->caller_data);
 }
@@ -1386,8 +1386,8 @@ dissector_all_tables_foreach_func (gpointer key, gpointer value, gpointer user_d
 	g_assert(value);
 	g_assert(user_data);
 
-	sub_dissectors = value;
-	info = user_data;
+	sub_dissectors = (dissector_table_t)value;
+	info = (dissector_foreach_info_t *)user_data;
 	info->table_name = (gchar*) key;
 	info->selector_type = get_dissector_table_selector_type(info->table_name);
 	g_hash_table_foreach(sub_dissectors->hash_table, info->next_func, info);
@@ -1457,7 +1457,7 @@ dissector_table_foreach_changed_func (gpointer key, gpointer value, gpointer use
 	g_assert(value);
 	g_assert(user_data);
 
-	dtbl_entry = value;
+	dtbl_entry = (dtbl_entry_t *)value;
 	if (dtbl_entry->initial == dtbl_entry->current) {
 		/*
 		 * Entry hasn't changed - don't call the function.
@@ -1465,7 +1465,7 @@ dissector_table_foreach_changed_func (gpointer key, gpointer value, gpointer use
 		return;
 	}
 
-	info = user_data;
+	info = (dissector_foreach_info_t *)user_data;
 	info->caller_func(info->table_name, info->selector_type, key, value,
 			  info->caller_data);
 }
@@ -1520,8 +1520,8 @@ dissector_all_tables_foreach_table_func (gpointer key, const gpointer value, con
 	dissector_table_t               table;
 	dissector_foreach_table_info_t *info;
 
-	table = value;
-	info = user_data;
+	table = (dissector_table_t)value;
+	info = (dissector_foreach_table_info_t *)user_data;
 	(*info->caller_func)((gchar*)key, table->ui_name, info->caller_data);
 }
 
@@ -1534,8 +1534,8 @@ dissector_all_tables_foreach_list_func (gpointer key, gpointer user_data)
 	dissector_table_t               table;
 	dissector_foreach_table_info_t *info;
 
-	table = g_hash_table_lookup( dissector_tables, key );
-	info = user_data;
+	table = (dissector_table_t)g_hash_table_lookup( dissector_tables, key );
+	info = (dissector_foreach_table_info_t *)user_data;
 	(*info->caller_func)((gchar*)key, table->ui_name, info->caller_data);
 }
 
@@ -1585,7 +1585,7 @@ register_dissector_table(const char *name, const char *ui_name, const ftenum_t t
 
 	/* Create and register the dissector table for this name; returns */
 	/* a pointer to the dissector table. */
-	sub_dissectors = g_malloc(sizeof (struct dissector_table));
+	sub_dissectors = (struct dissector_table *)g_malloc(sizeof (struct dissector_table));
 	switch (type) {
 
 	case FT_UINT8:
@@ -1653,7 +1653,7 @@ static heur_dissector_list_t *
 find_heur_dissector_list(const char *name)
 {
 	g_assert(heur_dissector_lists != NULL);
-	return g_hash_table_lookup(heur_dissector_lists, name);
+	return (heur_dissector_list_t *)g_hash_table_lookup(heur_dissector_lists, name);
 }
 
 void
@@ -1681,7 +1681,7 @@ heur_dissector_add(const char *name, heur_dissector_t dissector, const int proto
 
 	/* XXX: Should verify that sub-dissector is not already in the list ? */
 
-	hdtbl_entry = g_malloc(sizeof (heur_dtbl_entry_t));
+	hdtbl_entry = (heur_dtbl_entry_t *)g_malloc(sizeof (heur_dtbl_entry_t));
 	hdtbl_entry->dissector = dissector;
 	hdtbl_entry->protocol  = find_protocol_by_id(proto);
 	hdtbl_entry->enabled   = TRUE;
@@ -1861,7 +1861,7 @@ dissector_all_heur_tables_foreach_table_func (gpointer key, const gpointer value
 {
 	heur_dissector_foreach_table_info_t *info;
 
-	info = user_data;
+	info = (heur_dissector_foreach_table_info_t *)user_data;
 	(*info->caller_func)((gchar*)key, value, info->caller_data);
 }
 
@@ -1969,7 +1969,7 @@ dissector_handle_t
 find_dissector(const char *name)
 {
 	g_assert(registered_dissectors != NULL);
-	return g_hash_table_lookup(registered_dissectors, name);
+	return (dissector_handle_t)g_hash_table_lookup(registered_dissectors, name);
 }
 
 /* Create an anonymous handle for a dissector. */
@@ -1978,7 +1978,7 @@ create_dissector_handle(dissector_t dissector, const int proto)
 {
 	struct dissector_handle *handle;
 
-	handle                = g_malloc(sizeof (struct dissector_handle));
+	handle                = (struct dissector_handle *)g_malloc(sizeof (struct dissector_handle));
 	handle->name          = NULL;
 	handle->is_new        = FALSE;
 	handle->dissector.old = dissector;
@@ -1992,10 +1992,10 @@ new_create_dissector_handle(new_dissector_t dissector, const int proto)
 {
 	struct dissector_handle *handle;
 
-	handle                = g_malloc(sizeof (struct dissector_handle));
+	handle                = (struct dissector_handle *)g_malloc(sizeof (struct dissector_handle));
 	handle->name          = NULL;
 	handle->is_new        = TRUE;
-	handle->dissector.new = dissector;
+	handle->dissector.new_d = dissector;
 	handle->protocol      = find_protocol_by_id(proto);
 
 	return handle;
@@ -2016,7 +2016,7 @@ register_dissector(const char *name, dissector_t dissector, const int proto)
 	/* Make sure the registration is unique */
 	g_assert(g_hash_table_lookup(registered_dissectors, name) == NULL);
 
-	handle                = g_malloc(sizeof (struct dissector_handle));
+	handle                = (struct dissector_handle *)g_malloc(sizeof (struct dissector_handle));
 	handle->name          = name;
 	handle->is_new        = FALSE;
 	handle->dissector.old = dissector;
@@ -2040,10 +2040,10 @@ new_register_dissector(const char *name, new_dissector_t dissector, const int pr
 	/* Make sure the registration is unique */
 	g_assert(g_hash_table_lookup(registered_dissectors, name) == NULL);
 
-	handle                = g_malloc(sizeof (struct dissector_handle));
+	handle                = (struct dissector_handle *)g_malloc(sizeof (struct dissector_handle));
 	handle->name          = name;
 	handle->is_new        = TRUE;
-	handle->dissector.new = dissector;
+	handle->dissector.new_d = dissector;
 	handle->protocol      = find_protocol_by_id(proto);
 
 	g_hash_table_insert(registered_dissectors, (gpointer)name,
@@ -2125,7 +2125,7 @@ dissector_dump_decodes_display(const gchar *table_name,
 		case FT_UINT16:
 		case FT_UINT24:
 		case FT_UINT32:
-			dtbl_entry = value;
+			dtbl_entry = (dtbl_entry_t *)value;
 			g_assert(dtbl_entry);
 
 			handle   = dtbl_entry->current;

@@ -24,6 +24,7 @@
 #include <stdio.h>
 
 #include "qt_ui_utils.h"
+#include "ui/recent_utils.h"
 #include "ui/recent.h"
 
 #include <epan/prefs.h>
@@ -47,7 +48,7 @@ DisplayFilterCombo::DisplayFilterCombo(QWidget *parent) :
     cur_display_filter_combo = this;
     setStyleSheet(
             "QComboBox {"
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
             "  border: 1px solid gray;"
 #else
             "  border: 1px solid palette(shadow);"
@@ -76,7 +77,7 @@ DisplayFilterCombo::DisplayFilterCombo(QWidget *parent) :
             );
     completer()->setCompletionMode(QCompleter::PopupCompletion);
 
-    connect(wsApp, SIGNAL(updatePreferences()), this, SLOT(updateMaxCount()));
+    connect(wsApp, SIGNAL(preferencesChanged()), this, SLOT(updateMaxCount()));
 }
 
 extern "C" void dfilter_recent_combo_write_all(FILE *rf) {
@@ -110,7 +111,7 @@ void DisplayFilterCombo::updateMaxCount()
     setMaxCount(prefs.gui_recent_df_entries_max);
 }
 
-extern "C" gboolean dfilter_combo_add_recent(gchar *filter) {
+extern "C" gboolean dfilter_combo_add_recent(const gchar *filter) {
     if (!cur_display_filter_combo)
         return FALSE;
 
@@ -123,7 +124,7 @@ extern "C" gboolean dfilter_combo_add_recent(gchar *filter) {
 // xxx - Move to an as-yet-to-be-written capture filter module along with ::addRecentCapture and ::writeRecentCapture
 QList<QString> cfilters;
 
-extern "C" gboolean cfilter_combo_add_recent(gchar *filter) {
+extern "C" gboolean cfilter_combo_add_recent(const gchar *filter) {
     cfilters.append(filter);
     return TRUE;
 }

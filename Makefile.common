@@ -66,12 +66,10 @@ WIRESHARK_COMMON_INCLUDES =	\
 	svnversion.h		\
 	capture-pcap-util.h	\
 	capture-pcap-util-int.h	\
-	capture_unix_ifnames.h	\
 	cfile.h			\
 	cfutils.h		\
 	clopts_common.h		\
 	cmdarg_err.h		\
-	console_io.h		\
 	color.h			\
 	disabled_protos.h	\
 	file.h			\
@@ -86,7 +84,8 @@ WIRESHARK_COMMON_INCLUDES =	\
 	timestats.h		\
 	tap-megaco-common.h	\
 	tap-rtp-common.h	\
-	version_info.h
+	version_info.h		\
+	ws_symbol_export.h
 
 # sources common for wireshark and tshark, but not rawshark;
 # these are for programs that capture traffic by running dumpcap
@@ -98,6 +97,7 @@ SHARK_COMMON_CAPTURE_SRC =	\
 # corresponding headers
 SHARK_COMMON_CAPTURE_INCLUDES =	\
 	capture_ifinfo.h	\
+	capture_session.h	\
 	capture_sync.h		\
 	capture_ui_utils.h
 
@@ -108,16 +108,15 @@ wireshark_SOURCES =	\
 	airpcap_loader.c \
 	capture.c	\
 	capture_info.c	\
-	capture_opts.c \
+	capture_opts.c	\
 	color_filters.c	\
-	file.c	\
+	file.c		\
 	fileset.c	\
 	filters.c	\
-	g711.c \
+	g711.c		\
 	iface_monitor.c \
-	merge.c	\
+	merge.c		\
 	proto_hier_stats.c	\
-	recent.c	\
 	summary.c	\
 	tempfile.c	\
 	u3.c		\
@@ -132,11 +131,11 @@ wireshark_INCLUDES =	\
 	capture_opts.h	\
 	color_filters.h	\
 	filters.h	\
-	g711.h	\
+	g711.h		\
 	globals.h	\
 	iface_monitor.h \
-	log.h	\
-	merge.h	\
+	log.h		\
+	merge.h		\
 	proto_hier_stats.h	\
 	stat_menu.h	\
 	summary.h	\
@@ -159,8 +158,13 @@ rawshark_SOURCES =	\
 
 # text2pcap specifics
 text2pcap_SOURCES = \
+	pcapio.c \
 	text2pcap.c \
 	text2pcap-scanner.l
+
+text2pcap_INCLUDES = \
+	pcapio.h \
+	text2pcap.h
 
 # mergecap specifics
 mergecap_SOURCES = \
@@ -196,7 +200,7 @@ randpkt_SOURCES = \
 # dumpcap specifics
 dumpcap_SOURCES =	\
 	$(PLATFORM_SRC) \
-	capture_opts.c \
+	capture_opts.c	\
 	capture-pcap-util.c	\
 	capture_stop_conditions.c	\
 	cfutils.c	\

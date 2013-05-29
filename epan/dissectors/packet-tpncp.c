@@ -91,30 +91,30 @@ static gint bits[] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
 static gint bitindex = 0;
 
 /* TPNCP packet header fields. */
-static gint proto_tpncp = -1,
-            hf_tpncp_version = -1,
-            hf_tpncp_length = -1,
-            hf_tpncp_seq_number = -1,
-            hf_tpncp_old_event_seq_number = -1,
-            hf_tpncp_reserved = -1,
-            hf_tpncp_command_id = -1,
-            hf_tpncp_old_command_id = -1,
-            hf_tpncp_event_id = -1,
-            hf_tpncp_cid = -1;
+static gint proto_tpncp = -1;
+static gint hf_tpncp_version = -1;
+static gint hf_tpncp_length = -1;
+static gint hf_tpncp_seq_number = -1;
+/* static gint hf_tpncp_old_event_seq_number = -1; */
+static gint hf_tpncp_reserved = -1;
+static gint hf_tpncp_command_id = -1;
+/* static gint hf_tpncp_old_command_id = -1; */
+static gint hf_tpncp_event_id = -1;
+static gint hf_tpncp_cid = -1;
 
 /* TPNCP fields defining a subtree. */
-static gint ett_tpncp = -1,
-            ett_tpncp_body = -1;
+static gint ett_tpncp = -1;
+static gint ett_tpncp_body = -1;
 
-static guint global_tpncp_trunkpack_tcp_port = TCP_PORT_TPNCP_TRUNKPACK,
-             global_tpncp_trunkpack_udp_port = UDP_PORT_TPNCP_TRUNKPACK,
-             global_tpncp_host_tcp_port = TCP_PORT_TPNCP_HOST,
-             global_tpncp_host_udp_port = UDP_PORT_TPNCP_HOST;
+static guint global_tpncp_trunkpack_tcp_port = TCP_PORT_TPNCP_TRUNKPACK;
+static guint global_tpncp_trunkpack_udp_port = UDP_PORT_TPNCP_TRUNKPACK;
+static guint global_tpncp_host_tcp_port = TCP_PORT_TPNCP_HOST;
+static guint global_tpncp_host_udp_port = UDP_PORT_TPNCP_HOST;
 
-static guint trunkpack_tcp_port = 0,
-             trunkpack_udp_port = 0,
-             host_tcp_port = 0,
-             host_udp_port = 0;
+static guint trunkpack_tcp_port = 0;
+static guint trunkpack_udp_port = 0;
+static guint host_tcp_port = 0;
+static guint host_udp_port = 0;
 
 /* XXX: ToDo: allocate at runtime as needed */
 /*      The following allocates something on the order of 2M of static memory ! */
@@ -290,7 +290,7 @@ static void dissect_tpncp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
         proto_tree_add_uint(tpncp_tree, hf_tpncp_reserved, tvb, 6, 2, reserved);
 
         if (pinfo->srcport == UDP_PORT_TPNCP_TRUNKPACK) {
-            if (match_strval(id, tpncp_events_id_vals)) {
+            if (try_val_to_str(id, tpncp_events_id_vals)) {
                 proto_tree_add_uint(tpncp_tree, hf_tpncp_event_id, tvb, 8, 4, id);
                 proto_tree_add_int(tpncp_tree, hf_tpncp_cid, tvb, 12, 4, cid);
                 offset += 16;
@@ -302,7 +302,7 @@ static void dissect_tpncp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
             }
         }
         else {
-            if (match_strval(id, tpncp_commands_id_vals)) {
+            if (try_val_to_str(id, tpncp_commands_id_vals)) {
                 proto_tree_add_uint(tpncp_tree, hf_tpncp_command_id, tvb, 8, 4, id);
                 offset += 12;
                 if (tpncp_commands_info_db[id].tpncp_data_field_size) {
@@ -345,9 +345,9 @@ static gint fill_tpncp_id_vals(value_string string[], FILE *file) {
     gint i = 0, tpncp_id = 0;
     gchar *tpncp_name = NULL, *line_in_file = NULL;
 
-    line_in_file = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    line_in_file = (gchar *)ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
     line_in_file[0] = 0;
-    tpncp_name = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    tpncp_name = (gchar *)ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
     tpncp_name[0] = 0;
 
     while (fgets(line_in_file, MAX_TPNCP_DB_ENTRY_LEN, file) != NULL) {
@@ -377,13 +377,13 @@ static gint fill_enums_id_vals(FILE *file) {
     gchar *line_in_file = NULL, *enum_name = NULL,
            *enum_type = NULL, *enum_str = NULL;
 
-    line_in_file = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    line_in_file = (gchar *)ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
     line_in_file[0] = 0;
-    enum_name = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    enum_name = (gchar *)ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
     enum_name[0] = 0;
-    enum_type = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    enum_type = (gchar *)ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
     enum_type[0] = 0;
-    enum_str = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    enum_str = (gchar *)ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
     enum_str[0] = 0;
 
     while (fgets(line_in_file, MAX_TPNCP_DB_ENTRY_LEN, file) != NULL) {
@@ -494,6 +494,7 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
                 NULL, HFILL
             }
         },
+#if 0
         {
             &hf_tpncp_old_event_seq_number,
             {
@@ -506,6 +507,7 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
                 NULL, HFILL
             }
         },
+#endif
         {
             &hf_tpncp_reserved,
             {
@@ -530,6 +532,7 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
                 NULL, HFILL
             }
         },
+#if 0
         {
             &hf_tpncp_old_command_id,
             {
@@ -542,6 +545,7 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
                 NULL, HFILL
             }
         },
+#endif
         {
             &hf_tpncp_event_id,
             {
@@ -568,11 +572,11 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
         }
     };
 
-    tpncp_db_entry = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    tpncp_db_entry = (gchar *)ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
     tpncp_db_entry[0] = 0;
 
     /* Register common fields of hf_register_info struture. */
-    hf_entr.hfinfo.type           = 0;
+    hf_entr.hfinfo.type           = FT_NONE;
     hf_entr.hfinfo.strings        = NULL;
     hf_entr.hfinfo.bitmask        = 0x0;
     hf_entr.hfinfo.blurb          = NULL;
@@ -585,7 +589,7 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
 
     if (!was_registered) {
         /* Register non-standard data should be done only once. */
-        hf_allocated = hf_size+array_length(hf_tpncp)-1;
+        hf_allocated = hf_size+(int)array_length(hf_tpncp)-1;
         if ((hf = (hf_register_info *)g_realloc(hf, hf_allocated * sizeof(hf_register_info))) == NULL)
             return (-1);
         for (idx = 0; idx < array_length(hf_tpncp); idx++) {

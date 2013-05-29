@@ -102,8 +102,11 @@ EXTRA_DIST = \
 	ftsanity.py					\
 	fuzz-test.sh					\
 	html2text.py					\
+	asn2deb						\
+	idl2deb						\
 	idl2wrs						\
 	indexcap.py					\
+	install_rpms_for_devel.sh			\
 	lex.py						\
 	list_protos_in_cap.sh				\
 	Makefile.nmake					\
@@ -126,7 +129,7 @@ EXTRA_DIST = \
 	runlex.sh					\
 	setuid-root.pl.in				\
 	test-common.sh					\
-	test-fuzzed-cap.sh				\
+	test-captures.sh				\
 	textify.sh 					\
 	valgrind-wireshark.sh				\
 	win32-setup.sh					\

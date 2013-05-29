@@ -29,15 +29,16 @@
 #include <windows.h>
 #endif
 
-
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/show_exception.h>
 #include <epan/timestamp.h>
-#include "packet-frame.h"
 #include <epan/prefs.h>
 #include <epan/tap.h>
 #include <epan/expert.h>
 #include <epan/crypt/md5.h>
+
+#include "packet-frame.h"
 
 #include "color.h"
 #include "color_filters.h"
@@ -65,15 +66,29 @@ static int hf_frame_protocols = -1;
 static int hf_frame_color_filter_name = -1;
 static int hf_frame_color_filter_text = -1;
 static int hf_frame_interface_id = -1;
+static int hf_frame_pack_flags = -1;
+static int hf_frame_pack_direction = -1;
+static int hf_frame_pack_reception_type = -1;
+static int hf_frame_pack_fcs_length = -1;
+static int hf_frame_pack_reserved = -1;
+static int hf_frame_pack_crc_error = -1;
+static int hf_frame_pack_wrong_packet_too_long_error = -1;
+static int hf_frame_pack_wrong_packet_too_short_error = -1;
+static int hf_frame_pack_wrong_inter_frame_gap_error = -1;
+static int hf_frame_pack_unaligned_frame_error = -1;
+static int hf_frame_pack_start_frame_delimiter_error = -1;
+static int hf_frame_pack_preamble_error = -1;
+static int hf_frame_pack_symbol_error = -1;
 static int hf_frame_wtap_encap = -1;
 static int hf_comments_text = -1;
-
-static int proto_short = -1;
-int proto_malformed = -1;
-static int proto_unreassembled = -1;
+static int hf_frame_num_p_prot_data = -1; 
 
 static gint ett_frame = -1;
+static gint ett_flags = -1;
 static gint ett_comments = -1;
+
+static expert_field ei_comments_text = EI_INIT;
+static expert_field ei_arrive_time_out_of_range = EI_INIT;
 
 static int frame_tap = -1;
 
@@ -91,6 +106,39 @@ static const value_string p2p_dirs[] = {
 	{ P2P_DIR_UNKNOWN, "Unknown" },
 	{ P2P_DIR_SENT,	"Sent" },
 	{ P2P_DIR_RECV, "Received" },
+	{ 0, NULL }
+};
+
+#define PACKET_WORD_DIRECTION_MASK                        0x00000003
+#define PACKET_WORD_RECEPTION_TYPE_MASK                   0x0000001C
+#define PACKET_WORD_FCS_LENGTH_MASK                       0x000001E0
+#define PACKET_WORD_RESERVED_MASK                         0x0000FE00
+#define PACKET_WORD_CRC_ERR_MASK                          0x01000000
+#define PACKET_WORD_PACKET_TOO_LONG_ERR_MASK              0x02000000
+#define PACKET_WORD_PACKET_TOO_SHORT_ERR_MASK             0x04000000
+#define PACKET_WORD_WRONG_INTER_FRAME_GAP_ERR_MASK        0x08000000
+#define PACKET_WORD_UNALIGNED_FRAME_ERR_MASK              0x10000000
+#define PACKET_WORD_START_FRAME_DELIMITER_ERR_MASK        0x20000000
+#define PACKET_WORD_PREAMBLE_ERR_MASK                     0x40000000
+#define PACKET_WORD_SYMBOL_ERR_MASK                       0x80000000
+
+static const value_string packet_word_directions[] = {
+	{ 0x00, "Not available" },
+	{ 0x01, "Inbound" },
+	{ 0x02, "Outbound" },
+	{ 0x03, "Undefined" },
+	{ 0, NULL }
+};
+
+static const value_string packet_word_reception_types[] = {
+	{ 0x00, "Not specified" },
+	{ 0x01, "Unicast" },
+	{ 0x02, "Multicast" },
+	{ 0x03, "Broadcast" },
+	{ 0x04, "Promiscuous" },
+	{ 0x05, "Undefined" },
+	{ 0x06, "Undefined" },
+	{ 0x07, "Undefined" },
 	{ 0, NULL }
 };
 
@@ -188,7 +236,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		comment_item = proto_tree_add_string_format(comments_tree, hf_comments_text, tvb, 0, -1,
 							                   pinfo->fd->opt_comment, "%s",
 							                   pinfo->fd->opt_comment);
-		expert_add_info_format(pinfo, comment_item, PI_COMMENTS_GROUP, PI_COMMENT,
+		expert_add_info_format_text(pinfo, comment_item, &ei_comments_text,
 					                       "%s",  pinfo->fd->opt_comment);
 
 
@@ -200,11 +248,10 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		tree=NULL;
 		if(pinfo->fd->flags.has_ts) {
 			if(pinfo->fd->abs_ts.nsecs < 0 || pinfo->fd->abs_ts.nsecs >= 1000000000)
-				expert_add_info_format(pinfo, NULL, PI_MALFORMED, PI_WARN,
-						       "Arrival Time: Fractional second out of range (0-1000000000)");
+				expert_add_info(pinfo, NULL, &ei_arrive_time_out_of_range);
 		}
 	} else {
-		proto_tree	*fh_tree;
+		proto_tree *fh_tree;
 		gboolean old_visible;
 
 		/* Put in frame header information. */
@@ -229,11 +276,41 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			proto_item_append_text(ti, " on interface %u",
 			    pinfo->fd->interface_id);
 		}
+		if (pinfo->fd->flags.has_pack_flags) {
+			if (pinfo->fd->pack_flags & 0x00000001) {
+				proto_item_append_text(ti, " (inbound)");
+				pinfo->p2p_dir = P2P_DIR_RECV;
+			}
+			if (pinfo->fd->pack_flags & 0x00000002) {
+				proto_item_append_text(ti, " (outbound)");
+				pinfo->p2p_dir = P2P_DIR_SENT;
+			}
+		}
 
 		fh_tree = proto_item_add_subtree(ti, ett_frame);
 
 		if (pinfo->fd->flags.has_if_id)
 			proto_tree_add_uint(fh_tree, hf_frame_interface_id, tvb, 0, 0, pinfo->fd->interface_id);
+
+		if (pinfo->fd->flags.has_pack_flags) {
+			proto_tree *flags_tree;
+			proto_item *flags_item;
+
+			flags_item = proto_tree_add_uint(fh_tree, hf_frame_pack_flags, tvb, 0, 0, pinfo->fd->pack_flags);
+			flags_tree = proto_item_add_subtree(flags_item, ett_flags);
+			proto_tree_add_uint(flags_tree, hf_frame_pack_direction, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_uint(flags_tree, hf_frame_pack_reception_type, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_uint(flags_tree, hf_frame_pack_fcs_length, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_uint(flags_tree, hf_frame_pack_reserved, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_crc_error, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_wrong_packet_too_long_error, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_wrong_packet_too_short_error, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_wrong_inter_frame_gap_error, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_unaligned_frame_error, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_start_frame_delimiter_error, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_preamble_error, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_symbol_error, tvb, 0, 0, pinfo->fd->pack_flags);
+		}
 
 		proto_tree_add_int(fh_tree, hf_frame_wtap_encap, tvb, 0, 0, pinfo->fd->lnk_t);
 
@@ -246,8 +323,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 								  " the valid range is 0-1000000000",
 								  (long) pinfo->fd->abs_ts.nsecs);
 				PROTO_ITEM_SET_GENERATED(item);
-				expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-						       "Arrival Time: Fractional second out of range (0-1000000000)");
+				expert_add_info(pinfo, item, &ei_arrive_time_out_of_range);
 			}
 			item = proto_tree_add_time(fh_tree, hf_frame_shift_offset, tvb,
 					    0, 0, &(pinfo->fd->shift_offset));
@@ -303,7 +379,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			const guint8 *cp;
 			md5_state_t   md_ctx;
 			md5_byte_t    digest[16];
-			gchar        *digest_string;
+			const gchar  *digest_string;
 
 			cp = tvb_get_ptr(tvb, 0, cap_len);
 
@@ -322,6 +398,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		ti = proto_tree_add_boolean(fh_tree, hf_frame_ignored, tvb, 0, 0,pinfo->fd->flags.ignored);
 		PROTO_ITEM_SET_GENERATED(ti);
 
+		pinfo->curr_layer_num = 0;
 		if(proto_field_is_referenced(tree, hf_frame_protocols)) {
 			/* we are going to be using proto_item_append_string() on
 			 * hf_frame_protocols, and we must therefore disable the
@@ -340,6 +417,16 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		else
 			pinfo->layer_names = NULL;
 
+		if(pinfo->fd->pfd != 0){
+			proto_item *ppd_item;
+			guint num_entries = g_slist_length(pinfo->fd->pfd);
+			guint i;
+			ppd_item = proto_tree_add_uint(fh_tree, hf_frame_num_p_prot_data, tvb, 0, 0, num_entries);
+			PROTO_ITEM_SET_GENERATED(ppd_item);
+			for(i=0; i<num_entries; i++){
+				proto_tree_add_text (fh_tree, tvb, 0, 0, "%s",p_get_proto_name_and_key(pinfo->fd, i));
+			}
+		}
 		/* Check for existences of P2P pseudo header */
 		if (pinfo->p2p_dir != P2P_DIR_UNKNOWN) {
 			proto_tree_add_int(fh_tree, hf_frame_p2p_dir, tvb,
@@ -360,7 +447,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		}
 
 		if(pinfo->fd->color_filter != NULL) {
-			const color_filter_t *color_filter = pinfo->fd->color_filter;
+			const color_filter_t *color_filter = (const color_filter_t *)pinfo->fd->color_filter;
 			item = proto_tree_add_string(fh_tree, hf_frame_color_filter_name, tvb,
 						     0, 0, color_filter->filter_name);
 			PROTO_ITEM_SET_GENERATED(item);
@@ -427,10 +514,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		}
 #endif
 	}
-	CATCH(OutOfMemoryError) {
-		RETHROW;
-	}
-	CATCH_ALL {
+	CATCH_BOUNDS_AND_DISSECTOR_ERRORS {
 		show_exception(tvb, pinfo, parent_tree, EXCEPT_CODE, GET_MESSAGE);
 	}
 	ENDTRY;
@@ -483,10 +567,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			}
 #endif
 		}
-		CATCH(OutOfMemoryError) {
-			RETHROW;
-		}
-		CATCH_ALL {
+		CATCH_BOUNDS_AND_DISSECTOR_ERRORS {
 			show_exception(tvb, pinfo, parent_tree, EXCEPT_CODE, GET_MESSAGE);
 		}
 		ENDTRY;
@@ -499,99 +580,6 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		g_slist_foreach(pinfo->frame_end_routines, &call_frame_end_routine, NULL);
 		g_slist_free(pinfo->frame_end_routines);
 		pinfo->frame_end_routines = NULL;
-	}
-}
-
-void
-show_exception(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-	       unsigned long exception, const char *exception_message)
-{
-	static const char dissector_error_nomsg[] =
-		"Dissector writer didn't bother saying what the error was";
-	proto_item *item;
-
-
-	switch (exception) {
-
-	case ScsiBoundsError:
-		col_append_str(pinfo->cinfo, COL_INFO, "[SCSI transfer limited due to allocation_length too small]");
-		/*item =*/ proto_tree_add_protocol_format(tree, proto_short, tvb, 0, 0,
-				"SCSI transfer limited due to allocation_length too small: %s truncated]", pinfo->current_proto);
-		/* Don't record ScsiBoundsError exceptions as expert events - they merely
-		 * reflect a normal SCSI condition.
-		 * (any case where it's caused by something else is a bug). */
-		/* expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Packet size limited");*/
-		break;
-
-	case BoundsError:
-		col_append_str(pinfo->cinfo, COL_INFO, "[Packet size limited during capture]");
-		/*item =*/ proto_tree_add_protocol_format(tree, proto_short, tvb, 0, 0,
-				"[Packet size limited during capture: %s truncated]", pinfo->current_proto);
-		/* Don't record BoundsError exceptions as expert events - they merely
-		 * reflect a capture done with a snapshot length too short to capture
-		 * all of the packet
-		 * (any case where it's caused by something else is a bug). */
-		/* expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Packet size limited");*/
-		break;
-
-	case ReportedBoundsError:
-		show_reported_bounds_error(tvb, pinfo, tree);
-		break;
-
-	case DissectorError:
-		col_append_fstr(pinfo->cinfo, COL_INFO,
-		    "[Dissector bug, protocol %s: %s]",
-		    pinfo->current_proto,
-		    exception_message == NULL ?
-		        dissector_error_nomsg : exception_message);
-		item = proto_tree_add_protocol_format(tree, proto_malformed, tvb, 0, 0,
-		    "[Dissector bug, protocol %s: %s]",
-		    pinfo->current_proto,
-		    exception_message == NULL ?
-		        dissector_error_nomsg : exception_message);
-		g_warning("Dissector bug, protocol %s, in packet %u: %s",
-		    pinfo->current_proto, pinfo->fd->num,
-		    exception_message == NULL ?
-		        dissector_error_nomsg : exception_message);
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
-		    "%s",
-		    exception_message == NULL ?
-		        dissector_error_nomsg : exception_message);
-		break;
-
-	default:
-		/* XXX - we want to know, if an unknown exception passed until here, don't we? */
-		g_assert_not_reached();
-	}
-}
-
-void
-show_reported_bounds_error(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
-{
-	proto_item *item;
-
-	if (pinfo->fragmented) {
-		/*
-		 * We were dissecting an unreassembled fragmented
-		 * packet when the exception was thrown, so the
-		 * problem isn't that the dissector expected
-		 * something but it wasn't in the packet, the
-		 * problem is that the dissector expected something
-		 * but it wasn't in the fragment we dissected.
-		 */
-		col_append_fstr(pinfo->cinfo, COL_INFO,
-		    "[Unreassembled Packet%s] ",
-		    pinfo->noreassembly_reason);
-		item = proto_tree_add_protocol_format(tree, proto_unreassembled,
-		    tvb, 0, 0, "[Unreassembled Packet%s: %s]",
-		    pinfo->noreassembly_reason, pinfo->current_proto);
-		expert_add_info_format(pinfo, item, PI_REASSEMBLE, PI_WARN, "Unreassembled Packet (Exception occurred)");
-	} else {
-		col_append_str(pinfo->cinfo, COL_INFO,
-		    "[Malformed Packet]");
-		item = proto_tree_add_protocol_format(tree, proto_malformed,
-		    tvb, 0, 0, "[Malformed Packet: %s]", pinfo->current_proto);
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Packet (Exception occurred)");
 	}
 }
 
@@ -704,9 +692,79 @@ proto_register_frame(void)
 		    FT_UINT32, BASE_DEC, NULL, 0x0,
 		    NULL, HFILL }},
 
+		{ &hf_frame_pack_flags,
+		  { "Packet flags", "frame.packet_flags",
+		    FT_UINT32, BASE_HEX, NULL, 0x0,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_direction,
+		  { "Direction", "frame.packet_flags_direction",
+		    FT_UINT32, BASE_HEX, VALS(&packet_word_directions), PACKET_WORD_DIRECTION_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_reception_type,
+		  { "Reception type", "frame.packet_flags_reception_type",
+		    FT_UINT32, BASE_DEC, VALS(&packet_word_reception_types), PACKET_WORD_RECEPTION_TYPE_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_fcs_length,
+		  { "FCS length", "frame.packet_flags_fcs_length",
+		    FT_UINT32, BASE_DEC, NULL, PACKET_WORD_FCS_LENGTH_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_reserved,
+		  { "Reserved", "frame.packet_flags_reserved",
+		    FT_UINT32, BASE_DEC, NULL, PACKET_WORD_RESERVED_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_crc_error,
+		  { "CRC error", "frame.packet_flags_crc_error",
+		    FT_BOOLEAN, 32, TFS(&tfs_set_notset), PACKET_WORD_CRC_ERR_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_wrong_packet_too_long_error,
+		  { "Packet too long error", "frame.packet_flags_packet_too_error",
+		    FT_BOOLEAN, 32, TFS(&tfs_set_notset), PACKET_WORD_PACKET_TOO_LONG_ERR_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_wrong_packet_too_short_error,
+		  { "Packet too short error", "frame.packet_flags_packet_too_short_error",
+		    FT_BOOLEAN, 32, TFS(&tfs_set_notset), PACKET_WORD_PACKET_TOO_SHORT_ERR_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_wrong_inter_frame_gap_error,
+		  { "Wrong interframe gap error", "frame.packet_flags_wrong_inter_frame_gap_error",
+		    FT_BOOLEAN, 32, TFS(&tfs_set_notset), PACKET_WORD_WRONG_INTER_FRAME_GAP_ERR_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_unaligned_frame_error,
+		  { "Unaligned frame error", "frame.packet_flags_unaligned_frame_error",
+		    FT_BOOLEAN, 32, TFS(&tfs_set_notset), PACKET_WORD_UNALIGNED_FRAME_ERR_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_start_frame_delimiter_error,
+		  { "Start frame delimiter error", "frame.packet_flags_start_frame_delimiter_error",
+		    FT_BOOLEAN, 32, TFS(&tfs_set_notset), PACKET_WORD_START_FRAME_DELIMITER_ERR_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_preamble_error,
+		  { "Preamble error", "frame.packet_flags_preamble_error",
+		    FT_BOOLEAN, 32, TFS(&tfs_set_notset), PACKET_WORD_PREAMBLE_ERR_MASK,
+		    NULL, HFILL }},
+
+		{ &hf_frame_pack_symbol_error,
+		  { "Symbol error", "frame.packet_flags_symbol_error",
+		    FT_BOOLEAN, 32, TFS(&tfs_set_notset), PACKET_WORD_SYMBOL_ERR_MASK,
+		    NULL, HFILL }},
+
 		{ &hf_comments_text,
 		  { "Comment", "frame.comment",
 		    FT_STRING, BASE_NONE, NULL, 0x0,
+		    NULL, HFILL }},
+
+		{ &hf_frame_num_p_prot_data,
+		  { "Number of per-protocol-data", "frame.p_prot_data",
+		    FT_UINT32, BASE_DEC, NULL, 0x0,
 		    NULL, HFILL }},
 	};
 	
@@ -718,10 +776,17 @@ proto_register_frame(void)
 	
  	static gint *ett[] = {
 		&ett_frame,
+		&ett_flags,
 		&ett_comments
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_comments_text, { "frame.comment.expert", PI_COMMENTS_GROUP, PI_COMMENT, "Formatted comment", EXPFILL }},
+		{ &ei_arrive_time_out_of_range, { "frame.time_invalid.expert", PI_SEQUENCE, PI_NOTE, "Arrival Time: Fractional second out of range (0-1000000000)", EXPFILL }},
+	};
+
 	module_t *frame_module;
+	expert_module_t* expert_frame;
 
 	if (hf_encap.hfinfo.strings == NULL) {
 		int encap_count = wtap_get_num_encap_types();
@@ -746,25 +811,13 @@ proto_register_frame(void)
 	proto_register_field_array(proto_frame, hf, array_length(hf));
 	proto_register_field_array(proto_frame, &hf_encap, 1);
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_frame = expert_register_protocol(proto_frame);
+	expert_register_field_array(expert_frame, ei, array_length(ei));
 	register_dissector("frame",dissect_frame,proto_frame);
 
 	/* You can't disable dissection of "Frame", as that would be
 	   tantamount to not doing any dissection whatsoever. */
 	proto_set_cant_toggle(proto_frame);
-
-	proto_short = proto_register_protocol("Short Frame", "Short frame", "short");
-	proto_malformed = proto_register_protocol("Malformed Packet",
-	    "Malformed packet", "malformed");
-	proto_unreassembled = proto_register_protocol(
-	    "Unreassembled Fragmented Packet",
-	    "Unreassembled fragmented packet", "unreassembled");
-
-	/* "Short Frame", "Malformed Packet", and "Unreassembled Fragmented
-	   Packet" aren't really protocols, they're error indications;
-	   disabling them makes no sense. */
-	proto_set_cant_toggle(proto_short);
-	proto_set_cant_toggle(proto_malformed);
-	proto_set_cant_toggle(proto_unreassembled);
 
 	/* Our preferences */
 	frame_module = prefs_register_protocol(proto_frame, NULL);

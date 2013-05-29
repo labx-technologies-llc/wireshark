@@ -74,7 +74,7 @@ static int hf_hdfs_params = -1;
 static int hf_hdfs_paramtype = -1;
 static int hf_hdfs_paramval = -1;
 static int hf_hdfs_paramvalnum = -1;
-static int hf_hdfs_rest = -1;
+/* static int hf_hdfs_rest = -1; */
 static int hf_hdfs_fileperm = -1;
 static int hf_hdfs_blockloc = -1;
 static int hf_hdfs_endblockloc = -1;
@@ -614,7 +614,7 @@ dissect_hdfs_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             if (!tvb_memeql(tvb, offset, REQUEST_STR, sizeof(REQUEST_STR) - 1)) {
 
                 proto_tree_add_item(hdfs_tree, hf_hdfs_sequenceno, tvb, offset, sizeof(REQUEST_STR) - 1, ENC_ASCII|ENC_NA);
-                offset += sizeof(REQUEST_STR) - 1;
+                offset += (int)sizeof(REQUEST_STR) - 1;
 
                 proto_tree_add_item(hdfs_tree, hf_hdfs_pdu_type, tvb, offset, 1, ENC_BIG_ENDIAN);
                 offset += 1;
@@ -748,12 +748,14 @@ proto_register_hdfs(void)
             NULL, 0x0,
             NULL, HFILL }
         },
+#if 0
         { &hf_hdfs_rest,
           { "HDFS value", "hdfs.rest",
             FT_STRING, BASE_NONE,
             NULL, 0x0,
             NULL, HFILL }
         },
+#endif
         { &hf_hdfs_blockloc,
           { "HDFS block location", "hdfs.blockloc",
             FT_UINT64, BASE_DEC,

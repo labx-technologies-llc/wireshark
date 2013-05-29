@@ -33,6 +33,8 @@
 
 #define TCP_PORT_CAST 4224
 
+void proto_register_cast(void);
+void proto_reg_handoff_cast(void);
 
 /* I will probably need this again when I change things
  * to function pointers, but let me use the existing
@@ -333,7 +335,7 @@ static int hf_cast_bandwidth = -1;
 static int hf_cast_protocolDependentData = -1;
 static int hf_cast_DSCPValue = -1;
 static int hf_cast_serviceNum = -1;
-static int hf_cast_precedenceValue = -1;
+/* static int hf_cast_precedenceValue = -1; */
 static int hf_cast_maxStreams = -1;
 static int hf_cast_millisecondPacketSize = -1;
 static int hf_cast_echoCancelType = -1;
@@ -1383,11 +1385,13 @@ proto_register_cast(void)
         NULL, HFILL }
     },
 
+#if 0
     { &hf_cast_precedenceValue,
       { "Precedence", "cast.precedenceValue",
         FT_UINT32, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
 
     { &hf_cast_maxStreams,
       { "MaxStreams", "cast.maxStreams",

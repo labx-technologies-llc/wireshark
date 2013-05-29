@@ -23,8 +23,6 @@
 
 ACLOCAL_AMFLAGS = `./aclocal-flags`
 
-INCLUDES= @LUA_INCLUDES@
-
 if HAVE_LIBPY
 py_dissectors_dir = -DPYTHON_DIR=\"@pythondir@\"
 else
@@ -50,7 +48,7 @@ bin_PROGRAMS = \
 	@rawshark_bin@
 
 EXTRA_PROGRAMS = wireshark tshark capinfos editcap mergecap dftest \
-	randpkt text2pcap dumpcap reordercap rawshark
+	randpkt text2pcap dumpcap reordercap rawshark wireshark_cxx
 
 #
 # Wireshark configuration files are put in $(pkgdatadir).
@@ -59,12 +57,21 @@ pkgdata_DATA = COPYING manuf services cfilters colorfilters dfilters \
 	smi_modules ipmap.html pdml2html.xsl
 
 #
+# Install global profiles in the "profiles" subdirectory
+#
+profilesdir = $(pkgdatadir)
+nobase_profiles_DATA = \
+	profiles/Bluetooth/colorfilters \
+	profiles/Classic/colorfilters
+
+#
 # Install the Diameter DTD and XML files in the "diameter" subdirectory
 # of that directory.
 #
 diameterdir = $(pkgdatadir)/diameter
 diameter_DATA = \
 	diameter/chargecontrol.xml \
+	diameter/ChinaTelecom.xml \
 	diameter/Cisco.xml \
 	diameter/dictionary.dtd \
 	diameter/dictionary.xml \
@@ -85,7 +92,8 @@ diameter_DATA = \
 	diameter/Vodafone.xml \
 	diameter/AlcatelLucent.xml \
 	diameter/Nokia.xml \
-	diameter/NokiaSiemensNetworks.xml 
+	diameter/NokiaSiemensNetworks.xml \
+	diameter/SKT.xml
 
 #
 # Install the DTDs directory files in the "dtds" subdirectory
@@ -111,8 +119,10 @@ dtds_DATA = \
 # of that directory.
 #
 radiusdir = $(pkgdatadir)/radius
-radius_DATA = \
+-include radius/Custom.make
+radius_DATA = $(_CUSTOM_radius_dict_) \
 	radius/README.radius_dictionary  \
+	radius/custom.includes  \
 	radius/dictionary  \
 	radius/dictionary.3com  \
 	radius/dictionary.3gpp  \
@@ -221,9 +231,12 @@ radius_DATA = \
 	radius/dictionary.rfc4849 \
 	radius/dictionary.rfc5090 \
 	radius/dictionary.rfc5176 \
+	radius/dictionary.rfc5447 \
 	radius/dictionary.rfc5580 \
 	radius/dictionary.rfc5607 \
 	radius/dictionary.rfc5904 \
+	radius/dictionary.rfc6519 \
+	radius/dictionary.rfc6572 \
 	radius/dictionary.riverstone \
 	radius/dictionary.roaringpenguin \
 	radius/dictionary.shasta  \
@@ -272,8 +285,7 @@ wimaxasncp_DATA = \
 	wimaxasncp/dictionary.dtd
 
 PLATFORM_SRC = \
-	capture-pcap-util-unix.c \
-	capture_unix_ifnames.c
+	capture-pcap-util-unix.c
 
 if HAVE_PLUGINS
 -include plugins/Custom.make
@@ -334,8 +346,14 @@ endif
 # although it's also possible that -lgmodule is in GTK_LIBS but not
 # GLIB_LIBS (that's the case on my machine right now, for example).
 #
+if HAVE_Qt
+wireshark_ui_ldadd = ui/qt/libqtui.a
+else
+wireshark_ui_ldadd = ui/gtk/libgtkui.a
+endif
+
 wireshark_LDADD = \
-	ui/gtk/libgtkui.a		\
+	$(wireshark_ui_ldadd)		\
 	ui/libui.a			\
 	ui/libui_dirty.a		\
 	codecs/libcodec.a		\
@@ -357,10 +375,25 @@ wireshark_LDADD = \
 	@LIBSMI_LDFLAGS@		\
 	@PORTAUDIO_LIBS@		\
 	@GTK_LIBS@			\
+	@Qt_LIBS@			\
 	@GLIB_LIBS@			\
 	-lm
 
 wireshark_CFLAGS = $(AM_CLEAN_CFLAGS) $(py_dissectors_dir)
+
+# Ideally we could trigger automatic c++ linking here with
+#   nodist_EXTRA_wireshark_SOURCES = dummy.cpp
+# Unfortunately that check is done by automake and not configure.
+# We do the following to try to avoid using c++ to link Wireshark at
+# all times.
+nodist_EXTRA_wireshark_cxx_SOURCES = dummy.cpp
+wireshark_cxx_SOURCES =
+
+if HAVE_WIRESHARK_CXX
+wireshark_LINK = $(CXXLINK)
+else
+wireshark_LINK = $(LINK)
+endif
 
 if ENABLE_STATIC
 tshark_LDFLAGS = -Wl,-static -all-static
@@ -423,7 +456,6 @@ rawshark_CFLAGS = $(AM_CLEAN_CFLAGS) $(py_dissectors_dir)
 
 # Libraries with which to link text2pcap.
 text2pcap_LDADD = \
-	wiretap/libwiretap.la		\
 	wsutil/libwsutil.la		\
 	@GLIB_LIBS@ -lm
 # Don't turn on -Werror for text2pcap: its source includes text2pcap-scanner.c
@@ -504,11 +536,13 @@ dumpcap_LDADD = \
 	@SYSTEMCONFIGURATION_FRAMEWORKS@	\
 	@COREFOUNDATION_FRAMEWORKS@	\
 	@LIBCAP_LIBS@
-dumpcap_CFLAGS = $(AM_CLEAN_CFLAGS)
+dumpcap_CFLAGS = $(AM_CLEAN_CFLAGS) $(PIE_CFLAGS)
+dumpcap_LDFLAGS = $(PIE_LDFLAGS)
 
 # Common headers
 AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap \
-	$(LIBGNUTLS_CFLAGS) $(LIBGCRYPT_CFLAGS) $(LIBSMI_CFLAGS) $(PY_CFLAGS)
+	$(LIBGNUTLS_CFLAGS) $(LIBGCRYPT_CFLAGS) $(LIBSMI_CFLAGS) $(PY_CFLAGS) \
+	@LUA_INCLUDES@
 
 #
 # Build the version string
@@ -516,8 +550,13 @@ AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap \
 # FORCE is the portable version of .PHONY
 FORCE:
 
+AM_V_PERL = $(am__v_PERL_@AM_V@)
+am__v_PERL_ = $(am__v_PERL_@AM_DEFAULT_V@)
+am__v_PERL_0 = @echo "  PERL    " $@;
+am__v_PERL_1 =
+
 svnversion.h: FORCE
-	$(PERL) $(srcdir)/make-version.pl $(srcdir)
+	$(AM_V_PERL)$(PERL) $(srcdir)/make-version.pl $(srcdir)
 
 #
 # Build shell scripts by doing variable substitution.
@@ -538,6 +577,7 @@ services:
 
 CLEANFILES =		\
 	*~		\
+	doxygen-core.tag	\
 	vgcore.*
 
 #
@@ -584,8 +624,12 @@ EXTRA_DIST = \
 	README.vmware		\
 	README.windows		\
 	abi-descriptor.template	\
+	aclocal-fallback/libsmi.m4 \
+	aclocal-fallback/libgcrypt.m4 \
 	aclocal-fallback/glib-2.0.m4 \
 	aclocal-fallback/gtk-2.0.m4 \
+	aclocal-fallback/gtk-3.0.m4 \
+	aclocal-fallback/qt.m4 \
 	aclocal-flags		\
 	adns_dll.dep		\
 	adns_dll.rc		\
@@ -630,6 +674,7 @@ EXTRA_DIST = \
 	debian/wireshark.files \
 	debian/wireshark.manpages \
 	debian/wireshark.menu	\
+	debian-setup.sh		\
 	dfilters		\
 	doxygen.cfg.in		\
 	dumpcap.c	\
@@ -688,9 +733,12 @@ EXTRA_DIST = \
 	image/capture_stop_24.png		\
 	image/clist_ascend.xpm			\
 	image/clist_descend.xpm			\
+	image/copy-8.png			\
+	image/dfilter_apply_disabled.png	\
 	image/dfilter_apply_hover.png		\
 	image/dfilter_apply_normal.png		\
 	image/dfilter_apply_pressed.png		\
+	image/dfilter_bookmark_disabled.png	\
 	image/dfilter_bookmark_hover.png	\
 	image/dfilter_bookmark_normal.png	\
 	image/dfilter_bookmark_pressed.png	\
@@ -713,22 +761,23 @@ EXTRA_DIST = \
 	image/hi16-app-wireshark.png	\
 	image/hi32-app-wireshark.png	\
 	image/hi48-app-wireshark.png	\
-	image/icon_layout_1.xpm \
-	image/icon_layout_2.xpm \
-	image/icon_layout_3.xpm \
-	image/icon_layout_4.xpm \
-	image/icon_layout_5.xpm \
-	image/icon_layout_6.xpm \
+	image/layout_1.png		\
+	image/layout_2.png		\
+	image/layout_3.png		\
+	image/layout_4.png		\
+	image/layout_5.png		\
+	image/layout_6.png		\
 	image/libwireshark.rc.in	\
 	image/libwsutil.rc.in		\
 	image/lo16-app-wireshark.png	\
 	image/lo32-app-wireshark.png	\
 	image/lo48-app-wireshark.png	\
-	image/make-icons			\
 	image/Makefile.nmake			\
 	image/mergecap.rc.in			\
+	image/minus-8.png			\
 	image/nsis-checked.bmp			\
 	image/nsis-unchecked.bmp		\
+	image/plus-8.png			\
 	image/rawshark.rc.in			\
 	image/README.image			\
 	image/reordercap.rc.in			\
@@ -749,12 +798,17 @@ EXTRA_DIST = \
 	image/toolbar/capture_details_24.xpm	\
 	image/toolbar/capture_ethernet_16.xpm	\
 	image/toolbar/capture_filter_24.xpm	\
-	image/toolbar/capture_interfaces_24.xpm	\
-	image/toolbar/capture_options_24.xpm	\
+	image/toolbar/capture_interfaces_16.png	\
+	image/toolbar/capture_interfaces_24.png	\
+	image/toolbar/capture_options_16.png	\
+	image/toolbar/capture_options_24.png	\
 	image/toolbar/capture_prepare_16.xpm	\
-	image/toolbar/capture_restart_24.xpm	\
-	image/toolbar/capture_start_24.xpm	\
-	image/toolbar/capture_stop_24.xpm	\
+	image/toolbar/capture_restart_16.png	\
+	image/toolbar/capture_restart_24.png	\
+	image/toolbar/capture_start_16.png	\
+	image/toolbar/capture_start_24.png	\
+	image/toolbar/capture_stop_16.png	\
+	image/toolbar/capture_stop_24.png	\
 	image/toolbar/checkbox_16.xpm		\
 	image/toolbar/colorize_24.xpm		\
 	image/toolbar/conversations_16.xpm	\
@@ -767,6 +821,8 @@ EXTRA_DIST = \
 	image/toolbar/file_set_next_16.xpm	\
 	image/toolbar/file_set_previous_16.xpm	\
 	image/toolbar/flow_graph_16.xpm	\
+	image/toolbar/gnome_emblem_web_16.png	\
+	image/toolbar/gnome_emblem_web_24.png	\
 	image/toolbar/graphs_16.xpm	\
 	image/toolbar/icon_color_0.xpm	\
 	image/toolbar/icon_color_1.xpm	\
@@ -800,7 +856,6 @@ EXTRA_DIST = \
 	image/toolbar/voip_flow_24.xpm	\
 	image/toolbar/web_support_24.xpm	\
 	image/toolbar/wep_closed_24.xpm \
-	image/toolbar/wiki_24.xpm	\
 	image/tshark.rc.in	\
 	image/voip_bg.xpm	\
 	image/voip_select.xpm	\
@@ -809,38 +864,37 @@ EXTRA_DIST = \
 	image/wireshark.rc.in	\
 	image/wiresharkdoc.ico	\
 	image/wiresharkinst.ico	\
-	image/WiresharkDoc-128.png	\
 	image/WiresharkDoc-16.png	\
 	image/WiresharkDoc-24.png	\
-	image/WiresharkDoc-256.png	\
 	image/WiresharkDoc-32.png	\
 	image/WiresharkDoc-48.png	\
 	image/WiresharkDoc-64.png	\
+	image/WiresharkDoc-128.png	\
+	image/WiresharkDoc-256.png	\
 	image/wiretap.rc.in	\
 	image/wsicon.svg	\
 	image/wsicon16.png	\
-	image/wsicon16.xpm	\
-	image/wsicon256.png	\
+	image/wsicon24.png	\
 	image/wsicon32.png	\
-	image/wsicon32.xpm	\
 	image/wsicon48.png	\
-	image/wsicon48.xpm	\
 	image/wsicon64.png	\
-	image/wsicon64.xpm	\
+	image/wsicon128.png	\
+	image/wsicon256.png	\
+	image/wsicon512.png	\
+	image/wsicon1024.png	\
 	image/wsicon-ask.png	\
 	image/wsicon-ask.svg	\
 	image/wsiconcap.svg	\
-	image/wsiconcap16.xpm	\
 	image/wsiconcap256.png	\
-	image/wsiconcap32.xpm	\
-	image/wsiconcap48.xpm	\
+	image/wsiconcap512.png	\
+	image/wsiconcap1024.png	\
 	image/wsiconinst.svg	\
 	image/wsiconinst256.png	\
 	image/wslogo-dev.svg	\
 	image/wslogo.eps	\
 	image/wslogo.svg	\
-	image/wssplash-dev.xpm	\
-	image/wssplash.xpm	\
+	image/wssplash_dev.png	\
+	image/wssplash.png	\
 	ipmap.html		\
 	macosx-setup.sh		\
 	macosx-support-lib-patches/glib-pkgconfig.patch \
@@ -854,18 +908,18 @@ EXTRA_DIST = \
 	print.ps		\
 	$(diameter_DATA)	\
 	$(dtds_DATA)		\
+	$(nobase_profiles_DATA)	\
 	$(radius_DATA)		\
 	$(tpncp_DATA)		\
 	$(ui_DATA)		\
 	$(wimaxasncp_DATA)	\
-	randpkt.c		\
 	reordercap.c		\
 	smi_modules		\
 	text2pcap-scanner.l	\
-	text2pcap.c		\
 	text2pcap.h		\
 	services		\
 	wireshark.desktop	\
+	wireshark-mime-package.xml \
 	wka.tmpl		\
 	CMakeLists.txt		\
 	cmakeconfig.h.in	\
@@ -900,7 +954,6 @@ EXTRA_DIST = \
 	cmake/modules/FindPCAP.cmake		\
 	cmake/modules/FindPOD.cmake		\
 	cmake/modules/FindPORTAUDIO.cmake	\
-	cmake/modules/FindPYTHON.cmake		\
 	cmake/modules/FindSED.cmake		\
 	cmake/modules/FindSH.cmake		\
 	cmake/modules/FindSMI.cmake		\
@@ -953,7 +1006,7 @@ SUBDIRS = tools wsutil wiretap epan packaging help ui @wireshark_SUBDIRS@ ui/cli
 endif
 
 help/faq.txt: $(srcdir)/help/faq.py
-	(cd help ; \
+	$(AM_V_GEN)(cd help ; \
 	$(MAKE) faq.txt ;)
 
 libtool: $(LIBTOOL_DEPS)
@@ -980,6 +1033,26 @@ patch-bzip2: distdir
 	fi
 	$(am__remove_distdir)
 
+# Install some desktop files (for use with GNOME, KDE, or any other freedesktop.org-compliant desktops)
+# No, these do not go into $(datarootdir): the desktop won't look for them there.
+# Yes, that violate's autofoo's principle of relocatability.
+# What we (probably) should do is check `pkg-config --variable=prefix gtk+-2.0` to know where
+# to install this stuff...
+install_desktop_files:
+	mkdir -p $(DESTDIR)/usr/share/{mime/packages,applications}
+	install -m 644 -T wireshark-mime-package.xml $(DESTDIR)/usr/share/mime/packages/wireshark.xml
+	if test x$(DESKTOP_FILE_INSTALL) != x ; then \
+		$(DESKTOP_FILE_INSTALL) --dir $(DESTDIR)/usr/share/applications wireshark.desktop; \
+	else \
+		install -m 644 -T wireshark.desktop $(DESTDIR)/usr/share/applications/wireshark.desktop; \
+	fi
+	for size in 16 24 32 48 64 128 256; \
+	do \
+		mkdir -p $(DESTDIR)/usr/share/icons/hicolor/$${size}x$${size}/{apps,mimetypes} ; \
+		install -m 644 image/wsicon$${size}.png  $(DESTDIR)/usr/share/icons/hicolor/$${size}x$${size}/apps/wireshark.png ; \
+		install -m 644 -T image/WiresharkDoc-$${size}.png  $(DESTDIR)/usr/share/icons/hicolor/$${size}x$${size}/mimetypes/application-wireshark-doc.png ; \
+	done
+	@echo "Don't forget to run \"update-desktop-database\" and \"update-mime-database /usr/share/mime\""
 
 # Used by svr4-package and osx-package
 # We load top_stagedir with an explicit path so that libtool doesn't freak.
@@ -1007,32 +1080,18 @@ solaris-package: svr4-package
 
 rpm_topdir=`cd $(top_builddir) && pwd`/packaging/rpm
 rpm-package: dist
-	if test x$(HAVE_RPM) = xyes ; then \
+	@if test x$(HAVE_RPM) = xyes ; then \
 		cd $(rpm_topdir) ; \
-		mkdir -p BUILD RPMS SOURCES ; \
+		mkdir -p BUILD RPMS SOURCES SRPMS; \
 		cd SOURCES ; \
-		ln -s ../../../$(distdir).tar.bz2 ; \
-		ln -s ../../../wireshark.desktop ; \
-		ln -s ../../../image/wsicon64.png wireshark.png ; \
+		ln -sf ../../../$(distdir).tar.bz2 ; \
 		cd .. ; \
-		rpmbuild --define "_topdir `cd . && pwd`" -bb SPECS/wireshark.spec && \
-			echo "Package successfully built in `pwd`/RPMS." ; \
+		rpmbuild --define "_topdir `cd . && pwd`" --define "_prefix $(prefix)" --clean -ba SPECS/wireshark.spec && \
+			echo "Package successfully built in `pwd`/RPMS." && \
+			rm -f SOURCES/$(distdir).tar.bz2 $(distdir).tar.bz2 ; \
 	else \
 		echo "Error: RPM executable and/or source directory not found." ; \
-	fi
-srpm-package: dist
-	if test x$(HAVE_RPM) = xyes ; then \
-		cd $(rpm_topdir) ; \
-		mkdir -p BUILD SRPMS SOURCES ; \
-		cd SOURCES ; \
-		ln -s ../../../$(distdir).tar.bz2 ; \
-		ln -s ../../../wireshark.desktop ; \
-		ln -s ../../../image/wsicon64.png wireshark.png ; \
-		cd .. ; \
-		rpmbuild --define "_topdir `cd . && pwd`" -bs SPECS/wireshark.spec && \
-			echo "Package successfully built in `pwd`/SRPMS." ; \
-	else \
-		echo "Error: RPM executable and/or source directory not found." ; \
+		false; \
 	fi
 
 debian-package: debian/rules
@@ -1076,9 +1135,9 @@ clean-local:
 	rm -rf $(top_stagedir)
 
 dumpabi:
-	$(MAKE) -C wiretap dumpabi
-	$(MAKE) -C epan dumpabi
-	$(MAKE) -C wsutil dumpabi
+	$(MAKE) -C wiretap dumpabi-libwiretap
+	$(MAKE) -C epan dumpabi-libwireshark
+	$(MAKE) -C wsutil dumpabi-libwsutil
 
 checkapi_local:
 	$(PERL) tools/checkAPIs.pl -build \
@@ -1099,3 +1158,17 @@ checkapi: checkapi_local
 	cd epan/dissectors && $(MAKE) checkapi
 	cd plugins && $(MAKE) checkapi
 	cd wsutil && $(MAKE) checkapi
+
+wsar_html: doxygen.cfg doxygen_global.cfg FORCE
+if HAVE_DOXYGEN
+	rm -rf wsar_html
+	cd epan && $(MAKE) $@
+	cd ui && $(MAKE) $@
+	(umask 022 ; $(DOXYGEN) doxygen.cfg)
+endif
+
+wsar-zip: wsar_html
+if HAVE_DOXYGEN
+	rm -f wsar_html.zip
+	zip -rq wsar_html.zip wsar_html
+endif

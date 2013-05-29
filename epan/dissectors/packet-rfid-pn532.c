@@ -32,6 +32,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/prefs.h>
 
 static int proto_pn532 = -1;
 
@@ -53,10 +54,14 @@ static int hf_pn532_fw_support = -1;
 static int hf_pn532_14443a_sak = -1;
 static int hf_pn532_14443a_atqa = -1;
 static int hf_pn532_14443a_uid = -1;
+static int hf_pn532_14443a_uid_length = -1;
 static int hf_pn532_14443a_ats = -1;
 static int hf_pn532_14443b_pupi = -1;
 static int hf_pn532_14443b_app_data = -1;
 static int hf_pn532_14443b_proto_info = -1;
+
+/* SAM Mode */
+static int hf_pn532_sam_mode = -1;
 
 /* Diagnose hardware status */
 #define DIAGNOSE_REQ               0x00
@@ -79,8 +84,10 @@ static int hf_pn532_14443b_proto_info = -1;
 #define READ_GPIO                  0x0C
 #define WRITE_GPIO                 0x0E
 #define SET_SERIAL_BAUD_RATE       0x10
-#define SET_PARAMETERS             0x12
-#define SAM_CONFIGURATION          0x14
+#define SET_PARAMETERS_REQ         0x12
+#define SET_PARAMETERS_RSP         0x13
+#define SAM_CONFIGURATION_REQ      0x14
+#define SAM_CONFIGURATION_RSP      0x15
 #define POWER_DOWN                 0x16
 
 /* RF Communication Commands */
@@ -150,6 +157,25 @@ static int hf_pn532_14443b_proto_info = -1;
 #define NO_ERROR                   0x00
 #define UNACCEPTABLE_CMD           0x27
 
+/* SAM Modes */
+#define SAM_NORMAL_MODE            0x01
+#define SAM_VIRTUAL_CARD           0x02
+#define SAM_WIRED_CARD             0x03
+#define SAM_DUAL_CARD              0x04 
+
+/* Table of payload types - adapted from the I2C dissector */
+enum {
+    SUB_DATA = 0,
+    SUB_FELICA,
+    SUB_MIFARE,
+    SUB_ISO7816,
+    
+    SUB_MAX
+};
+
+static dissector_handle_t sub_handles[SUB_MAX];
+static gint sub_selected = SUB_DATA;
+
 /* XXX: re-arranged from defs above to be in ascending order by value */
 static const value_string pn532_commands[] = {
     {DIAGNOSE_REQ,               "Diagnose"},
@@ -172,8 +198,15 @@ static const value_string pn532_commands[] = {
     {READ_GPIO,                  "ReadGPIO"},
     {WRITE_GPIO,                 "WriteGPIO"},
     {SET_SERIAL_BAUD_RATE,       "SetSerialBaudRate"},
-    {SET_PARAMETERS,             "SetParameters"},
-    {SAM_CONFIGURATION,          "SAMConfiguration"},
+    
+    /* Set Parameters */
+    {SET_PARAMETERS_REQ,         "SetParameters"},
+    {SET_PARAMETERS_RSP,         "SetParameters (Response)"},
+    
+    /* Secure Application Module Configuration */
+    {SAM_CONFIGURATION_REQ,          "SAMConfiguration"},
+    {SAM_CONFIGURATION_RSP,          "SAMConfiguration (Response)"},
+    
     {POWER_DOWN,                 "PowerDown"},
 
     /* RF Configuration */
@@ -265,8 +298,16 @@ static const value_string pn532_brtypes[] = {
     {0x00, NULL}
 };
 
-static dissector_handle_t data_handle;
-static dissector_handle_t felica_handle;
+/* SAM Modes */
+static const value_string pn532_sam_modes[] = {
+    {SAM_NORMAL_MODE,             "Normal Mode"},
+    {SAM_VIRTUAL_CARD,            "Virtual Card Mode"},
+    {SAM_WIRED_CARD,              "Wired Card Mode"},
+    {SAM_DUAL_CARD,               "Dual Card Mode"},
+
+    /* End of SAM modes */
+    {0x00, NULL}
+};
 
 static dissector_table_t pn532_dissector_table;
 
@@ -342,12 +383,25 @@ dissect_pn532(tvbuff_t * tvb, packet_info * pinfo, proto_tree *tree)
     case SET_SERIAL_BAUD_RATE:
         break;
 
-    case SET_PARAMETERS:
+    case SET_PARAMETERS_REQ:
         break;
 
-    case SAM_CONFIGURATION:
+    case SET_PARAMETERS_RSP:
         break;
 
+    /* Secure Application/Security Access Module Configuration Request */
+    case SAM_CONFIGURATION_REQ:
+        /* Mode */
+        proto_tree_add_item(pn532_tree, hf_pn532_sam_mode, tvb, 2, 1, ENC_BIG_ENDIAN);
+        
+        /* Timeout */
+        
+        /* IRQ */
+        break;
+        
+    case SAM_CONFIGURATION_RSP:
+        break;
+        
     case POWER_DOWN:
         break;
 
@@ -379,7 +433,7 @@ dissect_pn532(tvbuff_t * tvb, packet_info * pinfo, proto_tree *tree)
         if ((tvb_get_guint8(tvb, 3) == FELICA_212) || (tvb_get_guint8(tvb, 3) == FELICA_424)) {
 
             next_tvb = tvb_new_subset_remaining(tvb, 4);
-            call_dissector(felica_handle, next_tvb, pinfo, tree);
+            call_dissector(sub_handles[SUB_FELICA], next_tvb, pinfo, tree);
 
         }
 
@@ -413,7 +467,10 @@ dissect_pn532(tvbuff_t * tvb, packet_info * pinfo, proto_tree *tree)
 
             /* Add the SAK/SEL_RES value */
             proto_tree_add_item(pn532_tree, hf_pn532_14443a_sak, tvb, 6, 1, ENC_BIG_ENDIAN);
-
+            
+            /* Add the UID length */
+            proto_tree_add_item(pn532_tree, hf_pn532_14443a_uid_length, tvb, 7, 1, ENC_BIG_ENDIAN);
+            
             /* Add the UID */
             if (tvb_reported_length(tvb) != 14) {
                 proto_tree_add_item(pn532_tree, hf_pn532_14443a_uid, tvb, 8, 7, ENC_BIG_ENDIAN);
@@ -427,9 +484,39 @@ dissect_pn532(tvbuff_t * tvb, packet_info * pinfo, proto_tree *tree)
             }
             /* Probably MiFare Classic with a 4 byte UID */
             else {
-                proto_tree_add_item(pn532_tree, hf_pn532_14443a_uid, tvb, 7, 4, ENC_BIG_ENDIAN);
+                proto_tree_add_item(pn532_tree, hf_pn532_14443a_uid, tvb, 8, 4, ENC_BIG_ENDIAN);
             }
 
+        }
+
+        /* Probably an EMV/ISO 14443-A (VISA - 30 bytes payload/MC - 33 bytes payload)
+                 card with a 4 byte UID */
+
+        if (tvb_reported_length(tvb) == 30 || tvb_reported_length(tvb) == 33) {
+
+        /* Check to see if there's a plausible ATQA value (0x0004 for my MC/VISA cards) */
+
+            if ((tvb_get_guint8(tvb, 4) == 0x00 && tvb_get_guint8(tvb, 5) == 0x04)) {
+            
+                /* Add the ATQA/SENS_RES */
+                proto_tree_add_item(pn532_tree, hf_pn532_14443a_atqa, tvb, 4, 2, ENC_BIG_ENDIAN);
+                
+                /* Add the SAK/SEL_RES value */
+                proto_tree_add_item(pn532_tree, hf_pn532_14443a_sak, tvb, 6, 1, ENC_BIG_ENDIAN);
+                                        
+                /* Add the UID length */
+                proto_tree_add_item(pn532_tree, hf_pn532_14443a_uid_length, tvb, 7, 1, ENC_BIG_ENDIAN);
+                
+                /* Add the UID */
+                proto_tree_add_item(pn532_tree, hf_pn532_14443a_uid, tvb, 8, 4, ENC_BIG_ENDIAN);
+                
+                /* ATS length is probably prepended to the ATS data... */
+                
+                /* Pass the ATS value to the Data dissector, since it's too long to handle normally
+                    Don't care about the "status word" at the end, right now */
+                next_tvb = tvb_new_subset_remaining(tvb, 13);
+                call_dissector(sub_handles[SUB_DATA], next_tvb, pinfo, tree);
+            }
         }
 
         /* See if we've got a FeliCa payload with a System Code */
@@ -440,7 +527,7 @@ dissect_pn532(tvbuff_t * tvb, packet_info * pinfo, proto_tree *tree)
 
             /* Use the length value (20?) at position 4, and skip the Status Word (9000) at the end */
             next_tvb = tvb_new_subset(tvb, 5, tvb_get_guint8(tvb, 4) - 1, 19);
-            call_dissector(felica_handle, next_tvb, pinfo, tree);
+            call_dissector(sub_handles[SUB_FELICA], next_tvb, pinfo, tree);
         }
 
         break;
@@ -452,12 +539,81 @@ dissect_pn532(tvbuff_t * tvb, packet_info * pinfo, proto_tree *tree)
         break;
 
     case IN_DATA_EXCHANGE_REQ:
+
+        if (sub_selected == SUB_MIFARE) {
+            /* Logical target number */
+            proto_tree_add_item(pn532_tree, hf_pn532_Tg, tvb, 2, 1, ENC_BIG_ENDIAN);
+
+            /* Seems to work for payloads from LibNFC's "nfc-mfultralight" command */
+            next_tvb = tvb_new_subset_remaining(tvb, 3);
+            call_dissector(sub_handles[SUB_MIFARE], next_tvb, pinfo, tree);
+        } 
+        else if (sub_selected == SUB_ISO7816) {
+            /* Logical target number */
+            proto_tree_add_item(pn532_tree, hf_pn532_Tg, tvb, 2, 1, ENC_BIG_ENDIAN);
+
+            /* Seems to work for EMV payloads sent using TAMA shell scripts */
+            next_tvb = tvb_new_subset_remaining(tvb, 3);
+
+            /* Need to do this, for the ISO7816 dissector to work, it seems */
+            pinfo->p2p_dir = P2P_DIR_SENT;
+            call_dissector(sub_handles[SUB_ISO7816], next_tvb, pinfo, tree);
+        }
+        else {
+        }
+
         break;
 
     case IN_DATA_EXCHANGE_RSP:
+
+        if (sub_selected == SUB_ISO7816) {
+
+            /* Seems to work for identifying responses to Select File requests...
+               Might need to investigate "Status Words", later */
+            next_tvb = tvb_new_subset_remaining(tvb, 2);
+
+            /* Need to do this, for the ISO7816 dissector to work, it seems */
+            pinfo->p2p_dir = P2P_DIR_RECV;
+            call_dissector(sub_handles[SUB_ISO7816], next_tvb, pinfo, tree);
+        }
+        else {
+        }
+            
         break;
 
     case IN_COMMUNICATE_THRU_REQ:
+
+        if (sub_selected == SUB_FELICA) {
+
+            /* Alleged payload length for FeliCa */
+            proto_tree_add_item(pn532_tree, hf_pn532_payload_length, tvb, 2, 1, ENC_BIG_ENDIAN);
+
+            /* Attempt to dissect FeliCa payloads */
+            next_tvb = tvb_new_subset_remaining(tvb, 3);
+            call_dissector(sub_handles[SUB_FELICA], next_tvb, pinfo, tree);
+        }
+
+        /* MiFare transmissions may identify as spurious FeliCa packets, in some cases */
+        else {
+        }
+      
+        break;
+
+    case IN_COMMUNICATE_THRU_RSP:
+        if (sub_selected == SUB_FELICA) {
+
+            /* Alleged payload length for FeliCa */
+            proto_tree_add_item(pn532_tree, hf_pn532_payload_length, tvb, 3, 1, ENC_BIG_ENDIAN);
+
+            /* Attempt to dissect FeliCa payloads */
+            next_tvb = tvb_new_subset_remaining(tvb, 4);
+            call_dissector(sub_handles[SUB_FELICA], next_tvb, pinfo, tree);
+        }
+
+        /* MiFare transmissions may identify as spurious FeliCa packets, in some cases */
+        else {
+        }
+
         break;
 
     /* Deselect a token */
@@ -547,7 +703,7 @@ void proto_register_pn532(void)
         {&hf_pn532_Tg,
          {"Logical Target Number", "pn532.Tg", FT_INT8, BASE_DEC,
           NULL, 0x0, NULL, HFILL}},
-          {&hf_pn532_NbTg,
+        {&hf_pn532_NbTg,
          {"Number of Targets", "pn532.NbTg", FT_INT8, BASE_DEC,
           NULL, 0x0, NULL, HFILL}},
         {&hf_pn532_payload_length,
@@ -574,6 +730,9 @@ void proto_register_pn532(void)
         {&hf_pn532_14443a_uid,
          {"ISO/IEC 14443-A UID", "pn532.iso.14443a.uid", FT_UINT64, BASE_HEX,
           NULL, 0x0, NULL, HFILL}},
+        {&hf_pn532_14443a_uid_length,
+         {"ISO/IEC 14443-A UID Length", "pn532.iso.14443a.uid.length", FT_INT8, BASE_DEC,
+          NULL, 0x0, NULL, HFILL}},
         {&hf_pn532_14443a_ats,
          {"ISO/IEC 14443-A ATS", "pn532.iso.14443a.ats", FT_UINT64, BASE_HEX,
           NULL, 0x0, NULL, HFILL}},
@@ -586,15 +745,32 @@ void proto_register_pn532(void)
         {&hf_pn532_14443b_proto_info,
          {"ISO/IEC 14443-B Protocol Info", "pn532.iso.14443b.protocol.info", FT_UINT64, BASE_HEX,
           NULL, 0x0, NULL, HFILL}},
+        {&hf_pn532_sam_mode,
+         {"SAM Mode", "pn532.sam.mode", FT_UINT8, BASE_HEX,
+          VALS(pn532_sam_modes), 0x0, NULL, HFILL}},
     };
 
     static gint *ett[] = {
         &ett_pn532
     };
-
+    
+    module_t *pref_mod;
+    
+    static const enum_val_t sub_enum_vals[] = {
+        { "data", "Data", SUB_DATA },
+        { "felica", "Sony FeliCa", SUB_FELICA },
+        { "mifare", "NXP MiFare", SUB_MIFARE },
+        { "iso7816", "ISO 7816", SUB_ISO7816 }, 
+        { NULL, NULL, 0 }
+    };
+    
     proto_pn532 = proto_register_protocol("NXP PN532", "PN532", "pn532");
     proto_register_field_array(proto_pn532, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    
+    pref_mod = prefs_register_protocol(proto_pn532, NULL);
+    prefs_register_enum_preference(pref_mod, "prtype532", "Payload Type", "Protocol payload type",
+        &sub_selected, sub_enum_vals, FALSE);
 
     pn532_dissector_table = register_dissector_table("pn532.payload", "PN532 Payload", FT_UINT8, BASE_DEC);
 
@@ -604,8 +780,11 @@ void proto_register_pn532(void)
 /* Handler registration */
 void proto_reg_handoff_pn532(void)
 {
-    data_handle   = find_dissector("data");
-    felica_handle = find_dissector("felica");
+    
+    sub_handles[SUB_DATA] = find_dissector("data");
+    sub_handles[SUB_FELICA] = find_dissector("felica");
+    sub_handles[SUB_MIFARE] = find_dissector("mifare");
+    sub_handles[SUB_ISO7816] = find_dissector("iso7816");    
 }
 
 /*

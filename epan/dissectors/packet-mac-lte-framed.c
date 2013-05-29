@@ -61,7 +61,7 @@ static void dissect_mac_lte_framed(tvbuff_t *tvb, packet_info *pinfo,
     }
 
     /* If redissecting, use previous info struct (if available) */
-    p_mac_lte_info = (struct mac_lte_info*)p_get_proto_data(pinfo->fd, proto_mac_lte);
+    p_mac_lte_info = (struct mac_lte_info*)p_get_proto_data(pinfo->fd, proto_mac_lte, 0);
     if (p_mac_lte_info == NULL) {
         /* Allocate new info struct for this frame */
         p_mac_lte_info = (struct mac_lte_info*)se_alloc0(sizeof(struct mac_lte_info));
@@ -78,14 +78,14 @@ static void dissect_mac_lte_framed(tvbuff_t *tvb, packet_info *pinfo,
 
     /* Store info in packet (first time) */
     if (!infoAlreadySet) {
-        p_add_proto_data(pinfo->fd, proto_mac_lte, p_mac_lte_info);
+        p_add_proto_data(pinfo->fd, proto_mac_lte, 0, p_mac_lte_info);
     }
 
     /**************************************/
     /* OK, now dissect as MAC LTE         */
 
     /* Create tvb that starts at actual MAC PDU */
-    mac_tvb = tvb_new_subset(tvb, offset, -1, tvb_reported_length(tvb)-offset);
+    mac_tvb = tvb_new_subset_remaining(tvb, offset);
     call_dissector_only(mac_lte_handle, mac_tvb, pinfo, tree, NULL);
 }
 

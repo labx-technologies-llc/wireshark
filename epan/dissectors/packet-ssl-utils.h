@@ -30,14 +30,14 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
 
 #ifdef HAVE_LIBGNUTLS
-#include <gcrypt.h>
+#include <wsutil/wsgcrypt.h>
 #include <gnutls/x509.h>
 #include <gnutls/pkcs12.h>
 
 #include <epan/conversation.h>
+#include "ws_symbol_export.h"
 
 /* #define SSL_FAST 1 */
 #define SSL_DECRYPT_DEBUG
@@ -234,7 +234,7 @@ typedef struct _SslCipherSuite {
     gint eff_bits;
     gint dig;
     gint dig_len;
-    gint export;
+    gint export_cipher;
     gint mode;
 } SslCipherSuite;
 
@@ -262,6 +262,7 @@ typedef struct _SslDecoder {
 #define KEX_DH          0x11
 #define KEX_PSK         0x12
 #define KEX_ECDH        0x13
+#define KEX_RSA_PSK     0x14
 
 #define SIG_RSA         0x20
 #define SIG_DSS         0x21
@@ -406,12 +407,9 @@ ssl_cipher_setiv(SSL_CIPHER_CTX *cipher, guchar* iv, gint iv_len);
 extern Ssl_private_key_t *
 ssl_load_key(FILE* fp);
 
-extern Ssl_private_key_t *
-ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd);
-
 /** Deallocate the memory used for specified key
  @param key pointer to the key to be freed */
-extern void
+void
 ssl_free_key(Ssl_private_key_t* key);
 
 /* Find private key in associations */

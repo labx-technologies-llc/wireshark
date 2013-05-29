@@ -35,7 +35,7 @@
 #include <epan/conversation.h>
 #include <epan/prefs.h>
 #include <epan/etypes.h>
-#include <epan/dissectors/packet-frame.h>
+#include <epan/show_exception.h>
 #include "packet-infiniband.h"
 
 #define PROTO_TAG_INFINIBAND    "Infiniband"
@@ -1798,8 +1798,8 @@ skip_lrh:
             break;
         case IP_NON_IBA:
             /* Raw IPv6 Packet */
-            g_snprintf(dst_addr,  ADDR_MAX_LEN, "IPv6 over IB Packet");
-            SET_ADDRESS(&pinfo->dst,  AT_STRINGZ, (int)strlen(dst_addr)+1, dst_addr);
+            g_snprintf((gchar *)dst_addr,  ADDR_MAX_LEN, "IPv6 over IB Packet");
+            SET_ADDRESS(&pinfo->dst,  AT_STRINGZ, (int)strlen((char *)dst_addr)+1, dst_addr);
 
             parse_IPvSix(all_headers_tree, tvb, &offset, pinfo);
             break;
@@ -2520,40 +2520,21 @@ static void parse_PAYLOAD(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
                 dissector_found = dissector_try_uint(ethertype_dissector_table,
                                      etype, next_tvb, pinfo, top_tree);
             }
-            CATCH(BoundsError) {
-                /* Somebody threw BoundsError, which means that:
+            CATCH_NONFATAL_ERRORS {
+                /* Somebody threw an exception that means that there
+                   was a problem dissecting the payload; that means
+                   that a dissector was found, so we don't need to
+                   dissect the payload as data or update the protocol
+                   or info columns.
 
-                1) a dissector was found, so we don't need to
-                dissect the payload as data or update the
-                protocol or info columns;
+                   Just show the exception and then drive on to show
+                   the trailer, after noting that a dissector was found
+                   and restoring the protocol value that was in effect
+                   before we called the subdissector.
 
-                2) dissecting the payload found that the packet was
-                cut off by a snapshot length before the end of
-                the payload.  The trailer comes after the payload,
-                so *all* of the trailer is cut off, and we'll
-                just get another BoundsError if we add the trailer.
-
-                Therefore, we just rethrow the exception so it gets
-                reported; we don't dissect the trailer or do anything
-                else. */
-                RETHROW;
-            }
-            CATCH(OutOfMemoryError) {
-                RETHROW;
-            }
-            CATCH_ALL {
-                /* Somebody threw an exception other than BoundsError, which
-                   means that a dissector was found, so we don't need to
-                   dissect the payload as data or update the protocol or info
-                   columns.  We just show the exception and then drive on
-                   to show the trailer, after noting that a dissector was
-                   found and restoring the protocol value that was in effect
-                   before we called the subdissector. */
-
-                /*  Restore the private_data structure in case one of the
-                 *  called dissectors modified it (and, due to the exception,
-                 *  was unable to restore it).
-                 */
+                   Restore the private_data structure in case one of the
+                   called dissectors modified it (and, due to the exception,
+                   was unable to restore it). */
                 pinfo->private_data = pd_save;
 
                 show_exception(next_tvb, pinfo, top_tree, EXCEPT_CODE, GET_MESSAGE);
@@ -2989,8 +2970,8 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
     proto_tree *CM_header_tree;
     tvbuff_t   *next_tvb;
 
-    local_gid  = ep_alloc(GID_SIZE);
-    remote_gid = ep_alloc(GID_SIZE);
+    local_gid  = (guint8 *)ep_alloc(GID_SIZE);
+    remote_gid = (guint8 *)ep_alloc(GID_SIZE);
 
     if (!parse_MAD_Common(parentTree, tvb, offset, &MadData))
     {
@@ -3081,10 +3062,10 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
                 connection_context *connection;
                 conversation_infiniband_data *proto_data;
                 conversation_t *conv;
-                guint64 *hash_key = g_malloc(sizeof(guint64));
+                guint64 *hash_key = (guint64 *)g_malloc(sizeof(guint64));
 
                 /* create a new connection context and store it in the hash table */
-                connection = g_malloc(sizeof(connection_context));
+                connection = (connection_context *)g_malloc(sizeof(connection_context));
                 memcpy(&(connection->req_gid), local_gid, GID_SIZE);
                 memcpy(&(connection->resp_gid), remote_gid, GID_SIZE);
                 connection->req_lid = local_lid;
@@ -3102,7 +3083,7 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
                 /* Now we create a conversation for the CM exchange. This uses both
                    sides of the conversation since CM packets also include the source
                    QPN */
-                proto_data = se_alloc(sizeof(conversation_infiniband_data));
+                proto_data = se_new(conversation_infiniband_data);
                 proto_data->service_id = connection->service_id;
 
                 conv = conversation_new(pinfo->fd->num, &pinfo->src, &pinfo->dst,
@@ -3150,7 +3131,7 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
                 guint64 hash_key;
                 hash_key = MadData.transactionID;
                 ADD_ADDRESS_TO_HASH(hash_key, &pinfo->dst);
-                connection = g_hash_table_lookup(CM_context_table, &hash_key);
+                connection = (connection_context *)g_hash_table_lookup(CM_context_table, &hash_key);
 
                 /* if an appropriate connection was not found there's something wrong, but nothing we can
                    do about it here - so just skip saving the context */
@@ -3163,7 +3144,7 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
 
                     connection->resp_qp = remote_qpn;
 
-                    proto_data = se_alloc(sizeof(conversation_infiniband_data));
+                    proto_data = se_new(conversation_infiniband_data);
                     proto_data->service_id = connection->service_id;
 
                     /* RC traffic never(?) includes a field indicating the source QPN, so
@@ -5059,8 +5040,8 @@ skip_lrh:
             break;
         case IP_NON_IBA:
             /* Raw IPv6 Packet */
-            g_snprintf(dst_addr,  ADDR_MAX_LEN, "IPv6 over IB Packet");
-            SET_ADDRESS(&pinfo->dst,  AT_STRINGZ, (int)strlen(dst_addr)+1, dst_addr);
+            g_snprintf((gchar *)dst_addr,  ADDR_MAX_LEN, "IPv6 over IB Packet");
+            SET_ADDRESS(&pinfo->dst,  AT_STRINGZ, (int)strlen((char *)dst_addr)+1, dst_addr);
             break;
         case RAW:
             break;
@@ -7298,7 +7279,7 @@ void proto_register_infiniband(void)
         { &hf_infiniband_PortCounters_ExcessiveBufferOverrunErrors, {
                 "ExcessiveBufferOverrunErrors", "infiniband.portcounters.excessivebufferoverrunerrors",
                 FT_UINT8, BASE_DEC, NULL, 0x0,
-                "The number of times that OverrunErrors consecutive flow control update periods occured",
+                "The number of times that OverrunErrors consecutive flow control update periods occurred",
                 HFILL}
         },
         { &hf_infiniband_PortCounters_VL15Dropped, {
@@ -7509,6 +7490,7 @@ void proto_register_infiniband(void)
 void proto_reg_handoff_infiniband(void)
 {
     dissector_handle_t roce_handle;
+    dissector_handle_t ib_handle;
 
     ipv6_handle               = find_dissector("ipv6");
     data_handle               = find_dissector("data");
@@ -7518,4 +7500,7 @@ void proto_reg_handoff_infiniband(void)
     /* create and announce an anonymous RoCE dissector */
     roce_handle = create_dissector_handle(dissect_roce, proto_infiniband);
     dissector_add_uint("ethertype", ETHERTYPE_ROCE, roce_handle);
+
+    ib_handle = create_dissector_handle(dissect_infiniband, proto_infiniband);
+    dissector_add_uint("wtap_encap", WTAP_ENCAP_INFINIBAND, ib_handle);
 }

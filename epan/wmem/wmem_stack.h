@@ -30,29 +30,42 @@
 #include <glib.h>
 
 #include "wmem_core.h"
+#include "wmem_slist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-struct _wmem_stack_t;
+/** @addtogroup wmem
+ *  @{
+ *    @defgroup wmem-stack Stack
+ *
+ *    A stack implementation on top of wmem.
+ *
+ *    @{
+ */
 
-typedef struct _wmem_stack_t wmem_stack_t;
+/* Wmem stack is implemented as a simple wrapper over Wmem slist */
+typedef wmem_slist_t wmem_stack_t;
 
-guint
-wmem_stack_count(const wmem_stack_t *stack);
+#define wmem_stack_count(X) wmem_slist_count(X)
 
+WS_DLL_PUBLIC
 void *
 wmem_stack_peek(const wmem_stack_t *stack);
 
+WS_DLL_PUBLIC
 void *
 wmem_stack_pop(wmem_stack_t *stack);
 
+WS_DLL_PUBLIC
 void
 wmem_stack_push(wmem_stack_t *stack, void *data);
 
-wmem_stack_t *
-wmem_create_stack(wmem_allocator_t *allocator);
+#define wmem_stack_new(ALLOCATOR) wmem_slist_new(ALLOCATOR)
+
+/**   @}
+ *  @} */
 
 #ifdef __cplusplus
 }

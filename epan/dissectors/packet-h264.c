@@ -116,7 +116,7 @@ static int hf_h264_par_profile_h                           = -1;
 static int hf_h264_par_profile_h10                         = -1;
 static int hf_h264_par_profile_h4_2_2                      = -1;
 static int hf_h264_par_profile_h4_4_4                      = -1;
-static int hf_h264_par_add_mode_sup                        = -1;
+/* static int hf_h264_par_add_mode_sup                        = -1; */
 static int hf_h264_par_AdditionalModesSupported            = -1;
 static int hf_h264_par_add_mode_sup_rcdo                   = -1;
 static int hf_h264_par_ProfileIOP                          = -1;
@@ -173,7 +173,7 @@ static int hf_h264_slice_type                              = -1;
 static int hf_h264_slice_id                                = -1;
 static int hf_h264_payloadsize                             = -1;
 static int hf_h264_payloadtype                             = -1;
-static int hf_h264_frame_num                               = -1;
+/* static int hf_h264_frame_num                               = -1; */
 
 /* Initialize the subtree pointers */
 static int ett_h264                                        = -1;
@@ -398,7 +398,7 @@ dissect_h264_exp_golomb_code(proto_tree *tree, int hf_index, tvbuff_t *tvb, gint
     bit_offset = *start_bit_offset;
 
     /* prepare the string */
-    str = ep_alloc(256);
+    str = (char *)ep_alloc(256);
     str[0] = '\0';
     for (bit=0; bit<((int)(bit_offset&0x07)); bit++) {
         if (bit && (!(bit%4))) {
@@ -661,7 +661,7 @@ more_rbsp_data(proto_tree *tree _U_, tvbuff_t *tvb, packet_info *pinfo _U_, gint
 
     /* XXX might not be the best way of doing things but:
      * Serch from the end of the tvb for the first '1' bit
-     * assuming that its's the RTBSP stop bit
+     * assuming that it's the RTBSP stop bit
      */
 
     /* Set offset to the byte we are treating */
@@ -1062,7 +1062,7 @@ dissect_h265_unescap_nal_unit(tvbuff_t *tvb, packet_info *pinfo, int offset)
     int       i;
     gchar    *buff;
 
-    buff = g_malloc(length);
+    buff = (gchar *)g_malloc(length);
     for (i = 0; i < length; i++) {
         if ((i + 2 < length) && (tvb_get_ntoh24(tvb, offset) == 0x000003)) {
             buff[NumBytesInRBSP++] = tvb_get_guint8(tvb, offset);
@@ -2027,7 +2027,7 @@ dissect_h264_par_level(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, 
     DISSECTOR_ASSERT(actx);
 
     lvl = tvb_get_ntohs(tvb, offset);
-    p = match_strval(lvl, VALS(h264_par_level_values));
+    p = try_val_to_str(lvl, VALS(h264_par_level_values));
     if (p) {
         proto_item_append_text(actx->created_item, " - Level %s", p);
     }
@@ -2692,11 +2692,13 @@ proto_register_h264(void)
             FT_UINT32, BASE_DEC, VALS(h264_sei_payload_vals), 0x0,
             NULL, HFILL }
         },
+#if 0
         { &hf_h264_frame_num,
             { "frame_num",           "h264.frame_num",
             FT_UINT8, BASE_DEC, NULL, 0x0,
             NULL, HFILL }
         },
+#endif
         { &hf_h264_par_profile,
                 { "Profile", "h264.profile",
                 FT_UINT8, BASE_HEX, NULL, 0x00,
@@ -2733,10 +2735,12 @@ proto_register_h264(void)
                 { "AdditionalModesSupported", "h264.AdditionalModesSupported",
             FT_UINT8, BASE_HEX, NULL, 0x00,
             NULL, HFILL}},
+#if 0
         { &hf_h264_par_add_mode_sup,
                 { "Additional Modes Supported", "h264.add_mode_sup",
             FT_UINT8, BASE_HEX, NULL, 0x00,
             NULL, HFILL}},
+#endif
         { &hf_h264_par_add_mode_sup_rcdo,
                 { "Reduced Complexity Decoding Operation (RCDO) support", "h264.add_mode_sup.rcdo",
             FT_BOOLEAN, 8, NULL, 0x40,

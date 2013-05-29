@@ -59,6 +59,8 @@
  *     http://www.iana.org/assignments/bootp-dhcp-parameters
  * DOCSIS(TM) 2.0 Radio Frequency Interface Specification
  *     http://www.cablelabs.com/specifications/CM-SP-RFI2.0-I11-060602.pdf
+ * DOCSIS(TM) 3.0 MAC and Upper Layer Protocols Interface Specification
+ *     http://www.cablelabs.com/specifications/CM-SP-MULPIv3.0-I20-121113.pdf
  * PacketCable(TM) 1.0 MTA Device Provisioning Specification
  *     http://www.cablelabs.com/packetcable/downloads/specs/PKT-SP-PROV-I11-050812.pdf
  *     http://www.cablelabs.com/specifications/archives/PKT-SP-PROV-I05-021127.pdf (superseded by above)
@@ -123,6 +125,8 @@
 #include <epan/expert.h>
 #include <epan/uat.h>
 
+void proto_register_bootp(void);
+void proto_reg_handoff_bootp(void);
 
 static int bootp_dhcp_tap = -1;
 static int proto_bootp = -1;
@@ -457,6 +461,46 @@ static gint ett_bootp_option82_suboption = -1;
 static gint ett_bootp_option82_suboption9 = -1;
 static gint ett_bootp_option125_suboption = -1;
 static gint ett_bootp_fqdn = -1;
+
+static expert_field ei_bootp_bad_length0 = EI_INIT;
+static expert_field ei_bootp_bad_length1 = EI_INIT;
+static expert_field ei_bootp_bad_length2 = EI_INIT;
+static expert_field ei_bootp_bad_length4 = EI_INIT;
+static expert_field ei_bootp_bad_length6 = EI_INIT;
+static expert_field ei_bootp_bad_length7 = EI_INIT;
+static expert_field ei_bootp_bad_length3_6 = EI_INIT;
+static expert_field ei_bootp_bad_length_ge1 = EI_INIT;
+static expert_field ei_bootp_bad_length_ge2 = EI_INIT;
+static expert_field ei_bootp_bad_length_ge3 = EI_INIT;
+static expert_field ei_bootp_bad_length_ge5 = EI_INIT;
+static expert_field ei_bootp_bad_length_ge11 = EI_INIT;
+static expert_field ei_bootp_bad_length_ge31 = EI_INIT;
+static expert_field ei_bootp_bad_length_lt5 = EI_INIT;
+static expert_field ei_bootp_opt_length_not_mult2 = EI_INIT;
+static expert_field ei_bootp_opt_length_not_mult4 = EI_INIT;
+static expert_field ei_bootp_opt_length_not_mult8 = EI_INIT;
+static expert_field ei_bootp_opt_length_not_mult4_plus1 = EI_INIT;
+static expert_field ei_bootp_missing_subopt_length = EI_INIT;
+static expert_field ei_bootp_missing_subopt_value = EI_INIT;
+static expert_field ei_bootp_mal_duid = EI_INIT;
+static expert_field hf_bootp_opt_overload_file_end_missing = EI_INIT;
+static expert_field hf_bootp_opt_overload_sname_end_missing = EI_INIT;
+static expert_field hf_bootp_subopt_unknown_type = EI_INIT;
+static expert_field ei_bootp_option77_user_class_len = EI_INIT;
+static expert_field ei_bootp_option77_user_class_malformed = EI_INIT;
+static expert_field ei_bootp_option_civic_location_bad_cattype = EI_INIT;
+static expert_field ei_bootp_bad_length_even = EI_INIT;
+static expert_field ei_bootp_option_dhcp_name_service_invalid = EI_INIT;
+static expert_field ei_bootp_option_sip_server_address_encoding = EI_INIT;
+static expert_field ei_bootp_option_classless_static_route = EI_INIT;
+static expert_field ei_bootp_option_classless_static_bad_router_length = EI_INIT;
+static expert_field ei_bootp_invalid_length = EI_INIT;
+static expert_field ei_bootp_option125_enterprise_malformed = EI_INIT;
+static expert_field ei_bootp_option_6RD_malformed = EI_INIT;
+static expert_field ei_bootp_option82_vi_cl_tag_unknown = EI_INIT;
+static expert_field ei_bootp_suboption_invalid = EI_INIT;
+static expert_field ei_bootp_secs_le = EI_INIT;
+static expert_field ei_bootp_end_option_missing = EI_INIT;
 
 /* RFC2937 The Name Service Search Option for DHCP */
 #define RFC2937_LOCAL_NAMING_INFORMATION                           0
@@ -1197,7 +1241,7 @@ static void uat_bootp_record_free_cb(void*r) {
 
 UAT_DEC_CB_DEF(uat_bootp_records, opt, uat_bootp_record_t)
 UAT_CSTRING_CB_DEF(uat_bootp_records, text, uat_bootp_record_t)
-UAT_VS_DEF(uat_bootp_records, ftype, uat_bootp_record_t, 0, "string")
+UAT_VS_DEF(uat_bootp_records, ftype, uat_bootp_record_t, enum field_type, special, "string")
 
 
 static struct opt_info* bootp_get_opt(unsigned int idx)
@@ -1252,8 +1296,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 
 	case ipv4:
 		if (total_len != 4) {
-			expert_add_info_format(pinfo, item, PI_PROTOCOL,
-				PI_ERROR, "length isn't 4");
+			expert_add_info(pinfo, item, &ei_bootp_bad_length4);
 			break;
 		}
 
@@ -1267,7 +1310,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 	case ipv4_list:
 		for (i = offset, left = total_len; left > 0; i += 4, left -= 4) {
 			if (left < 4) {
-				expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_ERROR, "Option length isn't a multiple of 4");
+				expert_add_info(pinfo, item, &ei_bootp_opt_length_not_mult4);
 				break;
 			}
 
@@ -1290,7 +1333,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 
 	case val_boolean:
 		if (total_len != 1) {
-			expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_ERROR, "length isn't 1");
+			expert_add_info(pinfo, item, &ei_bootp_bad_length1);
 			break;
 		}
 
@@ -1303,7 +1346,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 
 	case val_u_byte:
 		if (total_len != 1) {
-			expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_ERROR, "length isn't 1");
+			expert_add_info(pinfo, item, &ei_bootp_bad_length1);
 			break;
 		}
 
@@ -1316,7 +1359,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 
 	case val_u_short:
 		if (total_len != 2) {
-			expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_ERROR, "length isn't 2");
+			expert_add_info(pinfo, item, &ei_bootp_bad_length2);
 			break;
 		}
 
@@ -1329,7 +1372,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 
 	case val_u_le_short:
 		if (total_len != 2) {
-			expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_ERROR, "length isn't 2");
+			expert_add_info(pinfo, item, &ei_bootp_bad_length2);
 			break;
 		}
 
@@ -1343,7 +1386,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 	case val_u_short_list:
 		for (i = offset, left = total_len; left > 0; i += 2, left -= 2) {
 			if (left < 2) {
-				expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_ERROR, "Option length isn't a multiple of 2");
+				expert_add_info(pinfo, item, &ei_bootp_opt_length_not_mult2);
 				break;
 			}
 
@@ -1357,7 +1400,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 
 	case val_u_long:
 		if (total_len != 4) {
-			expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_ERROR, "length isn't 4");
+			expert_add_info(pinfo, item, &ei_bootp_bad_length4);
 			break;
 		}
 
@@ -1370,7 +1413,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 
 	case time_in_s_secs:
 		if (total_len != 4) {
-		   expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_ERROR, "length isn't 4");
+			expert_add_info(pinfo, item, &ei_bootp_bad_length4);
 			break;
 		}
 
@@ -1387,7 +1430,7 @@ bootp_handle_basic_types(packet_info *pinfo, proto_tree *tree, proto_item *item,
 
 	case time_in_u_secs:
 		if (total_len != 4) {
-			expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_ERROR, "length isn't 4");
+			expert_add_info(pinfo, item, &ei_bootp_bad_length4);
 			break;
 		}
 
@@ -1592,7 +1635,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		for (i = optoff, optleft = optlen;
 			optleft > 0; i += 8, optleft -= 8) {
 			if (optleft < 8) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't a multiple of 8");
+				expert_add_info(pinfo, vti, &ei_bootp_opt_length_not_mult8);
 				break;
 			}
 
@@ -1605,7 +1648,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		for (i = optoff, optleft = optlen;
 			optleft > 0; i += 8, optleft -= 8) {
 			if (optleft < 8) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't a multiple of 8");
+				expert_add_info(pinfo, vti, &ei_bootp_opt_length_not_mult8);
 				break;
 			}
 
@@ -1658,7 +1701,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 
 	case 52:	/* Option Overload */
 		if (optlen < 1) {
-		   expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't >= 1");
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length_ge1);
 			break;
 		}
 
@@ -1685,8 +1728,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				}
 				if (!o52at_end)
 				{
-					expert_add_info_format(pinfo, oti, PI_PROTOCOL,
-						PI_ERROR, "file overload end option missing");
+					expert_add_info(pinfo, oti, &hf_bootp_opt_overload_file_end_missing);
 				}
 			}
 			if (byte & OPT_OVERLOAD_SNAME) {
@@ -1707,8 +1749,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				}
 				if (!o52at_end)
 				{
-					expert_add_info_format(pinfo, oti, PI_PROTOCOL,
-						PI_ERROR, "sname overload end option missing");
+					expert_add_info(pinfo, oti, &hf_bootp_opt_overload_sname_end_missing);
 				}
 			}
 			/* The final end option is not in overload */
@@ -1814,7 +1855,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			switch (duidtype) {
 			case DUID_LLT:
 				if (optlen < 8) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "DUID: malformed option");
+					expert_add_info(pinfo, vti, &ei_bootp_mal_duid);
 					break;
 				}
 				hwtype=tvb_get_ntohs(tvb, optoff + 2);
@@ -1832,7 +1873,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				break;
 			case DUID_EN:
 				if (optlen < 6) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "DUID: malformed option");
+					expert_add_info(pinfo, vti, &ei_bootp_mal_duid);
 					break;
 				}
 				enterprise = tvb_get_ntohl(tvb, optoff+2);
@@ -1848,7 +1889,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				break;
 			case DUID_LL:
 				if (optlen < 4) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "DUID: malformed option");
+					expert_add_info(pinfo, vti, &ei_bootp_mal_duid);
 					break;
 				}
 				hwtype=tvb_get_ntohs(tvb, optoff + 2);
@@ -1871,7 +1912,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		proto_item *vtix;
 		proto_tree *o77_v_tree;
 		if (optlen < 2) {
-			expert_add_info_format(pinfo, v_tree, PI_PROTOCOL, PI_ERROR, "length isn't >= 2 (length = %i)", optlen);
+			expert_add_info(pinfo, v_tree, &ei_bootp_bad_length_ge2);
 			break;
 		}
 		optleft = optlen;
@@ -1886,12 +1927,12 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 					tvb, optoff + i, 1, ENC_BIG_ENDIAN);
 
 			if (byte == 0) {
-				expert_add_info_format(pinfo, vtix, PI_PROTOCOL, PI_ERROR, "UC_Len_%u isn't >= 1 (UC_Len_%u = 0)", user_class_instance_index, user_class_instance_index);
+				expert_add_info_format_text(pinfo, vtix, &ei_bootp_option77_user_class_len, "UC_Len_%u isn't >= 1 (UC_Len_%u = 0)", user_class_instance_index, user_class_instance_index);
 				break;
 			}
 			optleft -= byte + 1;
 			if (optleft < 0) {
-				expert_add_info_format(pinfo, vtix, PI_PROTOCOL, PI_ERROR, "User Class Information: malformed option");
+				expert_add_info(pinfo, vtix, &ei_bootp_option77_user_class_malformed);
 				break;
 			}
 
@@ -1949,7 +1990,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 
 	case 78:	/* SLP Directory Agent Option RFC2610 Added by Greg Morris (gmorris@novell.com)*/
 		if (optlen < 1) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't >= 1");
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length_ge1);
 			break;
 		}
 		optleft = optlen;
@@ -1966,7 +2007,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		}
 		for (i = optoff; optleft > 0; i += 4, optleft -= 4) {
 			if (optleft < 4) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't a multiple of 4");
+				expert_add_info(pinfo, vti, &ei_bootp_opt_length_not_mult4);
 				break;
 			}
 
@@ -1984,7 +2025,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 
 	case 81:	/* Client Fully Qualified Domain Name */
 		if (optlen < 3) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't >= 3");
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length_ge3);
 			break;
 		}
 		fqdn_flags = tvb_get_guint8(tvb, optoff);
@@ -2026,7 +2067,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			for (i = optoff, optleft = optlen; optleft > 0;
 				i += 4, optleft -= 4) {
 				if (optleft < 4) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't a multiple of 4");
+					expert_add_info(pinfo, vti, &ei_bootp_opt_length_not_mult4);
 					break;
 				}
 
@@ -2053,7 +2094,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 	case 90:	/* DHCP Authentication */
 	case 210:	/* Was this used for authentication at one time? */
 		if (optlen < 11) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't >= 11");
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length_ge11);
 			break;
 		}
 		optleft = optlen;
@@ -2106,7 +2147,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 					break;
 				} else {
 					if (optlen < 31) {
-						expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't >= 31");
+						expert_add_info(pinfo, vti, &ei_bootp_bad_length_ge31);
 						break;
 					}
 
@@ -2167,7 +2208,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				else
 				{
 					optleft = 0;
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Error with CAType");
+					expert_add_info(pinfo, vti, &ei_bootp_option_civic_location_bad_cattype);
 				}
 			}
 		}
@@ -2175,9 +2216,9 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 
 	case 117:   /* The Name Service Search Option for DHCP (RFC 2937) */
 		if (optlen < 2) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length (%u) isn't >= 2", optlen);
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length_ge2);
 		} else if (optlen & 1) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length (%u) isn't even number", optlen);
+			expert_add_info_format_text(pinfo, vti, &ei_bootp_bad_length_even, "length (%u) isn't even number", optlen);
 		} else {
 			guint16 ns;
 			for (i = 0, ns = tvb_get_ntohs(tvb, optoff); i < optlen; i += 2, ns = tvb_get_ntohs(tvb, optoff + i)) {
@@ -2198,7 +2239,8 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 					proto_tree_add_string(v_tree, hf_bootp_option_dhcp_name_service_search_option, tvb, optoff + i, 2, "Network Information Service+ Servers Option (65)");
 					break;
 				default:
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Invalid Name Service (%u). RFC 2937 defines only 0, 6, 41, 44, and 65 as possible values.", ns);
+					expert_add_info_format_text(pinfo, vti, &ei_bootp_option_dhcp_name_service_invalid,
+								"Invalid Name Service (%u). RFC 2937 defines only 0, 6, 41, 44, and 65 as possible values.", ns);
 					break;
 				}
 			}
@@ -2219,15 +2261,17 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			}
 		}
 
-		if (rfc3396_dns_domain_search_list.tvb_composite == NULL) {
+		if (rfc3396_dns_domain_search_list.tvb_composite == NULL && optlen) {
 			/* We use composite tvb for managing RFC 3396 */
 			rfc3396_dns_domain_search_list.tvb_composite = tvb_new_composite();
 		}
 
 		/* Concatenate the block before being interpreted for managing RFC 3396 */
-		tvb_composite_append(rfc3396_dns_domain_search_list.tvb_composite, tvb_new_subset(tvb, optoff, optlen, optlen));
+		if (optlen)
+			tvb_composite_append(rfc3396_dns_domain_search_list.tvb_composite, tvb_new_subset(tvb, optoff, optlen, optlen));
 
-		if (rfc3396_dns_domain_search_list.index_current_block == rfc3396_dns_domain_search_list.total_number_of_block) {
+		if (rfc3396_dns_domain_search_list.index_current_block == rfc3396_dns_domain_search_list.total_number_of_block
+		    && rfc3396_dns_domain_search_list.tvb_composite) {
 			/* Here, we are into the last (or unique) option 119. */
 			/* We will display the information about fqdn */
 			unsigned int consumedx = 0;
@@ -2264,15 +2308,17 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			}
 		}
 
-		if (rfc3396_sip_server.tvb_composite == NULL) {
+		if (rfc3396_sip_server.tvb_composite == NULL && optlen) {
 			/* We use composite tvb for managing RFC 3396 */
 			rfc3396_sip_server.tvb_composite = tvb_new_composite();
 		}
 
 		/* Concatenate the block before being interpreted for managing RFC 3396 */
-		tvb_composite_append(rfc3396_sip_server.tvb_composite, tvb_new_subset(tvb, optoff, optlen, optlen));
+		if (optlen)
+			tvb_composite_append(rfc3396_sip_server.tvb_composite, tvb_new_subset(tvb, optoff, optlen, optlen));
 
-		if (rfc3396_sip_server.index_current_block == rfc3396_sip_server.total_number_of_block) {
+		if (rfc3396_sip_server.index_current_block == rfc3396_sip_server.total_number_of_block
+		    && rfc3396_sip_server.tvb_composite) {
 			/* Here, we are into the last (or unique) option 120. */
 			/* We will display the information about SIP server */
 			guint8 enc;
@@ -2292,7 +2338,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			case RFC_3361_ENC_FQDN: {
 				unsigned int consumedx = 0;
 				if (tvb_length(rfc3396_sip_server.tvb_composite) < 3) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't >= 3 (len = %u)", tvb_length(rfc3396_sip_server.tvb_composite));
+					expert_add_info_format_text(pinfo, vti, &ei_bootp_bad_length_ge3, "length isn't >= 3 (len = %u)", tvb_length(rfc3396_sip_server.tvb_composite));
 					break;
 				}
 
@@ -2314,15 +2360,17 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			}
 			case RFC_3361_ENC_IPADDR:
 				if (tvb_length(rfc3396_sip_server.tvb_composite) < 5) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't >= 5 (len = %u)", tvb_length(rfc3396_sip_server.tvb_composite));
+					expert_add_info_format_text(pinfo, vti, &ei_bootp_bad_length_ge5, "length isn't >= 5 (len = %u)", tvb_length(rfc3396_sip_server.tvb_composite));
 					break;
 				}
 				/* x % 2^n == x & (2^n - 1) note : (assuming x is a positive integer) */
 				if ((tvb_length(rfc3396_sip_server.tvb_composite) - 1) & 3) {
 					if (rfc3396_sip_server.total_number_of_block == 1)
-						expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't a multiple of 4 plus 1 (len = %u).", tvb_length(rfc3396_sip_server.tvb_composite));
+						expert_add_info_format_text(pinfo, vti, &ei_bootp_opt_length_not_mult4_plus1, "length isn't a multiple of 4 plus 1 (len = %u).", tvb_length(rfc3396_sip_server.tvb_composite));
 					else
-						expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't a multiple of 4 plus 1 (len = %u). For your information with RFC 3396, the length is the length sum of all options 120 into this BOOTP packet.", tvb_length(rfc3396_sip_server.tvb_composite));
+						expert_add_info_format_text(pinfo, vti, &ei_bootp_opt_length_not_mult4_plus1, 
+							"length isn't a multiple of 4 plus 1 (len = %u). For your information with RFC 3396, the length is the length sum of all options 120 into this BOOTP packet.",
+							tvb_length(rfc3396_sip_server.tvb_composite));
 					break;
 				}
 				while (offset < tvb_length(rfc3396_sip_server.tvb_composite)) {
@@ -2348,7 +2396,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				}
 				break;
 			default:
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "RFC 3361 defines only 0 and 1 for Encoding byte (Encoding = %u).", enc);
+				expert_add_info_format_text(pinfo, vti, &ei_bootp_option_sip_server_address_encoding, "RFC 3361 defines only 0 and 1 for Encoding byte (Encoding = %u).", enc);
 				break;
 			}
 		}
@@ -2360,14 +2408,14 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		optend = optoff + optlen;
 		/* minimum length is 5 bytes */
 		if (optlen < 5) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length < 5 bytes");
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length_ge5);
 			break;
 		}
 		while (optoff < optend) {
 			mask_width = tvb_get_guint8(tvb, optoff);
 			/* mask_width <= 32 */
 			if (mask_width > 32) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Mask width (%d) > 32", mask_width);
+				expert_add_info_format_text(pinfo, vti, &ei_bootp_option_classless_static_route, "Mask width (%d) > 32", mask_width);
 				break;
 			}
 			significant_octets = (mask_width + 7) / 8;
@@ -2377,7 +2425,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			optoff++;
 			/* significant octets + router(4) */
 			if (optend < optoff + significant_octets + 4) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Remaining length (%d) < %d bytes", optend - optoff, significant_octets + 4);
+				expert_add_info_format_text(pinfo, vti, &ei_bootp_option_classless_static_bad_router_length, "Remaining length (%d) < %d bytes", optend - optoff, significant_octets + 4);
 				break;
 			}
 			if(mask_width == 0)
@@ -2442,7 +2490,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 				proto_tree_add_item(v_tree, hf_bootp_option_cl_dss_id, tvb, optoff+2+2+s_len, s_len, ENC_ASCII|ENC_NA);
 			}
 		} else {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Invalid length of DHCP option!");
+			expert_add_info(pinfo, vti, &ei_bootp_invalid_length);
 		}
 		break;
 
@@ -2460,7 +2508,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		while (optleft > 0) {
 
 			if (optleft < 5) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Vendor Class: malformed option");
+				expert_add_info(pinfo, vti, &ei_bootp_bad_length_lt5);
 				break;
 			}
 
@@ -2492,8 +2540,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 		while (optleft > 0) {
 
 			if (optleft < 5) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL,
-					PI_ERROR, "Vendor-specific Information: malformed option");
+				expert_add_info(pinfo, vti, &ei_bootp_bad_length_lt5);
 				break;
 			}
 
@@ -2511,8 +2558,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			case 3561: /* ADSL Forum */
 				s_end = optoff + s_option_len;
 				if ( s_end > optend ) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL,
-						PI_ERROR, "no room left in option for enterprise %u data", enterprise);
+					expert_add_info_format_text(pinfo, vti, &ei_bootp_option125_enterprise_malformed, "no room left in option for enterprise %u data", enterprise);
 					break;
 				}
 
@@ -2526,8 +2572,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			case 4491: /* CableLab */
 				s_end = optoff + s_option_len;
 				if ( s_end > optend ) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL,
-					   PI_ERROR, "no room left in option for enterprise %u data", enterprise);
+					expert_add_info_format_text(pinfo, vti, &ei_bootp_option125_enterprise_malformed, "no room left in option for enterprise %u data", enterprise);
 					break;
 				}
 
@@ -2549,7 +2594,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 
 	case 212: {	/* 6RD option (RFC 5969) */
 		if (optlen < 22) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "6RD: malformed option");
+			expert_add_info(pinfo, vti, &ei_bootp_option_6RD_malformed);
 			break;
 		}
 
@@ -2563,7 +2608,7 @@ bootp_option(tvbuff_t *tvb, packet_info *pinfo, proto_tree *bp_tree, int voff,
 			optoff += 22;
 			for (i = optoff, optleft = optlen - 22; optleft > 0; i += 4, optleft -= 4) {
 				if (optleft < 4) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Border Relay length isn't a multiple of 4");
+					expert_add_info(pinfo, vti, &ei_bootp_opt_length_not_mult4);
 					break;
 				}
 
@@ -2686,8 +2731,8 @@ bootp_dhcp_decode_agent_info(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 	suboptoff++;
 
 	if (suboptoff >= optend) {
-		expert_add_info_format(pinfo, v_ti, PI_PROTOCOL, PI_ERROR,
-			"Suboption %d: no room left in option for suboption length", subopt);
+		expert_add_info_format_text(pinfo, v_ti, &ei_bootp_missing_subopt_length,
+									"Suboption %d: no room left in option for suboption length", subopt);
 		return (optend);
 	}
 
@@ -2701,8 +2746,8 @@ bootp_dhcp_decode_agent_info(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 
 	subopt_end = suboptoff+subopt_len;
 	if (subopt_end > optend) {
-		expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR,
-			"Suboption %d: no room left in option for suboption value", subopt);
+		expert_add_info_format_text(pinfo, vti, &ei_bootp_missing_subopt_value,
+						"Suboption %d: no room left in option for suboption value", subopt);
 		return (optend);
 	}
 
@@ -2754,8 +2799,7 @@ bootp_dhcp_decode_agent_info(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 											  tvb_get_guint8(tvb, suboptoff), tvb_get_guint8(tvb, suboptoff+1));
 									suboptoff+=2;
 								} else {
-									expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR,
-										"Unknown tag %d (%d bytes)", tag, tag_len);
+									expert_add_info_format_text(pinfo, vti, &ei_bootp_option82_vi_cl_tag_unknown, "Unknown tag %d (%d bytes)", tag, tag_len);
 									suboptoff += tag_len;
 								}
 							} else {
@@ -2764,8 +2808,7 @@ bootp_dhcp_decode_agent_info(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 							break;
 
 						default:
-							expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR,
-									"Invalid suboption %d (%d bytes)", vs_opt, vs_len);
+							expert_add_info_format_text(pinfo, vti, &ei_bootp_suboption_invalid, "Invalid suboption %d (%d bytes)", vs_opt, vs_len);
 							suboptoff += vs_len;
 							break;
 						}
@@ -2779,8 +2822,7 @@ bootp_dhcp_decode_agent_info(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 				break;
 			case 151:
 				if (subopt_len != 7) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR,
-									"Invalid length (expected 7 bytes, found %d bytes)", subopt_len);
+					expert_add_info(pinfo, vti, &ei_bootp_bad_length7);
 					break;
 				}
 				proto_tree_add_item(o82_v_tree, hf_bootp_option82_vrf_name_vpn_id_oui, tvb, suboptoff, 3, ENC_BIG_ENDIAN);
@@ -2797,7 +2839,7 @@ bootp_dhcp_decode_agent_info(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 		else {
 			if (bootp_handle_basic_types(pinfo, o82_v_tree, vti, tvb, o82_opt[idx].info.ftype,
 						     suboptoff, subopt_len, o82_opt[idx].info.phf, &default_hfs) == 0) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "ERROR, please report: Unknown subopt type handler %d", subopt);
+				expert_add_info_format_text(pinfo, vti, &hf_bootp_subopt_unknown_type, "ERROR, please report: Unknown subopt type handler %d", subopt);
 			}
 		}
 	}
@@ -2886,8 +2928,8 @@ dissect_vendor_pxeclient_suboption(packet_info *pinfo, proto_item *v_ti, proto_t
 	}
 
 	if (suboptoff >= optend) {
-		expert_add_info_format(pinfo, v_ti, PI_PROTOCOL, PI_ERROR,
-			"Suboption %d: no room left in option for suboption length", subopt);
+		expert_add_info_format_text(pinfo, v_ti, &ei_bootp_missing_subopt_length,
+									"Suboption %d: no room left in option for suboption length", subopt);
 		return (optend);
 	}
 
@@ -2908,7 +2950,7 @@ dissect_vendor_pxeclient_suboption(packet_info *pinfo, proto_item *v_ti, proto_t
 		/* I may need to decode that properly one day */
 		proto_tree_add_item(o43pxeclient_v_tree, hf_bootp_option43_pxeclient_boot_item, tvb, suboptoff, subopt_len, ENC_NA);
 	} else if ((subopt < 1) || (subopt >= array_length(o43pxeclient_opt))) {
-		expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Unknown suboption %d (%d bytes)", subopt, subopt_len);
+		expert_add_info_format_text(pinfo, vti, &ei_bootp_suboption_invalid, "Unknown suboption %d (%d bytes)", subopt, subopt_len);
 	} else if (o43pxeclient_opt[subopt].ftype == special) {
 		/* I may need to decode that properly one day */
 		if (o43pxeclient_opt[subopt].phf != NULL)
@@ -2919,7 +2961,7 @@ dissect_vendor_pxeclient_suboption(packet_info *pinfo, proto_item *v_ti, proto_t
 		if (bootp_handle_basic_types(pinfo, o43pxeclient_v_tree, vti, tvb, o43pxeclient_opt[subopt].ftype,
 							suboptoff, subopt_len, o43pxeclient_opt[subopt].phf, &default_hfs) == 0)
 		{
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "ERROR, please report: Unknown subopt type handler %d", subopt);
+			expert_add_info_format_text(pinfo, vti, &hf_bootp_subopt_unknown_type, "ERROR, please report: Unknown subopt type handler %d", subopt);
 		}
 	}
 
@@ -3188,8 +3230,8 @@ dissect_vendor_cablelabs_suboption(packet_info *pinfo, proto_item *v_ti, proto_t
 	}
 
 	if (suboptoff >= optend) {
-		expert_add_info_format(pinfo, v_ti, PI_PROTOCOL, PI_ERROR,
-				       "Suboption %d: no room left in option for suboption length", subopt);
+		expert_add_info_format_text(pinfo, v_ti, &ei_bootp_missing_subopt_length,
+									"Suboption %d: no room left in option for suboption length", subopt);
 		return (optend);
 	}
 
@@ -3203,7 +3245,8 @@ dissect_vendor_cablelabs_suboption(packet_info *pinfo, proto_item *v_ti, proto_t
 	suboptoff++;
 
 	if (suboptoff+subopt_len > optend) {
-		expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Suboption %d: no room left in option for suboption value", subopt);
+		expert_add_info_format_text(pinfo, vti, &ei_bootp_missing_subopt_value,
+						"Suboption %d: no room left in option for suboption value", subopt);
 		return (optend);
 	}
 
@@ -3221,12 +3264,12 @@ dissect_vendor_cablelabs_suboption(packet_info *pinfo, proto_item *v_ti, proto_t
 			} else if (subopt_len == 6) {
 				proto_tree_add_item(o43cl_v_tree, hf_bootp_option43_cl_oui_string, tvb, suboptoff, subopt_len, ENC_ASCII|ENC_NA);
 			} else {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't 3 or 6");
+				expert_add_info(pinfo, vti, &ei_bootp_bad_length3_6);
 			}
 			break;
 		case 31: /* MTA MAC address */
 			if (subopt_len != 6) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't 6");
+				expert_add_info(pinfo, vti, &ei_bootp_bad_length6);
 				break;
 			}
 
@@ -3242,7 +3285,7 @@ dissect_vendor_cablelabs_suboption(packet_info *pinfo, proto_item *v_ti, proto_t
 	else {
 		if (bootp_handle_basic_types(pinfo, o43cl_v_tree, vti, tvb, o43cablelabs_opt[subopt].ftype,
 							suboptoff, subopt_len, o43cablelabs_opt[subopt].phf, &default_hfs) == 0) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "ERROR, please report: Unknown subopt type handler %d", subopt);
+			expert_add_info_format_text(pinfo, vti, &hf_bootp_subopt_unknown_type, "ERROR, please report: Unknown subopt type handler %d", subopt);
 		}
 	}
 
@@ -3290,8 +3333,8 @@ dissect_vendor_alcatel_suboption(packet_info *pinfo, proto_item *v_ti, proto_tre
 	}
 
 	if (suboptoff >= optend) {
-		expert_add_info_format(pinfo, v_ti, PI_PROTOCOL, PI_ERROR,
-							"Suboption %d: no room left in option for suboption length", subopt);
+		expert_add_info_format_text(pinfo, v_ti, &ei_bootp_missing_subopt_length,
+									"Suboption %d: no room left in option for suboption length", subopt);
 		return (optend);
 	}
 
@@ -3305,7 +3348,8 @@ dissect_vendor_alcatel_suboption(packet_info *pinfo, proto_item *v_ti, proto_tre
 	suboptoff++;
 
 	if (suboptoff+subopt_len > optend) {
-		expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "Suboption %d: no room left in option for suboption value", subopt);
+		expert_add_info_format_text(pinfo, vti, &ei_bootp_missing_subopt_value,
+						"Suboption %d: no room left in option for suboption value", subopt);
 		return (optend);
 	}
 
@@ -3313,7 +3357,7 @@ dissect_vendor_alcatel_suboption(packet_info *pinfo, proto_item *v_ti, proto_tre
 	{
 	case 58: /* 0x3A - Alcatel-Lucent AVA VLAN Id */
 		if (subopt_len != 2) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't 2");
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length2);
 			return (optend);
 		}
 
@@ -3321,7 +3365,7 @@ dissect_vendor_alcatel_suboption(packet_info *pinfo, proto_item *v_ti, proto_tre
 		break;
 	case 64: /* 0x40 - Alcatel-Lucent TFTP1 */
 		if (subopt_len != 4) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't 4");
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length4);
 			return (optend);
 		}
 
@@ -3329,7 +3373,7 @@ dissect_vendor_alcatel_suboption(packet_info *pinfo, proto_item *v_ti, proto_tre
 		break;
 	case 65: /* 0x41 - Alcatel-Lucent TFTP2 */
 		if (subopt_len != 4) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't 4");
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length4);
 			return (optend);
 		}
 
@@ -3337,7 +3381,7 @@ dissect_vendor_alcatel_suboption(packet_info *pinfo, proto_item *v_ti, proto_tre
 		break;
 	case 66: /* 0x42 - Alcatel-Lucent APPLICATION TYPE */
 		if (subopt_len != 1) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "length isn't 1");
+			expert_add_info(pinfo, vti, &ei_bootp_bad_length1);
 			return (optend);
 		}
 		proto_tree_add_item(o43alcatel_v_tree, hf_bootp_option43_alcatel_app_type, tvb, suboptoff, 1, ENC_BIG_ENDIAN);
@@ -3346,7 +3390,7 @@ dissect_vendor_alcatel_suboption(packet_info *pinfo, proto_item *v_ti, proto_tre
 		proto_tree_add_item(o43alcatel_v_tree, hf_bootp_option43_alcatel_sip_url, tvb, suboptoff, subopt_len, ENC_ASCII|ENC_NA);
 		break;
 	default:
-		expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "ERROR, please report: Unknown subopt type handler %d", subopt);
+		expert_add_info_format_text(pinfo, vti, &hf_bootp_subopt_unknown_type, "ERROR, please report: Unknown subopt type handler %d", subopt);
 		return optend;
 	}
 
@@ -3411,8 +3455,8 @@ dissect_netware_ip_suboption(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 	suboptoff++;
 
 	if (suboptoff >= optend) {
-		expert_add_info_format(pinfo, v_ti, PI_PROTOCOL, PI_ERROR,
-			"Suboption %d: no room left in option for suboption length", subopt);
+		expert_add_info_format_text(pinfo, v_ti, &ei_bootp_missing_subopt_length,
+									"Suboption %d: no room left in option for suboption length", subopt);
 		return (optend);
 	}
 
@@ -3435,8 +3479,7 @@ dissect_netware_ip_suboption(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 			{
 			case presence:
 				if (subopt_len != 0) {
-					expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR,
-						"Suboption %d: length isn't 0", subopt);
+					expert_add_info(pinfo, vti, &ei_bootp_bad_length0);
 				}
 				break;
 			default:
@@ -3501,8 +3544,8 @@ dissect_vendor_tr111_suboption(packet_info *pinfo, proto_item *v_ti, proto_tree 
 	suboptoff++;
 
 	if (suboptoff >= optend) {
-		expert_add_info_format(pinfo, v_ti, PI_PROTOCOL, PI_ERROR,
-			"Suboption %d: no room left in option for suboption length", subopt);
+		expert_add_info_format_text(pinfo, v_ti, &ei_bootp_missing_subopt_length,
+									"Suboption %d: no room left in option for suboption length", subopt);
 		return (optend);
 	}
 
@@ -3516,8 +3559,8 @@ dissect_vendor_tr111_suboption(packet_info *pinfo, proto_item *v_ti, proto_tree 
 	suboptoff++;
 
 	if (suboptoff+subopt_len > optend) {
-		expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR,
-			"Suboption %d: no room left in option for suboption value", subopt);
+		expert_add_info_format_text(pinfo, vti, &ei_bootp_missing_subopt_value,
+						"Suboption %d: no room left in option for suboption value", subopt);
 		return (optend);
 	}
 
@@ -3594,8 +3637,8 @@ dissect_vendor_cl_suboption(packet_info *pinfo, proto_item *v_ti, proto_tree *v_
 	suboptoff++;
 
 	if (suboptoff >= optend) {
-		expert_add_info_format(pinfo, v_ti, PI_PROTOCOL, PI_ERROR,
-				       "Suboption %d: no room left in option for suboption length", subopt);
+		expert_add_info_format_text(pinfo, v_ti, &ei_bootp_missing_subopt_length,
+									"Suboption %d: no room left in option for suboption length", subopt);
 		return (optend);
 	}
 
@@ -3609,8 +3652,8 @@ dissect_vendor_cl_suboption(packet_info *pinfo, proto_item *v_ti, proto_tree *v_
 	suboptoff++;
 
 	if (suboptoff+subopt_len > optend) {
-		expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR,
-			"Suboption %d: no room left in option for suboption value", subopt);
+		expert_add_info_format_text(pinfo, vti, &ei_bootp_missing_subopt_value,
+						"Suboption %d: no room left in option for suboption value", subopt);
 		return (optend);
 	}
 
@@ -3970,7 +4013,7 @@ dissect_packetcable_mta_cap(proto_tree *v_tree, tvbuff_t *tvb, int voff, int len
 			if (raw_val == PKT_MDC_PROV_FLOWS) {
 				for (i = 0 ; i < 3; i++) {
 					if (flow_val & pkt_mdc_supp_flow_vals[i].value) {
-						decode_bitfield_value(bit_fld, flow_val, pkt_mdc_supp_flow_vals[i].value, 16);
+						decode_bitfield_value(bit_fld, (guint32)flow_val, pkt_mdc_supp_flow_vals[i].value, 16);
 						proto_tree_add_text(subtree, tvb, off + 4, 4, "%s%s",
 							bit_fld, pkt_mdc_supp_flow_vals[i].strptr);
 					}
@@ -4066,7 +4109,7 @@ dissect_packetcable_mta_cap(proto_tree *v_tree, tvbuff_t *tvb, int voff, int len
 #define DOCSIS_CM_CAP_IGMP_SUP		0x05
 #define DOCSIS_CM_CAP_PRIV_SUP		0x06
 #define DOCSIS_CM_CAP_DSAID_SUP		0x07
-#define DOCSIS_CM_CAP_USID_SUP		0x08
+#define DOCSIS_CM_CAP_USSF_SUP		0x08
 #define DOCSIS_CM_CAP_FILT_SUP		0x09
 #define DOCSIS_CM_CAP_TET_MI		0x0a
 #define DOCSIS_CM_CAP_TET		0x0b
@@ -4098,16 +4141,20 @@ dissect_packetcable_mta_cap(proto_tree *v_tree, tvbuff_t *tvb, int voff, int len
 #define DOCSIS_CM_CAP_MAPUCDRECEIPT_SUP	0x25
 #define DOCSIS_CM_CAP_USDROPCLASSIF_SUP	0x26
 #define DOCSIS_CM_CAP_IPV6_SUP		0x27
+#define DOCSIS_CM_CAP_ExUsTrPow		0x28
+#define DOCSIS_CM_CAP_Opt802MPLSSup		0x29
+#define DOCSIS_CM_CAP_DounEnc		0x2a
+#define DOCSIS_CM_CAP_EnrgMang		0x2c
 
 static const value_string docsis_cm_cap_type_vals[] = {
 	{ DOCSIS_CM_CAP_CONCAT_SUP,		"Concatenation Support" },
 	{ DOCSIS_CM_CAP_DOCSIS_VER,		"DOCSIS Version" },
 	{ DOCSIS_CM_CAP_FRAG_SUP,		"Fragmentation Support" },
-	{ DOCSIS_CM_CAP_PHS_SUP,		"PHS Support" },
+	{ DOCSIS_CM_CAP_PHS_SUP,		"Payload Header Suppression Support" },
 	{ DOCSIS_CM_CAP_IGMP_SUP,		"IGMP Support" },
 	{ DOCSIS_CM_CAP_PRIV_SUP,		"Privacy Support" },
 	{ DOCSIS_CM_CAP_DSAID_SUP,		"Downstream SAID Support" },
-	{ DOCSIS_CM_CAP_USID_SUP,		"Upstream SID Support" },
+	{ DOCSIS_CM_CAP_USSF_SUP,		"Upstream Service Flow Support" },
 	{ DOCSIS_CM_CAP_FILT_SUP,		"Optional Filtering Support" },
 	{ DOCSIS_CM_CAP_TET_MI,			"Transmit Equalizer Taps per Modulation Interval" },
 	{ DOCSIS_CM_CAP_TET,			"Number of Transmit Equalizer Taps" },
@@ -4117,12 +4164,12 @@ static const value_string docsis_cm_cap_type_vals[] = {
 	{ DOCSIS_CM_CAP_EXPUNI_SPACE,		"Expanded Unicast SID Space" },
 	{ DOCSIS_CM_CAP_RNGHLDOFF_SUP,		"Ranging Hold-Off Support" },
 	{ DOCSIS_CM_CAP_L2VPN_SUP,		"L2VPN Capability" },
-	{ DOCSIS_CM_CAP_L2VPN_HOST_SUP,		"eSAFE Host Capability" },
-	{ DOCSIS_CM_CAP_DUTFILT_SUP,		"DUT Filtering" },
+	{ DOCSIS_CM_CAP_L2VPN_HOST_SUP,		"L2VPN eSAFE Host Capability" },
+	{ DOCSIS_CM_CAP_DUTFILT_SUP,		"Downstream Unencrypted Traffic (DUT) Filtering" },
 	{ DOCSIS_CM_CAP_USFREQRNG_SUP,		"Upstream Frequency Range Support" },
 	{ DOCSIS_CM_CAP_USSYMRATE_SUP,		"Upstream Symbol Rate Support" },
 	{ DOCSIS_CM_CAP_SACM2_SUP,		"Selectable Active Code Mode 2 Support" },
-	{ DOCSIS_CM_CAP_SACM2HOP_SUP,		"Code Hopping SAC Mode 2 is supported" },
+	{ DOCSIS_CM_CAP_SACM2HOP_SUP,		"Code Hopping Mode 2 Support" },
 	{ DOCSIS_CM_CAP_MULTTXCHAN_SUP,		"Multiple Transmit Channel Support" },
 	{ DOCSIS_CM_CAP_512USTXCHAN_SUP,	"5.12 Msps Upstream Transmit Channel Support" },
 	{ DOCSIS_CM_CAP_256USTXCHAN_SUP,	"2.56 Msps Upstream Transmit Channel Support" },
@@ -4139,6 +4186,10 @@ static const value_string docsis_cm_cap_type_vals[] = {
 	{ DOCSIS_CM_CAP_MAPUCDRECEIPT_SUP,	"MAP and UCD Receipt Support" },
 	{ DOCSIS_CM_CAP_USDROPCLASSIF_SUP,	"Upstream Drop Classifier Support" },
 	{ DOCSIS_CM_CAP_IPV6_SUP,		"IPv6 Support" },
+	{ DOCSIS_CM_CAP_ExUsTrPow,		"Extended Upstream Transmit Power Capability (1/4 dB)" },
+	{ DOCSIS_CM_CAP_Opt802MPLSSup,		"Optional 802.1ad, 802.1ah, MPLS Classification Support" },
+	{ DOCSIS_CM_CAP_DounEnc, 		"D-ONU Capabilities Encoding" },
+	{ DOCSIS_CM_CAP_EnrgMang, 		"Energy Management Capabilities" },
 	{ 0, NULL }
 };
 
@@ -4177,9 +4228,42 @@ static const value_string docsis_cm_cap_l2vpn_vals[] = {
 };
 
 static const value_string docsis_cm_cap_filt_vals[] = {
-	{ 0x00,	"None" },
-	{ 0x01,	"802.1p Filtering" },
+	{ 0x00,	"802.1P Filtering" },
 	{ 0x01,	"802.1Q Filtering" },
+	{ 0,		NULL }
+};
+
+static const value_string docsis_cm_cap_mpls_vals[] = {
+	{ 1 << 0,	"[IEEE 802.1ad] S-TPID" },
+	{ 1 << 1,	"[IEEE 802.1ad] S-VID" },
+	{ 1 << 2,	"[IEEE 802.1ad] S-PCP" },
+	{ 1 << 3, "[IEEE 802.1ad] S-DEI" },
+	{ 1 << 4,	"[IEEE 802.1ad] C-TPID" },
+	{ 1 << 5,	"[IEEE 802.1ad] C-VID" },
+	{ 1 << 6,	"[IEEE 802.1ad] C-PCP" },
+	{ 1 << 7,	"[IEEE 802.1ad] C-CFI" },
+	{ 1 << 8,	"[IEEE 802.1ad] S-TCI" },
+	{ 1 << 9,	"[IEEE 802.1ad] C-TCI" },
+	{ 1 << 10,	"[IEEE 802.1ah] I-TPID" },
+	{ 1 << 11,	"[IEEE 802.1ah] I-SID" },
+	{ 1 << 12,	"[IEEE 802.1ah] I-TCI" },
+	{ 1 << 13,	"[IEEE 802.1ah] I-PCP" },
+	{ 1 << 14,	"[IEEE 802.1ah] I-DEI" },
+	{ 1 << 15,	"[IEEE 802.1ah] I-UCA" },
+	{ 1 << 16,	"[IEEE 802.1ah] B-TPID" },
+	{ 1 << 17,	"[IEEE 802.1ah] B-TCI" },
+	{ 1 << 18,	"[IEEE 802.1ah] B-PCP" },
+	{ 1 << 19,	"[IEEE 802.1ah] B-DEI" },
+	{ 1 << 20,	"[IEEE 802.1ah] B-VID" },
+	{ 1 << 21,	"[IEEE 802.1ah] B-DA" },
+	{ 1 << 22,	"[IEEE 802.1ah] B-SA" },
+	{ 1 << 23,	"MPLS TC" },
+	{ 1 << 24,	"MPLS Label" },
+	{ 0,		NULL }
+};
+
+static const value_string docsis_cm_cap_enrgmang_vals[] = {
+	{ 0x00,	"Energy Management 1x1 Feature" },
 	{ 0,		NULL }
 };
 
@@ -4197,7 +4281,7 @@ static const value_string docsis_cm_cap_map_ucd_receipt_vals[] = {
 
 static const value_string docsis_cm_cap_map_dpv_support_vals[] = {
 	{ 0x00,	"U1 supported as a Start Reference Point for DPV per Path" },
-	{ 0x01,	"U1 supported as a Start Reference Point for DPV per Path" },
+	{ 0x01,	"U1 supported as a Start Reference Point for DPV per Packet" },
 	{ 0,		NULL }
 };
 
@@ -4261,7 +4345,7 @@ static void get_opt125_tlv(tvbuff_t *tvb, guint off, guint8 *tlvtype, guint8 *tl
 	/* Length */
 	*tlvlen	 = tvb_get_guint8(tvb, off+1);
 	/* Value */
-	*value = ep_tvb_memdup(tvb, off + 2, *tlvlen);
+	*value = (guint8 *)ep_tvb_memdup(tvb, off + 2, *tlvlen);
 }
 
 static void get_opt60_tlv(tvbuff_t *tvb, guint off, guint8 *tlvtype, guint8 *tlvlen, guint8 **value)
@@ -4301,7 +4385,7 @@ dissect_docsis_cm_cap(proto_tree *v_tree, tvbuff_t *tvb, int voff, int len, gboo
 	guint8     *val_other  = NULL;
 	guint       off        = voff;
 
-	asc_val = ep_alloc0(4);
+	asc_val = (guint8*)ep_alloc0(4);
 
 	if (opt125)
 	{
@@ -4449,10 +4533,8 @@ dissect_docsis_cm_cap(proto_tree *v_tree, tvbuff_t *tvb, int voff, int len, gboo
 		case DOCSIS_CM_CAP_TOTALSIDCLU_SUP:
 		case DOCSIS_CM_CAP_MULTRXCHAN_SUP:
 		case DOCSIS_CM_CAP_UGSPERUSFLOW_SUP:
+		case DOCSIS_CM_CAP_USSF_SUP:
 			display_uint_with_range_checking(ti, val_byte, val_uint16, 0, 255);
-			break;
-		case DOCSIS_CM_CAP_USID_SUP:
-			display_uint_with_range_checking(ti, val_byte, val_uint16,1, 255);
 			break;
 		case DOCSIS_CM_CAP_RESEQDSID_SUP:
 		case DOCSIS_CM_CAP_MULTDSID_SUP:
@@ -4462,7 +4544,7 @@ dissect_docsis_cm_cap(proto_tree *v_tree, tvbuff_t *tvb, int voff, int len, gboo
 			display_uint_with_range_checking(ti, val_byte, val_uint16, 2, 8);
 			break;
 		case DOCSIS_CM_CAP_TOTALDSID_SUP:
-			display_uint_with_range_checking(ti, val_byte, val_uint16, 3, 255);
+			display_uint_with_range_checking(ti, val_byte, val_uint16, 32, 255);
 			break;
 		case DOCSIS_CM_CAP_TET:
 			display_uint_with_range_checking(ti, val_byte, val_uint16, 8, 64);
@@ -4489,6 +4571,27 @@ dissect_docsis_cm_cap(proto_tree *v_tree, tvbuff_t *tvb, int voff, int len, gboo
 			break;
 		case DOCSIS_CM_CAP_LLCFILT_SUP:
 			display_uint_with_range_checking(ti, val_byte, val_uint16, 10, 65535);
+			break;
+		case DOCSIS_CM_CAP_ExUsTrPow:
+			if (val_byte == 0)
+			{
+				proto_item_append_text(ti, "%i", val_byte);
+			}
+			else 
+			{
+				display_uint_with_range_checking(ti, val_byte, val_uint16, 205, 244);
+			}
+			break;
+		case DOCSIS_CM_CAP_Opt802MPLSSup:
+			proto_item_append_text(ti,
+					       "0x%02x", val_byte);
+		case DOCSIS_CM_CAP_DounEnc:
+			/* TODO: add D-ONU Capabilities Encoding according DPoE-SP-MULPIv1.0-I02-120607 */
+			break;
+		case DOCSIS_CM_CAP_EnrgMang:
+			proto_item_append_text(ti,
+					       "%s",
+					       val_to_str_const(val_byte, docsis_cm_cap_enrgmang_vals, "Reserved"));
 			break;
 		case DOCSIS_CM_CAP_RNGHLDOFF_SUP:
 			proto_item_append_text(ti,
@@ -4525,7 +4628,7 @@ dissect_docsis_cm_cap(proto_tree *v_tree, tvbuff_t *tvb, int voff, int len, gboo
 						      (val_other[2] << sizeof(guint8)) + val_other[3],
 						      docsis_cm_cap_ranging_hold_off_vals[i].value,
 						      16);
-				proto_tree_add_text(subtree, tvb, off + 1, 4, "%s%s",
+				proto_tree_add_text(subtree, tvb, off + 2, 4, "%s%s",
 						    bit_fld, docsis_cm_cap_ranging_hold_off_vals[i].strptr);
 			}
 		}
@@ -4533,10 +4636,22 @@ dissect_docsis_cm_cap(proto_tree *v_tree, tvbuff_t *tvb, int voff, int len, gboo
 		{
 			for (i = 0 ; i < 6; i++)
 			{
-				decode_bitfield_value(bit_fld, val_byte,docsis_cm_cap_ussymrate_vals[i].value, 16);
-				proto_tree_add_text(subtree, tvb, off + 1, 4, "%s%s",
+				decode_bitfield_value(bit_fld, val_byte,docsis_cm_cap_ussymrate_vals[i].value, 8);
+				proto_tree_add_text(subtree, tvb, off + 2, 1, "%s%s",
 						    bit_fld, docsis_cm_cap_ussymrate_vals[i].strptr);
 
+			}
+		}
+		if (tlv_type == DOCSIS_CM_CAP_Opt802MPLSSup)
+		{
+			for (i = 0 ; i < 25; i++)
+			{
+				decode_bitfield_value(bit_fld,
+						      (val_other[2] << sizeof(guint8)) + val_other[3],
+						      docsis_cm_cap_mpls_vals[i].value,
+						      32);
+				proto_tree_add_text(subtree, tvb, off + 2, 4, "%s%s",
+						    bit_fld, docsis_cm_cap_mpls_vals[i].strptr);
 			}
 		}
 		if (opt125)
@@ -4621,7 +4736,8 @@ dissect_packetcable_i05_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v_
 	suboptoff++;
 
 	if (suboptoff >= optend) {
-		expert_add_info_format(pinfo, v_ti, PI_PROTOCOL, PI_ERROR, "Suboption %d: no room left in option for suboption length", subopt);
+		expert_add_info_format_text(pinfo, v_ti, &ei_bootp_missing_subopt_length,
+									"Suboption %d: no room left in option for suboption length", subopt);
 		return (optend);
 	}
 
@@ -4650,7 +4766,7 @@ dissect_packetcable_i05_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v_
 
 	case PKT_CCC_TGT_FLAG:
 		if (suboptoff+1 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		fetch_tgt = tvb_get_guint8(tvb, suboptoff);
@@ -4664,7 +4780,7 @@ dissect_packetcable_i05_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v_
 
 	case PKT_CCC_PROV_TIMER:
 		if (suboptoff+1 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		timer_val = tvb_get_guint8(tvb, suboptoff);
@@ -4678,7 +4794,7 @@ dissect_packetcable_i05_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v_
 
 	case PKT_CCC_AS_KRB:
 		if (suboptoff+12 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		proto_item_append_text(vti, "(%u byte%s%s)", subopt_len,
@@ -4701,7 +4817,7 @@ dissect_packetcable_i05_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v_
 
 	case PKT_CCC_AP_KRB:
 		if (suboptoff+12 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		proto_item_append_text(vti, "(%u byte%s%s)", subopt_len,
@@ -4724,7 +4840,7 @@ dissect_packetcable_i05_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v_
 
 	case PKT_CCC_MTA_KRB_CLEAR:
 		if (suboptoff+1 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		ticket_ctl = tvb_get_guint8(tvb, suboptoff);
@@ -4771,8 +4887,8 @@ dissect_packetcable_ietf_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 	suboptoff++;
 
 	if (suboptoff >= optend) {
-		expert_add_info_format(pinfo, v_ti, PI_PROTOCOL, PI_ERROR,
-			"Suboption %d: no room left in option for suboption length", subopt);
+		expert_add_info_format_text(pinfo, v_ti, &ei_bootp_missing_subopt_length,
+									"Suboption %d: no room left in option for suboption length", subopt);
 		return (optend);
 	}
 	subopt_len = tvb_get_guint8(tvb, suboptoff);
@@ -4787,7 +4903,7 @@ dissect_packetcable_ietf_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 	case PKT_CCC_PRI_DHCP:	/* IPv4 values */
 	case PKT_CCC_SEC_DHCP:
 		if (suboptoff+4 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		ipv4addr = tvb_get_ipv4(tvb, suboptoff);
@@ -4801,7 +4917,7 @@ dissect_packetcable_ietf_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 
 	case PKT_CCC_IETF_PROV_SRV:
 		if (suboptoff+1 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		prov_type = tvb_get_guint8(tvb, suboptoff);
@@ -4816,7 +4932,7 @@ dissect_packetcable_ietf_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 
 		case 1:
 			if (suboptoff+4 > optend) {
-				expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+				expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 				return (optend);
 			}
 			ipv4addr = tvb_get_ipv4(tvb, suboptoff);
@@ -4839,7 +4955,7 @@ dissect_packetcable_ietf_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 
 	case PKT_CCC_IETF_AS_KRB:
 		if (suboptoff+12 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		proto_item_append_text(vti, "(%u byte%s%s)", subopt_len,
@@ -4888,7 +5004,7 @@ dissect_packetcable_ietf_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 
 	case PKT_CCC_TGT_FLAG:
 		if (suboptoff+1 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		fetch_tgt = tvb_get_guint8(tvb, suboptoff);
@@ -4902,7 +5018,7 @@ dissect_packetcable_ietf_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 
 	case PKT_CCC_PROV_TIMER:
 		if (suboptoff+1 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		if (revision == PACKETCABLE_CCC_DRAFT5)
@@ -4918,7 +5034,7 @@ dissect_packetcable_ietf_ccc(packet_info *pinfo, proto_item *v_ti, proto_tree *v
 
 	case PKT_CCC_IETF_SEC_TKT:
 		if (suboptoff+2 > optend) {
-			expert_add_info_format(pinfo, vti, PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value");
+			expert_add_info(pinfo, vti, &ei_bootp_missing_subopt_value);
 			return (optend);
 		}
 		sec_tcm = tvb_get_ntohs(tvb, suboptoff);
@@ -5080,8 +5196,7 @@ dissect_bootp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	if (secs > 0 && secs <= 0xff) {
 		ti = proto_tree_add_uint_format_value(bp_tree, hf_bootp_secs, tvb,
 			    8, 2, secs, "%u", secs);
-		expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_NOTE,
-			    "Seconds elapsed (%u) appears to be encoded as little-endian", secs);
+		expert_add_info_format_text(pinfo, ti, &ei_bootp_secs_le, "Seconds elapsed (%u) appears to be encoded as little-endian", secs);
 	} else {
 		proto_tree_add_item(bp_tree, hf_bootp_secs, tvb,
 			    8, 2, ENC_BIG_ENDIAN);
@@ -5188,7 +5303,7 @@ dissect_bootp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 	if ((dhcp_type != NULL) && (!at_end))
 	{
-		expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_ERROR, "End option missing");
+		expert_add_info(pinfo, ti, &ei_bootp_end_option_missing);
 	}
 	if (voff < eoff) {
 		/*
@@ -6764,13 +6879,59 @@ proto_register_bootp(void)
 		&ett_bootp_fqdn,
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_bootp_bad_length0, { "bootp.bad_length0", PI_PROTOCOL, PI_ERROR, "length isn't 0", EXPFILL }},
+		{ &ei_bootp_bad_length1, { "bootp.bad_length1", PI_PROTOCOL, PI_ERROR, "length isn't 1", EXPFILL }},
+		{ &ei_bootp_bad_length2, { "bootp.bad_length2", PI_PROTOCOL, PI_ERROR, "length isn't 2", EXPFILL }},
+		{ &ei_bootp_bad_length4, { "bootp.bad_length4", PI_PROTOCOL, PI_ERROR, "length isn't 4", EXPFILL }},
+		{ &ei_bootp_bad_length6, { "bootp.bad_length6", PI_PROTOCOL, PI_ERROR, "length isn't 6", EXPFILL }},
+		{ &ei_bootp_bad_length7, { "bootp.bad_length7", PI_PROTOCOL, PI_ERROR, "length isn't 7", EXPFILL }},
+		{ &ei_bootp_bad_length3_6, { "bootp.bad_length3or6", PI_PROTOCOL, PI_ERROR, "length isn't 3 or 6", EXPFILL }},
+		{ &ei_bootp_bad_length_ge1, { "bootp.bad_length_ge1", PI_PROTOCOL, PI_ERROR, "length isn't >= 1", EXPFILL }},
+		{ &ei_bootp_bad_length_ge2, { "bootp.bad_length_ge2", PI_PROTOCOL, PI_ERROR, "length isn't >= 2", EXPFILL }},
+		{ &ei_bootp_bad_length_ge3, { "bootp.bad_length_ge3", PI_PROTOCOL, PI_ERROR, "length isn't >= 3", EXPFILL }},
+		{ &ei_bootp_bad_length_ge5, { "bootp.bad_length_ge5", PI_PROTOCOL, PI_ERROR, "length isn't >= 5", EXPFILL }},
+		{ &ei_bootp_bad_length_ge11, { "bootp.bad_length_ge11", PI_PROTOCOL, PI_ERROR, "length isn't >= 11", EXPFILL }},
+		{ &ei_bootp_bad_length_ge31, { "bootp.bad_length_ge31", PI_PROTOCOL, PI_ERROR, "length isn't >= 31", EXPFILL }},
+		{ &ei_bootp_bad_length_lt5, { "bootp.bad_length_lt5", PI_PROTOCOL, PI_ERROR, "length < 5", EXPFILL }},
+		{ &ei_bootp_opt_length_not_mult2, { "bootp.opt_length_not_mult2", PI_PROTOCOL, PI_ERROR, "Option length isn't a multiple of 2", EXPFILL }},
+		{ &ei_bootp_opt_length_not_mult4, { "bootp.opt_length_not_mult4", PI_PROTOCOL, PI_ERROR, "Option length isn't a multiple of 4", EXPFILL }},
+		{ &ei_bootp_opt_length_not_mult8, { "bootp.opt_length_not_mult8", PI_PROTOCOL, PI_ERROR, "Option length isn't a multiple of 8", EXPFILL }},
+		{ &ei_bootp_opt_length_not_mult4_plus1, { "bootp.opt_length_not_mult4_plus1", PI_PROTOCOL, PI_ERROR, "Option length isn't a multiple of 4 plus 1", EXPFILL }},
+		{ &ei_bootp_missing_subopt_length, { "bootp.missing_subopt_length", PI_PROTOCOL, PI_ERROR, "no room left in option for suboption length", EXPFILL }},
+		{ &ei_bootp_missing_subopt_value, { "bootp.missing_subopt_value", PI_PROTOCOL, PI_ERROR, "no room left in option for suboption value", EXPFILL }},
+		{ &ei_bootp_mal_duid, { "bootp.malformed.duid", PI_PROTOCOL, PI_ERROR, "DUID: malformed option", EXPFILL }},
+		{ &hf_bootp_opt_overload_file_end_missing, { "bootp.option.option_overload.file_end_missing", PI_PROTOCOL, PI_ERROR, "file overload end option missing", EXPFILL }},
+		{ &hf_bootp_opt_overload_sname_end_missing, { "bootp.option.option_overload.sname_end_missing", PI_PROTOCOL, PI_ERROR, "sname overload end option missing", EXPFILL }},
+		{ &hf_bootp_subopt_unknown_type, { "bootp.subopt.unknown_type", PI_PROTOCOL, PI_ERROR, "ERROR, please report: Unknown subopt type handler", EXPFILL }},
+		{ &ei_bootp_option77_user_class_len, { "bootp.option.user_class.len", PI_PROTOCOL, PI_ERROR, "UC_Len_X isn't >= 1 (UC_Len_X = 0)", EXPFILL }},
+		{ &ei_bootp_option77_user_class_malformed, { "bootp.option.user_class.malformed", PI_PROTOCOL, PI_ERROR, "User Class Information: malformed option", EXPFILL }},
+		{ &ei_bootp_option_civic_location_bad_cattype, { "bootp.option.civic_location.bad_cattype", PI_PROTOCOL, PI_ERROR, "Error with CAType", EXPFILL }},
+		{ &ei_bootp_bad_length_even, { "bootp.bad_length_even", PI_PROTOCOL, PI_ERROR, "length isn't even number", EXPFILL }},
+		{ &ei_bootp_option_dhcp_name_service_invalid, { "bootp.option.dhcp_name_service.invalid", PI_PROTOCOL, PI_ERROR, "Invalid Name Service", EXPFILL }},
+		{ &ei_bootp_option_sip_server_address_encoding, { "bootp.option.sip_server_address.encoding", PI_PROTOCOL, PI_ERROR, "RFC 3361 defines only 0 and 1 for Encoding byte", EXPFILL }},
+		{ &ei_bootp_option_classless_static_route, { "bootp.option.classless_static.route", PI_PROTOCOL, PI_ERROR, "Mask width > 32", EXPFILL }},
+		{ &ei_bootp_option_classless_static_bad_router_length, { "bootp.option.classless_static.bad_router_length", PI_PROTOCOL, PI_ERROR, "Remaining length < bytes", EXPFILL }},
+		{ &ei_bootp_invalid_length, { "bootp.option.invalid_length", PI_PROTOCOL, PI_ERROR, "Invalid length of DHCP option!", EXPFILL }},
+		{ &ei_bootp_option125_enterprise_malformed, { "bootp.option.enterprise.malformed", PI_PROTOCOL, PI_ERROR, "no room left in option for enterprise data", EXPFILL }},
+		{ &ei_bootp_option_6RD_malformed, { "bootp.option.6RD.malformed", PI_PROTOCOL, PI_ERROR, "6RD: malformed option", EXPFILL }},
+		{ &ei_bootp_option82_vi_cl_tag_unknown, { "bootp.option.option.vi.cl.tag_unknown", PI_PROTOCOL, PI_ERROR, "Unknown tag", EXPFILL }},
+		{ &ei_bootp_suboption_invalid, { "bootp.suboption_invalid", PI_PROTOCOL, PI_ERROR, "Invalid suboption", EXPFILL }},
+		{ &ei_bootp_secs_le, { "bootp.secs_le", PI_PROTOCOL, PI_NOTE, "Seconds elapsed appears to be encoded as little-endian", EXPFILL }},
+		{ &ei_bootp_end_option_missing, { "bootp.end_option_missing", PI_PROTOCOL, PI_ERROR, "End option missing", EXPFILL }},
+	};
+
 	module_t *bootp_module;
+	expert_module_t* expert_bootp;
 
 	proto_bootp = proto_register_protocol("Bootstrap Protocol", "BOOTP/DHCP",
 					      "bootp");
 	proto_register_field_array(proto_bootp, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
 	bootp_dhcp_tap = register_tap("bootp");
+
+	expert_bootp = expert_register_protocol(proto_bootp);
+	expert_register_field_array(expert_bootp, ei, array_length(ei));
 
 	/* register init routine to setup the custom bootp options */
 	register_init_routine(&bootp_init_protocol);
@@ -6804,7 +6965,7 @@ proto_register_bootp(void)
 			sizeof(uat_bootp_record_t), /* record size           */
 			"custom_bootp",		    /* filename              */
 			TRUE,			    /* from_profile          */
-			(void*) &uat_bootp_records, /* data_ptr              */
+			(void**) &uat_bootp_records,/* data_ptr              */
 			&num_bootp_records_uat,	    /* numitems_ptr          */
 			UAT_AFFECTS_DISSECTION,     /* affects dissection of packets, but not set of named fields */
 			NULL,			    /* help                  */

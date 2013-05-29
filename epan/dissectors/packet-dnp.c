@@ -285,15 +285,15 @@
 #define AL_OBJCTLC_CODE4   0x04    /* xxxx0100 Latch Off */
                         /* 0x05-0x15  Reserved */
 
-#define AL_OBJCTLC_QUEUE   0x10    /* xxx1xxxx for Control Code, Clear Field 'Queue' */
-#define AL_OBJCTLC_CLEAR   0x20    /* xx1xxxxx for Control Code, Clear Field 'Clear' */
-#define AL_OBJCTLC_NOTSET  0x00    /* xxxxxxxx for Control Code, Clear and Queue not set */
-#define AL_OBJCTLC_BOTHSET 0x30    /* xx11xxxx for Control Code, Clear and Queue both set */
+#define AL_OBJCTLC_NOTSET  0x00    /* xx00xxxx for Control Code, Clear and Queue not set */
+#define AL_OBJCTLC_QUEUE   0x01    /* xxx1xxxx for Control Code, Clear Field 'Queue' */
+#define AL_OBJCTLC_CLEAR   0x02    /* xx1xxxxx for Control Code, Clear Field 'Clear' */
+#define AL_OBJCTLC_BOTHSET 0x03    /* xx11xxxx for Control Code, Clear and Queue both set */
 
 #define AL_OBJCTLC_TC0     0x00    /* 00xxxxxx NUL */
-#define AL_OBJCTLC_TC1     0x40    /* 01xxxxxx Close */
-#define AL_OBJCTLC_TC2     0x80    /* 10xxxxxx Trip */
-#define AL_OBJCTLC_TC3     0xC0    /* 11xxxxxx Reserved */
+#define AL_OBJCTLC_TC1     0x01    /* 01xxxxxx Close */
+#define AL_OBJCTLC_TC2     0x02    /* 10xxxxxx Trip */
+#define AL_OBJCTLC_TC3     0x03    /* 11xxxxxx Reserved */
 
 #define AL_OBJCTL_STAT0    0x00    /* Request Accepted, Initiated or Queued */
 #define AL_OBJCTL_STAT1    0x01    /* Request Not Accepted; Arm-timer expired */
@@ -495,6 +495,9 @@
 /***************************************************************************/
 /* End of Application Layer Data Object Definitions */
 /***************************************************************************/
+
+void proto_register_dnp3(void);
+void proto_reg_handoff_dnp3(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_dnp3 = -1;
@@ -1064,8 +1067,7 @@ static gint ett_dnp3_al_obj_point = -1;
 static gint ett_dnp3_al_obj_point_perms = -1;
 
 /* Tables for reassembly of fragments. */
-static GHashTable *al_fragment_table     = NULL;
-static GHashTable *al_reassembled_table  = NULL;
+static reassembly_table al_reassembly_table;
 static GHashTable *dl_conversation_table = NULL;
 
 /* Data-Link-Layer Conversation Key Structure */
@@ -1487,7 +1489,7 @@ dnp3_al_get_timestamp(nstime_t *timestamp, tvbuff_t *tvb, int data_pos)
   time_ms = (guint64)hi * 0x10000 + lo;
 
   timestamp->secs  = (long)(time_ms / 1000);
-  timestamp->nsecs = (long)(time_ms % 1000) * 1000000;
+  timestamp->nsecs = (int)(time_ms % 1000) * 1000000;
 }
 
 /*****************************************************************/
@@ -1873,6 +1875,13 @@ dnp3_al_process_object(tvbuff_t *tvb, packet_info *pinfo, int offset,
                                                                          dnp3_al_ctlc_code_vals,
                                                                          "Invalid Operation"));
 
+            /* Add Trip/Close qualifier (if applicable) to previously appended quick visual reference */
+            proto_item_append_text(point_item, " [%s]", val_to_str_const((al_tcc_code & AL_OBJCTLC_TC) >> 6,
+                                                                         dnp3_al_ctlc_tc_vals,
+                                                                         "Invalid Qualifier"));
+
+
+
             /* Control Code 'Operation Type' */
             proto_tree_add_item(tcc_tree, hf_dnp3_ctlobj_code_c, tvb, data_pos, 1, ENC_LITTLE_ENDIAN);
 
@@ -1881,11 +1890,6 @@ dnp3_al_process_object(tvbuff_t *tvb, packet_info *pinfo, int offset,
 
             /* Control Code 'Trip Close Code' */
             proto_tree_add_item(tcc_tree, hf_dnp3_ctlobj_code_tc, tvb, data_pos, 1, ENC_LITTLE_ENDIAN);
-            data_pos += 1;
-
-            al_ctlobj_stat = tvb_get_guint8(tvb, data_pos);
-            proto_tree_add_item(point_tree, hf_dnp3_al_ctrlstatus, tvb, data_pos, 1, ENC_LITTLE_ENDIAN);
-            ctl_status_str = val_to_str_ext(al_ctlobj_stat, &dnp3_al_ctl_status_vals_ext, "Invalid Status (0x%02x)");
             data_pos += 1;
 
             /* Get "Count" Field */
@@ -1900,9 +1904,16 @@ dnp3_al_process_object(tvbuff_t *tvb, packet_info *pinfo, int offset,
             al_ctlobj_off = tvb_get_letohl(tvb, data_pos);
             data_pos += 4;
 
+            /* Print "Count", "On Time" and "Off Time" to tree */
             proto_tree_add_text(point_tree, tvb, data_pos - 9, 9,
-               "  [Count: %u] [On-Time: %u] [Off-Time: %u] [Status: %s (0x%02x)]",
-                   al_ctlobj_count, al_ctlobj_on, al_ctlobj_off, ctl_status_str, al_ctlobj_stat);
+               "[Count: %u] [On-Time: %u] [Off-Time: %u]",
+                   al_ctlobj_count, al_ctlobj_on, al_ctlobj_off);
+
+            /* Get "Control Status" Field */
+            al_ctlobj_stat = tvb_get_guint8(tvb, data_pos);
+            proto_tree_add_item(point_tree, hf_dnp3_al_ctrlstatus, tvb, data_pos, 1, ENC_LITTLE_ENDIAN);
+            data_pos += 1;
+
 
             proto_item_set_len(point_item, data_pos - offset);
 
@@ -2961,7 +2972,7 @@ dissect_dnp3_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* XXX - check for dl_len <= 5 */
     data_len = dl_len - 5;
-    tmp = g_malloc(data_len);
+    tmp = (guint8 *)g_malloc(data_len);
     tmp_ptr = tmp;
     i = 0;
     data_offset = 1;  /* skip the transport layer byte when assembling chunks */
@@ -3038,10 +3049,10 @@ dissect_dnp3_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         if (!pinfo->fd->flags.visited && conv_data_ptr == NULL)
         {
           dl_conversation_key_t* new_dl_conversation_key = NULL;
-          new_dl_conversation_key  = se_alloc(sizeof(dl_conversation_key_t));
+          new_dl_conversation_key  = se_new(dl_conversation_key_t);
           *new_dl_conversation_key = dl_conversation_key;
 
-          conv_data_ptr = se_alloc(sizeof(dnp3_conv_t));
+          conv_data_ptr = se_new(dnp3_conv_t);
 
           /*** Increment static global fragment reassembly id ***/
           conv_data_ptr->conv_seq_number = seq_number++;
@@ -3057,9 +3068,8 @@ dissect_dnp3_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         * if it's done.
         */
 
-        frag_msg = fragment_add_seq_next(al_tvb, 0, pinfo, conv_seq_number,
-            al_fragment_table,
-            al_reassembled_table,
+        frag_msg = fragment_add_seq_next(&al_reassembly_table,
+            al_tvb, 0, pinfo, conv_seq_number, NULL,
             tvb_reported_length(al_tvb), /* As this is a constructed tvb, all of it is ok */
             !tr_fin);
 
@@ -3160,8 +3170,8 @@ dnp3_init(void)
   }
   dl_conversation_table = g_hash_table_new(dl_conversation_hash, dl_conversation_equal);
 
-  fragment_table_init(&al_fragment_table);
-  reassembled_table_init(&al_reassembled_table);
+  reassembly_table_init(&al_reassembly_table,
+                        &addresses_reassembly_table_functions);
 }
 
 /* Register the protocol with Wireshark */

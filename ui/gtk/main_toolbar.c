@@ -58,6 +58,7 @@
 #include "ui/gtk/keys.h"
 #include "ui/gtk/packet_history.h"
 #include "ui/gtk/packet_list.h"
+#include "ui/capture_globals.h"
 
 #include "ui/gtk/old-gtk-compat.h"
 
@@ -84,18 +85,24 @@ toolbar_redraw_all(void)
     GtkWidget     *main_tb;
     GtkWidget     *filter_tb;
 
-    main_tb = g_object_get_data(G_OBJECT(top_level), E_TB_MAIN_KEY);
+    main_tb = (GtkWidget *)g_object_get_data(G_OBJECT(top_level), E_TB_MAIN_KEY);
 
     gtk_toolbar_set_style(GTK_TOOLBAR(main_tb),
-                          prefs.gui_toolbar_main_style);
+                          (GtkToolbarStyle)prefs.gui_toolbar_main_style);
 
-	filter_tb = g_object_get_data(G_OBJECT(top_level), E_TB_FILTER_KEY);
+	filter_tb = (GtkWidget *)g_object_get_data(G_OBJECT(top_level), E_TB_FILTER_KEY);
 
 	/* In case the filter toolbar hasn't been built */
 	if(filter_tb)
 		gtk_toolbar_set_style(GTK_TOOLBAR(filter_tb),
-                          prefs.gui_toolbar_filter_style);
+                          (GtkToolbarStyle)prefs.gui_toolbar_filter_style);
 }
+
+#ifdef HAVE_LIBPCAP
+void set_start_button_sensitive(gboolean enable) {
+    gtk_widget_set_sensitive(GTK_WIDGET(new_button), enable);
+}
+#endif
 
 /* Enable or disable toolbar items based on whether you have a capture file
    and, if so, whether you've finished reading it and whether there's stuff
@@ -105,26 +112,15 @@ void set_toolbar_for_capture_file(capture_file *cf) {
         if (cf == NULL || cf->state == FILE_READ_IN_PROGRESS) {
             /* We have no open capture file, or we have one but we're in
                the process of reading it.  Disable everything having to
-               do with the file*/
+               do with the file. */
             gtk_widget_set_sensitive(GTK_WIDGET(save_button), FALSE);
             gtk_widget_set_sensitive(GTK_WIDGET(close_button), FALSE);
             gtk_widget_set_sensitive(GTK_WIDGET(reload_button), FALSE);
         } else {
             /* We have an open capture file and we're finished reading it.
-               Enable "Save" if and only if:
-
-                  the file has unsaved changes, and we can save it in some
-                  format through Wiretap
-
-               or
-
-                  the file is a temporary file and has no unsaved changes (so
-                  that "saving" it just means copying it).
-
-               Enable "Close" and "Reload". */
-            gtk_widget_set_sensitive(GTK_WIDGET(save_button),
-                                     (cf->unsaved_changes && cf_can_write_with_wiretap(cf)) ||
-                                     (cf->is_tempfile && !cf->unsaved_changes));
+               Enable "Save" if and only if we have something to save and
+               can do so.  Enable "Close" and "Reload" unconditionally. */
+            gtk_widget_set_sensitive(GTK_WIDGET(save_button), cf_can_save(cf));
             gtk_widget_set_sensitive(GTK_WIDGET(close_button), TRUE);
             gtk_widget_set_sensitive(GTK_WIDGET(reload_button), TRUE);
         }
@@ -147,10 +143,13 @@ void set_toolbar_for_capture_in_progress(gboolean capture_in_progress) {
 
     if (toolbar_init) {
 #ifdef HAVE_LIBPCAP
-	gtk_widget_set_sensitive(GTK_WIDGET(capture_options_button), !capture_in_progress);
+	    gtk_widget_set_sensitive(GTK_WIDGET(capture_options_button), !capture_in_progress);
         gtk_widget_set_sensitive(GTK_WIDGET(new_button), !capture_in_progress);
         gtk_widget_set_sensitive(GTK_WIDGET(stop_button), capture_in_progress);
-	gtk_widget_set_sensitive(GTK_WIDGET(clear_button), capture_in_progress);
+	    gtk_widget_set_sensitive(GTK_WIDGET(clear_button), capture_in_progress);
+	    if (!capture_in_progress) {
+	        gtk_widget_set_sensitive(GTK_WIDGET(new_button), (global_capture_opts.num_selected > 0));
+	    }
         /*if (capture_in_progress) {
             gtk_widget_hide(GTK_WIDGET(new_button));
             gtk_widget_show(GTK_WIDGET(stop_button));
@@ -319,7 +318,7 @@ toolbar_new(void)
 	GTK_STOCK_OPEN, "Open a capture file...", file_open_cmd_cb, NULL);
 
     toolbar_item(save_button, main_tb,
-	WIRESHARK_STOCK_FILE, "Save this capture file", file_save_cmd_cb, NULL);
+	WIRESHARK_STOCK_SAVE, "Save this capture file", file_save_cmd_cb, NULL);
 
     toolbar_item(close_button, main_tb,
 	GTK_STOCK_CLOSE, "Close this capture file", file_close_cmd_cb, NULL);
@@ -384,7 +383,7 @@ toolbar_new(void)
     toolbar_item(color_display_button, main_tb,
 	GTK_STOCK_SELECT_COLOR, "Edit coloring rules...", color_display_cb, NULL);
 
-    /* the preference button uses it's own Stock icon label "Prefs", as "Preferences" is too long */
+    /* the preference button uses its own Stock icon label "Prefs", as "Preferences" is too long */
     toolbar_item(prefs_button, main_tb,
 	GTK_STOCK_PREFERENCES, "Edit preferences...", prefs_cb, NULL);
 
@@ -408,7 +407,7 @@ toolbar_new(void)
 }
 
 void
-set_toolbar_object_data(gchar *key, gpointer data)
+set_toolbar_object_data(const gchar *key, gpointer data)
 {
     g_object_set_data(G_OBJECT(open_button), key, data);
     g_object_set_data(G_OBJECT(reload_button), key, data);

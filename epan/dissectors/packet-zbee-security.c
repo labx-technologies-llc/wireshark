@@ -39,7 +39,7 @@
  * we can do is parse the security header and give up.
  */
 #ifdef HAVE_LIBGCRYPT
-#include <gcrypt.h>
+#include <wsutil/wsgcrypt.h>
 #endif /* HAVE_LIBGCRYPT */
 
 #include "packet-ieee802154.h"
@@ -71,6 +71,8 @@ static int hf_zbee_sec_key_origin = -1;
 /* Subtree pointers. */
 static gint ett_zbee_sec = -1;
 static gint ett_zbee_sec_control = -1;
+
+static expert_field ei_zbee_sec_encrypted_payload = EI_INIT;
 
 static dissector_handle_t   data_handle;
 
@@ -181,7 +183,7 @@ static void uat_key_record_free_cb(void*r) {
 }
 
 UAT_CSTRING_CB_DEF(uat_key_records, string, uat_key_record_t)
-UAT_VS_DEF(uat_key_records, byte_order, uat_key_record_t, 0, "Normal")
+UAT_VS_DEF(uat_key_records, byte_order, uat_key_record_t, guint8, 0, "Normal")
 UAT_CSTRING_CB_DEF(uat_key_records, label, uat_key_record_t)
 
 static GSList *zbee_pc_keyring = NULL;
@@ -243,6 +245,12 @@ void zbee_security_register(module_t *zbee_prefs, int proto)
         &ett_zbee_sec_control
     };
 
+    static ei_register_info ei[] = {
+        { &ei_zbee_sec_encrypted_payload, { "zbee_sec.encrypted_payload", PI_UNDECODED, PI_WARN, "Encrypted Payload", EXPFILL }},
+    };
+
+    expert_module_t* expert_zbee_sec;
+
     static uat_field_t key_uat_fields[] = {
         UAT_FLD_CSTRING(uat_key_records, string, "Key",
                         "A 16-byte key in hexadecimal with optional dash-,\n"
@@ -270,7 +278,7 @@ void zbee_security_register(module_t *zbee_prefs, int proto)
                                sizeof(uat_key_record_t),
                                "zigbee_pc_keys",
                                TRUE,
-                               (void*) &uat_key_records,
+                               (void**) &uat_key_records,
                                &num_uat_key_records,
                                UAT_AFFECTS_DISSECTION, /* affects dissection of packets, but not set of named fields */
                                NULL,  /* TODO: ptr to help manual? */
@@ -288,6 +296,8 @@ void zbee_security_register(module_t *zbee_prefs, int proto)
 
     proto_register_field_array(proto, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_zbee_sec = expert_register_protocol(proto);
+    expert_register_field_array(expert_zbee_sec, ei, array_length(ei));
 
     /* Register the init routine. */
     register_init_routine(proto_init_zbee_security);
@@ -440,9 +450,9 @@ dissect_zbee_secure(tvbuff_t *tvb, packet_info *pinfo, proto_tree* tree, guint o
     memset(&packet, 0, sizeof(zbee_security_packet));
 
     /* Get pointers to any useful frame data from lower layers */
-    nwk_hints = (zbee_nwk_hints_t *)p_get_proto_data(pinfo->fd, proto_get_id_by_filter_name(ZBEE_PROTOABBREV_NWK));
+    nwk_hints = (zbee_nwk_hints_t *)p_get_proto_data(pinfo->fd, proto_get_id_by_filter_name(ZBEE_PROTOABBREV_NWK), 0);
     ieee_hints = (ieee802154_hints_t *)p_get_proto_data(pinfo->fd,
-    proto_get_id_by_filter_name(IEEE802154_PROTOABBREV_WPAN));
+    proto_get_id_by_filter_name(IEEE802154_PROTOABBREV_WPAN), 0);
 
     /* Create a subtree for the security information. */
     if (tree) {
@@ -719,7 +729,7 @@ dissect_zbee_secure(tvbuff_t *tvb, packet_info *pinfo, proto_tree* tree, guint o
 #endif /* HAVE_LIBGCRYPT */
 
     /* Add expert info. */
-    expert_add_info_format(pinfo, sec_tree, PI_UNDECODED, PI_WARN, "Encrypted Payload");
+    expert_add_info(pinfo, sec_tree, &ei_zbee_sec_encrypted_payload);
     /* Create a buffer for the undecrypted payload. */
     payload_tvb = tvb_new_subset(tvb, offset, payload_len, -1);
     /* Dump the payload to the data dissector. */

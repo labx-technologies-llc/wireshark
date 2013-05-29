@@ -42,10 +42,10 @@
 #include <epan/emem.h>
 
 #include "ui/main_statusbar.h"
+#include "ui/preference_utils.h"
 #include "ui/progress_dlg.h"
 #include "ui/recent.h"
 #include "ui/recent_utils.h"
-#include "ui/simple_dialog.h"
 #include "ui/ui_util.h"
 
 #include "gui_utils.h"
@@ -71,7 +71,10 @@
 
 #include "ui/gtk/old-gtk-compat.h"
 
+#include <wsutil/str_util.h>
+
 #define COLUMN_WIDTH_MIN 40
+#define MAX_COMMENTS_TO_FETCH 20000000 /* Arbitrary */
 
 #define COL_EDIT_COLUMN          "column"
 #define COL_EDIT_FORMAT_CMB      "format_cmb"
@@ -102,8 +105,6 @@ static gint row_number_from_iter(GtkTreeIter *iter);
 static void scroll_to_current(void);
 static gboolean query_packet_list_tooltip_cb(GtkWidget *widget, gint x, gint y, gboolean keyboard_tip, GtkTooltip *tooltip, gpointer data _U_);
 
-void packet_list_set_sel_browse(gboolean val, gboolean force_set);
-
 GtkWidget *
 packet_list_create(void)
 {
@@ -112,8 +113,6 @@ packet_list_create(void)
 	scrollwin = scrolled_window_new(NULL, NULL);
 
 	view = create_view_and_model();
-
-	packet_list_set_sel_browse(prefs.gui_plist_sel_browse, FALSE);
 
 	gtk_container_add(GTK_CONTAINER(scrollwin), view);
 
@@ -239,7 +238,7 @@ col_title_change_ok (GtkWidget *w, gpointer parent_w)
 	gchar        *escaped_title;
 	gboolean      recreate = FALSE;
 
-	col = g_object_get_data (G_OBJECT(w), COL_EDIT_COLUMN);
+	col = (GtkTreeViewColumn *)g_object_get_data (G_OBJECT(w), COL_EDIT_COLUMN);
 	col_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(col), E_MPACKET_LIST_COL_KEY));
 
 	title = gtk_entry_get_text(GTK_ENTRY(g_object_get_data (G_OBJECT(w), COL_EDIT_TITLE_TE)));
@@ -302,10 +301,10 @@ col_details_format_changed_cb(GtkWidget *w, gpointer data _U_)
 	GtkWidget *field_lb, *field_te, *occurrence_lb, *occurrence_te;
 	gint       cur_fmt;
 
-	field_lb = g_object_get_data (G_OBJECT(w), COL_EDIT_FIELD_LB);
-	field_te = g_object_get_data (G_OBJECT(w), COL_EDIT_FIELD_TE);
-	occurrence_lb = g_object_get_data (G_OBJECT(w), COL_EDIT_OCCURRENCE_LB);
-	occurrence_te = g_object_get_data (G_OBJECT(w), COL_EDIT_OCCURRENCE_TE);
+	field_lb = (GtkWidget *)g_object_get_data (G_OBJECT(w), COL_EDIT_FIELD_LB);
+	field_te = (GtkWidget *)g_object_get_data (G_OBJECT(w), COL_EDIT_FIELD_TE);
+	occurrence_lb = (GtkWidget *)g_object_get_data (G_OBJECT(w), COL_EDIT_OCCURRENCE_LB);
+	occurrence_te = (GtkWidget *)g_object_get_data (G_OBJECT(w), COL_EDIT_OCCURRENCE_TE);
 
 	cur_fmt = gtk_combo_box_get_active(GTK_COMBO_BOX(w));
 
@@ -332,7 +331,7 @@ col_details_edit_dlg (gint col_id, GtkTreeViewColumn *col)
 
 	GtkWidget *label, *field_lb, *occurrence_lb;
 	GtkWidget *title_te, *format_cmb, *field_te, *occurrence_te;
-	GtkWidget *win, *main_tb, *main_vb, *bbox, *cancel_bt, *ok_bt;
+	GtkWidget *win, *main_grid, *main_vb, *bbox, *cancel_bt, *ok_bt;
 	char       custom_occurrence_str[8];
 	gint       cur_fmt, i;
 
@@ -345,24 +344,24 @@ col_details_edit_dlg (gint col_id, GtkTreeViewColumn *col)
 	gtk_container_add(GTK_CONTAINER(win), main_vb);
 	gtk_container_set_border_width(GTK_CONTAINER(main_vb), 6);
 
-	main_tb = gtk_table_new(2, 4, FALSE);
-	gtk_box_pack_start(GTK_BOX(main_vb), main_tb, FALSE, FALSE, 0);
-	gtk_table_set_col_spacings(GTK_TABLE(main_tb), 10);
-	gtk_table_set_row_spacings(GTK_TABLE(main_tb), 5);
+	main_grid = ws_gtk_grid_new();
+	gtk_box_pack_start(GTK_BOX(main_vb), main_grid, FALSE, FALSE, 0);
+	ws_gtk_grid_set_column_spacing(GTK_GRID(main_grid), 10);
+	ws_gtk_grid_set_row_spacing(GTK_GRID(main_grid), 5);
 
 	label = gtk_label_new("Title:");
-	gtk_table_attach_defaults(GTK_TABLE(main_tb), label, 0, 1, 0, 1);
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), label, 0, 0, 1, 1);
 	gtk_misc_set_alignment(GTK_MISC(label), 1.0f, 0.5f);
 	gtk_widget_set_tooltip_text(label, "Packet list column title.");
 
 	title_te = gtk_entry_new();
-	gtk_table_attach_defaults(GTK_TABLE(main_tb), title_te, 1, 2, 0, 1);
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), title_te, 1, 0, 1, 1);
 	gtk_entry_set_text(GTK_ENTRY(title_te), unescaped_title);
 	g_free(unescaped_title);
 	gtk_widget_set_tooltip_text(title_te, "Packet list column title.");
 
 	label = gtk_label_new("Field type:");
-	gtk_table_attach_defaults(GTK_TABLE(main_tb), label, 0, 1, 1, 2);
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), label, 0, 1, 1, 1);
 	gtk_misc_set_alignment(GTK_MISC(label), 1.0f, 0.5f);
 	gtk_widget_set_tooltip_text(label, "Select which packet information to present in the column.");
 
@@ -371,18 +370,18 @@ col_details_edit_dlg (gint col_id, GtkTreeViewColumn *col)
 	   gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(format_cmb), col_format_desc(i));
 	}
 	g_signal_connect(format_cmb, "changed", G_CALLBACK(col_details_format_changed_cb), NULL);
-	gtk_table_attach_defaults(GTK_TABLE(main_tb), format_cmb, 1, 2, 1, 2);
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), format_cmb, 1, 1, 1, 1);
 	gtk_widget_set_tooltip_text(format_cmb, "Select which packet information to present in the column.");
 
 	field_lb = gtk_label_new("Field name:");
-	gtk_table_attach_defaults(GTK_TABLE(main_tb), field_lb, 0, 1, 2, 3);
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), field_lb, 0, 2, 1, 1);
 	gtk_misc_set_alignment(GTK_MISC(field_lb), 1.0f, 0.5f);
 	gtk_widget_set_tooltip_text(field_lb,
 			      "Field name used when field type is \"Custom\". "
 			      "This string has the same syntax as a display filter string.");
 	field_te = gtk_entry_new();
-	gtk_table_attach_defaults(GTK_TABLE(main_tb), field_te, 1, 2, 2, 3);
-	g_object_set_data (G_OBJECT(field_te), E_FILT_FIELD_NAME_ONLY_KEY, "");
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), field_te, 1, 2, 1, 1);
+	g_object_set_data (G_OBJECT(field_te), E_FILT_FIELD_NAME_ONLY_KEY, (gpointer)"");
 	g_signal_connect(field_te, "changed", G_CALLBACK(filter_te_syntax_check_cb), NULL);
 	g_signal_connect(field_te, "key-press-event", G_CALLBACK (filter_string_te_key_pressed_cb), NULL);
 	g_signal_connect(win, "key-press-event", G_CALLBACK (filter_parent_dlg_key_pressed_cb), NULL);
@@ -391,23 +390,23 @@ col_details_edit_dlg (gint col_id, GtkTreeViewColumn *col)
 			      "This string has the same syntax as a display filter string.");
 
 	occurrence_lb = gtk_label_new("Occurrence:");
-	gtk_table_attach_defaults(GTK_TABLE(main_tb), occurrence_lb, 0, 1, 3, 4);
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), occurrence_lb, 0, 3, 1, 1);
 	gtk_misc_set_alignment(GTK_MISC(occurrence_lb), 1.0f, 0.5f);
 	gtk_widget_set_tooltip_text (occurrence_lb,
-			      "Field occurence to use. "
+			      "Field occurrence to use. "
 			      "0=all (default), 1=first, 2=second, ..., -1=last.");
 
 	occurrence_te = gtk_entry_new();
 	gtk_entry_set_max_length (GTK_ENTRY(occurrence_te), 4);
-	gtk_table_attach_defaults(GTK_TABLE(main_tb), occurrence_te, 1, 2, 3, 4);
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), occurrence_te, 1, 3, 1, 1);
 	gtk_widget_set_tooltip_text (occurrence_te,
-			      "Field occurence to use. "
+			      "Field occurrence to use. "
 			      "0=all (default), 1=first, 2=second, ..., -1=last.");
 
 	bbox = dlg_button_row_new(GTK_STOCK_CANCEL,GTK_STOCK_OK, NULL);
 	gtk_box_pack_end(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 
-	ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+	ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
 	g_object_set_data (G_OBJECT(ok_bt), COL_EDIT_COLUMN, col);
 	g_object_set_data (G_OBJECT(ok_bt), COL_EDIT_FORMAT_CMB, format_cmb);
 	g_object_set_data (G_OBJECT(ok_bt), COL_EDIT_TITLE_TE, title_te);
@@ -431,7 +430,7 @@ col_details_edit_dlg (gint col_id, GtkTreeViewColumn *col)
 	dlg_set_activate(field_te, ok_bt);
 	dlg_set_activate(occurrence_te, ok_bt);
 
-	cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+	cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
 	g_signal_connect(cancel_bt, "clicked", G_CALLBACK(col_title_change_cancel), win);
 	window_set_cancel_button(win, cancel_bt, NULL);
 
@@ -597,7 +596,7 @@ packet_list_set_all_columns_visible (void)
 static void
 packet_list_remove_column (gint col_id, GtkTreeViewColumn *col _U_)
 {
-	column_prefs_remove(col_id);
+	column_prefs_remove_nth(col_id);
 
 	if (!prefs.gui_use_pref_save) {
 		prefs_main_write();
@@ -675,7 +674,7 @@ static gboolean
 packet_list_column_button_pressed_cb (GtkWidget *widget, GdkEvent *event, gpointer data)
 {
 	GtkWidget *col = (GtkWidget *) data;
-	GtkWidget *menu = g_object_get_data(G_OBJECT(popup_menu_object), PM_PACKET_LIST_COL_KEY);
+	GtkWidget *menu = (GtkWidget *)g_object_get_data(G_OBJECT(popup_menu_object), PM_PACKET_LIST_COL_KEY);
 	gint       col_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(col), E_MPACKET_LIST_COL_KEY));
 	gboolean   right_justify = right_justify_column (col_id);
 
@@ -702,7 +701,7 @@ column_dnd_changed_cb(GtkTreeView *tree_view, gpointer data _U_)
 
 	list = columns = gtk_tree_view_get_columns(tree_view);
 	while (columns) {
-		column = columns->data;
+		column = (GtkTreeViewColumn *)columns->data;
 		old_col_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(column), E_MPACKET_LIST_COL_KEY));
 
 		clp = g_list_nth (prefs.col_list, old_col_id);
@@ -1036,7 +1035,7 @@ scroll_to_and_select_iter(GtkTreeModel *model, GtkTreeSelection *selection, GtkT
 			path,
 			NULL,
 			TRUE,	/* use_align */
-			0.5,	/* row_align determines where the row is placed, 0.5 means center */
+			0.5f,	/* row_align determines where the row is placed, 0.5 means center */
 			0); 	/* The horizontal alignment of the column */
 
 	/* "cursor-changed" signal triggers packet_list_select_cb() */
@@ -1102,7 +1101,7 @@ packet_list_moveto_end(void)
 			path,
 			NULL,
 			TRUE,	/* use_align */
-			0.5,	/* row_align determines where the row is placed, 0.5 means center */
+			0.5f,	/* row_align determines where the row is placed, 0.5 means center */
 			0); 	/* The horizontal alignment of the column */
 
 	gtk_tree_path_free(path);
@@ -1222,7 +1221,7 @@ packet_list_select_cb(GtkTreeView *tree_view, gpointer data _U_)
 
 	if ((selection = gtk_tree_view_get_selection(tree_view)) == NULL)
 		return;
-	
+
 	if (!gtk_tree_selection_get_selected(selection, NULL, &iter))
 		return;
 
@@ -1239,7 +1238,7 @@ packet_list_select_cb(GtkTreeView *tree_view, gpointer data _U_)
 
 	cf_select_packet(&cfile, row);
 	/* If searching the tree, set the focus there; otherwise, focus on the packet list */
-	if (cfile.search_in_progress && (cfile.decode_data || cfile.decode_data)) {
+	if (cfile.search_in_progress && cfile.decode_data) {
 		gtk_widget_grab_focus(tree_view_gbl);
 	} else {
 		gtk_widget_grab_focus(packetlist->view);
@@ -1253,7 +1252,7 @@ static void
 packet_list_double_click_cb(GtkTreeView *treeview, GtkTreePath *path _U_,
 				GtkTreeViewColumn *col _U_, gpointer userdata _U_)
 {
-	new_packet_window(GTK_WIDGET(treeview), FALSE);
+	new_packet_window(GTK_WIDGET(treeview), FALSE, FALSE);
 }
 
 gboolean
@@ -1326,8 +1325,8 @@ show_cell_data_func(GtkTreeViewColumn *col _U_, GtkCellRenderer *renderer,
 	GdkColor fg_gdk;
 	GdkColor bg_gdk;
 
-	gtk_tree_model_get(model, iter, 
-			col_num, &cell_text, 
+	gtk_tree_model_get(model, iter,
+			col_num, &cell_text,
 			/* The last column is reserved for frame_data */
 			gtk_tree_model_get_n_columns(model)-1, &fdata,
 			-1);
@@ -1343,7 +1342,7 @@ show_cell_data_func(GtkTreeViewColumn *col _U_, GtkCellRenderer *renderer,
 		color_t_to_gdkcolor(&bg_gdk, &prefs.gui_marked_bg);
 		color_on = TRUE;
 	} else if (fdata->color_filter) {
-		const color_filter_t *color_filter = fdata->color_filter;
+		const color_filter_t *color_filter = (const color_filter_t *)fdata->color_filter;
 
 		color_t_to_gdkcolor(&fg_gdk, &color_filter->fg_color);
 		color_t_to_gdkcolor(&bg_gdk, &color_filter->bg_color);
@@ -1393,51 +1392,11 @@ packet_list_queue_draw(void)
 	cf_select_packet(&cfile, row);
 }
 
-/* Set the selection mode of the packet list window. */
-void
-packet_list_set_sel_browse(gboolean val, gboolean force_set)
-{
-	GtkSelectionMode new_mode;
-	/* initialize with a mode we don't use, so that the mode == new_mode
-	 * test will fail the first time */
-	static GtkSelectionMode mode = GTK_SELECTION_MULTIPLE;
-
-	/* Yeah, GTK uses "browse" in the case where we do not, but oh well. I
-	 * think "browse" in Wireshark makes more sense than "SINGLE" in GTK+ */
-	new_mode = val ? GTK_SELECTION_SINGLE : GTK_SELECTION_BROWSE;
-
-	if ((mode == new_mode) && !force_set) {
-		/*
-		 * The mode isn't changing, so don't do anything.
-		 * In particular, don't gratuitiously unselect the
-		 * current packet.
-		 *
-		 * XXX - Copied code from "old" packet list
-		 *  - I don't know if the comment below is still true...
-		 * XXX - why do we have to unselect the current packet
-		 * ourselves?  The documentation for the GtkCList at
-		 *
-		 *      http://developer.gnome.org/doc/API/gtk/gtkclist.html
-		 *
-		 * says "Note that setting the widget's selection mode to
-		 * one of GTK_SELECTION_BROWSE or GTK_SELECTION_SINGLE will
-		 * cause all the items in the GtkCList to become deselected."
-		 */
-		return;
-	}
-
-	if (cfile.finfo_selected)
-		cf_unselect_field(&cfile);
-
-	mode = new_mode;
-	gtk_tree_selection_set_mode (gtk_tree_view_get_selection(GTK_TREE_VIEW(packetlist->view)), mode);
-}
-
 void
 packet_list_set_font(PangoFontDescription *font)
 {
 #if GTK_CHECK_VERSION(3,0,0)
-    gtk_widget_override_font(packetlist->view, font);
+	gtk_widget_override_font(packetlist->view, font);
 #else
 	gtk_widget_modify_font(packetlist->view, font);
 #endif
@@ -1682,7 +1641,7 @@ packet_list_copy_summary_cb(gpointer data _U_, copy_summary_type copy_type)
 	g_string_free(text,TRUE);
 }
 
-gchar *
+const gchar *
 packet_list_get_packet_comment(void)
 {
 	GtkTreeModel *model;
@@ -1714,8 +1673,13 @@ packet_list_return_all_comments(GtkTextBuffer *buffer)
 			gtk_text_buffer_insert_at_cursor (buffer, buf_str, -1);
 			g_free(buf_str);
 		}
+		if (gtk_text_buffer_get_char_count(buffer) > MAX_COMMENTS_TO_FETCH) {
+			buf_str = g_strdup_printf("[ Comment text exceeds %s. Stopping. ]",
+						  format_size(MAX_COMMENTS_TO_FETCH, (format_size_flags_e)(format_size_unit_bytes|format_size_prefix_si)));
+			gtk_text_buffer_insert_at_cursor (buffer, buf_str, -1);
+			return;
+		}
 	}
-
 }
 
 void

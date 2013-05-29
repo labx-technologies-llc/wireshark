@@ -128,7 +128,7 @@ rlc_lte_stat_reset(void *phs)
 
 
 /* Allocate a rlc_lte_ep_t struct to store info for new UE */
-static rlc_lte_ep_t* alloc_rlc_lte_ep(struct rlc_lte_tap_info *si, packet_info *pinfo _U_)
+static rlc_lte_ep_t* alloc_rlc_lte_ep(const struct rlc_lte_tap_info *si, packet_info *pinfo _U_)
 {
     rlc_lte_ep_t* ep;
 
@@ -136,7 +136,7 @@ static rlc_lte_ep_t* alloc_rlc_lte_ep(struct rlc_lte_tap_info *si, packet_info *
         return NULL;
     }
 
-    if (!(ep = g_malloc(sizeof(rlc_lte_ep_t)))) {
+    if (!(ep = g_new(rlc_lte_ep_t,1))) {
         return NULL;
     }
 
@@ -173,7 +173,7 @@ rlc_lte_stat_packet(void *phs, packet_info *pinfo, epan_dissect_t *edt _U_,
     rlc_lte_ep_t *tmp = NULL, *te = NULL;
 
     /* Cast tap info struct */
-    struct rlc_lte_tap_info *si = (struct rlc_lte_tap_info *)phi;
+    const struct rlc_lte_tap_info *si = (const struct rlc_lte_tap_info *)phi;
 
     /* Need this */
     if (!hs) {
@@ -290,12 +290,12 @@ static float calculate_bw(nstime_t *start_time, nstime_t *stop_time, guint32 byt
         /* Only really meaningful if have a few frames spread over time...
            For now at least avoid dividing by something very close to 0.0 */
         if (elapsed_ms < 2.0) {
-           return 0.0;
+           return 0.0f;
         }
         return ((bytes * 8) / elapsed_ms) / 1000;
     }
     else {
-        return 0.0;
+        return 0.0f;
     }
 }
 
@@ -379,7 +379,7 @@ static void rlc_lte_stat_init(const char *optarg, void *userdata _U_)
     }
 
     /* Create top-level struct */
-    hs = g_malloc0(sizeof(rlc_lte_stat_t));
+    hs = g_new0(rlc_lte_stat_t,1);
     hs->ep_list = NULL;
 
 

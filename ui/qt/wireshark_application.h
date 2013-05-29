@@ -28,15 +28,19 @@
 
 #include <glib.h>
 
+#include "epan/prefs.h"
+
 #include "capture_opts.h"
+#include "capture_session.h"
 #include "file.h"
 #include "register.h"
 
 #include "ui/help_url.h"
 
 #include <QApplication>
-#include <QList>
 #include <QFileInfo>
+#include <QFont>
+#include <QList>
 #include <QThread>
 
 // Recent items:
@@ -58,13 +62,21 @@ class WiresharkApplication : public QApplication
 public:
     explicit WiresharkApplication(int &argc,  char **argv);
 
+    enum AppSignal {
+        ColumnsChanged,
+        FilterExpressionsChanged,
+        PacketDissectionChanged,
+        PreferencesChanged
+    };
+
     void registerUpdate(register_action_e action, const char *message);
+    void emitAppSignal(AppSignal signal);
     void allSystemsGo();
-    void applyAllPreferences();
+    e_prefs * readConfigurationFiles(char **gdp_path, char **dp_path);
     QList<recent_item_status *> recentItems() const;
     void addRecentItem(const QString &filename, qint64 size, bool accessible);
 #ifdef HAVE_LIBPCAP
-    void captureCallback(int event, capture_options * capture_opts);
+    void captureCallback(int event, capture_session * cap_session);
 #endif
     void captureFileCallback(int event, void * data);
     QDir lastOpenDir();
@@ -72,10 +84,17 @@ public:
     void setLastOpenDir(QString *dir_str);
     void helpTopicAction(topic_action_e action);
     QFont monospaceFont(bool bold = false);
+    void setMonospaceFont(const char *font_string);
+    int monospaceTextSize(const char *str, bool bold = false);
+    void setConfigurationProfile(const gchar *profile_name);
 
 
 private:
+    void prefsToCaptureOpts();
+
     bool initialized_;
+    QFont mono_regular_font_;
+    QFont mono_bold_font_;
     QTimer *recent_timer_;
     QList<QString> pending_open_files_;
 
@@ -87,18 +106,23 @@ signals:
     void openCaptureFile(QString &cf_path);
     void updateRecentItemStatus(const QString &filename, qint64 size, bool accessible);
     void splashUpdate(register_action_e action, const char *message);
-    void updatePreferences();
+    void configurationProfileChanged(const gchar *profile_name);
+
+    void columnsChanged();
+    void filterExpressionsChanged();
+    void packetDissectionChanged();
+    void preferencesChanged();
 
 #ifdef HAVE_LIBPCAP
     // XXX It might make more sense to move these to main.cpp or main_window.cpp or their own class.
-    void captureCapturePrepared(capture_options *capture_opts);
-    void captureCaptureUpdateStarted(capture_options *capture_opts);
-    void captureCaptureUpdateContinue(capture_options *capture_opts);
-    void captureCaptureUpdateFinished(capture_options *capture_opts);
-    void captureCaptureFixedStarted(capture_options *capture_opts);
-    void captureCaptureFixedFinished(capture_options *capture_opts);
-    void captureCaptureStopping(capture_options *capture_opts);
-    void captureCaptureFailed(capture_options *capture_opts);
+    void captureCapturePrepared(capture_session *cap_session);
+    void captureCaptureUpdateStarted(capture_session *cap_session);
+    void captureCaptureUpdateContinue(capture_session *cap_session);
+    void captureCaptureUpdateFinished(capture_session *cap_session);
+    void captureCaptureFixedStarted(capture_session *cap_session);
+    void captureCaptureFixedFinished(capture_session *cap_session);
+    void captureCaptureStopping(capture_session *cap_session);
+    void captureCaptureFailed(capture_session *cap_session);
 #endif
 
     void captureFileOpened(const capture_file *cf);
@@ -111,6 +135,7 @@ public slots:
     void clearRecentItems();
 
 private slots:
+    void cleanup();
     void itemStatusFinished(const QString &filename = "", qint64 size = 0, bool accessible = false);
     void refreshRecentFiles(void);
 };

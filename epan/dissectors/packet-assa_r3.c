@@ -34,6 +34,9 @@
 #include <epan/expert.h>
 #include <epan/dissectors/packet-tcp.h>
 
+void proto_register_r3(void);
+void proto_reg_handoff_r3(void);
+
 #if 0
 /* */
 /*  System limits */
@@ -511,7 +514,7 @@ typedef enum
   EVENT_PANICACTIVE,          /*  48 - Access denied because lock is in panic mode */
   EVENT_PASSAGEACTIVE,        /*  49 - Access denied because lock is in passage mode */
   EVENT_PASSAGEINACTIVE,      /*  50 - Access denied because lock is not in passage mode */
-  EVENT_BADACCESSMODE,        /*  51 - Access denied because access mode is wierd */
+  EVENT_BADACCESSMODE,        /*  51 - Access denied because access mode is weird */
   EVENT_CLOCKERR,             /*  52 - Error reading RTC */
   EVENT_REMOTEUNLOCK,         /*  53 - Remote unlock */
   EVENT_TZHAUDISABLED,        /*  54 - Time zone, exceptions, and auto-unlock functionality disabled */
@@ -893,7 +896,7 @@ typedef enum
   /*
    *  These should not be exposed to the user
    */
-  RESPONSETYPE_NOREPLY,               /* 51 - Do not send a reply, subroutine is posting it's own */
+  RESPONSETYPE_NOREPLY,               /* 51 - Do not send a reply, subroutine is posting its own */
   RESPONSETYPE_TAKEABREAK,            /* 52 - Intermediate return result, when log searches taking too long */
   RESPONSETYPE_DPACBLOCKS,            /* 53 - PWM lock, battery powered, DPAC takes priority */
   RESPONSETYPE_ACKNAKTIMEOUT,         /* 54 - Added for console.c, not used in lock firmware */
@@ -3455,7 +3458,7 @@ static const guint16 ccitt_16 [256] =
 static guint16
 utilCrcCalculate (const void *ptr, guint16 len, guint16 crc)
 {
-  const guint8 *p = (guint8 *) ptr;
+  const guint8 *p = (const guint8 *) ptr;
 
   while (len--)
     crc = (guint16) ((crc << 8) ^ ccitt_16 [(crc >> 8) ^ *p++]);
@@ -5059,7 +5062,7 @@ static void
 dissect_r3_cmd_response (tvbuff_t *tvb, guint32 start_offset, guint32 length, packet_info *pinfo, proto_tree *tree)
 {
   guint8          responseLen  = tvb_get_guint8 (tvb, start_offset + 0);
-  responseType_e  responseType = tvb_get_guint8 (tvb, start_offset + 2);
+  responseType_e  responseType = (responseType_e)tvb_get_guint8 (tvb, start_offset + 2);
   tvbuff_t       *payload_tvb  = tvb_new_subset (tvb, start_offset, responseLen, responseLen);
 
   if (tree)
@@ -5173,7 +5176,7 @@ dissect_r3_cmd_querydatetime (tvbuff_t *tvb, guint32 start_offset, guint32 lengt
 }
 
 static void
-dissect_r3_cmd_setconfig (tvbuff_t *tvb, guint32 start_offset, guint32 length _U_, packet_info *pinfo _U_, proto_tree *tree)
+dissect_r3_cmd_setconfig (tvbuff_t *tvb, guint32 start_offset, guint32 length _U_, packet_info *pinfo, proto_tree *tree)
 {
   guint     cmdLen;
   tvbuff_t *payload_tvb;
@@ -5194,6 +5197,7 @@ dissect_r3_cmd_setconfig (tvbuff_t *tvb, guint32 start_offset, guint32 length _U
     proto_tree  *sc_tree;
     const gchar *ci;
     guint8       configItem;
+    guint8       item_length;
 
     configItem = tvb_get_guint8 (payload_tvb, offset + 1);
 
@@ -5202,21 +5206,24 @@ dissect_r3_cmd_setconfig (tvbuff_t *tvb, guint32 start_offset, guint32 length _U
       &r3_configitemnames_ext,
       "[Unknown Configuration Item]");
 
-    sc_item = proto_tree_add_text (tree, payload_tvb, offset + 0, tvb_get_guint8 (payload_tvb, offset + 0),
+    item_length = tvb_get_guint8 (payload_tvb, offset + 0);
+    sc_item = proto_tree_add_text (tree, payload_tvb, offset + 0, item_length,
                                    "Config Field: %s (%u)", ci, configItem);
     sc_tree = proto_item_add_subtree (sc_item, ett_r3upstreamfield);
 
-    proto_tree_add_item (sc_tree, hf_r3_configitemlength, payload_tvb, offset + 0, 1, ENC_LITTLE_ENDIAN);
+    sc_item = proto_tree_add_item (sc_tree, hf_r3_configitemlength, payload_tvb, offset + 0, 1, ENC_LITTLE_ENDIAN);
     proto_tree_add_item (sc_tree, hf_r3_configitem,       payload_tvb, offset + 1, 1, ENC_LITTLE_ENDIAN);
+    if (item_length == 0) {
+      expert_add_info_format(pinfo, sc_item, PI_MALFORMED, PI_WARN, "Invalid item length");
+      return;
+    }
 
     if (configItem < array_length (configMap))
     {
       switch (configMap [configItem])
       {
         case CONFIGTYPE_NONE :
-          proto_tree_add_item (sc_tree, hf_r3_configitemdata, payload_tvb, offset + 2,
-                               tvb_get_guint8 (payload_tvb, offset + 0) - 3,
-                               ENC_NA);
+          proto_tree_add_item (sc_tree, hf_r3_configitemdata, payload_tvb, offset + 2, item_length - 3, ENC_NA);
           break;
 
         case CONFIGTYPE_BOOL :
@@ -5237,24 +5244,20 @@ dissect_r3_cmd_setconfig (tvbuff_t *tvb, guint32 start_offset, guint32 length _U
 
         case CONFIGTYPE_STRING :
           proto_tree_add_item (sc_tree, hf_r3_configitemdata_string, payload_tvb, offset + 2,
-                               tvb_get_guint8 (payload_tvb, offset + 0) - 2,
-                               ENC_ASCII|ENC_NA);
+                               item_length - 2, ENC_ASCII|ENC_NA);
           break;
 
         default :
           proto_tree_add_none_format (sc_tree, hf_r3_upstreamfielderror, payload_tvb, offset + 2,
-                                      tvb_get_guint8 (payload_tvb, offset + 0) - 2,
-                                      "Unknown Field Type");
+                                      item_length - 2, "Unknown Field Type");
           break;
       }
     }
     else {
-      proto_tree_add_text (sc_tree, payload_tvb, offset + 2,
-                           tvb_get_guint8 (payload_tvb, offset + 0) - 2,
-                           "[Unknown Field Type]");
+      proto_tree_add_text (sc_tree, payload_tvb, offset + 2, item_length - 2, "[Unknown Field Type]");
     }
 
-    offset += tvb_get_guint8 (payload_tvb, offset + 0);
+    offset += item_length;
   }
 }
 
@@ -5690,7 +5693,7 @@ dissect_r3_cmd_alarmconfigure (tvbuff_t *tvb, guint32 start_offset, guint32 leng
     const gchar *as;
     guint32 alarm_len;
 
-    if (!(ai = match_strval_ext (tvb_get_guint8 (payload_tvb, offset + 1), &r3_alarmidnames_ext)))
+    if (!(ai = try_val_to_str_ext (tvb_get_guint8 (payload_tvb, offset + 1), &r3_alarmidnames_ext)))
     {
       ai = "[Unknown Alarm ID]";
       as = "N/A";

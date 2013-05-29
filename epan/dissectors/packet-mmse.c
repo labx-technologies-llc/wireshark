@@ -222,7 +222,7 @@ static int hf_mmse_sender_visibility	= -1;
 static int hf_mmse_status		= -1;
 static int hf_mmse_subject		= -1;
 static int hf_mmse_to			= -1;
-static int hf_mmse_content_type		= -1;
+/* static int hf_mmse_content_type		= -1; */
 static int hf_mmse_ffheader		= -1;
 /* MMSE 1.1 */
 static int hf_mmse_read_report		= -1;
@@ -459,9 +459,9 @@ get_text_string(tvbuff_t *tvb, guint offset, const char **strval)
     len = tvb_strsize(tvb, offset);
     DebugLog((" [1] tvb_strsize(tvb, offset) == %u\n", len));
     if (tvb_get_guint8(tvb, offset) == MM_QUOTE)
-	*strval = ep_tvb_memdup(tvb, offset+1, len-1);
+	*strval = (const char *)ep_tvb_memdup(tvb, offset+1, len-1);
     else
-	*strval = ep_tvb_memdup(tvb, offset, len);
+	*strval = (const char *)ep_tvb_memdup(tvb, offset, len);
     DebugLog((" [3] Return(len) == %u\n", len));
     return len;
 }
@@ -642,7 +642,7 @@ dissect_mmse_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
     if (tvb_get_guint8(tvb, 0) != MM_MTYPE_HDR)
 	return FALSE;
     pdut = tvb_get_guint8(tvb, 1);
-    if (match_strval(pdut, vals_message_type) == NULL)
+    if (try_val_to_str(pdut, vals_message_type) == NULL)
 	return FALSE;
     if ((tvb_get_guint8(tvb, 2) != MM_TID_HDR) &&
 	(tvb_get_guint8(tvb, 2) != MM_VERSION_HDR))
@@ -1521,6 +1521,7 @@ proto_register_mmse(void)
 		HFILL
 	    }
 	},
+#if 0
 	{   &hf_mmse_content_type,
 	    {   "Data", "mmse.content_type",
 		FT_NONE, BASE_NONE, NULL, 0x00,
@@ -1528,6 +1529,7 @@ proto_register_mmse(void)
 		HFILL
 	    }
 	},
+#endif
 	{   &hf_mmse_ffheader,
 	    {   "Free format (not encoded) header", "mmse.ffheader",
 		FT_STRING, BASE_NONE, NULL, 0x00,

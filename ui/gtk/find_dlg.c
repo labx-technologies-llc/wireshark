@@ -36,7 +36,6 @@
 
 #include "../globals.h"
 #include "ui/alert_box.h"
-#include "ui/simple_dialog.h"
 #include "ui/main_statusbar.h"
 
 #include "ui/gtk/gui_utils.h"
@@ -276,7 +275,7 @@ find_frame_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_widget_set_tooltip_text(case_cb, "Search by mixed upper/lower case?");
   gtk_widget_show(case_cb);
 
-  combo_lb = gtk_label_new("Character set:");
+  combo_lb = gtk_label_new("Character width:");
   gtk_box_pack_start(GTK_BOX (string_opt_vb), combo_lb, TRUE, TRUE, 0);
   gtk_misc_set_alignment(GTK_MISC(combo_lb), 0.0f, 0.5f);
   gtk_widget_show(combo_lb);
@@ -287,9 +286,10 @@ find_frame_cb(GtkWidget *w _U_, gpointer d _U_)
 
   combo_cb = gtk_combo_box_text_new();
 
-  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(combo_cb), "ASCII Unicode & Non-Unicode");
-  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(combo_cb), "ASCII Non-Unicode");
-  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(combo_cb), "ASCII Unicode");
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(combo_cb), "Narrow & wide");
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(combo_cb), "Narrow (UTF-8 / ASCII)");
+  /* UCS-2 might be more accurate but then we'd have to explain why we don't support UTF-16 */
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(combo_cb), "Wide (UTF-16)");
 
   gtk_combo_box_set_active(GTK_COMBO_BOX(combo_cb),0);
   gtk_box_pack_start(GTK_BOX (string_opt_vb), combo_cb, TRUE, TRUE, 0);
@@ -324,13 +324,13 @@ find_frame_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
   gtk_widget_show(bbox);
 
-  ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_FIND);
+  ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_FIND);
   g_signal_connect(ok_bt, "clicked", G_CALLBACK(find_frame_ok_cb), find_frame_w);
 
-  cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+  cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
   g_signal_connect(cancel_bt, "clicked", G_CALLBACK(find_frame_close_cb), find_frame_w);
 
-  help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+  help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
   g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_FIND_DIALOG);
 
   /* Attach pointers to needed widgets to the capture prefs window/object */
@@ -447,10 +447,13 @@ find_filter_te_syntax_check_cb(GtkWidget *w, gpointer parent_w)
 static void
 hex_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
 {
-    GtkWidget   *filter_tb, *hex_rb;
+    GtkWidget   *filter_tb, *hex_rb, *filter_entry;
 
     filter_tb = (GtkWidget *) g_object_get_data(G_OBJECT(parent_w), E_FILT_TE_PTR_KEY);
     hex_rb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FIND_HEXDATA_KEY);
+
+    filter_entry = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w),E_FIND_FILT_KEY);
+    gtk_widget_grab_focus(filter_entry);
 
     /* Disable AutoCompletion feature */
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(hex_rb)) && g_signal_handler_is_connected(filter_tb, te_presskey_handler_id)) {
@@ -471,7 +474,7 @@ static void
 string_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
 {
     GtkWidget   *string_rb, *packet_data_rb, *decode_data_rb, *summary_data_rb,
-                *data_combo_lb, *data_combo_cb, *data_case_cb, *filter_tb;
+                *data_combo_lb, *data_combo_cb, *data_case_cb, *filter_tb, *filter_entry;
 
     string_rb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FIND_STRINGDATA_KEY);
     packet_data_rb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_SOURCE_DATA_KEY);
@@ -482,6 +485,9 @@ string_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
     data_combo_cb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FIND_STRINGTYPE_KEY);
     data_case_cb = (GtkWidget *) g_object_get_data(G_OBJECT(parent_w), E_CASE_SEARCH_KEY);
     filter_tb = (GtkWidget *) g_object_get_data(G_OBJECT(parent_w), E_FILT_TE_PTR_KEY);
+
+    filter_entry = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w),E_FIND_FILT_KEY);
+    gtk_widget_grab_focus(filter_entry);
 
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(string_rb))) {
         gtk_widget_set_sensitive(GTK_WIDGET(packet_data_rb), TRUE);
@@ -517,11 +523,14 @@ string_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
 static void
 filter_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
 {
-    GtkWidget   *filter_bt, *filter_rb, *filter_te;
+    GtkWidget   *filter_bt, *filter_rb, *filter_te, *filter_entry;
 
     filter_bt = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FILT_TE_BUTTON_KEY);
     filter_rb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FIND_FILTERDATA_KEY);
     filter_te = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FILT_TE_PTR_KEY);
+
+    filter_entry = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w),E_FIND_FILT_KEY);
+    gtk_widget_grab_focus(filter_entry);
 
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(filter_rb)))
     {
@@ -545,7 +554,7 @@ find_frame_ok_cb(GtkWidget *ok_bt _U_, gpointer parent_w)
   GtkWidget       *filter_te, *up_rb, *hex_rb, *string_rb, *combo_cb,
                   *case_cb, *packet_data_rb, *decode_data_rb, *summary_data_rb;
   const gchar     *filter_text;
-  search_charset_t scs_type = SCS_ASCII_AND_UNICODE;
+  search_charset_t scs_type = SCS_NARROW_AND_WIDE;
   guint8          *bytes = NULL;
   size_t           nbytes = 0;
   char            *string = NULL;
@@ -570,9 +579,9 @@ find_frame_ok_cb(GtkWidget *ok_bt _U_, gpointer parent_w)
   /* Corresponds to the enum in file.c
    * Character set for text search.
    * typedef enum {
-   *   SCS_ASCII_AND_UNICODE,
-   *   SCS_ASCII,
-   *   SCS_UNICODE
+   *   SCS_NARROW_AND_WIDE,
+   *   SCS_NARROW,
+   *   SCS_WIDE
    *   / * add EBCDIC when it's implemented * /
    * } search_charset_t;
    */
@@ -610,12 +619,12 @@ find_frame_ok_cb(GtkWidget *ok_bt _U_, gpointer parent_w)
     /*
      * We are - get the character set type.
      */
-    if (string_type == SCS_ASCII_AND_UNICODE)
-      scs_type = SCS_ASCII_AND_UNICODE;
-    else if (string_type == SCS_ASCII)
-      scs_type = SCS_ASCII;
-    else if (string_type == SCS_UNICODE)
-      scs_type = SCS_UNICODE;
+    if (string_type == SCS_NARROW_AND_WIDE)
+      scs_type = SCS_NARROW_AND_WIDE;
+    else if (string_type == SCS_NARROW)
+      scs_type = SCS_NARROW;
+    else if (string_type == SCS_WIDE)
+      scs_type = SCS_WIDE;
     else {
       statusbar_push_temporary_msg("You didn't choose a valid character set.");
       return;

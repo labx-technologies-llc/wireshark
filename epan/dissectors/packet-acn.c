@@ -47,6 +47,10 @@
 #include <epan/prefs.h>
 #include <epan/ipv6-utils.h>
 
+/* Forward declarations */
+void proto_register_acn(void);
+void proto_reg_handoff_acn(void);
+
 /* pdu flags */
 #define ACN_PDU_FLAG_L     0x80
 #define ACN_PDU_FLAG_V     0x40
@@ -227,13 +231,13 @@ static gint ett_acn_dmx_pdu = -1;
 static int hf_acn_association = -1;
 static int hf_acn_channel_number = -1;
 static int hf_acn_cid = -1;
-static int hf_acn_client_protocol_id = -1;
+/* static int hf_acn_client_protocol_id = -1; */
 static int hf_acn_data = -1;
 static int hf_acn_data8 = -1;
 static int hf_acn_data16 = -1;
 static int hf_acn_data24 = -1;
 static int hf_acn_data32 = -1;
-static int hf_acn_dmp_adt = -1; /* address and data type*/
+/* static int hf_acn_dmp_adt = -1; */ /* address and data type*/
 static int hf_acn_dmp_adt_a = -1;
 static int hf_acn_dmp_adt_v = -1;
 static int hf_acn_dmp_adt_r = -1;
@@ -275,7 +279,7 @@ static int hf_acn_reliable_sequence_number = -1;
 /* static int hf_acn_sdt_pdu = -1; */
 static int hf_acn_sdt_vector = -1;
 static int hf_acn_dmx_vector = -1;
-static int hf_acn_session_count = -1;
+/* static int hf_acn_session_count = -1; */
 static int hf_acn_total_sequence_number = -1;
 static int hf_acn_dmx_source_name = -1;
 static int hf_acn_dmx_priority = -1;
@@ -911,8 +915,8 @@ acn_add_dmp_data(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int of
       }
       break;
     case ACN_DMP_ADT_D_RE:
-      if (adt->data_length == adt->count) {
-        ok_to_process = TRUE;
+      if (adt->count == 0) {
+        break;
       }
       if (adt->data_length <= adt->count + 4) {
         ok_to_process = TRUE;
@@ -1860,7 +1864,7 @@ ltos(guint8 level, gchar *string, guint8 base, gchar leading_char, guint8 min_ch
   /* now reverse (and correct) the order */
   g_strreverse(string);
 
-  /* add a space at the end (ok its at the start but it will be at the end)*/
+  /* add a space at the end (ok it's at the start but it will be at the end)*/
   string[i++] = ' ';
   string[i] = '\0';
   return(string + i);
@@ -1901,13 +1905,13 @@ dissect_acn_dmx_data_pdu(guint32 protocol_id, tvbuff_t *tvb, packet_info *pinfo,
   guint32           vector;
   gchar             buffer[BUFFER_SIZE];
   char             *buf_ptr;
-  guint32           x;
+  guint             x;
   guint8            level;
   guint8            min_char;
   guint8            base;
   gchar             leading_char;
-  guint8            perline;
-  guint8            halfline;
+  guint             perline;
+  guint             halfline;
   guint16           dmx_count;
   guint16           dmx_start_code;
 
@@ -2068,9 +2072,9 @@ dissect_acn_dmx_data_pdu(guint32 protocol_id, tvbuff_t *tvb, packet_info *pinfo,
       g_snprintf(buffer, BUFFER_SIZE, "%-10s: ", "Data...");
 
       buf_ptr += 9;
-      for (x=1; x<=perline; x++) {
-        buf_ptr = ltos((guint8)x, buf_ptr, 10, ' ', min_char, FALSE);
-        if (x==halfline) {
+      for (x=0; x<perline; x++) {
+        buf_ptr = ltos((guint8)(x+1), buf_ptr, 10, ' ', min_char, FALSE);
+        if ((x+1)==halfline) {
           *buf_ptr++ =  '|';
           *buf_ptr++ =  ' ';
         }
@@ -2794,11 +2798,13 @@ proto_register_acn(void)
         NULL, HFILL }
     },
     /* Client Protocol ID */
+#if 0
     { &hf_acn_client_protocol_id,
       { "Client Protocol ID", "acn.client_protocol_id",
         FT_UINT32, BASE_DEC, VALS(acn_protocol_id_vals), 0x0,
         NULL, HFILL }
     },
+#endif
     /* DMP data */
     { &hf_acn_data,
       { "Data", "acn.dmp_data",
@@ -2827,11 +2833,13 @@ proto_register_acn(void)
     },
 
     /* DMP Address type*/
+#if 0
     { &hf_acn_dmp_adt,
       { "Address and Data Type", "acn.dmp_adt",
         FT_UINT8, BASE_DEC_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
     { &hf_acn_dmp_adt_a,
       { "Size", "acn.dmp_adt_a",
         FT_UINT8, BASE_DEC, VALS(acn_dmp_adt_a_vals), 0x03,
@@ -3150,11 +3158,13 @@ proto_register_acn(void)
     },
 
     /* Session Count */
+#if 0
     { &hf_acn_session_count,
       { "Session Count", "acn.session_count",
         FT_UINT16, BASE_DEC_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
     /* Total Sequence Number */
     { &hf_acn_total_sequence_number,
       { "Total Sequence Number", "acn.total_sequence_number",

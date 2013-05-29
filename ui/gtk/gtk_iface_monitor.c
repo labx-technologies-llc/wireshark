@@ -38,6 +38,7 @@
 #include "ui/iface_lists.h"
 
 #include "ui/gtk/capture_dlg.h"
+#include "ui/gtk/gtk_iface_monitor.h"
 
 GIOChannel *iface_mon_channel;
 
@@ -45,13 +46,23 @@ static void
 gtk_iface_mon_event_cb(const char *iface, int up)
 {
     int present = 0;
-    guint ifs;
+    guint ifs, j;
     interface_t device;
+    interface_options interface_opts;
 
     for (ifs = 0; ifs < global_capture_opts.all_ifaces->len; ifs++) {
       device = g_array_index(global_capture_opts.all_ifaces, interface_t, ifs);
-      if (!strcmp(device.name, iface))
+      if (!strcmp(device.name, iface)) {
           present = 1;
+          if (!up) {
+          	 for (j = 0; j < global_capture_opts.ifaces->len; j++) {
+                interface_opts = g_array_index(global_capture_opts.ifaces, interface_options, j);
+                if (strcmp(interface_opts.name, device.name) == 0) {
+                	g_array_remove_index(global_capture_opts.ifaces, j);
+                }
+             }
+          }
+        }
     }
 
     if (present == up)
@@ -79,7 +90,7 @@ gtk_iface_mon_start(void)
     iface_mon_channel = g_io_channel_unix_new(sock);
     g_io_channel_set_encoding(iface_mon_channel, NULL, NULL);
     g_io_add_watch(iface_mon_channel,
-                             G_IO_IN|G_IO_ERR|G_IO_HUP,
+                             (GIOCondition)(G_IO_IN|G_IO_ERR|G_IO_HUP),
                              &gtk_iface_mon_event,
                              NULL);
     return 0;

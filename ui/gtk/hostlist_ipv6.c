@@ -45,15 +45,13 @@ static int
 ipv6_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
     hostlist_table *hosts = (hostlist_table *)pit;
-    const struct ip6_hdr *ip6h = vip;
+    const struct ip6_hdr *ip6h = (struct ip6_hdr *)vip;
     address src;
     address dst;
 
     /* Addresses aren't implemented as 'address' type in struct ip6_hdr */
-    src.type = dst.type = AT_IPv6;
-    src.len  = dst.len = sizeof(struct e_in6_addr);
-    src.data = &ip6h->ip6_src;
-    dst.data = &ip6h->ip6_dst;
+    SET_ADDRESS(&src, AT_IPv6, sizeof(struct e_in6_addr), &ip6h->ip6_src);
+    SET_ADDRESS(&dst, AT_IPv6, sizeof(struct e_in6_addr), &ip6h->ip6_dst);
 
     add_hostlist_table_data(hosts, &src, 0, TRUE, 1, pinfo->fd->pkt_len, SAT_NONE, PT_NONE);
     add_hostlist_table_data(hosts, &dst, 0, FALSE, 1, pinfo->fd->pkt_len, SAT_NONE, PT_NONE);

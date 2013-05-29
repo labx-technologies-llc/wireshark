@@ -11,7 +11,6 @@ S<[ B<-b> E<lt>capture ring buffer optionE<gt> ] ...>
 S<[ B<-B> E<lt>capture buffer sizeE<gt> ] >
 S<[ B<-c> E<lt>capture packet countE<gt> ]>
 S<[ B<-C> E<lt>configuration profileE<gt> ]>
-S<[ B<-d> E<lt>display filterE<gt> ]>
 S<[ B<-D> ]>
 S<[ B<--display=>E<lt>X display to useE<gt> ] >
 S<[ B<-f> E<lt>capture filterE<gt> ]>
@@ -41,6 +40,7 @@ S<[ B<-v> ]>
 S<[ B<-w> E<lt>outfileE<gt> ]>
 S<[ B<-X> E<lt>eXtension optionE<gt> ]>
 S<[ B<-y> E<lt>capture link typeE<gt> ]>
+S<[ B<-Y> E<lt>displaY filterE<gt> ]>
 S<[ B<-z> E<lt>statisticsE<gt> ]>
 S<[ E<lt>infileE<gt> ]>
 
@@ -172,6 +172,9 @@ instruments
 =item *
 MPEG-2 Transport Streams as defined in ISO/IEC 13818-1
 
+=item *
+Rabbit Labs CAM Inspector files
+
 =back
 
 There is no need to tell B<Wireshark> what type of
@@ -270,11 +273,11 @@ of size one megabyte.
 
 =item -B  E<lt>capture buffer sizeE<gt>
 
-Set capture buffer size (in MB, default is 1MB).  This is used by the
+Set capture buffer size (in MB, default is 2MB).  This is used by the
 the capture driver to buffer packet data until that data can be written
 to disk.  If you encounter packet drops while capturing, try to increase
 this size.  Note that, while B<Wireshark> attempts to set the buffer size
-to 1MB by default, and can be told to set it to a larger value, the
+to 2MB by default, and can be told to set it to a larger value, the
 system or interface on which you're capturing might silently limit the
 capture buffer size to a lower value or raise it to a higher value.
 
@@ -297,10 +300,6 @@ data.
 =item -C  E<lt>configuration profileE<gt>
 
 Start with the given configuration profile.
-
-=item -d  E<lt>display filterE<gt>
-
-Start with the given display filter.
 
 =item -D
 
@@ -602,6 +601,10 @@ If used after an B<-i> option, it sets the capture link type for
 the interface specified by the last B<-i> option occurring before
 this option.  If the capture link type is not set specifically,
 the default capture link type is used if provided.
+
+=item -Y  E<lt>displaY filterE<gt>
+
+Start with the given display filter.
 
 =item -z  E<lt>statisticsE<gt>
 
@@ -2735,6 +2738,14 @@ per-file memory is initialized to 0xBADDCAFE when the memory is allocated
 and is reset to 0xDEADBEEF when the memory is freed.  This functionality is
 useful mainly to developers looking for bugs in the way memory is handled.
 
+=item WIRESHARK_DEBUG_WMEM_OVERRIDE
+
+Setting this environment variable forces the wmem framework to use the
+specified allocator backend for *all* allocations, regardless of which
+backend is normally specified by the code. This is mainly useful to developers
+when testing or debugging. See I<README.wmem> in the source distribution for
+details.
+
 =item WIRESHARK_RUN_FROM_BUILD_DIRECTORY
 
 This environment variable causes the plugins and other data files to be loaded
@@ -2813,7 +2824,7 @@ debugging out-of-memory conditions.
 =head1 SEE ALSO
 
 wireshark-filter(4), tshark(1), editcap(1), pcap(3), dumpcap(1), mergecap(1),
-text2pcap(1), pcap-filter(7) or tcpdump(8) if it doesn't exist.
+text2pcap(1), pcap-filter(7) or tcpdump(8)
 
 =head1 NOTES
 
@@ -2824,3 +2835,5 @@ HTML versions of the Wireshark project man pages are available at:
 L<http://www.wireshark.org/docs/man-pages>.
 
 =head1 AUTHORS
+
+

@@ -189,7 +189,7 @@ iostat_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt, const void *du
                     it->double_counter += fvalue_get_floating(&((field_info *)gp->pdata[i])->value);
                     break;
                 case FT_RELATIVE_TIME:
-                    new_time = fvalue_get(&((field_info *)gp->pdata[i])->value);
+                    new_time = (nstime_t *)fvalue_get(&((field_info *)gp->pdata[i])->value);
                     val = (guint64)((new_time->secs * NANOSECS_PER_SEC) + new_time->nsecs);
                     it->counter  +=  val;
                     break;
@@ -1080,7 +1080,7 @@ iostat_draw(void *arg)
                     item_in_column[j] = item_in_column[j]->next;
                 }
             } else {
-                printf(fmt, (guint64)0);
+                printf(fmt, (guint64)0, (guint64)0);
             }
         }
         if (filler_s)
@@ -1347,7 +1347,7 @@ iostat_init(const char *optarg, void* userdata _U_)
     }
 
     io->items = (io_stat_item_t *) g_malloc(sizeof(io_stat_item_t) * io->num_cols);
-    io->filters = g_malloc(sizeof(char *) * io->num_cols);
+    io->filters = (const char **)g_malloc(sizeof(char *) * io->num_cols);
     io->max_vals = (guint64 *) g_malloc(sizeof(guint64) * io->num_cols);
     io->max_frame = (guint32 *) g_malloc(sizeof(guint32) * io->num_cols);
 
@@ -1368,14 +1368,14 @@ iostat_init(const char *optarg, void* userdata _U_)
             if(pos==str){
                 register_io_tap(io, i, NULL);
             } else if (pos==NULL) {
-                str = (char*) g_strstrip((gchar*)str);
+                str = (const char*) g_strstrip((gchar*)str);
                 filter = g_strdup((gchar*) str);
                 if (*filter)
                     register_io_tap(io, i, filter);
                 else
                     register_io_tap(io, i, NULL);
             } else {
-                filter = g_malloc((pos-str)+1);
+                filter = (gchar *)g_malloc((pos-str)+1);
                 g_strlcpy( filter, str, (gsize) ((pos-str)+1));
                 filter = g_strstrip(filter);
                 register_io_tap(io, i, (char *) filter);

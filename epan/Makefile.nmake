@@ -11,15 +11,39 @@ include Makefile.common
 
 LINK= link
 
-# We use GENERATED_CFLAGS to get around flex's non-LLP64-compliant output
-GENERATED_CFLAGS=\
+#
+# These are the flags for all source files.
+#
+COMMON_CFLAGS=\
 	$(STANDARD_CFLAGS) \
 	/I. /I.. /I../wiretap $(GLIB_CFLAGS) \
 	$(ZLIB_CFLAGS) $(C_ARES_CFLAGS) $(ADNS_CFLAGS) \
 	$(LUA_CFLAGS) $(GNUTLS_CFLAGS) /I$(PCAP_DIR)\include \
 	$(PYTHON_CFLAGS) $(SMI_CFLAGS) $(GEOIP_CFLAGS)
 
-CFLAGS=$(WARNINGS_ARE_ERRORS) $(GENERATED_CFLAGS)
+#
+# These are the flags for generated source files; we don't include
+# $(WARNINGS_ARE_ERRORS), so that we flex's non-LLP64-compliant output
+# doesn't cause compilation to fail.
+#
+GENERATED_CFLAGS=\
+	$(COMMON_CFLAGS) -DWS_BUILD_DLL
+
+#
+# These are the flags for test programs; we don't include -DWS_BUILD_DLL,
+# as we're building test programs that link with the library, not routines
+# incorporated into the library, so they should *import* stuff from the
+# library, not *export* stuff from the library.
+#
+TEST_CFLAGS=\
+	$(WARNINGS_ARE_ERRORS) $(COMMON_CFLAGS)
+
+#
+# These are flags for everything else; we include $(WARNINGS_ARE_ERRORS),
+# as the code should be warning-free, and we include -DWS_BUILD_DLL,
+# as these are library routines, not test programs.
+#
+CFLAGS=$(WARNINGS_ARE_ERRORS) $(GENERATED_CFLAGS) -DWS_BUILD_DLL
 
 !IFDEF LUA_DIR
 WSLUA_LIB=wslua\wslua.lib
@@ -86,12 +110,12 @@ all: crypt ftypes dfilter wmem $(WSLUA_DIR) $(WSPYTHON_DIR) dissectors libwiresh
 libwireshark.lib: libwireshark.dll
 libwireshark.exp: libwireshark.dll
 
-libwireshark.dll: ..\config.h $(LIBWIRESHARK_OBJECTS) libwireshark.def crypt ftypes dfilter wmem $(WSLUA_DIR) $(WSPYTHON_DIR) dissectors $(DOXYGEN_DEP) $(EXTRA_OBJECTS) \
+libwireshark.dll: ..\config.h $(LIBWIRESHARK_OBJECTS) crypt ftypes dfilter wmem $(WSLUA_DIR) $(WSPYTHON_DIR) dissectors $(DOXYGEN_DEP) $(EXTRA_OBJECTS) \
                  crypt\airpdcap.lib ftypes\ftypes.lib dfilter\dfilter.lib wmem/wmem.lib dissectors\dissectors.lib $(WSLUA_LIB) $(WSPYTHON_LIB) ..\image\libwireshark.res
 	@echo Linking libwireshark.dll
 	$(link) $(dlllflags) $(conlibsdll) shell32.lib \
 		$(LOCAL_LDFLAGS) $(DLL_LDFLAGS) \
-		/DEF:libwireshark.def /OUT:libwireshark.dll \
+		/OUT:libwireshark.dll \
 		/IMPLIB:libwireshark.lib $(LIBWIRESHARK_OBJECTS) \
 		$(libwireshark_LIBS) ..\image\libwireshark.res \
 		dissectors\register.obj \
@@ -142,10 +166,10 @@ clean:  clean-local
 #
 distclean-local: clean-local
 	rm -f config.h register.c mkstemp.c \
-		$(LIBWIRESHARK_DISTCLEAN_GENERATED_SRC) \
-		$(LIBWIRESHARK_DISTCLEAN_GENERATED_INCLUDES) \
-		$(LIBWIRESHARK_NODISTCLEAN_GENERATED_SRC) \
-		$(LIBWIRESHARK_NODISTCLEAN_GENERATED_INCLUDES) \
+		$(NODIST_LIBWIRESHARK_GENERATED_C_FILES) \
+		$(NODIST_LIBWIRESHARK_GENERATED_HEADER_FILES) \
+		$(LIBWIRESHARK_GENERATED_C_FILES) \
+		$(LIBWIRESHARK_GENERATED_HEADER_FILES) \
 		dtd_grammar.out	sminmpec.c
 
 distclean: distclean-local
@@ -318,13 +342,26 @@ sminmpec.c: enterprise-numbers ..\tools\make-sminmpec.pl
 
 RUNLEX=..\tools\runlex.sh
 
+#
+# We compile these specially because they're Flex-generated and thus
+# "warnings are errors" will fail because there's a bunch of
+# warnings we can't eliminate.
+#
 diam_dict_lex.h: diam_dict.c
 diam_dict.obj : diam_dict.c
 	$(CC) $(GENERATED_CFLAGS) -Fd.\ -c $?
 
+#
+# This depends on dtd_grammar.h to force dtd_grammar.h to be
+# built before we try to compile it, as dtd_parse.c includes
+# dtd_grammar.h, and dtd_grammar.h is not distributed with
+# the source (it's generated with Lemon).  That means we can't
+# use $?, as that would make it try to compile dtd_grammar.h.
+#
 dtd_parse_lex.h: dtd_parse.c
+dtd_parse.obj : dtd_grammar.h
 dtd_parse.obj : dtd_parse.c
-	$(CC) $(GENERATED_CFLAGS) -Fd.\ -c $?
+	$(CC) $(GENERATED_CFLAGS) -Fd.\ -c dtd_parse.c
 
 dtd_preparse_lex.h: dtd_preparse.c
 dtd_preparse.obj : dtd_preparse.c
@@ -343,6 +380,20 @@ LEMON=..\tools\lemon
 dtd_grammar.h: dtd_grammar.c
 dtd_grammar.c: $(LEMON)\lemon.exe $(LEMON)\lempar.c dtd_grammar.lemon
 	$(LEMON)\lemon t=$(LEMON)\lempar.c dtd_grammar.lemon
+
+#
+# We compile these specially because they're test programs, not library
+# routines, and thus they import stuff from the library rather than
+# exporting stuff from the library.
+#
+exntest.obj: exntest.c
+	$(CC) $(TEST_CFLAGS) -Fd.\ -c $?
+
+reassemble_test.obj: reassemble_test.c
+	$(CC) $(TEST_CFLAGS) -Fd.\ -c $?
+
+tvbtest.obj: tvbtest.c
+	$(CC) $(TEST_CFLAGS) -Fd.\ -c $?
 
 checkapi:
 	$(PERL) ../tools/checkAPIs.pl -g termoutput -build $(LIBWIRESHARK_SRC)

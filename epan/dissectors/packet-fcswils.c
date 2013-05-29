@@ -81,7 +81,7 @@ static int hf_swils_efp_rec_type          = -1;
 static int hf_swils_efp_dom_id            = -1;
 static int hf_swils_efp_switch_name       = -1;
 static int hf_swils_efp_mcast_grpno       = -1;
-static int hf_swils_efp_alias_token       = -1;
+/* static int hf_swils_efp_alias_token       = -1; */
 static int hf_swils_efp_record_len        = -1;
 static int hf_swils_efp_payload_len       = -1;
 static int hf_swils_efp_pswitch_pri       = -1;
@@ -89,7 +89,7 @@ static int hf_swils_efp_pswitch_name      = -1;
 static int hf_swils_dia_switch_name       = -1;
 static int hf_swils_rdi_payload_len       = -1;
 static int hf_swils_rdi_req_sname         = -1;
-static int hf_swils_fspfh_cmd             = -1;
+/* static int hf_swils_fspfh_cmd             = -1; */
 static int hf_swils_fspfh_rev             = -1;
 static int hf_swils_fspfh_ar_num          = -1;
 static int hf_swils_fspfh_auth_type       = -1;
@@ -435,8 +435,8 @@ static gint get_zoneobj_len(tvbuff_t *tvb, gint offset);
 static gint
 fcswils_equal(gconstpointer v, gconstpointer w)
 {
-    const fcswils_conv_key_t *v1 = v;
-    const fcswils_conv_key_t *v2 = w;
+    const fcswils_conv_key_t *v1 = (const fcswils_conv_key_t *)v;
+    const fcswils_conv_key_t *v2 = (const fcswils_conv_key_t *)w;
 
     return (v1->conv_idx == v2->conv_idx);
 }
@@ -444,7 +444,7 @@ fcswils_equal(gconstpointer v, gconstpointer w)
 static guint
 fcswils_hash(gconstpointer v)
 {
-    const fcswils_conv_key_t *key = v;
+    const fcswils_conv_key_t *key = (const fcswils_conv_key_t *)v;
     guint val;
 
     val = key->conv_idx;
@@ -758,7 +758,7 @@ dissect_swils_elp(tvbuff_t *tvb, proto_tree *elp_tree, guint8 isreq _U_)
             char *flagsbuf;
             gint stroff, returned_length;
 
-            flagsbuf=ep_alloc(MAX_FLAGS_LEN);
+            flagsbuf=(char *)ep_alloc(MAX_FLAGS_LEN);
             stroff = 0;
 
             returned_length = g_snprintf(flagsbuf+stroff, MAX_FLAGS_LEN-stroff,
@@ -773,7 +773,7 @@ dissect_swils_elp(tvbuff_t *tvb, proto_tree *elp_tree, guint8 isreq _U_)
                 stroff += MIN(returned_length, MAX_FLAGS_LEN-stroff);
             }
             if (elp.cls1_svcparm[0] & 0x10) {
-                returned_length = g_snprintf(flagsbuf+stroff, MAX_FLAGS_LEN-stroff, " | LKS");
+                /*returned_length =*/ g_snprintf(flagsbuf+stroff, MAX_FLAGS_LEN-stroff, " | LKS");
             }
             flags=flagsbuf;
         }
@@ -1806,10 +1806,10 @@ dissect_fcswils(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             cdata->opcode = opcode;
         }
         else {
-            req_key = se_alloc(sizeof(fcswils_conv_key_t));
+            req_key = se_new(fcswils_conv_key_t);
             req_key->conv_idx = conversation->index;
 
-            cdata = se_alloc(sizeof(fcswils_conv_data_t));
+            cdata = se_new(fcswils_conv_data_t);
             cdata->opcode = opcode;
 
             g_hash_table_insert(fcswils_req_hash, req_key, cdata);
@@ -2036,10 +2036,12 @@ proto_register_fcswils(void)
            FT_UINT8, BASE_HEX, NULL, 0x0,
            NULL, HFILL}},
 
+#if 0
         { &hf_swils_efp_alias_token,
           {"Alias Token", "swils.efp.aliastok",
            FT_BYTES, BASE_NONE, NULL, 0x0,
            NULL, HFILL}},
+#endif
 
         { &hf_swils_efp_record_len,
           {"Record Len", "swils.efp.recordlen",
@@ -2076,10 +2078,12 @@ proto_register_fcswils(void)
            FT_STRING, BASE_NONE, NULL, 0x0,
            NULL, HFILL}},
 
+#if 0
         { &hf_swils_fspfh_cmd,
           {"Command:", "swils.fspf.cmd",
            FT_UINT8, BASE_HEX, NULL, 0x0,
            NULL, HFILL}},
+#endif
 
         { &hf_swils_fspfh_rev,
           {"Version", "swils.fspf.ver",

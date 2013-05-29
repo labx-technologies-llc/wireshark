@@ -1,4 +1,9 @@
 /*
+ * We don't use input, so don't generate code for it.
+ */
+%option noinput
+
+/*
  * We don't use unput, so don't generate code for it.
  */
 %option nounput
@@ -177,15 +182,24 @@ static void finalize_frame(void) {
 	ok_frame = TRUE;
 }
 
-/* Fill in pseudo-header according to the encapsulation type	*/
+/* Fill in pkthdr */
 
 static void
-k12text_set_pseudo_header(gint encap, union wtap_pseudo_header *pseudo_header)
+k12text_set_headers(struct wtap_pkthdr *phdr)
 {
+	phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+
+	phdr->ts.secs = 946681200 + (3600*g_h) + (60*g_m) + g_s;
+	phdr->ts.nsecs = 1000000*g_ms + 1000*g_ns;
+
+	phdr->caplen = phdr->len = ii;
+
+	phdr->pkt_encap = g_encap;
+
 	/* The file-encap is WTAP_ENCAP_PER_PACKET */
-	switch(encap) {
+	switch(g_encap) {
 	    case WTAP_ENCAP_ETHERNET:
-		    pseudo_header->eth.fcs_len = 0;
+		    phdr->pseudo_header.eth.fcs_len = 0;
 		    break;
 	    case WTAP_ENCAP_MTP3:
 	    case WTAP_ENCAP_CHDLC:
@@ -268,15 +282,7 @@ k12text_read(wtap *wth, int *err, char ** err_info, gint64 *data_offset)
 	*data_offset = k12text->next_frame_offset;       /* file position for beginning of this frame   */
 	k12text->next_frame_offset += file_bytes_read;   /* file position after end of this frame       */
 
-	wth->phdr.presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
-
-	wth->phdr.ts.secs = 946681200 + (3600*g_h) + (60*g_m) + g_s;
-	wth->phdr.ts.nsecs = 1000000*g_ms + 1000*g_ns;
-
-	wth->phdr.caplen = wth->phdr.len = ii;
-
-	wth->phdr.pkt_encap = g_encap;
-	k12text_set_pseudo_header(g_encap, &wth->phdr.pseudo_header);
+	k12text_set_headers(&wth->phdr);
 
 	buffer_assure_space(wth->frame_buffer, wth->phdr.caplen);
 	memcpy(buffer_start_ptr(wth->frame_buffer), bb, wth->phdr.caplen);
@@ -287,7 +293,6 @@ k12text_read(wtap *wth, int *err, char ** err_info, gint64 *data_offset)
 static gboolean
 k12text_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr, guint8 *pd, int length, int *err, char **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	if ( file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1) {
 		return FALSE;
 	}
@@ -315,7 +320,7 @@ k12text_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr, guint8 *
 		return FALSE;
 	}
 
-	k12text_set_pseudo_header(g_encap, pseudo_header);
+	k12text_set_headers(phdr);
 
 	memcpy(pd, bb, length);
 
@@ -368,13 +373,14 @@ k12text_dump(wtap_dumper *wdh _U_, const struct wtap_pkthdr *phdr,
 #define K12BUF_SIZE 196808
 	char *buf;
 	size_t left = K12BUF_SIZE;
-	gint wl;
+	size_t wl;
 	char *p;
 	const char* str_enc;
 	guint i;
 	guint ns;
 	guint ms;
 	gboolean ret;
+	struct tm *tmp;
 
 	str_enc = NULL;
 	for(i=0; encaps[i].s; i++) {
@@ -397,16 +403,19 @@ k12text_dump(wtap_dumper *wdh _U_, const struct wtap_pkthdr *phdr,
 	ms = phdr->ts.nsecs / 1000000;
 	ns = (phdr->ts.nsecs - (1000000*ms))/1000;
 
-#ifdef _MSC_VER
+#if (defined _WIN32) && (_MSC_VER < 1500)
 	/* calling gmtime() on MSVC 2005 with huge values causes it to crash */
 	/* XXX - find the exact value that still does work */
 	/* XXX - using _USE_32BIT_TIME_T might be another way to circumvent this problem */
 	if (phdr->ts.secs > 2000000000)
-		g_snprintf(p, 90, "+---------+---------------+----------+\r\nXX:XX:XX,");
+		tmp = NULL;
 	else
 #endif
-	strftime(p, 90, "+---------+---------------+----------+\r\n%H:%M:%S,",
-		 gmtime(&phdr->ts.secs));
+	tmp = gmtime(&phdr->ts.secs);
+	if (tmp == NULL)
+		g_snprintf(p, 90, "+---------+---------------+----------+\r\nXX:XX:XX,");
+	else
+		strftime(p, 90, "+---------+---------------+----------+\r\n%H:%M:%S,", tmp);
 	wl = strlen(p);
 	p += wl;
 	left -= wl;

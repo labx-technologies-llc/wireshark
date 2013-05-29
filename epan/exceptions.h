@@ -52,20 +52,19 @@
     code constructed the packet and put it on the wire didn't put enough
     data into it.  It is therefore currently reported as a "Malformed
     packet".
-    However, it also happens in some cases where the packet was fragmented
-    and the fragments weren't reassembled.  We need to add another length
-    field to a tvbuff, so that "length of the packet from the link layer"
-    and "length of the packet were it fully reassembled" are different,
-    and going past the first of those without going past the second would
-    throw a different exception, which would be reported as an "Unreassembled
-    packet" rather than a "Malformed packet".
 **/
 #define ReportedBoundsError	2
 
 /**
+    Index is beyond fragment length but not reported length.
+    This means that the packet wasn't reassembled.
+**/
+#define FragmentBoundsError	3
+
+/**
     During dfilter parsing
 **/
-#define TypeError		3
+#define TypeError		4
 
 /**
     A bug was detected in a dissector.
@@ -76,7 +75,7 @@
 
     Instead, use the DISSECTOR_ASSERT(), etc. macros in epan/proto.h.
 **/
-#define DissectorError		4
+#define DissectorError		5
 
 /**
     Index is out of range.
@@ -87,14 +86,64 @@
     to get the "size" of lun list back after which the initiator will
     reissue the command with an allocation_length that is big enough.
 **/
-#define ScsiBoundsError		5
+#define ScsiBoundsError		6
 
 /**
     Running out of memory.
     A dissector tried to allocate memory but that failed.
 **/
-#define OutOfMemoryError	6
+#define OutOfMemoryError	7
 
+/**
+    The reassembly state machine was passed a bad fragment offset,
+    or other similar issues. We used to use DissectorError in these
+    cases, but they're not necessarily the dissector's fault - if the packet
+    contains a bad fragment offset, the dissector shouldn't have to figure
+    that out by itself since that's what the reassembly machine is for.
+**/
+#define ReassemblyError         8
+
+/*
+ * Catch errors that, if you're calling a subdissector and catching
+ * exceptions from the subdissector, and possibly dissecting more
+ * stuff after the subdissector returns or fails, mean it makes
+ * sense to continue dissecting:
+ *
+ * BoundsError indicates a configuration problem (the capture was
+ * set up to throw away data, and it did); there's no point in
+ * trying to dissect any more data, as there's no more data to dissect.
+ *
+ * FragmentBoundsError indicates a configuration problem (reassembly
+ * wasn't enabled or couldn't be done); there's no point in trying
+ * to dissect any more data, as there's no more data to dissect.
+ *
+ * OutOfMemoryError indicates what its name suggests; there's no point
+ * in trying to dissect any more data, as you're probably not going to
+ * have any more memory to use when dissecting them.
+ *
+ * Other errors indicate that there's some sort of problem with
+ * the packet; you should continue dissecting data, as it might
+ * be OK, and, even if it's not, you should report its problem
+ * separately.
+ */
+#define CATCH_NONFATAL_ERRORS \
+	CATCH3(ReportedBoundsError, ScsiBoundsError, ReassemblyError)
+
+/*
+ * Catch all bounds-checking errors.
+ */
+#define CATCH_BOUNDS_ERRORS \
+	CATCH4(BoundsError, FragmentBoundsError, ReportedBoundsError, \
+	       ScsiBoundsError)
+
+/*
+ * Catch all bounds-checking errors, and catch dissector bugs.
+ * Should only be used at the top level, so that dissector bugs
+ * go all the way to the top level and get reported immediately.
+ */
+#define CATCH_BOUNDS_AND_DISSECTOR_ERRORS \
+	CATCH6(BoundsError, FragmentBoundsError, ReportedBoundsError, \
+	       ScsiBoundsError, DissectorError, ReassemblyError)
 
 /* Usage:
  *
@@ -110,6 +159,34 @@
  * 	code;
  * }
  *
+ * CATCH3(exception1, exception2, exception3) {
+ * 	code;
+ * }
+ *
+ * CATCH4(exception1, exception2, exception3, exception4) {
+ * 	code;
+ * }
+ *
+ * CATCH5(exception1, exception2, exception3, exception4, exception5) {
+ * 	code;
+ * }
+ *
+ * CATCH6(exception1, exception2, exception3, exception4, exception5, exception6) {
+ * 	code;
+ * }
+ *
+ * CATCH_NONFATAL_ERRORS {
+ *	code;
+ * }
+ *
+ * CATCH_BOUNDS_ERRORS {
+ *	code;
+ * }
+ *
+ * CATCH_BOUNDS_AND_DISSECTOR_ERRORS {
+ *	code;
+ * }
+ *
  * CATCH_ALL {
  * 	code;
  * }
@@ -120,8 +197,8 @@
  *
  * ENDTRY;
  *
- * ********* Never use 'goto' or 'return' inside the TRY, CATCH, CATCH_ALL,
- * ********* or FINALLY blocks. Execution must proceed through ENDTRY before
+ * ********* Never use 'goto' or 'return' inside the TRY, CATCH*, or
+ * ********* FINALLY blocks. Execution must proceed through ENDTRY before
  * ********* branching out.
  *
  * This is really something like:
@@ -143,6 +220,10 @@
  * 	if (!caught && (x == 3 || x == 4)) {
  * 		caught = TRUE;
  * 		<CATCH2(3,4) code>
+ * 	}
+ * 	if (!caught && (x == 5 || x == 6 || x == 7)) {
+ * 		caught = TRUE;
+ * 		<CATCH3(5,6,7) code>
  * 	}
  * 	if (!caught && x != 0) {
  *		caught = TRUE;
@@ -183,11 +264,11 @@
  * and except_state is used to keep track of where we are.
  */
 #define EXCEPT_CAUGHT   1 /* exception has been caught, no need to rethrow at
-                           * END_TRY */
+                           * ENDTRY */
 
 #define EXCEPT_RETHROWN 2 /* the exception was rethrown from a CATCH
                            * block. Don't reenter the CATCH blocks, but do
-                           * execute FINALLY and rethrow at END_TRY */
+                           * execute FINALLY and rethrow at ENDTRY */
 
 #define EXCEPT_FINALLY  4 /* we've entered the FINALLY block - don't allow
                            * RETHROW, and don't reenter FINALLY if a
@@ -220,21 +301,60 @@
  * it's a one-liner.
  */
 #define CATCH(x) \
-	if (except_state == 0 && exc != 0 && exc->except_id.except_code == (x) && \
-	    (except_state |= EXCEPT_CAUGHT))                                      \
+	if (except_state == 0 && exc != 0 && \
+	    exc->except_id.except_code == (x) && \
+	    (except_state |= EXCEPT_CAUGHT)) \
 		/* user's code goes here */
 
 #define CATCH2(x,y) \
 	if (except_state == 0 && exc != 0 && \
-	    (exc->except_id.except_code == (x) || exc->except_id.except_code == (y)) && \
-	    (except_state|=EXCEPT_CAUGHT))                                             \
+	    (exc->except_id.except_code == (x) || \
+	     exc->except_id.except_code == (y)) && \
+	    (except_state|=EXCEPT_CAUGHT)) \
+		/* user's code goes here */
+
+#define CATCH3(x,y,z) \
+	if (except_state == 0 && exc != 0 && \
+	    (exc->except_id.except_code == (x) || \
+	     exc->except_id.except_code == (y) || \
+	     exc->except_id.except_code == (z)) && \
+	    (except_state|=EXCEPT_CAUGHT)) \
+		/* user's code goes here */
+
+#define CATCH4(w,x,y,z) \
+	if (except_state == 0 && exc != 0 && \
+	    (exc->except_id.except_code == (w) || \
+	     exc->except_id.except_code == (x) || \
+	     exc->except_id.except_code == (y) || \
+	     exc->except_id.except_code == (z)) && \
+	    (except_state|=EXCEPT_CAUGHT)) \
+		/* user's code goes here */
+
+#define CATCH5(v,w,x,y,z) \
+	if (except_state == 0 && exc != 0 && \
+	    (exc->except_id.except_code == (v) || \
+	     exc->except_id.except_code == (w) || \
+	     exc->except_id.except_code == (x) || \
+	     exc->except_id.except_code == (y) || \
+	     exc->except_id.except_code == (z)) && \
+	    (except_state|=EXCEPT_CAUGHT)) \
+		/* user's code goes here */
+
+#define CATCH6(u,v,w,x,y,z) \
+	if (except_state == 0 && exc != 0 && \
+	    (exc->except_id.except_code == (u) || \
+	     exc->except_id.except_code == (v) || \
+	     exc->except_id.except_code == (w) || \
+	     exc->except_id.except_code == (x) || \
+	     exc->except_id.except_code == (y) || \
+	     exc->except_id.except_code == (z)) && \
+	    (except_state|=EXCEPT_CAUGHT)) \
 		/* user's code goes here */
 
 #define CATCH_ALL \
 	if (except_state == 0 && exc != 0 && \
-	    (except_state|=EXCEPT_CAUGHT))                                             \
+	    (except_state|=EXCEPT_CAUGHT)) \
 		/* user's code goes here */
-
 
 #define FINALLY \
 	if( !(except_state & EXCEPT_FINALLY) && (except_state|=EXCEPT_FINALLY)) \
@@ -250,6 +370,11 @@
 
 #define THROW_MESSAGE(x, y) \
 	except_throw(XCEPT_GROUP_WIRESHARK, (x), (y))
+
+#define THROW_MESSAGE_ON(cond, x, y) G_STMT_START { \
+	if ((cond)) \
+		except_throw(XCEPT_GROUP_WIRESHARK, (x), (y)); \
+} G_STMT_END
 
 #define GET_MESSAGE			except_message(exc)
 

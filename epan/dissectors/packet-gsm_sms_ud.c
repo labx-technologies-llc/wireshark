@@ -87,11 +87,11 @@ static int hf_gsm_sms_ud_reassembled_length = -1;
  */
 static int hf_gsm_sms_udh_length = -1;
 static int hf_gsm_sms_udh_iei = -1;
-static int hf_gsm_sms_udh_multiple_messages = -1;
+/* static int hf_gsm_sms_udh_multiple_messages = -1; */
 static int hf_gsm_sms_udh_multiple_messages_msg_id = -1;
 static int hf_gsm_sms_udh_multiple_messages_msg_parts = -1;
 static int hf_gsm_sms_udh_multiple_messages_msg_part = -1;
-static int hf_gsm_sms_udh_ports = -1;
+/* static int hf_gsm_sms_udh_ports = -1; */
 static int hf_gsm_sms_udh_ports_src = -1;
 static int hf_gsm_sms_udh_ports_dst = -1;
 
@@ -105,8 +105,7 @@ static gint ett_gsm_sms_ud_fragments = -1;
 static dissector_table_t gsm_sms_dissector_table;
 
 /* Short Message reassembly */
-static GHashTable *sm_fragment_table    = NULL;
-static GHashTable *sm_reassembled_table = NULL;
+static reassembly_table sm_reassembly_table;
 
 static const fragment_items sm_frag_items = {
     /* Fragment subtrees */
@@ -146,8 +145,8 @@ static dissector_handle_t wsp_handle;
 static void
 gsm_sms_ud_defragment_init(void)
 {
-    fragment_table_init(&sm_fragment_table);
-    reassembled_table_init(&sm_reassembled_table);
+    reassembly_table_init(&sm_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 /*
@@ -354,10 +353,11 @@ parse_gsm_sms_ud_message(proto_tree *sm_tree, tvbuff_t *tvb, packet_info *pinfo,
         try_gsm_sms_ud_reassemble = TRUE;
         save_fragmented = pinfo->fragmented;
         pinfo->fragmented = TRUE;
-        fd_sm = fragment_add_seq_check(tvb, i, pinfo,
+        fd_sm = fragment_add_seq_check(&sm_reassembly_table,
+                tvb, i,
+                pinfo,
                 sm_id,                /* guint32 ID for fragments belonging together */
-                sm_fragment_table,    /* list of message fragments */
-                sm_reassembled_table, /* list of reassembled messages */
+                NULL,
                 frag-1,               /* guint32 fragment sequence number */
                 sm_data_len,          /* guint32 fragment length */
                 (frag != frags));     /* More fragments? */
@@ -468,6 +468,7 @@ proto_register_gsm_sms_ud(void)
                 HFILL
             }
         },
+#if 0
         {   &hf_gsm_sms_udh_multiple_messages,
             {   "Multiple messages UDH", "gsm_sms_ud.udh.mm",
                 FT_NONE, BASE_NONE, NULL, 0x00,
@@ -475,6 +476,7 @@ proto_register_gsm_sms_ud(void)
                 HFILL
             }
         },
+#endif
         {   &hf_gsm_sms_udh_multiple_messages_msg_id,
             {   "Message identifier", "gsm_sms_ud.udh.mm.msg_id",
                 FT_UINT16, BASE_DEC, NULL, 0x00,
@@ -496,6 +498,7 @@ proto_register_gsm_sms_ud(void)
                 HFILL
             }
         },
+#if 0
         {   &hf_gsm_sms_udh_ports,
             {   "Port number UDH", "gsm_sms_ud.udh.ports",
                 FT_NONE, BASE_NONE, NULL, 0x00,
@@ -503,6 +506,7 @@ proto_register_gsm_sms_ud(void)
                 HFILL
             }
         },
+#endif
         {   &hf_gsm_sms_udh_ports_src,
             {   "Source port", "gsm_sms_ud.udh.ports.src",
                 FT_UINT8, BASE_DEC, NULL, 0x00,

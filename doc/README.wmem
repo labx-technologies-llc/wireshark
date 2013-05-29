@@ -73,31 +73,54 @@ next packet is dissected. This is effectively the scope of Wireshark's pinfo
 structure, so the pinfo struct has a 'pool' member which is a wmem pool scoped
 to the lifetime of the pinfo struct.
 
-2.2 Core API
+2.2 API
 
- - wmem_alloc
- - wmem_alloc0
+Full documentation for each function (parameters, return values, behaviours)
+lives (or will live) in Doxygen-format in the header files for those functions.
+This is just an overview of which header files you should be looking at.
 
-2.3 String Utilities
+2.2.1 Core API
 
- - wmem_strdup
- - wmem_strndup
- - wmem_strdup_printf
- - wmem_strdup_vprintf
+wmem_core.h
+ - Basic memory management functions like malloc, realloc and free.
 
-2.4 Stack
+2.2.2 Strings
 
- - wmem_create_stack
- - wmem_stack_push
- - wmem_stack_pop
- - wmem_stack_peek
- - wmem_stack_count
+wmem_strutl.h
+ - Utility functions for manipulating null-terminated C-style strings.
+   Functions like strdup and strdup_printf.
 
-2.5 Slab
+wmem_strbuf.h
+ - A managed string object implementation, similar to std::string in C++ or
+   GString from Glib.
 
- - wmem_create_slab
- - wmem_slab_alloc
- - wmem_slab_free
+2.2.3 Container Data Structures
+
+wmem_slist.h
+ - A singly-linked list implementation.
+
+wmem_stack.h
+ - A stack implementation (push, pop, etc).
+
+2.3 Callbacks
+
+WARNING: You probably don't actually need these; use them only when you're
+         sure you understand the dangers.
+
+Sometimes (though hopefully rarely) it may be necessary to store data in a wmem
+pool that requires additional cleanup before it is freed. For example, perhaps
+you have a pointer to a file-handle that needs to be closed. In this case, you
+can register a callback with the wmem_register_cleanup_callback function
+declared in wmem_user_cb.h. Every time the memory in a pool is freed, all
+registered cleanup functions are called first.
+
+Note that callback calling order is not defined, you cannot rely on a
+certain callback being called before or after another.
+
+WARNING: Manually freeing or moving memory (with wmem_free or wmem_realloc)
+         will NOT trigger any callbacks. It is an error to call either of
+         those functions on memory if you have a callback registered to deal
+         with the contents of that memory.
 
 3. Usage for Producers
 
@@ -112,23 +135,20 @@ pool to pick one.
 
 3.1 Available Allocator Back-Ends
 
-The currently available allocators are:
- - glib (wmem_allocator_glib.h)
-        A simple allocator that g_allocs requested memory and tracks each
-        allocation via a linked list.
- - block (wmem_allocator_block.h)
-        A simple block allocator that grabs large chunks of memory at a time
-        (8 MB currently) and serves allocations out of those chunks.
+Each available allocator type has a corresponding entry in the
+wmem_allocator_type_t enumeration defined in wmem_core.h. See the doxygen
+comments in that header file for details on each type.
 
 3.2 Creating a Pool
 
-To create a pool, include the header for the type of allocator you want to use
-and call the create function available in that header. For example,
+To create a pool, include the regular wmem header and call the
+wmem_allocator_new() function with the appropriate type value.
+For example:
 
-    #include "wmem/wmem_allocator_glib.h"
+    #include "wmem/wmem.h"
 
     wmem_allocator_t *myPool;
-    myPool = wmem_create_glib_allocator();
+    myPool = wmem_allocator_new(WMEM_ALLOCATOR_SIMPLE);
 
 From here on in, you don't need to remember which type of allocator you used
 (although allocator authors are welcome to expose additional allocator-specific
@@ -136,20 +156,16 @@ helper functions in their headers). The "myPool" variable can be passed around
 and used as normal in allocation requests as described in section 2 of this
 document.
 
-All the other functions described in this section can be found
-in epan/wmem/wmem.h.
-
 3.3 Destroying a Pool
 
 Regardless of which allocator you used to create a pool, it can be destroyed
 with a call to the function wmem_destroy_allocator(). For example:
 
     #include "wmem/wmem.h"
-    #include "wmem/wmem_allocator_glib.h"
 
     wmem_allocator_t *myPool;
 
-    myPool = wmem_create_glib_allocator();
+    myPool = wmem_allocator_new(WMEM_ALLOCATOR_SIMPLE);
 
     /* Allocate some memory in myPool ... */
 
@@ -166,11 +182,10 @@ and recreating the pool. This method is therefore recommended, especially when
 the pool would otherwise be scoped to a single iteration of a loop. For example:
 
     #include "wmem/wmem.h"
-    #include "wmem/wmem_allocator_glib.h"
 
     wmem_allocator_t *myPool;
 
-    myPool = wmem_create_glib_allocator();
+    myPool = wmem_allocator_new(WMEM_ALLOCATOR_SIMPLE);
     for (...) {
 
         /* Allocate some memory in myPool ... */
@@ -185,29 +200,78 @@ the pool would otherwise be scoped to a single iteration of a loop. For example:
 
 Despite being written in Wireshark's standard C90, wmem follows a fairly
 object-oriented design pattern. Although efficiency is always a concern, the
-primary goals in writing wmem were maintainability, and preventing memory
+primary goals in writing wmem were maintainability and preventing memory
 leaks.
 
 4.1 struct _wmem_allocator_t
 
 The heart of wmem is the _wmem_allocator_t structure defined in the
 wmem_allocator.h header file. This structure uses C function pointers to
-implement a common object-oriented pattern known as an interface (AKA 'abstract
-class' to those of you who are more familiar with C++).
+implement a common object-oriented design pattern known as an interface (also
+known as an abstract class to those who are more familiar with C++).
 
 Different allocator implementations can provide exactly the same interface by
-assigning their own functions (of the appropriate signature) to the members of
-an instance of the structure. The structure currently has four values:
+assigning their own functions to the members of an instance of the structure.
+The structure has eight members in three groups.
+
+4.1.1 Implementation Details
+
+ - private_data
+ - type
+
+The private_data pointer is a void pointer that the allocator implementation can
+use to store whatever internal structures it needs. A pointer to private_data is
+passed to almost all of the other functions that the allocator implementation
+must define.
+
+The type field is an enumeration of type wmem_allocator_type_t (see
+section 3.1). Its value is set by the wmem_allocator_new() function, not
+by the implementation-specific constructor. This field should be considered
+read-only by the allocator implementation.
+
+4.1.2 Consumer Functions
 
  - alloc()
- - free_all()
- - destroy()
- - private_data
+ - free()
+ - realloc()
 
-The private_data pointer is a void pointer that the implementation can use to
-store whatever internal structures it needs. The other three functions should
-be fairly obvious - each one is called with a pointer to the private_data in
-addition to any other arguments.
+These function pointers should be set to functions with semantics obviously
+similar to their standard-library namesakes. Each one takes an extra parameter
+that is a copy of the allocator's private_data pointer.
+
+Note that realloc() and free() are not expected to be called directly by user
+code in most cases - they are primarily optimisations for use by data
+structures that wmem might want to implement (it's hard, for example, to
+implement a dynamically sized array without some form of realloc).
+
+Also note that allocators do not have to handle NULL pointers or 0-length
+requests in any way - those checks are done in an allocator-agnostic way
+higher up in wmem. Allocator authors can assume that all incoming pointers
+(to realloc and free) are non-NULL, and that all incoming lengths (to malloc
+and realloc) are non-0.
+
+4.1.3 Producer/Manager Functions
+
+ - free_all()
+ - gc()
+ - cleanup()
+
+All of these functions take only one parameter, which is the allocator's
+private_data pointer.
+
+The free_all() function should free all the memory currently allocated in the
+pool. Note that this is not necessarily exactly the same as calling free()
+on all the allocated blocks - free_all() is allowed to do additional cleanup
+or to make use of optimizations not available when freeing one block at a time.
+
+The gc() function should do whatever it can to reduce excess memory usage in
+the dissector by returning unused blocks to the OS, optimizing internal data
+structures, etc.
+
+The cleanup() function should do any final cleanup and free any and all memory.
+It is basically the equivalent of a destructor function. For simplicity, wmem
+is guaranteed to call free_all() immediately before this function. There is no
+such guarantee that gc() has (ever) been called.
 
 4.2 Pool-Agnostic API
 
@@ -223,20 +287,57 @@ wmem's stack implementation only take the pool when created - the provided
 pointer is stored internally with the data structure, and subsequent calls
 (like push and pop) will take the stack itself instead of the pool.
 
+4.3 Debugging
+
+The primary debugging control for wmem is the WIRESHARK_DEBUG_WMEM_OVERRIDE
+environment variable. If set, this value forces all calls to
+wmem_allocator_new() to return the same type of allocator, regardless of which
+type is requested normally by the code. It currently has three valid values:
+
+ - The value "simple" forces the use of WMEM_ALLOCATOR_SIMPLE. The valgrind
+   script currently sets this value, since the simple allocator is the only
+   one whose memory allocations are trackable properly by valgrind.
+
+ - The value "strict" forces the use of WMEM_ALLOCATOR_STRICT. The fuzz-test
+   script currently sets this value, since the goal when fuzz-testing is to find
+   as many errors as possible.
+
+ - The value "block" forces the use of WMEM_ALLOCATOR_BLOCK. This is not
+   currently used by any scripts, but is useful for stress-testing the block
+   allocator.
+
+Note that regardless of the value of this variable, it will always be safe to
+call allocator-specific helpers functions. They are required to be safe no-ops
+if the allocator argument is of the wrong type.
+
+4.4 Testing
+
+There is a simple test suite for wmem that lives in the file wmem_test.c and
+should get automatically built into the binary 'wmem_test' when building
+Wireshark. It contains at least basic tests for all existing functionality.
+The suite is run automatically by the build-bots via the shell script
+test/test.sh which calls out to test/suite-unittests.sh.
+
+New features added to wmem (allocators, data structures, utility
+functions, etc.) must also have tests added to this suite.
+
+The test suite could potentially use a clean-up by someone more
+intimately familiar with Glib's testing framework, but it does the job.
+
 5. TODO List
 
 The following is an incomplete list of things that emem provides but wmem has
 not yet implemented:
 
- - strbuf
  - red-black tree
  - tvb_memdup
- - canaries
 
 The following is a list of things that emem doesn't provide but that it might
 be nice if wmem did provide them:
 
  - radix tree
+ - dynamic array
+ - hash table
 
 /*
  * Editor modelines  -  http://www.wireshark.org/tools/modelines.html

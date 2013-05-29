@@ -68,14 +68,14 @@ static int hf_ccsds_vid = -1;
 static int hf_ccsds_dcc = -1;
 
 /* core specific ccsds secondary header */
-static int hf_ccsds_spare1 = -1;
+/* static int hf_ccsds_spare1 = -1; */
 static int hf_ccsds_packet_type = -1;
-static int hf_ccsds_spare2 = -1;
+/* static int hf_ccsds_spare2 = -1; */
 static int hf_ccsds_element_id = -1;
 static int hf_ccsds_cmd_data_packet = -1;
 static int hf_ccsds_format_version_id = -1;
 static int hf_ccsds_extended_format_id = -1;
-static int hf_ccsds_spare3 = -1;
+/* static int hf_ccsds_spare3 = -1; */
 static int hf_ccsds_frame_id = -1;
 
 /* ccsds checkword (checksum) */
@@ -88,6 +88,8 @@ static gint ett_ccsds = -1;
 static gint ett_ccsds_primary_header = -1;
 static gint ett_ccsds_secondary_header = -1;
 static gint ett_ccsds_checkword = -1;
+
+static expert_field ei_ccsds_length_error = EI_INIT;
 
 /* Generic data handle */
 static dissector_handle_t data_handle;
@@ -355,8 +357,7 @@ dissect_ccsds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		item = proto_tree_add_item(primary_header_tree, hf_ccsds_length, tvb, offset, 2, ENC_BIG_ENDIAN);
 	}
 	if (ccsds_length > reported_length) {
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
-				       "Length field value is greater than the packet seen on the wire");
+		expert_add_info(pinfo, item, &ei_ccsds_length_error);
 	}
 	if (tree) {
 		offset += 2;
@@ -587,21 +588,25 @@ proto_register_ccsds(void)
 
 
                 /* core specific ccsds secondary header flags */
+#if 0
 		{ &hf_ccsds_spare1,
 			{ "Spare Bit 1",           "ccsds.spare1",
 			FT_UINT8, BASE_DEC, NULL, 0x10,
 			"unused spare bit 1", HFILL }
 		},
+#endif
 		{ &hf_ccsds_packet_type,
 			{ "Packet Type",       "ccsds.packet_type",
 			FT_UINT8, BASE_DEC, VALS(ccsds_secondary_header_packet_type), 0x0f,
 			NULL, HFILL }
 		},
+#if 0
 		{ &hf_ccsds_spare2,
 			{ "Spare Bit 2",           "ccsds.spare2",
 			FT_UINT16, BASE_DEC, NULL, 0x8000,
 			NULL, HFILL }
 		},
+#endif
 		{ &hf_ccsds_element_id,
 			{ "Element ID",           "ccsds.element_id",
 			FT_UINT16, BASE_DEC, VALS(ccsds_secondary_header_element_id), 0x7800,
@@ -622,11 +627,13 @@ proto_register_ccsds(void)
 			FT_UINT16, BASE_DEC, VALS(ccsds_secondary_header_format_id), 0x003f,
 			NULL, HFILL }
 		},
+#if 0
 		{ &hf_ccsds_spare3,
 			{ "Spare Bits 3",         "ccsds.spare3",
 			FT_UINT8, BASE_DEC, NULL, 0xff,
 			NULL, HFILL }
 		},
+#endif
 		{ &hf_ccsds_frame_id,
 			{ "Frame ID",             "ccsds.frame_id",
 			FT_UINT8, BASE_DEC, NULL, 0xff,
@@ -657,15 +664,22 @@ proto_register_ccsds(void)
 		&ett_ccsds_checkword
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_ccsds_length_error, { "ccsds.length.error", PI_MALFORMED, PI_ERROR, "Length field value is greater than the packet seen on the wire", EXPFILL }},
+	};
+
 	/* Define the CCSDS preferences module */
 	module_t *ccsds_module;
+	expert_module_t* expert_ccsds;
 
 	/* Register the protocol name and description */
 	proto_ccsds = proto_register_protocol("CCSDS", "CCSDS", "ccsds");
 
-        /* Required function calls to register the header fields and subtrees used */
+	/* Required function calls to register the header fields and subtrees used */
 	proto_register_field_array(proto_ccsds, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_ccsds = expert_register_protocol(proto_ccsds);
+	expert_register_field_array(expert_ccsds, ei, array_length(ei));
 
 	register_dissector ( "ccsds", dissect_ccsds, proto_ccsds );
 

@@ -346,7 +346,7 @@ static int dissect_mgcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 	/*
 	 * Check to see whether we're really dealing with MGCP by looking
 	 * for a valid MGCP verb or response code.  This isn't infallible,
-	 * but its cheap and its better than nothing.
+	 * but it's cheap and it's better than nothing.
 	 */
 	if (is_mgcp_verb(tvb,0,tvb_len, &verb_name) || is_mgcp_rspcode(tvb,0,tvb_len))
 	{
@@ -501,7 +501,7 @@ static void dissect_mgcp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 	/*
 	 * Check to see whether we're really dealing with MGCP by looking
 	 * for a valid MGCP verb or response code.  This isn't infallible,
-	 * but its cheap and its better than nothing.
+	 * but it's cheap and it's better than nothing.
 	 */
 	if (is_mgcp_verb(tvb,0,tvb_len,&verb_name) || is_mgcp_rspcode(tvb,0,tvb_len))
 	{
@@ -1459,7 +1459,7 @@ static void dissect_mgcp_firstline(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 			{
 				transid = tvb_format_text(tvb,tvb_previous_offset,tokenlen);
 				/* XXX - what if this isn't a valid text string? */
-				mi->transid = atol(transid);
+				mi->transid = (guint32)strtoul(transid, NULL, 10);
 				proto_tree_add_string(tree, hf_mgcp_transid, tvb,
 				                      tvb_previous_offset, tokenlen, transid);
 			}
@@ -1562,7 +1562,7 @@ static void dissect_mgcp_firstline(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 					   matching conversation is available. */
 					mgcp_call_key.transid = mi->transid;
 					mgcp_call_key.conversation = conversation;
-					mgcp_call = g_hash_table_lookup(mgcp_calls, &mgcp_call_key);
+					mgcp_call = (mgcp_call_t *)g_hash_table_lookup(mgcp_calls, &mgcp_call_key);
 					if (mgcp_call)
 					{
 						/* Indicate the frame to which this is a reply. */
@@ -1682,7 +1682,7 @@ static void dissect_mgcp_firstline(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 				mgcp_call_key.conversation = conversation;
 
 				/* Look up the request */
-				mgcp_call = g_hash_table_lookup(mgcp_calls, &mgcp_call_key);
+				mgcp_call = (mgcp_call_t *)g_hash_table_lookup(mgcp_calls, &mgcp_call_key);
 				if (mgcp_call != NULL)
 				{
 					/* We've seen a request with this TRANSID, with the same
@@ -1715,12 +1715,12 @@ static void dissect_mgcp_firstline(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 					   frame numbers are 1-origin, so we use 0
 					   to mean "we don't yet know in which frame
 					   the reply for this call appears". */
-					new_mgcp_call_key = se_alloc(sizeof(*new_mgcp_call_key));
-					*new_mgcp_call_key = mgcp_call_key;
-					mgcp_call = se_alloc(sizeof(*mgcp_call));
-					mgcp_call->req_num = pinfo->fd->num;
-					mgcp_call->rsp_num = 0;
-					mgcp_call->transid = mi->transid;
+					new_mgcp_call_key    = (mgcp_call_info_key *)se_alloc(sizeof(*new_mgcp_call_key));
+					*new_mgcp_call_key   = mgcp_call_key;
+					mgcp_call            = (mgcp_call_t *)se_alloc(sizeof(*mgcp_call));
+					mgcp_call->req_num   = pinfo->fd->num;
+					mgcp_call->rsp_num   = 0;
+					mgcp_call->transid   = mi->transid;
 					mgcp_call->responded = FALSE;
 					mgcp_call->req_time=pinfo->fd->abs_ts;
 					g_strlcpy(mgcp_call->code,mi->code,5);
@@ -1915,7 +1915,7 @@ dissect_mgcp_connectionparams(proto_tree *parent_tree, tvbuff_t *tvb, gint offse
 			{
 				if (hf_uint != -1)
 				{
-					proto_tree_add_uint(tree, hf_uint, tvb, offset, tokenlen, atol(typval[1]));
+					proto_tree_add_uint(tree, hf_uint, tvb, offset, tokenlen, (guint32)strtoul(typval[1], NULL, 10));
 				}
 				else if (hf_string != -1)
 				{
@@ -2075,7 +2075,7 @@ dissect_mgcp_localconnectionoptions(proto_tree *parent_tree, tvbuff_t *tvb, gint
 			{
 				if (hf_uint != -1)
 				{
-					proto_tree_add_uint(tree, hf_uint, tvb, offset, tokenlen, atol(typval[1]));
+					proto_tree_add_uint(tree, hf_uint, tvb, offset, tokenlen, (guint32)strtoul(typval[1], NULL, 10));
 				}
 				else if (hf_string != -1)
 				{
@@ -2137,7 +2137,7 @@ static gint tvb_find_null_line(tvbuff_t* tvb, gint offset, gint len, gint* next_
 
 	maxoffset = (tvb_current_len - 1) + offset;
 
-	/* Loop around until we either find a line begining with a carriage return
+	/* Loop around until we either find a line beginning with a carriage return
 	   or newline character or until we hit the end of the tvbuff. */
 	do
 	{

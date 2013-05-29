@@ -72,6 +72,8 @@ static int hf_tftp_option_value = -1;
 static gint ett_tftp = -1;
 static gint ett_tftp_option = -1;
 
+static expert_field ei_tftp_blocksize_range = EI_INIT;
+
 static dissector_handle_t tftp_handle;
 static dissector_handle_t data_handle;
 
@@ -148,10 +150,9 @@ tftp_dissect_options(tvbuff_t *tvb, packet_info *pinfo, int offset,
 	  /* Special code to handle individual options */
 	  if (!g_ascii_strcasecmp((const char *)optionname, "blksize") &&
 	      opcode == TFTP_OACK) {
-		gint blocksize = strtol((const char *)optionvalue, NULL, 10);
+		gint blocksize = (gint)strtol((const char *)optionvalue, NULL, 10);
 		if (blocksize < 8 || blocksize > 65464) {
-			expert_add_info_format(pinfo, NULL, PI_RESPONSE_CODE,
-				PI_WARN, "TFTP blocksize out of range");
+			expert_add_info(pinfo, NULL, &ei_tftp_blocksize_range);
 		} else {
 			tftp_info->blocksize = blocksize;
 		}
@@ -303,8 +304,7 @@ static void dissect_tftp_message(tftp_conv_info_t *tftp_info,
 	  col_append_fstr(pinfo->cinfo, COL_INFO, ", Message: %s",
 			  tvb_format_stringzpad(tvb, offset, i1));
 
-	  expert_add_info_format(pinfo, NULL, PI_RESPONSE_CODE,
-			         PI_NOTE, "TFTP blocksize out of range");
+	  expert_add_info(pinfo, NULL, &ei_tftp_blocksize_range);
 	  break;
 
 	case TFTP_OACK:
@@ -334,9 +334,9 @@ dissect_embeddedtftp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
 
   conversation = find_or_create_conversation(pinfo);
 
-  tftp_info = conversation_get_proto_data(conversation, proto_tftp);
+  tftp_info = (tftp_conv_info_t *)conversation_get_proto_data(conversation, proto_tftp);
   if (!tftp_info) {
-    tftp_info = se_alloc(sizeof(tftp_conv_info_t));
+    tftp_info = se_new(tftp_conv_info_t);
     tftp_info->blocksize = 512; /* TFTP default block size */
     tftp_info->source_file = NULL;
     tftp_info->destination_file = NULL;
@@ -406,9 +406,9 @@ dissect_tftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		  return;
 	  }
 	}
-	tftp_info = conversation_get_proto_data(conversation, proto_tftp);
+	tftp_info = (tftp_conv_info_t *)conversation_get_proto_data(conversation, proto_tftp);
         if (!tftp_info) {
-	  tftp_info = se_alloc(sizeof(tftp_conv_info_t));
+	  tftp_info = se_new(tftp_conv_info_t);
 	  tftp_info->blocksize = 512; /* TFTP default block size */
 	  tftp_info->source_file = NULL;
 	  tftp_info->destination_file = NULL;
@@ -476,12 +476,19 @@ proto_register_tftp(void)
     &ett_tftp_option,
   };
 
+  static ei_register_info ei[] = {
+     { &ei_tftp_blocksize_range, { "tftp.blocksize_range", PI_RESPONSE_CODE, PI_WARN, "TFTP blocksize out of range", EXPFILL }},
+  };
+
   module_t *tftp_module;
+  expert_module_t* expert_tftp;
 
   proto_tftp = proto_register_protocol("Trivial File Transfer Protocol",
 				       "TFTP", "tftp");
   proto_register_field_array(proto_tftp, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_tftp = expert_register_protocol(proto_tftp);
+  expert_register_field_array(expert_tftp, ei, array_length(ei));
 
   register_dissector("tftp", dissect_tftp, proto_tftp);
 

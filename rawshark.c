@@ -66,6 +66,7 @@
 #include <glib.h>
 #include <epan/epan.h>
 #include <epan/filesystem.h>
+#include <wsutil/crash_info.h>
 #include <wsutil/privileges.h>
 #include <wsutil/file_util.h>
 
@@ -101,7 +102,6 @@
 #ifdef HAVE_LIBPCAP
 #include <setjmp.h>
 #include "capture-pcap-util.h"
-#include "pcapio.h"
 #ifdef _WIN32
 #include "capture-wpcap.h"
 #endif /* _WIN32 */
@@ -424,6 +424,8 @@ show_version(GString *comp_info_str, GString *runtime_info_str)
 int
 main(int argc, char *argv[])
 {
+    GString             *comp_info_str;
+    GString             *runtime_info_str;
     char                *init_progfile_dir_error;
     int                  opt, i;
     gboolean             arg_error = FALSE;
@@ -443,7 +445,7 @@ main(int argc, char *argv[])
     gchar               *rfilters[64];
     e_prefs             *prefs_p;
     char                 badopt;
-    GLogLevelFlags       log_flags;
+    int                  log_flags;
     GPtrArray           *disp_fields = g_ptr_array_new();
     guint                fc;
     gboolean             skip_pcap_header = FALSE;
@@ -452,8 +454,25 @@ main(int argc, char *argv[])
 
     static const char    optstring[] = OPTSTRING_INIT;
 
+    /* Assemble the compile-time version information string */
+    comp_info_str = g_string_new("Compiled ");
+    get_compiled_version_info(comp_info_str, NULL, epan_get_compiled_version_info);
+
+    /* Assemble the run-time version information string */
+    runtime_info_str = g_string_new("Running ");
+    get_runtime_version_info(runtime_info_str, NULL);
+
+    /* Add it to the information to be reported on a crash. */
+    ws_add_crash_info("Rawshark " VERSION "%s\n"
+           "\n"
+           "%s"
+           "\n"
+           "%s",
+        wireshark_svnversion, comp_info_str->str, runtime_info_str->str);
+
 #ifdef _WIN32
     arg_list_utf_16to8(argc, argv);
+    create_app_running_mutex();
 #endif /* _WIN32 */
 
     /*
@@ -496,10 +515,10 @@ main(int argc, char *argv[])
         G_LOG_LEVEL_DEBUG;
 
     g_log_set_handler(NULL,
-                      log_flags,
+                      (GLogLevelFlags)log_flags,
                       log_func_ignore, NULL /* user_data */);
     g_log_set_handler(LOG_DOMAIN_CAPTURE_CHILD,
-                      log_flags,
+                      (GLogLevelFlags)log_flags,
                       log_func_ignore, NULL /* user_data */);
 
     timestamp_set_type(TS_RELATIVE);
@@ -698,15 +717,6 @@ main(int argc, char *argv[])
                 break;
             case 'v':        /* Show version and exit */
             {
-                GString             *comp_info_str;
-                GString             *runtime_info_str;
-                /* Assemble the compile-time version information string */
-                comp_info_str = g_string_new("Compiled ");
-                get_compiled_version_info(comp_info_str, NULL, epan_get_compiled_version_info);
-
-                /* Assemble the run-time version information string */
-                runtime_info_str = g_string_new("Running ");
-                get_runtime_version_info(runtime_info_str, NULL);
                 show_version(comp_info_str, runtime_info_str);
                 g_string_free(comp_info_str, TRUE);
                 g_string_free(runtime_info_str, TRUE);
@@ -811,10 +821,10 @@ main(int argc, char *argv[])
 
         /* Do we need to PCAP header and magic? */
         if (skip_pcap_header) {
-            guint bytes_left = sizeof(struct pcap_hdr) + sizeof(guint32);
+            size_t bytes_left = sizeof(struct pcap_hdr) + sizeof(guint32);
             gchar buf[sizeof(struct pcap_hdr) + sizeof(guint32)];
-            while (bytes_left > 0) {
-                guint bytes = read(fd, buf, bytes_left);
+            while (bytes_left != 0) {
+                ssize_t bytes = read(fd, buf, (int)bytes_left);
                 if (bytes <= 0) {
                     cmdarg_err("Not enough bytes for pcap header.");
                     exit(2);
@@ -885,8 +895,8 @@ static gboolean
 raw_pipe_read(struct wtap_pkthdr *phdr, guchar * pd, int *err, const gchar **err_info, gint64 *data_offset) {
     struct pcap_pkthdr mem_hdr;
     struct pcaprec_hdr disk_hdr;
-    int bytes_read = 0;
-    int bytes_needed = sizeof(disk_hdr);
+    ssize_t bytes_read = 0;
+    size_t bytes_needed = sizeof(disk_hdr);
     guchar *ptr = (guchar*) &disk_hdr;
     static gchar err_str[100];
 
@@ -897,7 +907,7 @@ raw_pipe_read(struct wtap_pkthdr *phdr, guchar * pd, int *err, const gchar **err
 
     /* Copied from capture_loop.c */
     while (bytes_needed > 0) {
-        bytes_read = read(fd, ptr, bytes_needed);
+        bytes_read = read(fd, ptr, (int)bytes_needed);
         if (bytes_read == 0) {
             *err = 0;
             return FALSE;
@@ -914,14 +924,15 @@ raw_pipe_read(struct wtap_pkthdr *phdr, guchar * pd, int *err, const gchar **err
     if (want_pcap_pkthdr) {
         phdr->ts.secs = mem_hdr.ts.tv_sec;
         phdr->ts.nsecs = mem_hdr.ts.tv_usec * 1000;
-        phdr->caplen = bytes_needed = mem_hdr.caplen;
+        phdr->caplen = mem_hdr.caplen;
         phdr->len = mem_hdr.len;
     } else {
         phdr->ts.secs = disk_hdr.ts_sec;
         phdr->ts.nsecs = disk_hdr.ts_usec * 1000;
-        phdr->caplen = bytes_needed = disk_hdr.incl_len;
+        phdr->caplen = disk_hdr.incl_len;
         phdr->len = disk_hdr.orig_len;
     }
+    bytes_needed = phdr->caplen;
 
     phdr->pkt_encap = encap;
 
@@ -933,14 +944,15 @@ raw_pipe_read(struct wtap_pkthdr *phdr, guchar * pd, int *err, const gchar **err
 #endif
     if (bytes_needed > WTAP_MAX_PACKET_SIZE) {
         *err = WTAP_ERR_BAD_FILE;
-        g_snprintf(err_str, 100, "Bad packet length: %d (%04x)", bytes_needed, bytes_needed);
+        g_snprintf(err_str, 100, "Bad packet length: %lu\n",
+                   (unsigned long) bytes_needed);
         *err_info = err_str;
         return FALSE;
     }
 
     ptr = pd;
     while (bytes_needed > 0) {
-        bytes_read = read(fd, ptr, bytes_needed);
+        bytes_read = read(fd, ptr, (int)bytes_needed);
         if (bytes_read == 0) {
             *err = WTAP_ERR_SHORT_READ;
             *err_info = "Got zero bytes reading data from pipe";
@@ -1116,7 +1128,7 @@ process_packet(capture_file *cf, gint64 offset, struct wtap_pkthdr *whdr,
     }
 
     epan_dissect_cleanup(&edt);
-    frame_data_cleanup(&fdata);
+    frame_data_destroy(&fdata);
 
     return passed;
 }
@@ -1415,14 +1427,14 @@ protocolinfo_init(char *field)
             printf("%u %s %s - ",
                    g_cmd_line_index,
                    ftenum_to_string(hfi),
-                   absolute_time_display_e_to_string(hfi->display));
+                   absolute_time_display_e_to_string((absolute_time_display_e)hfi->display));
             break;
 
         default:
             printf("%u %s %s - ",
                    g_cmd_line_index,
                    ftenum_to_string(hfi),
-                   base_display_e_to_string(hfi->display));
+                   base_display_e_to_string((base_display_e)hfi->display));
             break;
     }
 

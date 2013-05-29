@@ -164,6 +164,84 @@
     </message>
 </context>
 <context>
+    <name>CapturePreferencesFrame</name>
+    <message>
+        <source>Frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Default interface</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;You probably want to enable this. Usually a network card will only capture the traffic sent to its own network address. If you want to capture all traffic that the network card can &amp;quot;see&amp;quot;, mark this option. See the FAQ for some more details of capturing packets from a switched network.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Capture packets in promiscuous mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Capture packets in the next-generation capture file format.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Capture packets in pcap-ng format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Update the list of packets while capture is in progress. This can result in dropped packets on high-speed networks.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update list of packets in real time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Keep the packet list scrolled to the bottom while capturing.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatic scrolling in live capture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Show the capture summary dialog while capturing.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the capture summary dialog while capturing</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ColumnPreferencesFrame</name>
+    <message>
+        <source>Frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Displayed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Title</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Field name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Field occurence</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>DisplayFilterCombo</name>
     <message>
         <source>Display filter selector</source>
@@ -323,9 +401,67 @@
     </message>
 </context>
 <context>
+    <name>FilterExpressionsPreferencesFrame</name>
+    <message>
+        <source>Frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Label</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter Expression</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>FontColorPreferencesFrame</name>
+    <message>
+        <source>Frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Main window font:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select Font</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample ignored packet text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample marked packet text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample stream client text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample stream server text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wireshark: Font</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>ImportTextDialog</name>
     <message>
-        <source>Wireshark: Import from Text</source>
+        <source>Wireshark: Import from Hex Dump</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -520,6 +656,14 @@
         <source>&lt;i&gt;(No format will be applied)&lt;/i&gt;</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Whether or not the file contains information indicating the direction (inbound or outbound) of the packet.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Direction indication:</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>InterfaceTree</name>
@@ -533,6 +677,41 @@
     </message>
     <message>
         <source>%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>LayoutPreferencesFrame</name>
+    <message>
+        <source>Frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pane 1:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet List</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet Details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet Bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pane 2:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pane 3:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -580,6 +759,38 @@
     </message>
     <message>
         <source>No Packets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Profile: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage Profiles...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ready to load or capture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ready to load file</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -633,10 +844,6 @@ more about Wireshark</source>
     </message>
     <message>
         <source>Capture</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>toolBar</source>
         <translation></translation>
     </message>
     <message>
@@ -928,10 +1135,6 @@ more about Wireshark</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&amp;Import...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Import a file</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1191,6 +1394,463 @@ more about Wireshark</source>
         <source>SSL Session Keys (*.keys *.txt);;Any File (*.*)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Analyze</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply as Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prepare a Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Field Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+F</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+V</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>As Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+C</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Not Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>... &amp;and Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>... and Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>... &amp;or Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>... or Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>... a&amp;nd not Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>... and not Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>... o&amp;r not Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>... or not Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display Filters...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display Filter &amp;Macros...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply as Column</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Find Packet...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find a packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+F</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find Ne&amp;xt...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find the next packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+N</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find Pre&amp;vious...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find the previous packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Mark/Unmark Packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mark or unmark this packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+M</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mark All Displayed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mark all displayed packets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+M</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unmark All Displayed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unmark all displayed packets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Meta+Alt+M</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next Mark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to the next marked packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Meta+Shift+N</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Previous Mark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to the previous marked packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Meta+Shift+B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Ignore/Unignore Packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ignore or unignore this packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ignore All Displayed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ignore all displayed packets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unignore All Displayed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unignore all displayed packets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set/Unset Time Reference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set or unset a time reference for this packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+T</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unset All Time References</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove all time references</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Alt+T</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next Time Reference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to the next time reference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Alt+N</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Previous Time Reference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to the previous time reference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Alt+B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Time Shift...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift or change packet timestamps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+T</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet Comment...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add or change a packet comment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Configuration Profiles...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+A</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage Wireshark&apos;s preferences</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+P</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Couldn&apos;t copy text. Try another item.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No filter available. Try another </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name set in iconText to keep QMenuBar from grabbing it on OS X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage your configuration profiles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Preferences...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Import from Hex Dump...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Alt+D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check for Updates...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(File name can&apos;t be mapped to UTF-8)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Wireshark Network Analyzer</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>MainWindowPreferencesFrame</name>
+    <message>
+        <source>Frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking this will save the size, position, and maximized state of the main window.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remember main window size and placement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open files in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This folder:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The most recently used folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show up to</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>filter entries</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>recent files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm unsaved capture files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>If checked the packet detail items will be automatically scrolled when they are expanded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatically scroll packet details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Percentage distance from the top to scroll packet details.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet detail scroll percentage:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Files In</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Main toolbar style:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Icons only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Icons &amp; Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter toolbar style:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ModulePreferencesScrollArea</name>
+    <message>
+        <source>ScrollArea</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wireshark: </source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>PacketCommentDialog</name>
+    <message>
+        <source>Wireshark: Packet Comment</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>PacketFormatGroupBox</name>
@@ -1252,6 +1912,48 @@ more about Wireshark</source>
     </message>
 </context>
 <context>
+    <name>PacketList</name>
+    <message>
+        <source>Apply as Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prepare a Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colorize with Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change Time Display Format?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Time References don&apos;t work well with the currently selected Time Display Format.
+Do you want to switch to &quot;Seconds Since Beginning of Capture&quot; now?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame %1: %2 
+
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>[ Comment text exceeds %1. Stopping. ]</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>PacketRangeGroupBox</name>
     <message>
         <source>Form</source>
@@ -1295,6 +1997,77 @@ more about Wireshark</source>
     </message>
     <message>
         <source>Captured</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>PreferencesDialog</name>
+    <message>
+        <source>Appearance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Columns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Font and Colors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Capture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Advanced</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Changed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wireshark: Preferences</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter Bookmarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wireshark: </source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1346,6 +2119,37 @@ more about Wireshark</source>
     </message>
 </context>
 <context>
+    <name>ProfileDialog</name>
+    <message>
+        <source>Wireshark: Configuration Profiles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create a new profile using default settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove this profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy this profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A profile already exists with that name.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Profile Error</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>ProtoTree</name>
     <message>
         <source>Packet details</source>
@@ -1359,11 +2163,264 @@ more about Wireshark</source>
         <source>, %1 bytes</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Apply as Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prepare a Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colorize with Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>Has this preference been changed?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Default value is empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>SearchFrame</name>
+    <message>
+        <source>Frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Search the Info column of the packet list (summary pane), decoded packet display labels (tree view pane) or the ASCII-converted packet data (hex view pane).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet list</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Search for strings containing narrow (UTF-8 and ASCII) or wide (UTF-16) characters.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Narrow &amp; Wide</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Narrow (UTF-8 / ASCII)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wide (UTF-16)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Case sensitive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Search for data using display filter syntax (e.g. ip.addr==10.1.1.1), a hexadecimal string (e.g. fffffda5) or a plain string (e.g. My String).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hex value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>String</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No valid search type selected. Please report this to the development team.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid filter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>That filter doesn&apos;t test anything.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>That&apos;s not a valid hex string.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You didn&apos;t specify any text for which to search.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No valid character set selected. Please report this to the development team.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No valid search area selected. Please report this to the development team.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No packet contained those bytes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No packet contained that string in its Info column.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No packet contained that string in its dissected display.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No packet contained that string in its converted data.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No packet matched that filter.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>SplashOverlay</name>
     <message>
         <source>Form</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Initializing dissectors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Initializing tap listeners</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Registering dissector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Registering plugins</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Registering Python dissectors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handing off dissector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handing off plugins</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handing off Python dissectors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Loading Lua plugins</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Loading module preferences</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Loading configuration files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Unknown action)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>TimeShiftDialog</name>
+    <message>
+        <source>Wireshark: Time Shift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift all packets by</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:small; font-style:italic;&quot;&gt;[-][[hh:]mm:]ss[.ddd] &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set the time for packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>to</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>...then set packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>and extrapolate the time for all other packets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;&lt;span style=&quot; font-size:small; font-style:italic;&quot;&gt;[YYYY-MM-DD] hh:mm:ss[.ddd] &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undo all shifts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame numbers must be between 1 and %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid frame number.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Time shifting is not available capturing packets.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

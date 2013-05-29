@@ -24,7 +24,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 /*
@@ -679,7 +679,7 @@ asn1_bits_decode ( ASN1_SCK *asn1, int enc_len, guchar **bits,
      */
     if (enc_len != 0) {
         tvb_ensure_bytes_exist(asn1->tvb, asn1->offset, enc_len);
-        *bits = g_malloc (enc_len);
+        *bits = (guchar *)g_malloc (enc_len);
     } else {
 	/*
 	 * If the length is 0, we allocate a 1-byte buffer, as
@@ -687,7 +687,7 @@ asn1_bits_decode ( ASN1_SCK *asn1, int enc_len, guchar **bits,
 	 * and our caller expects us to return a pointer to a
 	 * buffer.
 	 */
-	*bits = g_malloc (1);
+	*bits = (guchar *)g_malloc (1);
     }
 
     ptr = *bits;
@@ -737,7 +737,7 @@ asn1_string_value_decode ( ASN1_SCK *asn1, int enc_len, guchar **octets)
      */
     if (enc_len != 0)
 	tvb_ensure_bytes_exist(asn1->tvb, asn1->offset, enc_len);
-    *octets = g_malloc (enc_len+1);
+    *octets = (guchar *)g_malloc (enc_len+1);
 
     eoc = asn1->offset + enc_len;
     ptr = *octets;
@@ -904,7 +904,7 @@ asn1_oid_value_decode ( ASN1_SCK *asn1, int enc_len, subid_t **oid, guint *len)
     eoc = asn1->offset + enc_len;
 
     size = enc_len + 1;
-    *oid = g_malloc(size * sizeof(gulong));
+    *oid = (guint32 *)g_malloc(size * sizeof(gulong));
     optr = *oid;
 
     ret = asn1_subid_decode (asn1, &subid);

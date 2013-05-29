@@ -41,7 +41,7 @@ static int hf_remunk_opnum = -1;
 static int hf_remunk_refs = -1;
 static int hf_remunk_iids = -1;
 
-static int hf_remunk_flags = -1;
+/* static int hf_remunk_flags = -1; */
 static int hf_remunk_qiresult = -1;
 
 static gint ett_remunk_reminterfaceref = -1;
@@ -109,7 +109,7 @@ dissect_remunk_remqueryinterface_rqst(tvbuff_t *tvb, int offset,
 
     /* limit the allocation to a reasonable size */
     if(u32ArraySize < 100) {
-        call = se_alloc(sizeof(remunk_remqueryinterface_call_t) + u32ArraySize * sizeof(e_uuid_t));
+        call = (remunk_remqueryinterface_call_t *)se_alloc(sizeof(remunk_remqueryinterface_call_t) + u32ArraySize * sizeof(e_uuid_t));
         call->iid_count = u32ArraySize;
         call->iids = (e_uuid_t *) (call+1);
         info->call_data->private_data = call;
@@ -143,7 +143,7 @@ dissect_remunk_remqueryinterface_resp(tvbuff_t *tvb, int offset,
     e_uuid_t     iid;
     e_uuid_t     iid_null = DCERPC_UUID_NULL;
     dcerpc_info *info = (dcerpc_info *) pinfo->private_data;
-    remunk_remqueryinterface_call_t *call = info->call_data->private_data;
+    remunk_remqueryinterface_call_t *call = (remunk_remqueryinterface_call_t *)info->call_data->private_data;
     guint64      oxid;
     guint64      oid;
     e_uuid_t     ipid;
@@ -185,7 +185,7 @@ dissect_remunk_remqueryinterface_resp(tvbuff_t *tvb, int offset,
         /* add interface instance to database (we currently only handle IPv4) */
         if(pinfo->net_src.type == AT_IPv4) {
             dcom_interface_new(pinfo,
-                               pinfo->net_src.data,
+                               (guint8 *)pinfo->net_src.data,
                                &iid, oxid, oid, &ipid);
         }
 
@@ -328,8 +328,10 @@ proto_register_remunk (void)
           { "IIDs", "remunk.iids", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
         { &hf_remunk_qiresult,
           { "QIResult", "remunk.qiresult", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+#if 0
         { &hf_remunk_flags,
           { "Flags", "remunk.flags",  FT_UINT32, BASE_HEX, NULL, 0x0, NULL, HFILL }},
+#endif
         { &hf_remunk_public_refs,
           { "PublicRefs", "remunk.public_refs",  FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
         { &hf_remunk_reminterfaceref,

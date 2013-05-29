@@ -47,7 +47,7 @@ static int hf_icap_response = -1;
 static int hf_icap_reqmod = -1;
 static int hf_icap_respmod = -1;
 static int hf_icap_options = -1;
-static int hf_icap_other = -1;
+/* static int hf_icap_other = -1; */
 
 static gint ett_icap = -1;
 
@@ -123,7 +123,6 @@ dissect_icap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		 * find header format
 		 */
 		if (is_icap_message(line, linelen, &icap_type)) {
-			is_icap = TRUE;
 			goto is_icap_header;
 		}
 
@@ -131,7 +130,6 @@ dissect_icap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		 * if it looks like a blank line, end of header perhaps?
 		 */
 		if (linelen == 0) {
-			is_icap = TRUE;
 			goto is_icap_header;
 		}
 
@@ -201,7 +199,6 @@ dissect_icap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				 * This ends the token; we consider this
 				 * to be a header.
 				 */
-				is_icap = TRUE;
 				goto is_icap_header;
 			}
 		}
@@ -313,10 +310,12 @@ proto_register_icap(void)
 	      { "Options",		"icap.options",
 		FT_BOOLEAN, BASE_NONE, NULL, 0x0,
 		"TRUE if ICAP options", HFILL }},
+#if 0
 	    { &hf_icap_other,
 	      { "Other",		"icap.other",
 		FT_BOOLEAN, BASE_NONE, NULL, 0x0,
 		"TRUE if ICAP other", HFILL }},
+#endif
 	};
 	static gint *ett[] = {
 		&ett_icap,

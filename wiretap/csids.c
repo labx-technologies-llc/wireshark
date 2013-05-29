@@ -42,11 +42,19 @@
  * wireshark.
  */
 
+typedef struct {
+	gboolean byteswapped;
+} csids_t;
+
 static gboolean csids_read(wtap *wth, int *err, gchar **err_info,
 	gint64 *data_offset);
 static gboolean csids_seek_read(wtap *wth, gint64 seek_off,
 	struct wtap_pkthdr *phdr, guint8 *pd, int len,
 	int *err, gchar **err_info);
+static gboolean csids_read_packet_header(FILE_T fh, struct wtap_pkthdr *phdr,
+	int *err, gchar **err_info);
+static gboolean csids_read_packet_data(FILE_T fh, csids_t *csids, int len,
+	guint8 *pd, int *err, gchar **err_info);
 
 struct csids_header {
   guint32 seconds; /* seconds since epoch */
@@ -54,16 +62,12 @@ struct csids_header {
   guint16 caplen;  /* the capture length  */
 };
 
-typedef struct {
-	gboolean byteswapped;
-} csids_t;
-
 /* XXX - return -1 on I/O error and actually do something with 'err'. */
 int csids_open(wtap *wth, int *err, gchar **err_info)
 {
   /* There is no file header. There is only a header for each packet
    * so we read a packet header and compare the caplen with iplen. They
-   * should always be equal except with the wierd byteswap version.
+   * should always be equal except with the weird byteswap version.
    *
    * THIS IS BROKEN-- anytime the caplen is 0x0101 or 0x0202 up to 0x0505
    * this will byteswap it. I need to fix this. XXX --mlh
@@ -79,11 +83,10 @@ int csids_open(wtap *wth, int *err, gchar **err_info)
   bytesRead = file_read( &hdr, sizeof( struct csids_header), wth->fh );
   if( bytesRead != sizeof( struct csids_header) ) {
     *err = file_error( wth->fh, err_info );
-    if( *err != 0 ) {
+    if( *err != 0 && *err != WTAP_ERR_SHORT_READ ) {
       return -1;
-    } else {
-      return 0;
     }
+    return 0;
   }
   if( hdr.zeropad != 0 || hdr.caplen == 0 ) {
 	return 0;
@@ -93,25 +96,23 @@ int csids_open(wtap *wth, int *err, gchar **err_info)
   bytesRead = file_read( &tmp, 2, wth->fh );
   if( bytesRead != 2 ) {
     *err = file_error( wth->fh, err_info );
-    if( *err != 0 ) {
+    if( *err != 0 && *err != WTAP_ERR_SHORT_READ ) {
       return -1;
-    } else {
-      return 0;
     }
+    return 0;
   }
   bytesRead = file_read( &iplen, 2, wth->fh );
   if( bytesRead != 2 ) {
     *err = file_error( wth->fh, err_info );
-    if( *err != 0 ) {
+    if( *err != 0 && *err != WTAP_ERR_SHORT_READ ) {
       return -1;
-    } else {
-      return 0;
     }
+    return 0;
   }
   iplen = pntohs(&iplen);
 
   if ( iplen == 0 )
-    return(0);
+    return 0;
 
   /* if iplen and hdr.caplen are equal, default to no byteswap. */
   if( iplen > hdr.caplen ) {
@@ -153,49 +154,19 @@ static gboolean csids_read(wtap *wth, int *err, gchar **err_info,
 {
   csids_t *csids = (csids_t *)wth->priv;
   guint8 *buf;
-  int bytesRead = 0;
-  struct csids_header hdr;
 
   *data_offset = file_tell(wth->fh);
 
-  bytesRead = file_read( &hdr, sizeof( struct csids_header) , wth->fh );
-  if( bytesRead != sizeof( struct csids_header) ) {
-    *err = file_error( wth->fh, err_info );
-    if (*err == 0 && bytesRead != 0)
-      *err = WTAP_ERR_SHORT_READ;
+  if( !csids_read_packet_header(wth->fh, &wth->phdr, err, err_info ) )
     return FALSE;
-  }
-  hdr.seconds = pntohl(&hdr.seconds);
-  hdr.caplen = pntohs(&hdr.caplen);
 
   /* Make sure we have enough room for the packet */
-  buffer_assure_space(wth->frame_buffer, hdr.caplen);
+  buffer_assure_space(wth->frame_buffer, wth->phdr.caplen);
   buf = buffer_start_ptr(wth->frame_buffer);
 
-  bytesRead = file_read( buf, hdr.caplen, wth->fh );
-  if( bytesRead != hdr.caplen ) {
-    *err = file_error( wth->fh, err_info );
-    if (*err == 0)
-      *err = WTAP_ERR_SHORT_READ;
+  if( !csids_read_packet_data( wth->fh, csids, wth->phdr.caplen, buf,
+                               err, err_info ) )
     return FALSE;
-  }
-
-  wth->phdr.presence_flags = WTAP_HAS_TS;
-  wth->phdr.len = hdr.caplen;
-  wth->phdr.caplen = hdr.caplen;
-  wth->phdr.ts.secs = hdr.seconds;
-  wth->phdr.ts.nsecs = 0;
-
-  if( csids->byteswapped ) {
-    if( hdr.caplen >= 2 ) {
-      PBSWAP16(buf);   /* the ip len */
-      if( hdr.caplen >= 4 ) {
-        PBSWAP16(buf+2); /* ip id */
-        if( hdr.caplen >= 6 )
-          PBSWAP16(buf+4); /* ip flags and fragoff */
-      }
-    }
-  }
 
   return TRUE;
 }
@@ -204,52 +175,76 @@ static gboolean csids_read(wtap *wth, int *err, gchar **err_info,
 static gboolean
 csids_seek_read (wtap *wth,
 		 gint64 seek_off,
-		 struct wtap_pkthdr *phdr _U_,
+		 struct wtap_pkthdr *phdr,
 		 guint8 *pd,
 		 int len,
 		 int *err,
 		 gchar **err_info)
 {
   csids_t *csids = (csids_t *)wth->priv;
-  int bytesRead;
-  struct csids_header hdr;
 
   if( file_seek( wth->random_fh, seek_off, SEEK_SET, err ) == -1 )
     return FALSE;
 
-  bytesRead = file_read( &hdr, sizeof( struct csids_header), wth->random_fh );
+  if( !csids_read_packet_header( wth->random_fh, phdr, err, err_info ) )
+    return FALSE;
+
+  if( (guint32)len != phdr->caplen ) {
+    *err = WTAP_ERR_BAD_FILE;
+    *err_info = g_strdup_printf("csids: record length %u doesn't match requested length %d",
+                                 phdr->caplen, len);
+    return FALSE;
+  }
+
+  return csids_read_packet_data( wth->random_fh, csids, phdr->caplen, pd,
+                                 err, err_info );
+}
+
+static gboolean
+csids_read_packet_header(FILE_T fh, struct wtap_pkthdr *phdr, int *err,
+                         gchar **err_info)
+{
+  struct csids_header hdr;
+  int bytesRead = 0;
+
+  bytesRead = file_read( &hdr, sizeof( struct csids_header), fh );
   if( bytesRead != sizeof( struct csids_header) ) {
-    *err = file_error( wth->random_fh, err_info );
-    if( *err == 0 ) {
+    *err = file_error( fh, err_info );
+    if (*err == 0 && bytesRead != 0)
       *err = WTAP_ERR_SHORT_READ;
-    }
     return FALSE;
   }
   hdr.seconds = pntohl(&hdr.seconds);
   hdr.caplen = pntohs(&hdr.caplen);
 
-  if( len != hdr.caplen ) {
-    *err = WTAP_ERR_BAD_FILE;
-    *err_info = g_strdup_printf("csids: record length %u doesn't match requested length %d",
-                                 hdr.caplen, len);
-    return FALSE;
-  }
+  phdr->presence_flags = WTAP_HAS_TS;
+  phdr->len = hdr.caplen;
+  phdr->caplen = hdr.caplen;
+  phdr->ts.secs = hdr.seconds;
+  phdr->ts.nsecs = 0;
+  return TRUE;
+}
 
-  bytesRead = file_read( pd, hdr.caplen, wth->random_fh );
-  if( bytesRead != hdr.caplen ) {
-    *err = file_error( wth->random_fh, err_info );
-    if( *err == 0 ) {
+static gboolean
+csids_read_packet_data(FILE_T fh, csids_t *csids, int len, guint8 *pd,
+                       int *err, gchar **err_info)
+{
+  int bytesRead;
+
+  bytesRead = file_read( pd, len, fh );
+  if( bytesRead != len ) {
+    *err = file_error( fh, err_info );
+    if (*err == 0)
       *err = WTAP_ERR_SHORT_READ;
-    }
     return FALSE;
   }
 
   if( csids->byteswapped ) {
-    if( hdr.caplen >= 2 ) {
+    if( len >= 2 ) {
       PBSWAP16(pd);   /* the ip len */
-      if( hdr.caplen >= 4 ) {
+      if( len >= 4 ) {
         PBSWAP16(pd+2); /* ip id */
-        if( hdr.caplen >= 6 )
+        if( len >= 6 )
           PBSWAP16(pd+4); /* ip flags and fragoff */
       }
     }

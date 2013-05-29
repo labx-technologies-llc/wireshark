@@ -58,8 +58,21 @@ WSLUA_API const gchar* lua_shiftstring(lua_State* L, int i) {
     }
 }
 
+/* following is based on the luaL_setfuncs() from Lua 5.2, so we can use it in pre-5.2 */
+WSLUA_API void wslua_setfuncs(lua_State *L, const luaL_Reg *l, int nup) {
+  luaL_checkstack(L, nup, "too many upvalues");
+  for (; l->name != NULL; l++) {  /* fill the table with given functions */
+    int i;
+    for (i = 0; i < nup; i++)  /* copy upvalues to the top */
+      lua_pushvalue(L, -nup);
+    lua_pushcclosure(L, l->func, nup);  /* closure with those upvalues */
+    lua_setfield(L, -(nup + 2), l->name);
+  }
+  lua_pop(L, nup);  /* remove upvalues */
+}
+
 WSLUA_FUNCTION wslua_get_version(lua_State* L) { /* Get Wireshark version */
-    gchar* str = VERSION;
+    const gchar* str = VERSION;
     lua_pushstring(L,str);
     WSLUA_RETURN(1); /* version string */
 }
@@ -176,7 +189,7 @@ static char* wslua_get_actual_filename(const char* fname) {
 		return g_strdup(fname_clean);
 	}
 
-	filename = get_persconffile_path(fname_clean,FALSE,FALSE);
+	filename = get_persconffile_path(fname_clean,FALSE);
 
 	if ( file_exists(filename) ) {
 		return filename;
@@ -239,7 +252,7 @@ WSLUA_FUNCTION wslua_dofile(lua_State* L) {
 WSLUA_FUNCTION wslua_persconffile_path(lua_State* L) {
 #define WSLUA_OPTARG_persconffile_path_FILENAME 1 /* A filename */
 	const char *fname = luaL_optstring(L, WSLUA_OPTARG_persconffile_path_FILENAME,"");
-	char* filename = get_persconffile_path(fname,FALSE,FALSE);
+	char* filename = get_persconffile_path(fname,FALSE);
 
 	lua_pushstring(L,filename);
 	g_free(filename);
@@ -279,11 +292,11 @@ WSLUA_CONSTRUCTOR Dir_open(lua_State* L) {
 		WSLUA_ARG_ERROR(Dir_open,PATHNAME, "must be a directory");
 	}
 
-	dir = g_malloc(sizeof(struct _wslua_dir));
+	dir = (Dir)g_malloc(sizeof(struct _wslua_dir));
 	dir->dir = OPENDIR_OP(dirname_clean);
 	g_free(dirname_clean);
 	dir->ext = extension ? g_strdup(extension) : NULL;
-	dir->dummy = g_malloc(sizeof(GError *));
+	dir->dummy = (GError **)g_malloc(sizeof(GError *));
 	*(dir->dummy) = NULL;
 
 	if (dir->dir == NULL) {
@@ -355,7 +368,8 @@ WSLUA_METHOD Dir_close(lua_State* L) {
 	return 0;
 }
 
-static int wslua_Dir__gc(lua_State* L) {
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
+static int Dir__gc(lua_State* L) {
 	Dir dir = checkDir(L,1);
 
 	if (dir->dir) {
@@ -379,7 +393,6 @@ static const luaL_Reg Dir_methods[] = {
 
 static const luaL_Reg Dir_meta[] = {
     {"__call", Dir__call},
-    {"__gc", wslua_Dir__gc},
     { NULL, NULL }
 };
 
@@ -396,13 +409,12 @@ typedef struct _statcmd_t {
 	int func_ref;
 } statcmd_t;
 
-static int statcmd_init_cb_error_handler(lua_State* L) {
-	(void)L;
+static int statcmd_init_cb_error_handler(lua_State* L _U_) {
 	return 0;
 }
 
 static void statcmd_init(const char *optarg, void* userdata) {
-	statcmd_t* sc = userdata;
+    statcmd_t* sc = (statcmd_t *)userdata;
     lua_State* L = sc->L;
 
     lua_settop(L,0);
@@ -432,7 +444,7 @@ WSLUA_FUNCTION wslua_register_stat_cmd_arg(lua_State* L) {
 #define WSLUA_ARG_register_stat_cmd_arg_ARGUMENT 1 /* Argument */
 #define WSLUA_OPTARG_register_stat_cmd_arg_ACTION 2 /* Action */
 	const char* arg = luaL_checkstring(L,WSLUA_ARG_register_stat_cmd_arg_ARGUMENT);
-	statcmd_t* sc = g_malloc0(sizeof(statcmd_t)); /* XXX leaked */
+	statcmd_t* sc = (statcmd_t *)g_malloc0(sizeof(statcmd_t)); /* XXX leaked */
 
 	sc->L = L;
 	lua_pushvalue(L, WSLUA_OPTARG_register_stat_cmd_arg_ACTION);

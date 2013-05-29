@@ -15,6 +15,8 @@
 *_lex.h
 epan/declare_wslua.h
 epan/dissectors/dcerpc/idl2wrs
+epan/dissectors/mesa
+epan/dissectors/xcbproto
 epan/dissectors/packet-ncp2222.c
 epan/dissectors/register-cache.pkl
 epan/dissectors/register.c
@@ -80,6 +82,7 @@ stamp-h1
 text2pcap
 tshark
 wireshark
+wmem_test
 ylwrap
 
 
@@ -125,6 +128,16 @@ qtshark
 /ui/qt/qrc_*.cxx
 /ui/qt/ui_*.h
 /ui/qt/console.lua
+/wireshark-qt*
+
+# abi #
+#######
+epan/abi-check-headers/
+epan/abi-descriptor.xml
+wiretap/abi-check-headers/
+wiretap/abi-descriptor.xml
+wsutil/abi-check-headers/
+wsutil/abi-descriptor.xml
 
 # Misc #
 ########

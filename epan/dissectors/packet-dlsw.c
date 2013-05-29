@@ -31,6 +31,9 @@
 #include <epan/packet.h>
 #include "packet-tcp.h"
 
+void proto_register_dlsw(void);
+void proto_reg_handoff_dlsw(void);
+
 static int proto_dlsw = -1;
 static int hf_dlsw_flow_control_indication = -1;
 static int hf_dlsw_flow_control_ack = -1;
@@ -466,7 +469,7 @@ dissect_dlsw_capex(tvbuff_t *tvb, proto_tree *tree, proto_tree *ti2)
 static int
 dissect_dlsw_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-  if (match_strval(tvb_get_guint8(tvb, 0), dlsw_version_vals) == NULL)
+  if (try_val_to_str(tvb_get_guint8(tvb, 0), dlsw_version_vals) == NULL)
   {
     /* Probably not a DLSw packet. */
     return 0;
@@ -500,7 +503,7 @@ get_dlsw_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 static int
 dissect_dlsw_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-  if (match_strval(tvb_get_guint8(tvb, 0), dlsw_version_vals) == NULL)
+  if (try_val_to_str(tvb_get_guint8(tvb, 0), dlsw_version_vals) == NULL)
   {
     /* Probably not a DLSw packet. */
     return 0;

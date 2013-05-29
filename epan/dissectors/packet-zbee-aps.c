@@ -135,6 +135,9 @@ static gint ett_zbee_aps_fragments = -1;
 /* Subtree indices for the ZigBee 2004 & earlier Application Framework. */
 static gint ett_zbee_apf = -1;
 
+static expert_field ei_zbee_aps_invalid_delivery_mode = EI_INIT;
+static expert_field ei_zbee_aps_missing_payload = EI_INIT;
+
 /* Dissector Handles. */
 static dissector_handle_t   data_handle;
 static dissector_handle_t   zbee_aps_handle;
@@ -143,9 +146,8 @@ static dissector_handle_t   zbee_apf_handle;
 /* Dissector List. */
 static dissector_table_t    zbee_aps_dissector_table;
 
-/* Fragment and Reassembly tables. */
-static GHashTable   *zbee_aps_fragment_table = NULL;
-static GHashTable   *zbee_aps_reassembled_table = NULL;
+/* Reassembly table. */
+static reassembly_table     zbee_aps_reassembly_table;
 
 static const fragment_items zbee_aps_frag_items = {
     /* Fragment subtrees */
@@ -620,6 +622,7 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         proto_item_append_text(proto_root, " %s", val_to_str_const(packet.type, zbee_aps_frame_types, "Unknown Type"));
     }
     col_clear(pinfo->cinfo, COL_INFO);
+    col_append_str(pinfo->cinfo, COL_INFO, "APS: ");
     col_append_str(pinfo->cinfo, COL_INFO, val_to_str_const(packet.type, zbee_aps_frame_types, "Unknown Frame Type"));
 
     /*  Display the FCF */
@@ -704,7 +707,7 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
     else {
         /* Illegal Delivery Mode. */
-        expert_add_info_format(pinfo, proto_root, PI_MALFORMED, PI_WARN, "Invalid Delivery Mode");
+        expert_add_info(pinfo, proto_root, &ei_zbee_aps_invalid_delivery_mode);
         return;
 
     }
@@ -879,7 +882,7 @@ dissect_zbee_aps_no_endpt:
          * the block number is the block being sent.
          */
         if (packet.fragmentation == ZBEE_APS_EXT_FCF_FRAGMENT_FIRST) {
-            fragment_set_tot_len(pinfo, msg_id, zbee_aps_fragment_table, packet.block_number);
+            fragment_set_tot_len(&zbee_aps_reassembly_table, pinfo, msg_id, NULL, packet.block_number);
             block_num = 0;  /* first packet. */
         }
         else {
@@ -887,8 +890,9 @@ dissect_zbee_aps_no_endpt:
         }
 
         /* Add this fragment to the reassembly handler. */
-        frag_msg = fragment_add_seq_check(payload_tvb, 0, pinfo, msg_id, zbee_aps_fragment_table,
-                zbee_aps_reassembled_table, block_num, tvb_length(payload_tvb), TRUE);
+        frag_msg = fragment_add_seq_check(&zbee_aps_reassembly_table,
+                payload_tvb, 0, pinfo, msg_id, NULL,
+                block_num, tvb_length(payload_tvb), TRUE);
 
         new_tvb = process_reassembled_data(payload_tvb, 0, pinfo, "Reassembled ZigBee APS" ,
                 frag_msg, &zbee_aps_frag_items, NULL, aps_tree);
@@ -932,7 +936,7 @@ dissect_zbee_aps_no_endpt:
         case ZBEE_APS_FCF_CMD:
             if (!payload_tvb) {
                 /* Command packets MUST contain a payload. */
-                expert_add_info_format(pinfo, proto_root, PI_MALFORMED, PI_ERROR, "Missing Payload");
+                expert_add_info(pinfo, proto_root, &ei_zbee_aps_missing_payload);
                 THROW(BoundsError);
                 return;
             }
@@ -1196,7 +1200,7 @@ dissect_zbee_aps_transport_key(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree
 
     /* Update the key ring for this pan */
     if ( !pinfo->fd->flags.visited && (nwk_hints = (zbee_nwk_hints_t *)p_get_proto_data(pinfo->fd,
-                                                proto_get_id_by_filter_name(ZBEE_PROTOABBREV_NWK)))) {
+                                                proto_get_id_by_filter_name(ZBEE_PROTOABBREV_NWK), 0))) {
 
         nwk_keyring = (GSList **)g_hash_table_lookup(zbee_table_nwk_keyring, &nwk_hints->src_pan);
         if ( !nwk_keyring ) {
@@ -1573,8 +1577,7 @@ dissect_zbee_aps_tunnel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
     offset += 8;
 
     /* The remainder is a tunneled APS frame. */
-    tunnel_tvb = tvb_new_subset(tvb, offset, tvb_length_remaining(tvb, offset),
-            tvb_reported_length_remaining(tvb, offset));
+    tunnel_tvb = tvb_new_subset_remaining(tvb, offset);
     if (tree) root = proto_tree_get_root(tree);
     call_dissector(zbee_aps_handle, tunnel_tvb, pinfo, root);
     offset = tvb_length(tvb);
@@ -1715,12 +1718,12 @@ zbee_apf_transaction_len(tvbuff_t *tvb, guint offset, guint8 type)
         switch (kvp_type) {
             case ZBEE_APP_KVP_ABS_TIME:
             case ZBEE_APP_KVP_REL_TIME:
-                kvp_len += sizeof(guint32);
+                kvp_len += 4;
                 break;
             case ZBEE_APP_KVP_UINT16:
             case ZBEE_APP_KVP_INT16:
             case ZBEE_APP_KVP_FLOAT16:
-                kvp_len +=2;
+                kvp_len += 2;
                 break;
             case ZBEE_APP_KVP_UINT8:
             case ZBEE_APP_KVP_INT8:
@@ -1956,10 +1959,19 @@ void proto_register_zbee_aps(void)
         &ett_zbee_apf
     };
 
+    static ei_register_info ei[] = {
+        { &ei_zbee_aps_invalid_delivery_mode, { "zbee_aps.invalid_delivery_mode", PI_PROTOCOL, PI_WARN, "Invalid Delivery Mode", EXPFILL }},
+        { &ei_zbee_aps_missing_payload, { "zbee_aps.missing_payload", PI_MALFORMED, PI_ERROR, "Missing Payload", EXPFILL }},
+    };
+
+    expert_module_t* expert_zbee_aps;
+
     /* Register ZigBee APS protocol with Wireshark. */
     proto_zbee_aps = proto_register_protocol("ZigBee Application Support Layer", "ZigBee APS", ZBEE_PROTOABBREV_APS);
     proto_register_field_array(proto_zbee_aps, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_zbee_aps = expert_register_protocol(proto_zbee_aps);
+    expert_register_field_array(expert_zbee_aps, ei, array_length(ei));
 
     /* Register the APS dissector and subdissector list. */
     zbee_aps_dissector_table = register_dissector_table("zbee.profile", "ZigBee Profile ID", FT_UINT16, BASE_HEX);
@@ -2010,7 +2022,7 @@ void proto_reg_handoff_zbee_aps(void)
  */
 static void proto_init_zbee_aps(void)
 {
-    fragment_table_init(&zbee_aps_fragment_table);
-    reassembled_table_init(&zbee_aps_reassembled_table);
+    reassembly_table_init(&zbee_aps_reassembly_table,
+                          &addresses_reassembly_table_functions);
 } /* proto_init_zbee_aps */
 

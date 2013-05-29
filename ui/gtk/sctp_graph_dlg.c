@@ -146,9 +146,10 @@ draw_sack_graph(struct sctp_udata *u_data)
 	guint8 type;
 	guint32 tsnumber, dupx;
 	gint xvalue, yvalue;
-	GdkColor red_color = {0, 65535, 0, 0};
-	GdkColor green_color = {0, 0, 65535, 0};
-	GdkColor cyan_color = {0, 0, 65535, 65535};
+	GdkRGBA red_color =    {1.0, 0.0, 0.0, 1.0};
+	GdkRGBA green_color =  {0.0, 1.0, 0.0, 1.0};
+	GdkRGBA cyan_color =   {0.0, 1.0, 1.0, 1.0};
+
 	struct sack_chunk_header *sack_header;
 	struct gaps *gap;
 	guint32 /*max_num,*/ diff;
@@ -228,7 +229,7 @@ draw_sack_graph(struct sctp_udata *u_data)
 #else
 									cr = gdk_cairo_create (u_data->io->pixmap);
 #endif
-									gdk_cairo_set_source_color (cr, &green_color);
+									gdk_cairo_set_source_rgba (cr, &green_color);
 									cairo_arc(cr,
 										xvalue,
 										yvalue,
@@ -265,7 +266,7 @@ draw_sack_graph(struct sctp_udata *u_data)
 #else
 								cr = gdk_cairo_create (u_data->io->pixmap);
 #endif
-								gdk_cairo_set_source_color (cr, &red_color);
+								gdk_cairo_set_source_rgba (cr, &red_color);
 								cairo_arc(cr,
 									xvalue,
 									yvalue,
@@ -300,7 +301,7 @@ draw_sack_graph(struct sctp_udata *u_data)
 #else
 									cr = gdk_cairo_create (u_data->io->pixmap);
 #endif
-									gdk_cairo_set_source_color (cr, &cyan_color);
+									gdk_cairo_set_source_rgba (cr, &cyan_color);
 									cairo_arc(cr,
 										xvalue,
 										yvalue,
@@ -337,9 +338,9 @@ draw_nr_sack_graph(struct sctp_udata *u_data)
 	guint8 type;
 	guint32 tsnumber, j;
 	gint xvalue, yvalue;
-	GdkColor red_color = {0, 65535, 0, 0};
-	GdkColor blue_color = {0, 0, 0, 65535};
-	GdkColor green_color = {0, 0, 65535, 0};
+	GdkRGBA red_color =    {1.0, 0.0, 0.0, 1.0};
+	GdkRGBA green_color =  {0.0, 1.0, 0.0, 1.0};
+	GdkRGBA blue_color  =  {0.0, 0.0, 1.0, 1.0};
 	struct nr_sack_chunk_header *nr_sack_header;
 	struct gaps *nr_gap;
 	guint32 /*max_num,*/ diff;
@@ -428,7 +429,7 @@ draw_nr_sack_graph(struct sctp_udata *u_data)
 #else
 										cr = gdk_cairo_create (u_data->io->pixmap);
 #endif
-										gdk_cairo_set_source_color (cr, &blue_color);
+										gdk_cairo_set_source_rgba (cr, &blue_color);
 										cairo_arc(cr,
 											xvalue,
 											yvalue,
@@ -449,7 +450,7 @@ draw_nr_sack_graph(struct sctp_udata *u_data)
 #else
 										cr = gdk_cairo_create (u_data->io->pixmap);
 #endif
-										gdk_cairo_set_source_color (cr, &green_color);
+										gdk_cairo_set_source_rgba (cr, &green_color);
 										cairo_arc(cr,
 											xvalue,
 											yvalue,
@@ -467,7 +468,7 @@ draw_nr_sack_graph(struct sctp_udata *u_data)
 #else
 										cr = gdk_cairo_create (u_data->io->pixmap);
 #endif
-										gdk_cairo_set_source_color (cr, &green_color);
+										gdk_cairo_set_source_rgba (cr, &green_color);
 										cairo_arc(cr,
 											xvalue,
 											yvalue,
@@ -504,7 +505,7 @@ draw_nr_sack_graph(struct sctp_udata *u_data)
 #else
 							cr = gdk_cairo_create (u_data->io->pixmap);
 #endif
-							gdk_cairo_set_source_color (cr, &red_color);
+							gdk_cairo_set_source_rgba (cr, &red_color);
 							cairo_arc(cr,
 								xvalue,
 								yvalue,
@@ -533,6 +534,8 @@ draw_tsn_graph(struct sctp_udata *u_data)
 	guint32 min_secs=0, diff;
 	gint xvalue, yvalue;
 	cairo_t *cr = NULL;
+	GdkRGBA black_color  =  {0.0, 0.0, 0.0, 1.0};
+	GdkRGBA pink_color  =  {1.0, 0.6, 0.8, 1.0};
 
 	if (u_data->dir == 1)
 	{
@@ -570,7 +573,7 @@ draw_tsn_graph(struct sctp_udata *u_data)
 		while (tlist)
 		{
 			type = ((struct chunk_header *)tlist->data)->type;
-			if (type == SCTP_DATA_CHUNK_ID)
+			if (type == SCTP_DATA_CHUNK_ID || type == SCTP_FORWARD_TSN_CHUNK_ID)
 				tsnumber = g_ntohl(((struct data_chunk_header *)tlist->data)->tsn);
 			if (tsnumber >= min_tsn && tsnumber <= max_tsn && tsn->secs >= min_secs)
 			{
@@ -590,6 +593,10 @@ draw_tsn_graph(struct sctp_udata *u_data)
 #else
 					cr = gdk_cairo_create (u_data->io->pixmap);
 #endif
+					if (type == SCTP_DATA_CHUNK_ID)
+						gdk_cairo_set_source_rgba (cr, &black_color);
+					else
+						gdk_cairo_set_source_rgba (cr, &pink_color);
 					cairo_arc(cr,
 					          xvalue,
 					          yvalue,
@@ -1098,7 +1105,7 @@ sctp_graph_redraw(struct sctp_udata *u_data)
 static void
 on_sack_bt(GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 
 	u_data->io->graph_type=2;
 	sctp_graph_redraw(u_data);
@@ -1107,7 +1114,7 @@ on_sack_bt(GtkWidget *widget _U_, gpointer user_data)
 static void
 on_tsn_bt(GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 
 	u_data->io->graph_type=1;
 	sctp_graph_redraw(u_data);
@@ -1116,7 +1123,7 @@ on_tsn_bt(GtkWidget *widget _U_, gpointer user_data)
 static void
 on_both_bt(GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 
 	u_data->io->graph_type=0;
 	sctp_graph_redraw(u_data);
@@ -1125,7 +1132,7 @@ on_both_bt(GtkWidget *widget _U_, gpointer user_data)
 static void
 sctp_graph_close_cb(GtkWidget* widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 
 	gtk_grab_remove(GTK_WIDGET(u_data->io->window));
 	gtk_widget_destroy(GTK_WIDGET(u_data->io->window));
@@ -1135,7 +1142,7 @@ sctp_graph_close_cb(GtkWidget* widget _U_, gpointer user_data)
 static gboolean
 configure_event(GtkWidget *widget, GdkEventConfigure *event _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	GtkAllocation widget_alloc;
 	cairo_t *cr;
 
@@ -1184,7 +1191,7 @@ configure_event(GtkWidget *widget, GdkEventConfigure *event _U_, gpointer user_d
 static gboolean
 draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data)
 {
-	sctp_graph_t *ios = user_data;
+	sctp_graph_t *ios = (sctp_graph_t *)user_data;
 	GtkAllocation allocation;
 
 	gtk_widget_get_allocation (widget, &allocation);
@@ -1198,7 +1205,7 @@ draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data)
 static gboolean
 expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer user_data)
 {
-	sctp_graph_t *ios = user_data;
+	sctp_graph_t *ios = (sctp_graph_t *)user_data;
 	cairo_t *cr;
 
 	g_assert(ios != NULL);
@@ -1222,12 +1229,12 @@ expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer user_data)
 static void
 on_zoomin_bt (GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	sctp_min_max_t *tmp_minmax;
 
 	if (u_data->io->rectangle_present==TRUE)
 	{
-		tmp_minmax = g_malloc(sizeof(sctp_min_max_t));
+		tmp_minmax = (sctp_min_max_t *)g_malloc(sizeof(sctp_min_max_t));
 
 		u_data->io->tmp_min_tsn1=u_data->io->y1_tmp+u_data->io->min_y;
 		u_data->io->tmp_max_tsn1=u_data->io->y2_tmp+1+u_data->io->min_y;
@@ -1251,7 +1258,7 @@ on_zoomin_bt (GtkWidget *widget _U_, gpointer user_data)
 	}
 	else
 	{
-		simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "Please draw a rectangle around the area you want to zoom in!");
+		simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "Please draw a rectangle around the area you want to zoom in.");
 	}
 }
 
@@ -1260,7 +1267,7 @@ zoomin_bt_fcn (struct sctp_udata *u_data)
 {
 	sctp_min_max_t *tmp_minmax;
 
-	tmp_minmax = g_malloc(sizeof(sctp_min_max_t));
+	tmp_minmax = (sctp_min_max_t *)g_malloc(sizeof(sctp_min_max_t));
 
 	u_data->io->tmp_min_tsn1=u_data->io->y1_tmp+u_data->io->min_y;
 	u_data->io->tmp_max_tsn1=u_data->io->y2_tmp+1+u_data->io->min_y;
@@ -1289,7 +1296,7 @@ zoomin_bt_fcn (struct sctp_udata *u_data)
 static void
 on_zoomout_bt (GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	sctp_min_max_t *tmp_minmax, *mm;
 	gint l;
 
@@ -1346,7 +1353,7 @@ on_zoomout_bt (GtkWidget *widget _U_, gpointer user_data)
 static gboolean
 on_button_press_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	sctp_graph_t *ios;
 	cairo_t *cr;
 
@@ -1360,8 +1367,8 @@ on_button_press_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer us
 		cairo_rectangle (cr,
 			floor(MIN(u_data->io->x_old,u_data->io->x_new)),
 			floor(MIN(u_data->io->y_old,u_data->io->y_new)),
-			floor(abs((long)(u_data->io->x_new-u_data->io->x_old))),
-			floor(abs((long)(u_data->io->y_new-u_data->io->y_old))));
+			floor(abs((int)(u_data->io->x_new-u_data->io->x_old))),
+			floor(abs((int)(u_data->io->y_new-u_data->io->y_old))));
 		cairo_set_source_rgb (cr, 1, 1, 1);
 		cairo_stroke (cr);
 		cairo_destroy (cr);
@@ -1377,7 +1384,7 @@ on_button_press_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer us
 #else
 		gdk_cairo_set_source_pixmap (cr, ios->pixmap, 0, 0);
 #endif
-		cairo_rectangle (cr, 0, 0, abs((long)(u_data->io->x_new-u_data->io->x_old)), abs((long)(u_data->io->y_new-u_data->io->y_old)));
+		cairo_rectangle (cr, 0, 0, abs((int)(u_data->io->x_new-u_data->io->x_old)), abs((int)(u_data->io->y_new-u_data->io->y_old)));
 		cairo_fill (cr);
 
 		cairo_destroy (cr);
@@ -1399,7 +1406,7 @@ on_button_press_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer us
 static gboolean
 on_button_release_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	sctp_graph_t *ios;
 	guint32 helpx, helpy, x1_tmp, x2_tmp,  y_value, t_size=0, s_size=0, i, y_tolerance;
 	gint label_width, label_height;
@@ -1422,7 +1429,7 @@ on_button_release_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer 
 		event->y = u_data->io->surface_height-BOTTOM_BORDER-u_data->io->offset;
 	if (event->x < LEFT_BORDER+u_data->io->offset)
 		event->x = LEFT_BORDER+u_data->io->offset;
-	if (abs((long)(event->x-u_data->io->x_old))>10 || abs((long)(event->y-u_data->io->y_old))>10)
+	if (abs((int)(event->x-u_data->io->x_old))>10 || abs((int)(event->y-u_data->io->y_old))>10)
 	{
 		u_data->io->rect_x_min = (gint)floor(MIN(u_data->io->x_old,event->x));
 		u_data->io->rect_x_max = (gint)ceil(MAX(u_data->io->x_old,event->x));
@@ -1684,7 +1691,6 @@ init_sctp_graph_window(struct sctp_udata *u_data)
 	gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
 	gtk_button_box_set_layout(GTK_BUTTON_BOX (hbox), GTK_BUTTONBOX_SPREAD);
 	gtk_box_set_spacing(GTK_BOX (hbox), 0);
-	gtk_box_set_child_packing(GTK_BOX(vbox), hbox, FALSE, FALSE, 0, GTK_PACK_START);
 	gtk_widget_show(hbox);
 	sack_bt = gtk_button_new_with_label ("Show Only Sacks");
 	gtk_box_pack_start(GTK_BOX(hbox), sack_bt, FALSE, FALSE, 0);
@@ -1750,7 +1756,7 @@ gtk_sctpgraph_init(struct sctp_udata *u_data)
 	sctp_graph_t *io;
 	sctp_min_max_t* tmp_minmax;
 
-	io=g_malloc(sizeof(sctp_graph_t));
+	io=(sctp_graph_t *)g_malloc(sizeof(sctp_graph_t));
 	io->needs_redraw=TRUE;
 	io->x_interval=1000;
 	io->window=NULL;
@@ -1774,7 +1780,7 @@ gtk_sctpgraph_init(struct sctp_udata *u_data)
 	u_data->io->tmp_max_tsn2=u_data->assoc->max_tsn2;
 	u_data->io->tmp=FALSE;
 
-	tmp_minmax = g_malloc(sizeof(sctp_min_max_t));
+	tmp_minmax = (sctp_min_max_t *)g_malloc(sizeof(sctp_min_max_t));
 	tmp_minmax->tmp_min_secs = u_data->assoc->min_secs;
 	tmp_minmax->tmp_min_usecs=u_data->assoc->min_usecs;
 	tmp_minmax->tmp_max_secs=u_data->assoc->max_secs;
@@ -1795,7 +1801,7 @@ gtk_sctpgraph_init(struct sctp_udata *u_data)
 static void
 quit(GObject *object _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data=user_data;
+	struct sctp_udata *u_data=(struct sctp_udata *)user_data;
 
 	decrease_childcount(u_data->parent);
 	remove_child(u_data, u_data->parent);
@@ -1836,7 +1842,7 @@ create_graph(guint16 dir, struct sctp_analyse* userdata)
 {
 	struct sctp_udata *u_data;
 
-	u_data=g_malloc(sizeof(struct sctp_udata));
+	u_data=(struct sctp_udata *)g_malloc(sizeof(struct sctp_udata));
 	u_data->assoc=userdata->assoc;
 	u_data->io=NULL;
 	u_data->dir = dir;

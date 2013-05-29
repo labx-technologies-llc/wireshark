@@ -25,6 +25,8 @@
 #ifndef __FILE_UTIL_H__
 #define __FILE_UTIL_H__
 
+#include "ws_symbol_export.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -65,15 +67,15 @@ extern "C" {
 
 #include <stdio.h>
 
-extern int ws_stdio_open (const gchar *filename, int flags, int mode);
-extern int ws_stdio_rename (const gchar *oldfilename, const gchar *newfilename);
-extern int ws_stdio_mkdir (const gchar *filename, int mode);
-extern int ws_stdio_stat64 (const gchar *filename, ws_statb64 *buf);
-extern int ws_stdio_unlink (const gchar *filename);
-extern int ws_stdio_remove (const gchar *filename);
+WS_DLL_PUBLIC int ws_stdio_open (const gchar *filename, int flags, int mode);
+WS_DLL_PUBLIC int ws_stdio_rename (const gchar *oldfilename, const gchar *newfilename);
+WS_DLL_PUBLIC int ws_stdio_mkdir (const gchar *filename, int mode);
+WS_DLL_PUBLIC int ws_stdio_stat64 (const gchar *filename, ws_statb64 *buf);
+WS_DLL_PUBLIC int ws_stdio_unlink (const gchar *filename);
+WS_DLL_PUBLIC int ws_stdio_remove (const gchar *filename);
 
-extern FILE * ws_stdio_fopen (const gchar *filename, const gchar *mode);
-extern FILE * ws_stdio_freopen (const gchar *filename, const gchar *mode, FILE *stream);
+WS_DLL_PUBLIC FILE * ws_stdio_fopen (const gchar *filename, const gchar *mode);
+WS_DLL_PUBLIC FILE * ws_stdio_freopen (const gchar *filename, const gchar *mode, FILE *stream);
 
 #define ws_open		ws_stdio_open
 #define ws_rename	ws_stdio_rename
@@ -94,6 +96,7 @@ extern FILE * ws_stdio_freopen (const gchar *filename, const gchar *mode, FILE *
 #define ws_dup     _dup
 #define ws_fstat64 _fstati64	/* use _fstati64 for 64-bit size support */
 #define ws_lseek64 _lseeki64	/* use _lseeki64 for 64-bit offset support */
+#define ws_fdopen  _fdopen
 
 /* DLL loading */
 
@@ -102,6 +105,7 @@ extern FILE * ws_stdio_freopen (const gchar *filename, const gchar *mode, FILE *
  *
  * @return TRUE if we were able to call SetDllDirectory, FALSE otherwise.
  */
+WS_DLL_PUBLIC
 gboolean ws_init_dll_search_path();
 
 /** Load a DLL using LoadLibrary.
@@ -111,7 +115,9 @@ gboolean ws_init_dll_search_path();
  * @return A handle to the DLL if found, NULL on failure.
  */
 
+WS_DLL_PUBLIC
 void *ws_load_library(gchar *library_name);
+
 /** Load a DLL using g_module_open.
  * Only the system and program directories are searched.
  *
@@ -119,12 +125,19 @@ void *ws_load_library(gchar *library_name);
  * @param flags Flags to be passed to g_module_open.
  * @return A handle to the DLL if found, NULL on failure.
  */
+WS_DLL_PUBLIC
 GModule *ws_module_open(gchar *module_name, GModuleFlags flags);
 
 /*
  * utf8 version of getenv, needed to get win32 filename paths
  */
-extern char *getenv_utf8(const char *varname);
+WS_DLL_PUBLIC char *getenv_utf8(const char *varname);
+
+/** Create or open a "Wireshark is running" mutex.
+ * Create or open a mutex which signals that Wireshark or its associated
+ * executables is running. Used by the installer to test for a running application.
+ */
+WS_DLL_PUBLIC void create_app_running_mutex();
 
 #else	/* _WIN32 */
 
@@ -149,6 +162,7 @@ extern char *getenv_utf8(const char *varname);
 #define ws_dup     dup
 #define ws_fstat64 fstat	/* AC_SYS_LARGEFILE should make off_t 64-bit */
 #define ws_lseek64 lseek	/* AC_SYS_LARGEFILE should make off_t 64-bit */
+#define ws_fdopen  fdopen
 #define O_BINARY   0		/* Win32 needs the O_BINARY flag for open() */
 
 #endif /* _WIN32 */

@@ -52,8 +52,8 @@
 #include "ui/gtk/main.h"
 #include "ui/gtk/plugins_dlg.h"
 #include "ui/gtk/gui_utils.h"
+#include "ui/gtk/wssplash.h"
 
-#include "../../image/wssplash-dev.xpm"
 #include "webbrowser.h"
 
 /*
@@ -81,7 +81,7 @@ about_wireshark(GtkWidget *parent _U_, GtkWidget *main_vb)
   const char  *title = "Network Protocol Analyzer";
 
   /*icon = xpm_to_widget_from_parent(parent, wssplash_xpm);*/
-  icon = xpm_to_widget(wssplash_xpm);
+  icon = pixbuf_to_widget(wssplash_pb_data);
 
   gtk_box_pack_start(GTK_BOX(main_vb), icon, TRUE, TRUE, 0);
 
@@ -277,7 +277,7 @@ splash_update(register_action_e action, const char *message, gpointer client_dat
     prog_bar = (GtkWidget *)g_object_get_data(G_OBJECT(win), "progress_bar");
     gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(prog_bar), percentage);
 
-    percentage_lb = g_object_get_data(G_OBJECT(win), "percentage_label");
+    percentage_lb = (GtkWidget *)g_object_get_data(G_OBJECT(win), "percentage_label");
     g_snprintf(tmp, sizeof(tmp), "%lu%%", ul_percentage);
     gtk_label_set_text((GtkLabel*)percentage_lb, tmp);
 
@@ -392,6 +392,9 @@ about_folders_page_new(void)
   gint i;
   gchar **resultArray;
 #endif
+#if 0
+  const gchar * const *dirs;
+#endif
 
   scrolledwindow = scrolled_window_new(NULL, NULL);
   gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scrolledwindow),
@@ -417,7 +420,7 @@ about_folders_page_new(void)
   g_free(path);
 
   /* pers conf */
-  path = get_persconffile_path("", FALSE, FALSE);
+  path = get_persconffile_path("", FALSE);
   about_folders_row(table, "Personal configuration", path,
       "\"dfilters\", \"preferences\", \"ethers\", ...");
   g_free(path);
@@ -428,7 +431,12 @@ about_folders_page_new(void)
     about_folders_row(table, "Global configuration", constpath,
         "\"dfilters\", \"preferences\", \"manuf\", ...");
   }
-
+#if 0
+  dirs = g_get_system_data_dirs ();
+  for (i = 0; dirs[i]; i++){
+	  g_warning("glibs data path %u %s",i+1,dirs[i]);
+  }
+#endif
   /* system */
   constpath = get_systemfile_dir();
   about_folders_row(table, "System", constpath,
@@ -570,7 +578,7 @@ about_wireshark_cb( GtkWidget *w _U_, gpointer data _U_ )
   bbox = dlg_button_row_new(GTK_STOCK_OK, NULL);
   gtk_box_pack_start(GTK_BOX(main_box), bbox, FALSE, FALSE, 0);
 
-  ok_btn = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+  ok_btn = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
   gtk_widget_grab_focus(ok_btn);
   gtk_widget_grab_default(ok_btn);
   window_set_cancel_button(about_wireshark_w, ok_btn, window_cancel_button_cb);

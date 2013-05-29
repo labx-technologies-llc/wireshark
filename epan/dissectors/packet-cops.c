@@ -74,6 +74,8 @@
 #define TCP_PORT_PKTCABLE_COPS 2126
 #define TCP_PORT_PKTCABLE_MM_COPS 3918
 
+void proto_register_cops(void);
+
 /* Preference: Variable to hold the tcp port preference */
 static guint global_cops_tcp_port = TCP_PORT_COPS;
 
@@ -555,7 +557,7 @@ static gint hf_cops_obj_c_num = -1;
 static gint hf_cops_obj_c_type = -1;
 
 static gint hf_cops_obj_s_num = -1;
-static gint hf_cops_obj_s_type = -1;
+/* static gint hf_cops_obj_s_type = -1; */
 
 static gint hf_cops_r_type_flags = -1;
 static gint hf_cops_m_type_flags = -1;
@@ -657,7 +659,7 @@ static gint hf_cops_pc_token_bucket_rate = -1;
 static gint hf_cops_pc_token_bucket_size = -1;
 static gint hf_cops_pc_transaction_id = -1;
 static gint hf_cops_pc_bcid_ts = -1;
-static gint hf_cops_pc_bcid = -1;
+/* static gint hf_cops_pc_bcid = -1; */
 static gint hf_cops_pc_bcid_ev = -1;
 static gint hf_cops_pc_dfcdc_ip = -1;
 static gint hf_cops_pc_dfccc_ip = -1;
@@ -764,6 +766,8 @@ static gint ett_cops_gperror = -1;
 static gint ett_cops_cperror = -1;
 static gint ett_cops_pdp = -1;
 
+static expert_field ei_cops_pepid_not_null = EI_INIT;
+
 /* For PacketCable */
 static gint ett_cops_subtree = -1;
 
@@ -838,7 +842,7 @@ typedef struct _COPS_CNV COPS_CNV;
 
 struct _COPS_CNV
 {
-  guint class;
+  guint ber_class;
   guint tag;
   gint  syntax;
   const gchar *name;
@@ -869,7 +873,7 @@ static int cops_tag_cls2syntax ( guint tag, guint cls ) {
     cnv = CopsCnv;
     while (cnv->syntax != -1)
     {
-        if (cnv->tag == tag && cnv->class == cls)
+        if (cnv->tag == tag && cnv->ber_class == cls)
         {
             return *(cnv->hfidp);
         }
@@ -1058,7 +1062,7 @@ static int dissect_cops_object(tvbuff_t *tvb, packet_info *pinfo, guint8 op_code
 
     /* Pad to 32bit boundary */
     if (object_len % sizeof (guint32))
-        object_len += (sizeof (guint32) - object_len % sizeof (guint32));
+        object_len += ((int)sizeof (guint32) - object_len % (int)sizeof (guint32));
 
     return object_len;
 }
@@ -1116,7 +1120,7 @@ static void dissect_cops_pr_objects(tvbuff_t *tvb, packet_info *pinfo, guint32 o
 
         /* Pad to 32bit boundary */
         if (object_len % sizeof (guint32))
-            object_len += (sizeof (guint32) - object_len % sizeof (guint32));
+            object_len += ((int)sizeof (guint32) - object_len % (int)sizeof (guint32));
 
         pr_len -= object_len - COPS_OBJECT_HDR_SIZE;
         offset += object_len - COPS_OBJECT_HDR_SIZE;
@@ -1163,7 +1167,7 @@ static void dissect_cops_object_data(tvbuff_t *tvb, packet_info *pinfo, guint32 
             offset += 4;
         } else if (c_type == 2) {   /* IPv6 */
             tvb_get_ipv6(tvb, offset, &ipv6addr);
-            ifindex = tvb_get_ntohl(tvb, offset + sizeof ipv6addr);
+            ifindex = tvb_get_ntohl(tvb, offset + (int)sizeof ipv6addr);
             ti = proto_tree_add_text(tree, tvb, offset, 20, "Contents: IPv6 address %s, ifIndex: %u",
                                      ip6_to_str(&ipv6addr), ifindex);
             itf_tree = proto_item_add_subtree(ti, ett_cops_itf);
@@ -1272,11 +1276,8 @@ static void dissect_cops_object_data(tvbuff_t *tvb, packet_info *pinfo, guint32 
             break;
 
         if (tvb_strnlen(tvb, offset, len) == -1) {
-            proto_item *pep_ti;
-            pep_ti = proto_tree_add_text(tree, tvb, offset, len, "PEP Id is not a NULL terminated ASCII string");
-            expert_add_info_format(pinfo, pep_ti, PI_MALFORMED, PI_NOTE,
-                                   "PEP Id is not a NULL terminated ASCII string");
-            PROTO_ITEM_SET_GENERATED(pep_ti);
+            ti = proto_tree_add_item(tree, hf_cops_pepid, tvb, offset, len, ENC_ASCII|ENC_NA);
+            expert_add_info(pinfo, ti, &ei_cops_pepid_not_null);
         }
         else
             proto_tree_add_item(tree, hf_cops_pepid, tvb, offset,
@@ -1304,7 +1305,7 @@ static void dissect_cops_object_data(tvbuff_t *tvb, packet_info *pinfo, guint32 
             offset += 4;
         } else if (c_type == 2) {   /* IPv6 */
             tvb_get_ipv6(tvb, offset, &ipv6addr);
-            tcp_port = tvb_get_ntohs(tvb, offset + sizeof ipv6addr + 2);
+            tcp_port = tvb_get_ntohs(tvb, offset + (int)sizeof ipv6addr + 2);
             ti = proto_tree_add_text(tree, tvb, offset, 20, "Contents: IPv6 address %s, TCP Port Number: %u",
                                      ip6_to_str(&ipv6addr), tcp_port);
             pdp_tree = proto_item_add_subtree(ti, ett_cops_pdp);
@@ -1354,7 +1355,7 @@ static guint redecode_oid(guint32* pprid_subids, guint pprid_subids_len, guint8*
 
     for (i=0; i<encoded_len; i++) { if (! (encoded_subids[i] & 0x80 )) n++; }
 
-    *subids_p = subids = ep_alloc(sizeof(guint32)*(n+pprid_subids_len));
+    *subids_p = subids = (guint32 *)ep_alloc(sizeof(guint32)*(n+pprid_subids_len));
     subid_overflow = subids+n+pprid_subids_len;
     for (i=0;i<pprid_subids_len;i++) subids[i] = pprid_subids[i];
 
@@ -1409,7 +1410,7 @@ static int dissect_cops_pr_object_data(tvbuff_t *tvb, packet_info *pinfo, guint3
 
             encoid_len = tvb_length_remaining(oid_tvb,0);
             if (encoid_len > 0) {
-                encoid = ep_tvb_memdup(oid_tvb,0,encoid_len);
+                encoid = (guint8*)ep_tvb_memdup(oid_tvb,0,encoid_len);
                 (*pprid_subids_len) = oid_encoded2subid(encoid, encoid_len, pprid_subids);
             }
         }
@@ -1437,7 +1438,7 @@ static int dissect_cops_pr_object_data(tvbuff_t *tvb, packet_info *pinfo, guint3
 
         /* TODO: check pc, class and tag */
 
-        encoid = ep_tvb_memdup(tvb,offset,encoid_len);
+        encoid = (guint8*)ep_tvb_memdup(tvb,offset,encoid_len);
 
         if (*pprid_subids) {
             /* Never tested this branch */
@@ -1485,7 +1486,7 @@ static int dissect_cops_pr_object_data(tvbuff_t *tvb, packet_info *pinfo, guint3
 
         if(*oid_info_p) {
             if ((*oid_info_p)->kind == OID_KIND_ROW) {
-                oid_info = emem_tree_lookup32((*oid_info_p)->children,1);
+                oid_info = (oid_info_t *)emem_tree_lookup32((emem_tree_t *)(*oid_info_p)->children,1);
             } else {
                 oid_info = NULL;
             }
@@ -1518,7 +1519,7 @@ static int dissect_cops_pr_object_data(tvbuff_t *tvb, packet_info *pinfo, guint3
                  * -- a lazy lego
                  */
                 hfid = oid_info->value_hfid;
-                oid_info = emem_tree_lookup32((*oid_info_p)->children,oid_info->subid+1);
+                oid_info = (oid_info_t *)emem_tree_lookup32((emem_tree_t *)(*oid_info_p)->children,oid_info->subid+1);
             } else
                 hfid = cops_tag_cls2syntax( ber_tag, ber_class );
             switch (proto_registrar_get_ftype(hfid)) {
@@ -1668,11 +1669,13 @@ void proto_register_cops(void)
             FT_UINT8, BASE_DEC, VALS(cops_s_num_vals), 0x0,
             "S-Num in COPS-PR Object Header", HFILL }
         },
+#if 0
         { &hf_cops_obj_s_type,
           { "S-Type",           "cops.s_type",
             FT_UINT8, BASE_DEC, NULL, 0x0,
             "S-Type in COPS-PR Object Header", HFILL }
         },
+#endif
 
         { &hf_cops_r_type_flags,
           { "R-Type",           "cops.context.r_type",
@@ -2066,11 +2069,13 @@ void proto_register_cops(void)
             FT_FLOAT, BASE_NONE, NULL, 0x00,
             NULL, HFILL }
         },
+#if 0
         { &hf_cops_pc_bcid,
           { "Billing Correlation ID", "cops.pc_bcid",
             FT_UINT32, BASE_HEX, NULL, 0x00,
             NULL, HFILL }
         },
+#endif
         { &hf_cops_pc_bcid_ts,
           { "BDID Timestamp", "cops.pc_bcid_ts",
             FT_UINT32, BASE_HEX, NULL, 0x00,
@@ -2529,7 +2534,13 @@ void proto_register_cops(void)
         &ett_docsis_request_transmission_policy,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_cops_pepid_not_null, { "cops.pepid.not_null", PI_MALFORMED, PI_NOTE, "PEP Id is not a NULL terminated ASCII string", EXPFILL }},
+    };
+
+
     module_t* cops_module;
+    expert_module_t* expert_cops;
 
     /* Register the protocol name and description */
     proto_cops = proto_register_protocol("Common Open Policy Service",
@@ -2538,6 +2549,8 @@ void proto_register_cops(void)
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_cops, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_cops = expert_register_protocol(proto_cops);
+    expert_register_field_array(expert_cops, ei, array_length(ei));
 
     /* Make dissector findable by name */
     register_dissector("cops", dissect_cops, proto_cops);

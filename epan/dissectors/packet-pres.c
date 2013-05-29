@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pres.c                                                              */
 /* ../../tools/asn2wrs.py -b -p pres -c ./pres.cnf -s ./packet-pres-template -D . -O ../../epan/dissectors ISO8823-PRESENTATION.asn ISO9576-PRESENTATION.asn */
 
@@ -103,7 +103,6 @@ static int hf_pres_Typed_data_type = -1;
 /*--- Included file: packet-pres-hf.c ---*/
 #line 1 "../../asn1/pres/packet-pres-hf.c"
 static int hf_pres_UD_type_PDU = -1;              /* UD_type */
-static int hf_pres_UDC_type_PDU = -1;             /* UDC_type */
 static int hf_pres_mode_selector = -1;            /* Mode_selector */
 static int hf_pres_x410_mode_parameters = -1;     /* RTORQapdu */
 static int hf_pres_normal_mode_parameters = -1;   /* T_normal_mode_parameters */
@@ -272,7 +271,7 @@ register_ctx_id_and_oid(packet_info *pinfo _U_, guint32 idx, const char *oid)
 		return;
 	}
 
-	pco=se_alloc(sizeof(pres_ctx_oid_t));
+	pco=se_new(pres_ctx_oid_t);
 	pco->ctx_id=idx;
 	pco->oid=se_strdup(oid);
 	conversation=find_conversation (pinfo->fd->num, &pinfo->src, &pinfo->dst,
@@ -336,8 +335,8 @@ find_oid_by_pres_ctx_id(packet_info *pinfo, guint32 idx)
 static void *
 pres_copy_cb(void *dest, const void *orig, size_t len _U_)
 {
-	pres_user_t *u = dest;
-	const pres_user_t *o = orig;
+	pres_user_t *u = (pres_user_t *)dest;
+	const pres_user_t *o = (const pres_user_t *)orig;
 
 	u->ctx_id = o->ctx_id;
 	u->oid = g_strdup(o->oid);
@@ -348,7 +347,7 @@ pres_copy_cb(void *dest, const void *orig, size_t len _U_)
 static void
 pres_free_cb(void *r)
 {
-	pres_user_t *u = r;
+	pres_user_t *u = (pres_user_t *)r;
 
 	g_free(u->oid);
 }
@@ -1348,25 +1347,12 @@ dissect_pres_UD_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
 }
 
 
-
-static int
-dissect_pres_UDC_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_pres_User_data(implicit_tag, tvb, offset, actx, tree, hf_index);
-
-  return offset;
-}
-
 /*--- PDUs ---*/
 
 static void dissect_UD_type_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_) {
   asn1_ctx_t asn1_ctx;
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
   dissect_pres_UD_type(FALSE, tvb, 0, &asn1_ctx, tree, hf_pres_UD_type_PDU);
-}
-static void dissect_UDC_type_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_) {
-  asn1_ctx_t asn1_ctx;
-  asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
-  dissect_pres_UDC_type(FALSE, tvb, 0, &asn1_ctx, tree, hf_pres_UDC_type_PDU);
 }
 
 
@@ -1546,23 +1532,19 @@ void proto_register_pres(void) {
 /*--- Included file: packet-pres-hfarr.c ---*/
 #line 1 "../../asn1/pres/packet-pres-hfarr.c"
     { &hf_pres_UD_type_PDU,
-      { "UD-type", "pres.UD_type",
+      { "UD-type", "pres.UD_type_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
-    { &hf_pres_UDC_type_PDU,
-      { "UDC-type", "pres.UDC_type",
-        FT_UINT32, BASE_DEC, VALS(pres_User_data_vals), 0,
-        NULL, HFILL }},
     { &hf_pres_mode_selector,
-      { "mode-selector", "pres.mode_selector",
+      { "mode-selector", "pres.mode_selector_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_x410_mode_parameters,
-      { "x410-mode-parameters", "pres.x410_mode_parameters",
+      { "x410-mode-parameters", "pres.x410_mode_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTORQapdu", HFILL }},
     { &hf_pres_normal_mode_parameters,
-      { "normal-mode-parameters", "pres.normal_mode_parameters",
+      { "normal-mode-parameters", "pres.normal_mode_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_protocol_version,
@@ -1582,7 +1564,7 @@ void proto_register_pres(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_default_context_name,
-      { "default-context-name", "pres.default_context_name",
+      { "default-context-name", "pres.default_context_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_presentation_requirements,
@@ -1602,7 +1584,7 @@ void proto_register_pres(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "Presentation_context_identifier", HFILL }},
     { &hf_pres_extensions,
-      { "extensions", "pres.extensions",
+      { "extensions", "pres.extensions_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_user_data,
@@ -1610,11 +1592,11 @@ void proto_register_pres(void) {
         FT_UINT32, BASE_DEC, VALS(pres_User_data_vals), 0,
         NULL, HFILL }},
     { &hf_pres_cPR_PPDU_x400_mode_parameters,
-      { "x410-mode-parameters", "pres.x410_mode_parameters",
+      { "x410-mode-parameters", "pres.x410_mode_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTOACapdu", HFILL }},
     { &hf_pres_cPU_PPDU_normal_mode_parameters,
-      { "normal-mode-parameters", "pres.normal_mode_parameters",
+      { "normal-mode-parameters", "pres.normal_mode_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_CPA_PPDU_normal_mode_parameters", HFILL }},
     { &hf_pres_responding_presentation_selector,
@@ -1630,11 +1612,11 @@ void proto_register_pres(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "Presentation_context_identifier", HFILL }},
     { &hf_pres_cPU_PPDU_x400_mode_parameters,
-      { "x400-mode-parameters", "pres.x400_mode_parameters",
+      { "x400-mode-parameters", "pres.x400_mode_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTORJapdu", HFILL }},
     { &hf_pres_cPR_PPDU_normal_mode_parameters,
-      { "normal-mode-parameters", "pres.normal_mode_parameters",
+      { "normal-mode-parameters", "pres.normal_mode_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_CPR_PPDU_normal_mode_parameters", HFILL }},
     { &hf_pres_default_context_result,
@@ -1650,15 +1632,15 @@ void proto_register_pres(void) {
         FT_UINT32, BASE_DEC, VALS(pres_ARU_PPDU_vals), 0,
         NULL, HFILL }},
     { &hf_pres_arp_ppdu,
-      { "arp-ppdu", "pres.arp_ppdu",
+      { "arp-ppdu", "pres.arp_ppdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_aRU_PPDU_x400_mode_parameters,
-      { "x400-mode-parameters", "pres.x400_mode_parameters",
+      { "x400-mode-parameters", "pres.x400_mode_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTABapdu", HFILL }},
     { &hf_pres_aRU_PPDU_normal_mode_parameters,
-      { "normal-mode-parameters", "pres.normal_mode_parameters",
+      { "normal-mode-parameters", "pres.normal_mode_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ARU_PPDU_normal_mode_parameters", HFILL }},
     { &hf_pres_presentation_context_identifier_list,
@@ -1674,11 +1656,11 @@ void proto_register_pres(void) {
         FT_INT32, BASE_DEC, VALS(pres_Event_identifier_vals), 0,
         NULL, HFILL }},
     { &hf_pres_acPPDU,
-      { "acPPDU", "pres.acPPDU",
+      { "acPPDU", "pres.acPPDU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AC_PPDU", HFILL }},
     { &hf_pres_acaPPDU,
-      { "acaPPDU", "pres.acaPPDU",
+      { "acaPPDU", "pres.acaPPDU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ACA_PPDU", HFILL }},
     { &hf_pres_ttdPPDU,
@@ -1702,7 +1684,7 @@ void proto_register_pres(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_Context_list_item,
-      { "Context-list item", "pres.Context_list_item",
+      { "Context-list item", "pres.Context_list_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_presentation_context_identifier,
@@ -1738,11 +1720,11 @@ void proto_register_pres(void) {
         FT_INT32, BASE_DEC, VALS(pres_Presentation_context_deletion_result_list_item_vals), 0,
         NULL, HFILL }},
     { &hf_pres_Presentation_context_identifier_list_item,
-      { "Presentation-context-identifier-list item", "pres.Presentation_context_identifier_list_item",
+      { "Presentation-context-identifier-list item", "pres.Presentation_context_identifier_list_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_Result_list_item,
-      { "Result-list item", "pres.Result_list_item",
+      { "Result-list item", "pres.Result_list_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_result,
@@ -1762,7 +1744,7 @@ void proto_register_pres(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_Fully_encoded_data_item,
-      { "PDV-list", "pres.PDV_list",
+      { "PDV-list", "pres.PDV_list_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_presentation_data_values,
@@ -1770,7 +1752,7 @@ void proto_register_pres(void) {
         FT_UINT32, BASE_DEC, VALS(pres_T_presentation_data_values_vals), 0,
         NULL, HFILL }},
     { &hf_pres_single_ASN1_type,
-      { "single-ASN1-type", "pres.single_ASN1_type",
+      { "single-ASN1-type", "pres.single_ASN1_type_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pres_octet_aligned,
@@ -1919,7 +1901,7 @@ void proto_register_pres(void) {
                              sizeof(pres_user_t),
                              "pres_context_list",
                              TRUE,
-                             (void*) &pres_users,
+                             (void**) &pres_users,
                              &num_pres_users,
                              UAT_AFFECTS_DISSECTION, /* affects dissection of packets, but not set of named fields */
                              "ChPresContextList",

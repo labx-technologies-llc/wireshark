@@ -63,6 +63,8 @@ static int hf_mac_lte_context_bch_transport_channel = -1;
 static int hf_mac_lte_context_retx_count = -1;
 static int hf_mac_lte_context_retx_reason = -1;
 static int hf_mac_lte_context_crc_status = -1;
+static int hf_mac_lte_context_carrier_id = -1;
+
 static int hf_mac_lte_context_rapid = -1;
 static int hf_mac_lte_context_rach_attempt_number = -1;
 
@@ -144,6 +146,7 @@ static int hf_mac_lte_rar_extension = -1;
 static int hf_mac_lte_rar_t = -1;
 static int hf_mac_lte_rar_bi = -1;
 static int hf_mac_lte_rar_rapid = -1;
+static int hf_mac_lte_rar_no_of_rapids = -1;
 static int hf_mac_lte_rar_reserved = -1;
 static int hf_mac_lte_rar_body = -1;
 static int hf_mac_lte_rar_reserved2 = -1;
@@ -304,6 +307,15 @@ static const value_string crc_status_vals[] =
     { 0, NULL }
 };
 
+static const value_string carrier_id_vals[] =
+{
+    { carrier_id_primary,       "Primary"},
+    { carrier_id_secondary_1,   "Secondary-1"},
+    { carrier_id_secondary_2,   "Secondary-2"},
+    { carrier_id_secondary_3,   "Secondary-3"},
+    { carrier_id_secondary_4,   "Secondary-4"},
+    { 0, NULL }
+};
 
 static const value_string dci_format_vals[] =
 {
@@ -876,9 +888,9 @@ typedef struct lcid_drb_mapping_t {
 static lcid_drb_mapping_t *lcid_drb_mappings = NULL;
 static guint num_lcid_drb_mappings = 0;
 
-UAT_VS_DEF(lcid_drb_mappings, lcid, lcid_drb_mapping_t, 3, "LCID 3")
+UAT_VS_DEF(lcid_drb_mappings, lcid, lcid_drb_mapping_t, guint16, 3, "LCID 3")
 UAT_DEC_CB_DEF(lcid_drb_mappings, drbid, lcid_drb_mapping_t)
-UAT_VS_DEF(lcid_drb_mappings, channel_type, lcid_drb_mapping_t, 2, "AM")
+UAT_VS_DEF(lcid_drb_mappings, channel_type, lcid_drb_mapping_t, rlc_channel_type_t, rlcAM, "AM")
 
 /* UAT object */
 static uat_t* lcid_drb_mappings_uat;
@@ -1202,8 +1214,9 @@ gboolean dissect_mac_lte_context_fields(struct mac_lte_info  *p_mac_lte_info, tv
                 offset++;
                 break;
             case MAC_LTE_CRC_STATUS_TAG:
-                p_mac_lte_info->crcStatusValid = TRUE;
-                p_mac_lte_info->detailed_phy_info.dl_info.crc_status = tvb_get_guint8(tvb, offset);
+                p_mac_lte_info->crcStatusValid = crc_success;
+                p_mac_lte_info->detailed_phy_info.dl_info.crc_status =
+                    (mac_lte_crc_status)tvb_get_guint8(tvb, offset);
                 offset++;
                 break;
             case MAC_LTE_EXT_BSR_SIZES_TAG:
@@ -1264,10 +1277,10 @@ static gboolean dissect_mac_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
     offset += (gint)strlen(MAC_LTE_START_STRING);
 
     /* If redissecting, use previous info struct (if available) */
-    p_mac_lte_info = p_get_proto_data(pinfo->fd, proto_mac_lte);
+    p_mac_lte_info = (mac_lte_info *)p_get_proto_data(pinfo->fd, proto_mac_lte, 0);
     if (p_mac_lte_info == NULL) {
         /* Allocate new info struct for this frame */
-        p_mac_lte_info = se_alloc0(sizeof(struct mac_lte_info));
+        p_mac_lte_info = se_new0(struct mac_lte_info);
         infoAlreadySet = FALSE;
     }
     else {
@@ -1282,14 +1295,14 @@ static gboolean dissect_mac_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
 
     if (!infoAlreadySet) {
         /* Store info in packet */
-        p_add_proto_data(pinfo->fd, proto_mac_lte, p_mac_lte_info);
+        p_add_proto_data(pinfo->fd, proto_mac_lte, 0, p_mac_lte_info);
     }
 
     /**************************************/
     /* OK, now dissect as MAC LTE         */
 
     /* Create tvb that starts at actual MAC PDU */
-    mac_tvb = tvb_new_subset(tvb, offset, -1, tvb_reported_length(tvb)-offset);
+    mac_tvb = tvb_new_subset_remaining(tvb, offset);
     dissect_mac_lte(mac_tvb, pinfo, tree);
 
     return TRUE;
@@ -1617,7 +1630,7 @@ static void dissect_rar(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, pro
                         gint offset, mac_lte_info *p_mac_lte_info, mac_lte_tap_info *tap_info)
 {
     gint        number_of_rars         = 0; /* No of RAR bodies expected following headers */
-    guint8     *rapids                 = ep_alloc(MAX_RAR_PDUS * sizeof(guint8));
+    guint8     *rapids                 = (guint8 *)ep_alloc(MAX_RAR_PDUS * sizeof(guint8));
     gboolean    backoff_indicator_seen = FALSE;
     guint8      backoff_indicator      = 0;
     guint8      extension;
@@ -1723,6 +1736,8 @@ static void dissect_rar(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, pro
 
     /* Append summary to headers root */
     proto_item_append_text(rar_headers_ti, " (%u RARs", number_of_rars);
+    ti = proto_tree_add_uint(rar_headers_tree, hf_mac_lte_rar_no_of_rapids, tvb, 0, 0, number_of_rars);
+    PROTO_ITEM_SET_GENERATED(ti);
     if (backoff_indicator_seen) {
         proto_item_append_text(rar_headers_ti, ", BI=%sms)",
                                val_to_str_const(backoff_indicator, rar_bi_vals, "Illegal-value "));
@@ -1787,7 +1802,7 @@ static void dissect_bch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
     if (global_mac_lte_attempt_rrc_decode) {
         /* Attempt to decode payload using LTE RRC dissector */
-        tvbuff_t *rrc_tvb = tvb_new_subset(tvb, offset, -1, tvb_length_remaining(tvb, offset));
+        tvbuff_t *rrc_tvb = tvb_new_subset_remaining(tvb, offset);
 
         /* Get appropriate dissector handle */
         dissector_handle_t protocol_handle = 0;
@@ -1832,7 +1847,7 @@ static void dissect_pch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     if (global_mac_lte_attempt_rrc_decode) {
 
         /* Attempt to decode payload using LTE RRC dissector */
-        tvbuff_t *rrc_tvb = tvb_new_subset(tvb, offset, -1, tvb_length_remaining(tvb, offset));
+        tvbuff_t *rrc_tvb = tvb_new_subset_remaining(tvb, offset);
 
         /* Get appropriate dissector handle */
         dissector_handle_t protocol_handle = find_dissector("lte_rrc.pcch");
@@ -1907,9 +1922,9 @@ static void call_rlc_dissector(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     struct rlc_lte_info *p_rlc_lte_info;
 
     /* Resuse or create RLC info */
-    p_rlc_lte_info = p_get_proto_data(pinfo->fd, proto_rlc_lte);
+    p_rlc_lte_info = (rlc_lte_info *)p_get_proto_data(pinfo->fd, proto_rlc_lte, 0);
     if (p_rlc_lte_info == NULL) {
-        p_rlc_lte_info = se_alloc0(sizeof(struct rlc_lte_info));
+        p_rlc_lte_info = se_new0(struct rlc_lte_info);
     }
 
     /* Fill in struct details for srb channels */
@@ -1923,7 +1938,7 @@ static void call_rlc_dissector(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     p_rlc_lte_info->UMSequenceNumberLength = UMSequenceNumberLength;
 
     /* Store info in packet */
-    p_add_proto_data(pinfo->fd, proto_rlc_lte, p_rlc_lte_info);
+    p_add_proto_data(pinfo->fd, proto_rlc_lte, 0, p_rlc_lte_info);
 
     if (global_mac_lte_layer_to_show != ShowRLCLayer) {
         /* Don't want these columns replaced */
@@ -1981,7 +1996,7 @@ static void TrackReportedDLHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
         }
 
         /* Look up entry for this UE/RNTI */
-        ueData = g_hash_table_lookup(mac_lte_dl_harq_hash, GUINT_TO_POINTER((guint)p_mac_lte_info->rnti));
+        ueData = (DLHarqBuffers *)g_hash_table_lookup(mac_lte_dl_harq_hash, GUINT_TO_POINTER((guint)p_mac_lte_info->rnti));
 
         if (ueData != NULL) {
             /* Get previous info for this harq-id */
@@ -2006,16 +2021,16 @@ static void TrackReportedDLHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
                     if ((total_gap >= 8) && (total_gap <= 13)) {
 
                         /* Resend detected! Store result pointing back. */
-                        result = se_alloc0(sizeof(DLHARQResult));
+                        result = se_new0(DLHARQResult);
                         result->previousSet = TRUE;
                         result->previousFrameNum = lastData->framenum;
                         result->timeSincePreviousFrame = total_gap;
                         g_hash_table_insert(mac_lte_dl_harq_result_hash, GUINT_TO_POINTER(pinfo->fd->num), result);
 
                         /* Now make previous frame point forward to here */
-                        original_result = g_hash_table_lookup(mac_lte_dl_harq_result_hash, GUINT_TO_POINTER(lastData->framenum));
+                        original_result = (DLHARQResult *)g_hash_table_lookup(mac_lte_dl_harq_result_hash, GUINT_TO_POINTER(lastData->framenum));
                         if (original_result == NULL) {
-                            original_result = se_alloc0(sizeof(ULHARQResult));
+                            original_result = se_new0(DLHARQResult);
                             g_hash_table_insert(mac_lte_dl_harq_result_hash, GUINT_TO_POINTER(lastData->framenum), original_result);
                         }
                         original_result->nextSet = TRUE;
@@ -2027,7 +2042,7 @@ static void TrackReportedDLHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
         }
         else {
             /* Allocate entry in table for this UE/RNTI */
-            ueData = se_alloc0(sizeof(DLHarqBuffers));
+            ueData = se_new0(DLHarqBuffers);
             g_hash_table_insert(mac_lte_dl_harq_hash, GUINT_TO_POINTER((guint)p_mac_lte_info->rnti), ueData);
         }
 
@@ -2042,7 +2057,7 @@ static void TrackReportedDLHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
     }
     else {
         /* Not first time, so just set whats already stored in result */
-        result = g_hash_table_lookup(mac_lte_dl_harq_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
+        result = (DLHARQResult *)g_hash_table_lookup(mac_lte_dl_harq_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
     }
 
 
@@ -2078,7 +2093,7 @@ static void TrackReportedDLHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
 /* Return TRUE if the given packet is thought to be a retx */
 int is_mac_lte_frame_retx(packet_info *pinfo, guint8 direction)
 {
-    struct mac_lte_info *p_mac_lte_info = p_get_proto_data(pinfo->fd, proto_mac_lte);
+    struct mac_lte_info *p_mac_lte_info = (struct mac_lte_info *)p_get_proto_data(pinfo->fd, proto_mac_lte, 0);
 
     if (direction == DIRECTION_UPLINK) {
         /* For UL, retx count is stored in per-packet struct */
@@ -2091,7 +2106,7 @@ int is_mac_lte_frame_retx(packet_info *pinfo, guint8 direction)
         }
         else {
             /* Otherwise look up in table */
-            DLHARQResult *result = g_hash_table_lookup(mac_lte_dl_harq_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
+            DLHARQResult *result = (DLHARQResult *)g_hash_table_lookup(mac_lte_dl_harq_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
             return ((result != NULL) && result->previousSet);
         }
     }
@@ -2123,8 +2138,8 @@ static void TrackReportedULHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
         LastFrameData *thisData = NULL;
 
         /* Look up entry for this UE/RNTI */
-        ULHarqBuffers *ueData =
-            g_hash_table_lookup(mac_lte_ul_harq_hash, GUINT_TO_POINTER((guint)p_mac_lte_info->rnti));
+        ULHarqBuffers *ueData = (ULHarqBuffers *)g_hash_table_lookup(
+			mac_lte_ul_harq_hash, GUINT_TO_POINTER((guint)p_mac_lte_info->rnti));
         if (ueData != NULL) {
             if (p_mac_lte_info->reTxCount >= 1) {
                 /* Looking for frame previously on this harq-id */
@@ -2151,16 +2166,16 @@ static void TrackReportedULHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
                             ULHARQResult *original_result;
 
                             /* Original detected!!! Store result pointing back */
-                            result = se_alloc0(sizeof(ULHARQResult));
+                            result = se_new0(ULHARQResult);
                             result->previousSet = TRUE;
                             result->previousFrameNum = lastData->framenum;
                             result->timeSincePreviousFrame = total_gap;
                             g_hash_table_insert(mac_lte_ul_harq_result_hash, GUINT_TO_POINTER(pinfo->fd->num), result);
 
                             /* Now make previous frame point forward to here */
-                            original_result = g_hash_table_lookup(mac_lte_ul_harq_result_hash, GUINT_TO_POINTER(lastData->framenum));
+                            original_result = (ULHARQResult *)g_hash_table_lookup(mac_lte_ul_harq_result_hash, GUINT_TO_POINTER(lastData->framenum));
                             if (original_result == NULL) {
-                                original_result = se_alloc0(sizeof(ULHARQResult));
+                                original_result = se_new0(ULHARQResult);
                                 g_hash_table_insert(mac_lte_ul_harq_result_hash, GUINT_TO_POINTER(lastData->framenum), original_result);
                             }
                             original_result->nextSet = TRUE;
@@ -2173,7 +2188,7 @@ static void TrackReportedULHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
         }
         else {
             /* Allocate entry in table for this UE/RNTI */
-            ueData = se_alloc0(sizeof(ULHarqBuffers));
+            ueData = se_new0(ULHarqBuffers);
             g_hash_table_insert(mac_lte_ul_harq_hash, GUINT_TO_POINTER((guint)p_mac_lte_info->rnti), ueData);
         }
 
@@ -2188,7 +2203,7 @@ static void TrackReportedULHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
     }
     else {
         /* Not first time, so just get whats already stored in result */
-        result = g_hash_table_lookup(mac_lte_ul_harq_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
+        result = (ULHARQResult *)g_hash_table_lookup(mac_lte_ul_harq_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
     }
 
     /* Show any link back to previous Tx */
@@ -2235,10 +2250,10 @@ static void TrackReportedULHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
 static SRResult *GetSRResult(guint32 frameNum, gboolean can_create)
 {
     SRResult *result;
-    result = g_hash_table_lookup(mac_lte_sr_request_hash, GUINT_TO_POINTER(frameNum));
+    result = (SRResult *)g_hash_table_lookup(mac_lte_sr_request_hash, GUINT_TO_POINTER(frameNum));
 
     if ((result == NULL) && can_create) {
-        result = se_alloc0(sizeof(SRResult));
+        result = se_new0(SRResult);
         g_hash_table_insert(mac_lte_sr_request_hash, GUINT_TO_POINTER((guint)frameNum), result);
     }
     return result;
@@ -2269,10 +2284,10 @@ static void TrackSRInfo(SREvent event, packet_info *pinfo, proto_tree *tree,
     }
 
     /* Create state for this RNTI if necessary */
-    state = g_hash_table_lookup(mac_lte_ue_sr_state, GUINT_TO_POINTER((guint)rnti));
+    state = (SRState *)g_hash_table_lookup(mac_lte_ue_sr_state, GUINT_TO_POINTER((guint)rnti));
     if (state == NULL) {
         /* Allocate status for this RNTI */
-        state = se_alloc(sizeof(SRState));
+        state = se_new(SRState);
         state->status = None;
         g_hash_table_insert(mac_lte_ue_sr_state, GUINT_TO_POINTER((guint)rnti), state);
     }
@@ -2500,7 +2515,7 @@ static guint16 count_ues_tti(mac_lte_info *p_mac_lte_info, packet_info *pinfo)
     tti_info_t *tti_info;
 
     /* Just return any previous result */
-    TTIInfoResult_t *result = g_hash_table_lookup(mac_lte_tti_info_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
+    TTIInfoResult_t *result = (TTIInfoResult_t *)g_hash_table_lookup(mac_lte_tti_info_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
     if (result != NULL) {
         return result->ues_in_tti;
     }
@@ -2540,7 +2555,7 @@ static guint16 count_ues_tti(mac_lte_info *p_mac_lte_info, packet_info *pinfo)
     }
 
     /* Set result state for this frame */
-    result = se_alloc(sizeof(TTIInfoResult_t));
+    result = se_new(TTIInfoResult_t);
     result->ues_in_tti = tti_info->ues_in_tti;
     g_hash_table_insert(mac_lte_tti_info_result_hash,
                         GUINT_TO_POINTER(pinfo->fd->num), result);
@@ -2553,7 +2568,7 @@ static guint16 count_ues_tti(mac_lte_info *p_mac_lte_info, packet_info *pinfo)
 static void show_ues_tti(packet_info *pinfo, mac_lte_info *p_mac_lte_info, tvbuff_t *tvb, proto_tree *context_tree)
 {
     /* Look up result */
-    TTIInfoResult_t *result = g_hash_table_lookup(mac_lte_tti_info_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
+    TTIInfoResult_t *result = (TTIInfoResult_t *)g_hash_table_lookup(mac_lte_tti_info_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
     if (result != NULL) {
         proto_item *ti =  proto_tree_add_uint(context_tree,
                                               (p_mac_lte_info->direction == DIRECTION_UPLINK) ?
@@ -2607,7 +2622,7 @@ static void lookup_rlc_channel_from_lcid(guint16 ueid,
     }
     else {
         /* Look up the mappings for this UE */
-        ue_dynamic_drb_mappings_t *ue_mappings = g_hash_table_lookup(mac_lte_ue_channels_hash, GUINT_TO_POINTER((guint)ueid));
+        ue_dynamic_drb_mappings_t *ue_mappings = (ue_dynamic_drb_mappings_t *)g_hash_table_lookup(mac_lte_ue_channels_hash, GUINT_TO_POINTER((guint)ueid));
         if (!ue_mappings) {
             return;
         }
@@ -2826,6 +2841,14 @@ static void dissect_ulsch_or_dlsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
             }
         }
 
+        /* Also flag if we have final padding but also padding subheaders
+           at the start! */
+        if (!extension && (lcids[number_of_headers] == PADDING_LCID) &&
+            (number_of_padding_subheaders > 0)) {
+                expert_add_info_format(pinfo, lcid_ti, PI_MALFORMED, PI_ERROR,
+                                       "Padding subheaders at start and end!");
+        }
+
         /* Remember that we've seen non-padding control */
         if ((lcids[number_of_headers] > 10) &&
             (lcids[number_of_headers] != PADDING_LCID)) {
@@ -2930,7 +2953,7 @@ static void dissect_ulsch_or_dlsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 
 
         /* Flag unknown lcid values in expert info */
-        if (match_strval(lcids[number_of_headers],
+        if (try_val_to_str(lcids[number_of_headers],
                          (direction == DIRECTION_UPLINK) ? ulsch_lcid_vals : dlsch_lcid_vals) == NULL) {
             expert_add_info_format(pinfo, pdu_subheader_ti, PI_MALFORMED, PI_ERROR,
                                    "%cL-SCH: Unexpected LCID received (%u)",
@@ -3050,7 +3073,7 @@ static void dissect_ulsch_or_dlsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
                                             tvb, offset, 6, ENC_NA);
 
                         /* Get pointer to result struct for this frame */
-                        crResult =  g_hash_table_lookup(mac_lte_cr_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
+                        crResult =  (ContentionResolutionResult *)g_hash_table_lookup(mac_lte_cr_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
                         if (crResult == NULL) {
 
                             /* Need to set result by looking for and comparing with Msg3 */
@@ -3058,11 +3081,11 @@ static void dissect_ulsch_or_dlsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
                             guint msg3Key = p_mac_lte_info->rnti;
 
                             /* Allocate result and add it to the table */
-                            crResult = se_alloc(sizeof(ContentionResolutionResult));
+                            crResult = se_new(ContentionResolutionResult);
                             g_hash_table_insert(mac_lte_cr_result_hash, GUINT_TO_POINTER(pinfo->fd->num), crResult);
 
                             /* Look for Msg3 */
-                            msg3Data = g_hash_table_lookup(mac_lte_msg3_hash, GUINT_TO_POINTER(msg3Key));
+                            msg3Data = (Msg3Data *)g_hash_table_lookup(mac_lte_msg3_hash, GUINT_TO_POINTER(msg3Key));
 
                             /* Compare CCCH bytes */
                             if (msg3Data != NULL) {
@@ -3581,12 +3604,12 @@ static void dissect_ulsch_or_dlsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         if ((lcids[n] == 0) && (direction == DIRECTION_UPLINK) && (data_length == 6)) {
             if (!pinfo->fd->flags.visited) {
                 guint key = p_mac_lte_info->rnti;
-                Msg3Data *data = g_hash_table_lookup(mac_lte_msg3_hash, GUINT_TO_POINTER(key));
+                Msg3Data *data = (Msg3Data *)g_hash_table_lookup(mac_lte_msg3_hash, GUINT_TO_POINTER(key));
 
                 /* Look for previous entry for this UE */
                 if (data == NULL) {
                     /* Allocate space for data and add to table */
-                    data = se_alloc(sizeof(Msg3Data));
+                    data = se_new(Msg3Data);
                     g_hash_table_insert(mac_lte_msg3_hash, GUINT_TO_POINTER(key), data);
                 }
 
@@ -3964,7 +3987,7 @@ static void dissect_mch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, pro
 
 
         /* Flag unknown lcid values in expert info */
-        if (match_strval(lcids[number_of_headers],mch_lcid_vals) == NULL) {
+        if (try_val_to_str(lcids[number_of_headers],mch_lcid_vals) == NULL) {
             expert_add_info_format(pinfo, pdu_subheader_ti, PI_MALFORMED, PI_ERROR,
                                    "MCH: Unexpected LCID received (%u)",
                                    lcids[number_of_headers]);
@@ -4180,7 +4203,7 @@ void dissect_mac_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gint                 n;
 
     /* Allocate and zero tap struct */
-    mac_lte_tap_info *tap_info = ep_alloc0(sizeof(mac_lte_tap_info));
+    mac_lte_tap_info *tap_info = (mac_lte_tap_info *)ep_alloc0(sizeof(mac_lte_tap_info));
 
     /* Set protocol name */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "MAC-LTE");
@@ -4191,7 +4214,7 @@ void dissect_mac_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     mac_lte_tree = proto_item_add_subtree(pdu_ti, ett_mac_lte);
 
     /* Look for packet info! */
-    p_mac_lte_info = p_get_proto_data(pinfo->fd, proto_mac_lte);
+    p_mac_lte_info = (mac_lte_info *)p_get_proto_data(pinfo->fd, proto_mac_lte, 0);
 
     /* Can't dissect anything without it... */
     if (p_mac_lte_info == NULL) {
@@ -4252,8 +4275,9 @@ void dissect_mac_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
                 /* Info column */
                 write_pdu_label_and_info(pdu_ti, preamble_ti, pinfo,
-                                         "RACH Preamble sent for UE %u (RAPID=%u, attempt=%u)",
-                                         p_mac_lte_info->ueid, p_mac_lte_info->rapid, p_mac_lte_info->rach_attempt_number);
+                                         "RACH Preamble chosen for UE %u (RAPID=%u, attempt=%u)",
+                                         p_mac_lte_info->ueid, p_mac_lte_info->rapid,
+                                         p_mac_lte_info->rach_attempt_number);
 
                 /* Add expert info (a note, unless attempt > 1) */
                 expert_add_info_format(pinfo, ti, PI_SEQUENCE,
@@ -4358,6 +4382,11 @@ void dissect_mac_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     ti = proto_tree_add_uint(context_tree, hf_mac_lte_context_sysframe_number,
                              tvb, 0, 0, p_mac_lte_info->sysframeNumber);
     PROTO_ITEM_SET_GENERATED(ti);
+    if (p_mac_lte_info->sysframeNumber > 1023) {
+        expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR,
+                               "Sysframe number (%u) out of range - valid range is 0-1023",
+                               p_mac_lte_info->sysframeNumber);
+    }
 
     ti = proto_tree_add_uint(context_tree, hf_mac_lte_context_subframe_number,
                              tvb, 0, 0, p_mac_lte_info->subframeNumber);
@@ -4366,7 +4395,7 @@ void dissect_mac_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         /* N.B. if we set it to valid value, it won't trigger when we rescan
            (at least with DCT2000 files where the context struct isn't re-read). */
         expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR,
-                               "Subframe number (%u) was out of range - valid range is 0-9",
+                               "Subframe number (%u) out of range - valid range is 0-9",
                                p_mac_lte_info->subframeNumber);
     }
 
@@ -4501,6 +4530,11 @@ void dissect_mac_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         }
     }
 
+    /* Carrier Id */
+    ti = proto_tree_add_uint(context_tree, hf_mac_lte_context_carrier_id,
+                             tvb, 0, 0, p_mac_lte_info->carrierId);
+    PROTO_ITEM_SET_GENERATED(ti);
+    
     /* May also have extra Physical layer attributes set for this frame */
     show_extra_phy_parameters(pinfo, tvb, mac_lte_tree, p_mac_lte_info);
 
@@ -4669,8 +4703,8 @@ static void mac_lte_init_protocol(void)
 
 static void* lcid_drb_mapping_copy_cb(void* dest, const void* orig, size_t len _U_)
 {
-    const lcid_drb_mapping_t *o = orig;
-    lcid_drb_mapping_t       *d = dest;
+    const lcid_drb_mapping_t *o = (const lcid_drb_mapping_t *)orig;
+    lcid_drb_mapping_t       *d = (lcid_drb_mapping_t *)dest;
 
     /* Copy all items over */
     d->lcid  = o->lcid;
@@ -4700,9 +4734,9 @@ void set_mac_lte_channel_mapping(guint16 ueid, guint8 lcid,
     }
 
     /* Look for existing UE entry */
-    ue_mappings = g_hash_table_lookup(mac_lte_ue_channels_hash, GUINT_TO_POINTER((guint)ueid));
+    ue_mappings = (ue_dynamic_drb_mappings_t *)g_hash_table_lookup(mac_lte_ue_channels_hash, GUINT_TO_POINTER((guint)ueid));
     if (!ue_mappings) {
-        ue_mappings = se_alloc0(sizeof(ue_dynamic_drb_mappings_t));
+        ue_mappings = se_new0(ue_dynamic_drb_mappings_t);
         g_hash_table_insert(mac_lte_ue_channels_hash, GUINT_TO_POINTER((guint)ueid), ue_mappings);
     }
 
@@ -4741,7 +4775,7 @@ static guint8 get_mac_lte_channel_priority(guint16 ueid, guint8 lcid,
     }
 
     /* Look up the mappings for this UE */
-    ue_mappings = g_hash_table_lookup(mac_lte_ue_channels_hash, GUINT_TO_POINTER((guint)ueid));
+    ue_mappings = (ue_dynamic_drb_mappings_t *)g_hash_table_lookup(mac_lte_ue_channels_hash, GUINT_TO_POINTER((guint)ueid));
     if (!ue_mappings) {
         return 0;
     }
@@ -4758,13 +4792,13 @@ static guint8 get_mac_lte_channel_priority(guint16 ueid, guint8 lcid,
 /* Function to be called from outside this module (e.g. in a plugin) to get per-packet data */
 mac_lte_info *get_mac_lte_proto_data(packet_info *pinfo)
 {
-    return p_get_proto_data(pinfo->fd, proto_mac_lte);
+    return (mac_lte_info *)p_get_proto_data(pinfo->fd, proto_mac_lte, 0);
 }
 
 /* Function to be called from outside this module (e.g. in a plugin) to set per-packet data */
 void set_mac_lte_proto_data(packet_info *pinfo, mac_lte_info *p_mac_lte_info)
 {
-    p_add_proto_data(pinfo->fd, proto_mac_lte, p_mac_lte_info);
+    p_add_proto_data(pinfo->fd, proto_mac_lte, 0, p_mac_lte_info);
 }
 
 void proto_register_mac_lte(void)
@@ -4867,6 +4901,12 @@ void proto_register_mac_lte(void)
             { "CRC Status",
               "mac-lte.crc-status", FT_UINT8, BASE_DEC, VALS(crc_status_vals), 0x0,
               "CRC Status as reported by PHY", HFILL
+            }
+        },
+        { &hf_mac_lte_context_carrier_id,
+            { "Carrier Id",
+              "mac-lte.carrier-id", FT_UINT8, BASE_DEC, VALS(carrier_id_vals), 0x0,
+              NULL, HFILL
             }
         },
         { &hf_mac_lte_context_rapid,
@@ -5263,6 +5303,12 @@ void proto_register_mac_lte(void)
             { "RAPID",
               "mac-lte.rar.rapid", FT_UINT8, BASE_HEX_DEC, 0, 0x3f,
               "Random Access Preamble IDentifier", HFILL
+            }
+        },
+        { &hf_mac_lte_rar_no_of_rapids,
+            { "Number of RAPIDs",
+              "mac-lte.rar.no-of-rapids", FT_UINT8, BASE_DEC, 0, 0x0,
+              "Number of RAPIDs in RAR PDU", HFILL
             }
         },
         { &hf_mac_lte_rar_reserved,
@@ -5860,7 +5906,7 @@ void proto_register_mac_lte(void)
                                     sizeof(lcid_drb_mapping_t),
                                     "drb_logchans",
                                     TRUE,
-                                    (void*) &lcid_drb_mappings,
+                                    (void**) &lcid_drb_mappings,
                                     &num_lcid_drb_mappings,
                                     UAT_AFFECTS_DISSECTION, /* affects dissection of packets, but not set of named fields */
                                     "",  /* TODO: is this ref to help manual? */

@@ -599,11 +599,23 @@ static struct encap_type_info encap_table_base[] = {
 
 	/* WTAP_ENCAP_SCTP */
 	{ "SCTP", "sctp" },
+
+	/* WTAP_ENCAP_INFINIBAND */
+	{ "InfiniBand", "infiniband" },
+
+	/* WTAP_ENCAP_JUNIPER_SVCS */
+	{ "Juniper Services", "juniper-svcs" },
+
+	/* WTAP_ENCAP_USBPCAP */
+	{ "USB packets with USBPcap header", "usb-usbpcap" },
 };
 
+WS_DLL_LOCAL
 gint wtap_num_encap_types = sizeof(encap_table_base) / sizeof(struct encap_type_info);
 static GArray* encap_table_arr = NULL;
-static const struct encap_type_info* encap_table = NULL;
+
+#define encap_table_entry(encap)	\
+	g_array_index(encap_table_arr, struct encap_type_info, encap)
 
 static void wtap_init_encap_types(void) {
 
@@ -612,8 +624,6 @@ static void wtap_init_encap_types(void) {
 	encap_table_arr = g_array_new(FALSE,TRUE,sizeof(struct encap_type_info));
 
 	g_array_append_vals(encap_table_arr,encap_table_base,wtap_num_encap_types);
-
-	encap_table = (void*)encap_table_arr->data;
 }
 
 int wtap_get_num_encap_types(void) {
@@ -622,7 +632,7 @@ int wtap_get_num_encap_types(void) {
 }
 
 
-int wtap_register_encap_type(char* name, char* short_name) {
+int wtap_register_encap_type(const char* name, const char* short_name) {
 	struct encap_type_info e;
 	wtap_init_encap_types();
 
@@ -630,8 +640,6 @@ int wtap_register_encap_type(char* name, char* short_name) {
 	e.short_name = g_strdup(short_name);
 
 	g_array_append_val(encap_table_arr,e);
-
-	encap_table = (void*)encap_table_arr->data;
 
 	return wtap_num_encap_types++;
 }
@@ -646,7 +654,7 @@ wtap_encap_string(int encap)
 	else if (encap == WTAP_ENCAP_PER_PACKET)
 		return "Per packet";
 	else
-		return encap_table[encap].name;
+		return encap_table_entry(encap).name;
 }
 
 /* Name to use in, say, a command-line flag specifying the type. */
@@ -658,7 +666,7 @@ wtap_encap_short_string(int encap)
 	else if (encap == WTAP_ENCAP_PER_PACKET)
 		return "per-packet";
 	else
-		return encap_table[encap].short_name;
+		return encap_table_entry(encap).short_name;
 }
 
 /* Translate a short name to a capture file type. */
@@ -668,8 +676,8 @@ wtap_short_string_to_encap(const char *short_name)
 	int encap;
 
 	for (encap = 0; encap < WTAP_NUM_ENCAP_TYPES; encap++) {
-		if (encap_table[encap].short_name != NULL &&
-		    strcmp(short_name, encap_table[encap].short_name) == 0)
+		if (encap_table_entry(encap).short_name != NULL &&
+		    strcmp(short_name, encap_table_entry(encap).short_name) == 0)
 			return encap;
 	}
 	return -1;	/* no such encapsulation type */

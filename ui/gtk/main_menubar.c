@@ -54,8 +54,11 @@
 
 #include "ui/iface_lists.h"
 #include "ui/main_statusbar.h"
+#include "ui/preference_utils.h"
 #include "ui/recent.h"
+#include "ui/recent_utils.h"
 #include "ui/simple_dialog.h"
+#include "ui/software_update.h"
 #include "ui/ui_util.h"
 #include "ui/utf8_entities.h"
 
@@ -110,6 +113,7 @@
 #include "ui/gtk/time_shift_dlg.h"
 #include "ui/gtk/edit_packet_comment_dlg.h"
 #include "ui/gtk/addr_resolution_dlg.h"
+#include "ui/gtk/export_pdu_dlg.h"
 
 #include "ui/gtk/packet_list.h"
 
@@ -137,7 +141,7 @@ static GSList *popup_menu_list = NULL;
 
 static GtkAccelGroup *grp;
 
-static GList *merge_lua_menu_items_list = NULL;
+static GList *merge_menu_items_list = NULL;
 static GList *build_menubar_items_callback_list = NULL;
 
 GtkWidget *popup_menu_object;
@@ -147,7 +151,7 @@ static void add_recent_items (guint merge_id, GtkUIManager *ui_manager);
 static void add_tap_plugins (guint merge_id, GtkUIManager *ui_manager);
 
 static void menus_init(void);
-static void merge_lua_menu_items(GList *node);
+static void merge_menu_items(GList *node);
 static void ws_menubar_build_external_menus(void);
 static void set_menu_sensitivity (GtkUIManager *ui_manager, const gchar *, gint);
 #if !defined(WANT_PACKET_EDITOR) || !defined(HAVE_LIBPCAP)
@@ -157,7 +161,7 @@ static void menu_name_resolution_update_cb(GtkAction *action, gpointer data);
 static void name_resolution_cb(GtkWidget *w, gpointer d, gboolean* res_flag);
 static void colorize_cb(GtkWidget *w, gpointer d);
 static void rebuild_protocol_prefs_menu (module_t *prefs_module_p, gboolean preferences,
-        GtkUIManager *ui_menu, char *path);
+        GtkUIManager *ui_menu, const char *path);
 
 
 /*  As a general GUI guideline, we try to follow the Gnome Human Interface Guidelines, which can be found at:
@@ -206,31 +210,31 @@ build_conversation_filter(int action, gboolean show_dialog)
             switch(pi->profinet_type) {
             case(1):
                 buf = g_strdup_printf("(ip.src eq %s and ip.dst eq %s and cba.acco.dcom == 1) || (ip.src eq %s and ip.dst eq %s and cba.acco.dcom == 0)",
-                    ip_to_str( pi->net_dst.data),
-                    ip_to_str( pi->net_src.data),
-                    ip_to_str( pi->net_src.data),
-                    ip_to_str( pi->net_dst.data));
+                    ip_to_str( (const guint8 *)pi->net_dst.data),
+                    ip_to_str( (const guint8 *)pi->net_src.data),
+                    ip_to_str( (const guint8 *)pi->net_src.data),
+                    ip_to_str( (const guint8 *)pi->net_dst.data));
                 break;
             case(2):
                 buf = g_strdup_printf("(ip.src eq %s and ip.dst eq %s and cba.acco.dcom == 1) || (ip.src eq %s and ip.dst eq %s and cba.acco.dcom == 0)",
-                    ip_to_str( pi->net_src.data),
-                    ip_to_str( pi->net_dst.data),
-                    ip_to_str( pi->net_dst.data),
-                    ip_to_str( pi->net_src.data));
+                    ip_to_str( (const guint8 *)pi->net_src.data),
+                    ip_to_str( (const guint8 *)pi->net_dst.data),
+                    ip_to_str( (const guint8 *)pi->net_dst.data),
+                    ip_to_str( (const guint8 *)pi->net_src.data));
                 break;
             case(3):
                 buf = g_strdup_printf("(ip.src eq %s and ip.dst eq %s and cba.acco.srt == 1) || (ip.src eq %s and ip.dst eq %s and cba.acco.srt == 0)",
-                    ip_to_str( pi->net_dst.data),
-                    ip_to_str( pi->net_src.data),
-                    ip_to_str( pi->net_src.data),
-                    ip_to_str( pi->net_dst.data));
+                    ip_to_str( (const guint8 *)pi->net_dst.data),
+                    ip_to_str( (const guint8 *)pi->net_src.data),
+                    ip_to_str( (const guint8 *)pi->net_src.data),
+                    ip_to_str( (const guint8 *)pi->net_dst.data));
                 break;
             case(4):
                 buf = g_strdup_printf("(ip.src eq %s and ip.dst eq %s and cba.acco.srt == 1) || (ip.src eq %s and ip.dst eq %s and cba.acco.srt == 0)",
-                    ip_to_str( pi->net_src.data),
-                    ip_to_str( pi->net_dst.data),
-                    ip_to_str( pi->net_dst.data),
-                    ip_to_str( pi->net_src.data));
+                    ip_to_str( (const guint8 *)pi->net_src.data),
+                    ip_to_str( (const guint8 *)pi->net_dst.data),
+                    ip_to_str( (const guint8 *)pi->net_dst.data),
+                    ip_to_str( (const guint8 *)pi->net_src.data));
                 break;
             default:
                 return NULL;
@@ -252,8 +256,8 @@ build_conversation_filter(int action, gboolean show_dialog)
         if( pi->net_src.type == AT_IPv4 && pi->net_dst.type == AT_IPv4 ) {
             /* TCP over IPv4 */
             buf = g_strdup_printf("(ip.addr eq %s and ip.addr eq %s) and (tcp.port eq %d and tcp.port eq %d)",
-                ip_to_str( pi->net_src.data),
-                ip_to_str( pi->net_dst.data),
+                ip_to_str( (const guint8 *)pi->net_src.data),
+                ip_to_str( (const guint8 *)pi->net_dst.data),
                 pi->srcport, pi->destport );
         } else if( pi->net_src.type == AT_IPv6 && pi->net_dst.type == AT_IPv6 ) {
             /* TCP over IPv6 */
@@ -278,8 +282,8 @@ build_conversation_filter(int action, gboolean show_dialog)
         if( pi->net_src.type == AT_IPv4 && pi->net_dst.type == AT_IPv4 ) {
             /* UDP over IPv4 */
             buf = g_strdup_printf("(ip.addr eq %s and ip.addr eq %s) and (udp.port eq %d and udp.port eq %d)",
-                ip_to_str( pi->net_src.data),
-                ip_to_str( pi->net_dst.data),
+                ip_to_str( (const guint8 *)pi->net_src.data),
+                ip_to_str( (const guint8 *)pi->net_dst.data),
                 pi->srcport, pi->destport );
         } else if( pi->net_src.type == AT_IPv6 && pi->net_dst.type == AT_IPv6 ) {
             /* UDP over IPv6 */
@@ -304,8 +308,8 @@ build_conversation_filter(int action, gboolean show_dialog)
         if( pi->net_src.type == AT_IPv4 && pi->net_dst.type == AT_IPv4 ) {
             /* IPv4 */
             buf = g_strdup_printf("ip.addr eq %s and ip.addr eq %s",
-                ip_to_str( pi->net_src.data),
-                ip_to_str( pi->net_dst.data));
+                ip_to_str( (const guint8 *)pi->net_src.data),
+                ip_to_str( (const guint8 *)pi->net_dst.data));
         } else if( pi->net_src.type == AT_IPv6 && pi->net_dst.type == AT_IPv6 ) {
             /* IPv6 */
             buf = g_strdup_printf("ipv6.addr eq %s and ipv6.addr eq %s",
@@ -331,8 +335,8 @@ build_conversation_filter(int action, gboolean show_dialog)
         if( pi->dl_src.type == AT_ETHER && pi->dl_dst.type == AT_ETHER ) {
             /* Ethernet */
             buf = g_strdup_printf("eth.addr eq %s and eth.addr eq %s",
-                ether_to_str( pi->dl_src.data),
-                ether_to_str( pi->dl_dst.data));
+                ether_to_str( (const guint8 *)pi->dl_src.data),
+                ether_to_str( (const guint8 *)pi->dl_dst.data));
         } else {
             return NULL;
         }
@@ -347,14 +351,20 @@ build_conversation_filter(int action, gboolean show_dialog)
 static void
 new_window_cb(GtkWidget *widget)
 {
-    new_packet_window(widget, FALSE);
+    new_packet_window(widget, FALSE, FALSE);
+}
+
+static void
+new_window_cb_ref(GtkWidget *widget)
+{
+    new_packet_window(widget, TRUE, FALSE);
 }
 
 static void
 edit_window_cb(GtkWidget *widget _U_)
 {
 #ifdef WANT_PACKET_EDITOR
-    new_packet_window(widget, TRUE);
+    new_packet_window(widget, FALSE, TRUE);
 #endif
 }
 
@@ -447,7 +457,7 @@ goto_conversation_frame(gboolean dir)
         return;
     }
 
-    found_packet = cf_find_packet_dfilter(&cfile, dfcode, dir);
+    found_packet = cf_find_packet_dfilter(&cfile, dfcode, dir?SD_BACKWARD:SD_FORWARD);
 
     if (!found_packet) {
         /* We didn't find a packet */
@@ -494,7 +504,7 @@ static void
 copy_as_filter_cb(GtkAction *action _U_, gpointer user_data _U_)
 {
     /* match_selected_ptree_cb needs the popup_menu_object to get the right object E_DFILTER_TE_KEY */
-    match_selected_ptree_cb( popup_menu_object, MATCH_SELECTED_REPLACE|MATCH_SELECTED_COPY_ONLY);
+    match_selected_ptree_cb( popup_menu_object, (MATCH_SELECTED_E)(MATCH_SELECTED_REPLACE|MATCH_SELECTED_COPY_ONLY));
 }
 
 static void
@@ -606,9 +616,9 @@ timestamp_seconds_time_cb(GtkAction *action _U_, gpointer user_data _U_)
 static void
 timestamp_format_new_cb (GtkRadioAction *action, GtkRadioAction *current _U_, gpointer user_data  _U_)
 {
-    gint value;
+    ts_type value;
 
-    value = gtk_radio_action_get_current_value (action);
+    value = (ts_type) gtk_radio_action_get_current_value (action);
     if (recent.gui_time_format != value) {
         timestamp_set_type(value);
         recent.gui_time_format = value;
@@ -925,6 +935,14 @@ help_menu_SampleCaptures_cb(GtkAction *action _U_, gpointer user_data _U_)
     topic_menu_cb( NULL/* widget_U_ */, NULL /*GdkEventButton *event _U_*/, GINT_TO_POINTER(ONLINEPAGE_SAMPLE_FILES));
 }
 
+#ifdef HAVE_SOFTWARE_UPDATE
+static void
+check_for_updates_cb(GtkAction *action _U_, gpointer user_data _U_)
+{
+    software_update_check();
+}
+#endif /* HAVE_SOFTWARE_UPDATE */
+
 static const char *ui_desc_menubar =
 "<ui>\n"
 "  <menubar name ='Menubar'>\n"
@@ -934,7 +952,7 @@ static const char *ui_desc_menubar =
 "         <placeholder name='RecentFiles'/>\n"
 "      </menu>\n"
 "      <menuitem name='Merge' action='/File/Merge'/>\n"
-"      <menuitem name='Import' action='/File/Import'/>\n"
+"      <menuitem name='ImportFromHexDump' action='/File/ImportFromHexDump'/>\n"
 "      <menuitem name='Close' action='/File/Close'/>\n"
 "      <separator/>\n"
 "      <menuitem name='Save' action='/File/Save'/>\n"
@@ -958,6 +976,7 @@ static const char *ui_desc_menubar =
 "        <separator/>\n"
 "      </menu>\n"
 "      <menuitem name='ExportSelectedPacketBytes' action='/File/ExportSelectedPacketBytes'/>\n"
+"      <menuitem name='ExportPDUs' action='/File/ExportPDUs'/>\n"
 "      <menuitem name='ExportSSLSessionKeys' action='/File/ExportSSLSessionKeys'/>\n"
 "      <menu name= 'ExportObjects' action='/File/ExportObjects'>\n"
 "        <menuitem name='HTTP' action='/File/ExportObjects/HTTP'/>\n"
@@ -995,6 +1014,7 @@ static const char *ui_desc_menubar =
 "        <menuitem name='Un-TimeReferenceAllPackets' action='/Edit/Un-TimeReferenceAllPackets'/>\n"
 "        <menuitem name='FindNextTimeReference' action='/Edit/FindNextTimeReference'/>\n"
 "        <menuitem name='FindPreviousTimeReference' action='/Edit/FindPreviousTimeReference'/>\n"
+"        <separator/>\n"
 "        <menuitem name='TimeShift' action='/Edit/TimeShift'/>\n"
 "        <separator/>\n"
 "        <menuitem name='EditPacket' action='/Edit/EditPacket'/>\n"
@@ -1174,22 +1194,8 @@ static const char *ui_desc_menubar =
 "        <menuitem name='WLAN' action='/Statistics/EndpointList/WLAN'/>\n"
 "      </menu>\n"
 "      <menu name='ServiceResponseTimeMenu' action='/Statistics/ServiceResponseTime'>\n"
-"        <menuitem name='AFP' action='/Statistics/ServiceResponseTime/AFP'/>\n"
-"        <menuitem name='ONC-RPC' action='/Statistics/ServiceResponseTime/ONC-RPC'/>\n"
-"        <menuitem name='Camel' action='/Statistics/ServiceResponseTime/Camel'/>\n"
 "        <menuitem name='DCE-RPC' action='/Statistics/ServiceResponseTime/DCE-RPC'/>\n"
-"        <menuitem name='Diameter' action='/Statistics/ServiceResponseTime/Diameter'/>\n"
-"        <menuitem name='FibreChannel' action='/Statistics/ServiceResponseTime/FibreChannel'/>\n"
-"        <menuitem name='GTP' action='/Statistics/ServiceResponseTime/GTP'/>\n"
-"        <menuitem name='H225' action='/Statistics/ServiceResponseTime/H225'/>\n"
-"        <menuitem name='LDAP' action='/Statistics/ServiceResponseTime/LDAP'/>\n"
-"        <menuitem name='MEGACO' action='/Statistics/ServiceResponseTime/MEGACO'/>\n"
-"        <menuitem name='MGCP' action='/Statistics/ServiceResponseTime/MGCP'/>\n"
-"        <menuitem name='NCP' action='/Statistics/ServiceResponseTime/NCP'/>\n"
-"        <menuitem name='RADIUS' action='/Statistics/ServiceResponseTime/RADIUS'/>\n"
-"        <menuitem name='SCSI' action='/Statistics/ServiceResponseTime/SCSI'/>\n"
-"        <menuitem name='SMB' action='/Statistics/ServiceResponseTime/SMB'/>\n"
-"        <menuitem name='SMB2' action='/Statistics/ServiceResponseTime/SMB2'/>\n"
+"        <menuitem name='ONC-RPC' action='/Statistics/ServiceResponseTime/ONC-RPC'/>\n"
 "      </menu>\n"
 "      <separator/>\n"
 "      <menuitem name='ANCP' action='/StatisticsMenu/ancp'/>\n"
@@ -1305,6 +1311,10 @@ static const char *ui_desc_menubar =
 "      <separator/>\n"
 "      <menuitem name='Wiki' action='/Help/Wiki'/>\n"
 "      <menuitem name='SampleCaptures' action='/Help/SampleCaptures'/>\n"
+#ifdef HAVE_SOFTWARE_UPDATE
+"      <separator/>\n"
+"      <menuitem name='CheckForUpdates' action='/Help/CheckForUpdates'/>\n"
+#endif /* HAVE_SOFTWARE_UPDATE */
 "      <separator/>\n"
 "      <menuitem name='AboutWireshark' action='/Help/AboutWireshark'/>\n"
 "    </menu>\n"
@@ -1402,16 +1412,17 @@ static const GtkActionEntry main_menu_bar_entries[] = {
   { "/File/Open",               GTK_STOCK_OPEN,                    "_Open...",           "<control>O",           "Open a file",  G_CALLBACK(file_open_cmd_cb) },
   { "/File/OpenRecent",         NULL,                              "Open _Recent",       NULL,                   NULL,           NULL },
   { "/File/Merge",              NULL,                              "_Merge...",          NULL,                   NULL,           G_CALLBACK(file_merge_cmd_cb) },
-  { "/File/Import",             NULL,                              "_Import...",         NULL,                   NULL,           G_CALLBACK(file_import_cmd_cb) },
+  { "/File/ImportFromHexDump",  NULL,                              "_Import from Hex Dump...", NULL,                   NULL,           G_CALLBACK(file_import_cmd_cb) },
   { "/File/Close",              GTK_STOCK_CLOSE,                   "_Close",             "<control>W",           NULL,           G_CALLBACK(file_close_cmd_cb) },
 
-  { "/File/Save",               WIRESHARK_STOCK_FILE,              "_Save",              "<control>S",           NULL,           G_CALLBACK(file_save_cmd_cb) },
-  { "/File/SaveAs",             WIRESHARK_STOCK_FILE,              "Save _As...",        "<shift><control>S",    NULL,           G_CALLBACK(file_save_as_cmd_cb) },
+  { "/File/Save",               WIRESHARK_STOCK_SAVE,              "_Save",              "<control>S",           NULL,           G_CALLBACK(file_save_cmd_cb) },
+  { "/File/SaveAs",             WIRESHARK_STOCK_SAVE,              "Save _As...",        "<shift><control>S",    NULL,           G_CALLBACK(file_save_as_cmd_cb) },
 
   { "/File/Set",                NULL,                              "File Set",           NULL,                   NULL,           NULL },
   { "/File/ExportSpecifiedPackets", NULL,         "Export Specified Packets...", NULL,           NULL,           G_CALLBACK(file_export_specified_packets_cmd_cb) },
   { "/File/ExportPacketDissections",  NULL,                        "Export Packet Dissections", NULL,                   NULL,           NULL },
   { "/File/ExportSelectedPacketBytes", NULL,         "Export Selected Packet _Bytes...", "<control>H",           NULL,           G_CALLBACK(savehex_cb) },
+  { "/File/ExportPDUs",            NULL,                            "Export PDUs to file",  NULL,                NULL,           G_CALLBACK(export_pdu_show_cb) },
   { "/File/ExportSSLSessionKeys",  NULL,                   "Export SSL Session Keys...", NULL,                   NULL,           G_CALLBACK(savesslkeys_cb) },
   { "/File/ExportObjects",      NULL,                              "Export Objects",     NULL,                   NULL,           NULL },
   { "/File/Print",              GTK_STOCK_PRINT,                   "_Print...",          "<control>P",           NULL,           G_CALLBACK(file_print_cmd_cb) },
@@ -1433,7 +1444,7 @@ static const GtkActionEntry main_menu_bar_entries[] = {
                                                                                          NULL,                   NULL,           G_CALLBACK(export_pdml_cmd_cb) },
   { "/File/ExportObjects/HTTP",           NULL,       "_HTTP",                           NULL,                   NULL,           G_CALLBACK(eo_http_cb) },
   { "/File/ExportObjects/DICOM",          NULL,       "_DICOM",                          NULL,                   NULL,           G_CALLBACK(eo_dicom_cb) },
-  { "/File/ExportObjects/SMB",            NULL,       "_SMB",                            NULL,                   NULL,           G_CALLBACK(eo_smb_cb) },
+  { "/File/ExportObjects/SMB",            NULL,       "_SMB/SMB2",                            NULL,                   NULL,           G_CALLBACK(eo_smb_cb) },
 
 
   { "/Edit/Copy",                         NULL,       "Copy",                            NULL,                   NULL,           NULL },
@@ -1502,29 +1513,30 @@ static const GtkActionEntry main_menu_bar_entries[] = {
    { "/Edit/FindNext",                  NULL,               "Find Ne_xt",                           "<control>N",           NULL,           G_CALLBACK(find_next_cb) },
    { "/Edit/FindPrevious",              NULL,               "Find Pre_vious",                       "<control>B",           NULL,           G_CALLBACK(find_previous_cb) },
 
-   { "/Edit/MarkPacket",                NULL,               "_Mark Packet (toggle)",                "<control>M",           NULL,           G_CALLBACK(packet_list_mark_frame_cb) },
-   { "/Edit/ToggleMarkingOfAllDisplayedPackets",    NULL,   "Toggle Marking Of All Displayed Packets",  "<shift><alt><control>M",           NULL,           G_CALLBACK(packet_list_toggle_mark_all_displayed_frames_cb) },
+   { "/Edit/MarkPacket",                NULL,               "_Mark/Unmark Packet",                  "<control>M",           NULL,           G_CALLBACK(packet_list_mark_frame_cb) },
+   /* XXX - Unused. Should this and its associated code be removed? */
+   { "/Edit/ToggleMarkingOfAllDisplayedPackets",    NULL,   "Toggle Marking of All Displayed Packets",  "<shift><alt><control>M",           NULL,           G_CALLBACK(packet_list_toggle_mark_all_displayed_frames_cb) },
    { "/Edit/MarkAllDisplayedPackets",   NULL,               "Mark All Displayed Packets",           "<shift><control>M",    NULL,           G_CALLBACK(packet_list_mark_all_displayed_frames_cb) },
    { "/Edit/UnmarkAllDisplayedPackets", NULL,               "_Unmark All Displayed Packets",        "<alt><control>M",      NULL,           G_CALLBACK(packet_list_unmark_all_displayed_frames_cb) },
-   { "/Edit/FindNextMark",              NULL,               "Find Next Mark",                       "<shift><control>N",    NULL,           G_CALLBACK(find_next_mark_cb) },
-   { "/Edit/FindPreviousMark",          NULL,               "Find Previous Mark",                   "<shift><control>B",    NULL,           G_CALLBACK(find_prev_mark_cb) },
+   { "/Edit/FindNextMark",              NULL,               "Next Mark",                            "<shift><control>N",    NULL,           G_CALLBACK(find_next_mark_cb) },
+   { "/Edit/FindPreviousMark",          NULL,               "Previous Mark",                        "<shift><control>B",    NULL,           G_CALLBACK(find_prev_mark_cb) },
 
-   { "/Edit/IgnorePacket",              NULL,               "_Ignore Packet (toggle)",              "<control>X",           NULL,           G_CALLBACK(packet_list_ignore_frame_cb) },
+   { "/Edit/IgnorePacket",              NULL,               "_Ignore/Unignore Packet",              "<control>D",           NULL,           G_CALLBACK(packet_list_ignore_frame_cb) },
     /*
      * XXX - this next one overrides /Edit/Copy/Description
      */
-   { "/Edit/IgnoreAllDisplayedPackets", NULL,               "_Ignore All Displayed Packets (toggle)","<alt><shift><control>X",  NULL,           G_CALLBACK(packet_list_ignore_all_displayed_frames_cb) },
-   { "/Edit/Un-IgnoreAllPackets",       NULL,               "U_n-Ignore All Packets",               "<shift><control>X",        NULL,           G_CALLBACK(packet_list_unignore_all_frames_cb) },
-   { "/Edit/SetTimeReference",          WIRESHARK_STOCK_TIME,   "Set Time Reference (toggle)",          "<control>T",           NULL,           G_CALLBACK(set_reftime_cb) },
-   { "/Edit/Un-TimeReferenceAllPackets",NULL,               "Un-Time Reference All Packets",        "<alt><control>T",          NULL,           G_CALLBACK(packet_list_untime_reference_all_frames_cb) },
-   { "/Edit/FindNextTimeReference",     NULL,               "Find Next Time Reference",             "<alt><control>N",          NULL,           G_CALLBACK(find_next_ref_time_cb) },
-   { "/Edit/FindPreviousTimeReference", NULL,               "Find Previous Time Reference",         "<alt><control>B",          NULL,           G_CALLBACK(find_previous_ref_time_cb) },
+   { "/Edit/IgnoreAllDisplayedPackets", NULL,               "Ignore All Displayed Packets",         "<shift><control>D",        NULL,           G_CALLBACK(packet_list_ignore_all_displayed_frames_cb) },
+   { "/Edit/Un-IgnoreAllPackets",       NULL,               "U_nignore All Packets",                "<alt><control>D",          NULL,           G_CALLBACK(packet_list_unignore_all_frames_cb) },
+   { "/Edit/SetTimeReference",          WIRESHARK_STOCK_TIME,   "Set/Unset Time Reference",         "<control>T",           NULL,           G_CALLBACK(set_reftime_cb) },
+   { "/Edit/Un-TimeReferenceAllPackets",NULL,               "Unset All Time References",            "<alt><control>T",          NULL,           G_CALLBACK(packet_list_untime_reference_all_frames_cb) },
+   { "/Edit/FindNextTimeReference",     NULL,               "Next Time Reference",                  "<alt><control>N",          NULL,           G_CALLBACK(find_next_ref_time_cb) },
+   { "/Edit/FindPreviousTimeReference", NULL,               "Previous Time Reference",              "<alt><control>B",          NULL,           G_CALLBACK(find_previous_ref_time_cb) },
    { "/Edit/TimeShift",             WIRESHARK_STOCK_TIME,   "Time Shift...",                        "<shift><control>T",        NULL,           G_CALLBACK(time_shift_cb) },
 
    { "/Edit/ConfigurationProfiles", NULL,                   "_Configuration Profiles...",           "<shift><control>A",        NULL,           G_CALLBACK(profile_dialog_cb) },
    { "/Edit/Preferences",           GTK_STOCK_PREFERENCES,  "_Preferences...",                      "<shift><control>P",        NULL,           G_CALLBACK(menus_prefs_cb) },
    { "/Edit/EditPacket",                NULL,               "_Edit Packet",                         NULL,                       NULL,           G_CALLBACK(edit_window_cb) },
-   { "/Edit/AddEditPktComment",         WIRESHARK_STOCK_EDIT,   "Edit or Add Packet Comment...",   NULL,                   NULL,           G_CALLBACK(edit_packet_comment_dlg) },
+   { "/Edit/AddEditPktComment",         WIRESHARK_STOCK_EDIT,   "Packet Comment...",   NULL,                   NULL,           G_CALLBACK(edit_packet_comment_dlg) },
 
    { "/View/TimeDisplayFormat",     NULL,                   "_Time Display Format",                 NULL,                       NULL,           NULL },
 
@@ -1624,23 +1636,9 @@ static const GtkActionEntry main_menu_bar_entries[] = {
    { "/Statistics/EndpointList/USB",                WIRESHARK_STOCK_ENDPOINTS,      "USB",                          NULL, NULL, G_CALLBACK(gtk_usb_hostlist_cb) },
    { "/Statistics/EndpointList/WLAN",               WIRESHARK_STOCK_ENDPOINTS,      "WLAN",                         NULL, NULL, G_CALLBACK(gtk_wlan_hostlist_cb) },
 
-   { "/Statistics/ServiceResponseTime",                     NULL,               "Service _Response Time",       NULL, NULL, NULL },
-   { "/Statistics/ServiceResponseTime/ONC-RPC", WIRESHARK_STOCK_TIME,           "ONC-RPC...",                   NULL, NULL, G_CALLBACK(gtk_rpcstat_cb) },
-   { "/Statistics/ServiceResponseTime/AFP",     WIRESHARK_STOCK_TIME,           "AFP...",                       NULL, NULL, G_CALLBACK(afp_srt_stat_cb) },
-   { "/Statistics/ServiceResponseTime/Camel",       WIRESHARK_STOCK_TIME,           "Camel...",                     NULL, NULL, G_CALLBACK(camel_srt_cb) },
-   { "/Statistics/ServiceResponseTime/DCE-RPC", WIRESHARK_STOCK_TIME,           "DCE-RPC...",                   NULL, NULL, G_CALLBACK(gtk_dcerpcstat_cb) },
-   { "/Statistics/ServiceResponseTime/Diameter",    WIRESHARK_STOCK_TIME,           "Diameter...",                  NULL, NULL, G_CALLBACK(diameter_srt_cb) },
-   { "/Statistics/ServiceResponseTime/FibreChannel",    WIRESHARK_STOCK_TIME,       "Fibre Channel...",             NULL, NULL, G_CALLBACK(fc_srt_cb) },
-   { "/Statistics/ServiceResponseTime/GTP",     WIRESHARK_STOCK_TIME,           "GTP...",                       NULL, NULL, G_CALLBACK(gtp_srt_cb) },
-   { "/Statistics/ServiceResponseTime/H225",        WIRESHARK_STOCK_TIME,           "H225...",                      NULL, NULL, G_CALLBACK(h225_srt_cb) },
-   { "/Statistics/ServiceResponseTime/LDAP",        WIRESHARK_STOCK_TIME,           "LDAP...",                      NULL, NULL, G_CALLBACK(ldap_srt_cb) },
-   { "/Statistics/ServiceResponseTime/MEGACO",      WIRESHARK_STOCK_TIME,           "MEGACO...",                    NULL, NULL, G_CALLBACK(megaco_srt_cb) },
-   { "/Statistics/ServiceResponseTime/MGCP",        WIRESHARK_STOCK_TIME,           "MGCP...",                      NULL, NULL, G_CALLBACK(mgcp_srt_cb) },
-   { "/Statistics/ServiceResponseTime/NCP",     WIRESHARK_STOCK_TIME,           "NCP...",                       NULL, NULL, G_CALLBACK(ncp_srt_cb) },
-   { "/Statistics/ServiceResponseTime/RADIUS",      WIRESHARK_STOCK_TIME,           "RADIUS...",                    NULL, NULL, G_CALLBACK(radius_srt_cb) },
-   { "/Statistics/ServiceResponseTime/SCSI",        WIRESHARK_STOCK_TIME,           "SCSI...",                      NULL, NULL, G_CALLBACK(scsi_srt_cb) },
-   { "/Statistics/ServiceResponseTime/SMB",     WIRESHARK_STOCK_TIME,           "SMB...",                       NULL, NULL, G_CALLBACK(smb_srt_cb) },
-   { "/Statistics/ServiceResponseTime/SMB2",        WIRESHARK_STOCK_TIME,           "SMB2...",                      NULL, NULL, G_CALLBACK(smb2_srt_cb) },
+   { "/Statistics/ServiceResponseTime",             NULL,           "Service _Response Time",       NULL, NULL, NULL },
+   { "/Statistics/ServiceResponseTime/DCE-RPC",     WIRESHARK_STOCK_TIME,           "DCE-RPC...",                   NULL, NULL, G_CALLBACK(gtk_dcerpcstat_cb) },
+   { "/Statistics/ServiceResponseTime/ONC-RPC",     WIRESHARK_STOCK_TIME,           "ONC-RPC...",                   NULL, NULL, G_CALLBACK(gtk_rpcstat_cb) },
 
    { "/StatisticsMenu/ancp",                            NULL,       "ANCP",                             NULL, NULL, G_CALLBACK(gtk_stats_tree_cb) },
    { "/StatisticsMenu/BACnet",                          NULL,       "BACnet",                           NULL, NULL, NULL },
@@ -1688,9 +1686,9 @@ static const GtkActionEntry main_menu_bar_entries[] = {
 
    { "/Telephony/GSM",                  NULL,                       "_GSM",                     NULL, NULL, NULL },
    { "/Telephony/GSM/CAMEL",            NULL,                       "CAMEL Messages and Response Status",   NULL,           NULL,               G_CALLBACK(camel_counter_cb) },
-   { "/Telephony/GSM/BSSMAP",           NULL,                       "_GSM/A-Interface BSSMAP",  NULL,                       NULL,               G_CALLBACK(gsm_a_stat_gtk_bssmap_cb) },
+   { "/Telephony/GSM/BSSMAP",           NULL,                       "A-Interface BSSMAP",  NULL,                       NULL,               G_CALLBACK(gsm_a_stat_gtk_bssmap_cb) },
 
-   { "/Telephony/GSM/DTAP",             NULL,                       "_GSM/A-Interface DTAP",    NULL, NULL, NULL },
+   { "/Telephony/GSM/DTAP",             NULL,                       "A-Interface DTAP",    NULL, NULL, NULL },
    { "/Telephony/GSM/DTAP/CC",          NULL,                       "Call Control",             NULL,                       NULL,               G_CALLBACK(gsm_a_stat_gtk_dtap_cc_cb) },
    { "/Telephony/GSM/DTAP/GMM",         NULL,                       "GPRS Mobility Management", NULL,                       NULL,               G_CALLBACK(gsm_a_stat_gtk_dtap_gmm_cb) },
    { "/Telephony/GSM/DTAP/SM",          NULL,                       "GPRS Session Management",  NULL,                       NULL,               G_CALLBACK(gsm_a_stat_gtk_dtap_sm_cb) },
@@ -1700,8 +1698,8 @@ static const GtkActionEntry main_menu_bar_entries[] = {
    { "/Telephony/GSM/DTAP/TP",          NULL,       "Special Conformance Testing Functions",    NULL,                       NULL,               G_CALLBACK(gsm_a_stat_gtk_dtap_tp_cb) },
    { "/Telephony/GSM/DTAP/SS",          NULL,                       "Supplementary Services",   NULL,                       NULL,               G_CALLBACK(gsm_a_stat_gtk_dtap_ss_cb) },
 
-   { "/Telephony/GSM/SACCH",            NULL,                       "_GSM/A-Interface SACCH",   NULL,                       NULL,               G_CALLBACK(gsm_a_stat_gtk_sacch_rr_cb) },
-   { "/Telephony/GSM/MAP-OP",           NULL,                       "_GSM/MAP Operation",       NULL,                       NULL,               G_CALLBACK(gsm_map_stat_gtk_cb) },
+   { "/Telephony/GSM/SACCH",            NULL,                       "A-Interface SACCH",   NULL,                       NULL,               G_CALLBACK(gsm_a_stat_gtk_sacch_rr_cb) },
+   { "/Telephony/GSM/MAP-OP",           NULL,                       "MAP Operation",       NULL,                       NULL,               G_CALLBACK(gsm_map_stat_gtk_cb) },
    { "/Telephony/GSM/MAPSummary",       NULL,                       "MAP Summary",              NULL,                       NULL,               G_CALLBACK(gsm_map_stat_gtk_sum_cb) },
 
    { "/Telephony/H225",                 NULL,                       "_H.225...",                NULL,                       NULL,               G_CALLBACK(h225_counter_cb) },
@@ -1751,10 +1749,13 @@ static const GtkActionEntry main_menu_bar_entries[] = {
 
    { "/Help/Website",               GTK_STOCK_HOME,                 "Website",              NULL,                           NULL,               G_CALLBACK(help_menu_Website_cb) },
    { "/Help/FAQs",                  NULL,                           "FAQ's",                NULL,                           NULL,               G_CALLBACK(help_menu_faq_cb) },
-   { "/Help/ASK",             NULL,                           "Ask (Q&A)",            NULL,                           NULL,               G_CALLBACK(help_menu_ask_cb) },
+   { "/Help/ASK",                   NULL,                           "Ask (Q&A)",            NULL,                           NULL,               G_CALLBACK(help_menu_ask_cb) },
    { "/Help/Downloads",             NULL,                           "Downloads",            NULL,                           NULL,               G_CALLBACK(help_menu_Downloads_cb) },
    { "/Help/Wiki",                  WIRESHARK_STOCK_WIKI,           "Wiki",                 NULL,                           NULL,               G_CALLBACK(help_menu_Wiki_cb) },
    { "/Help/SampleCaptures",        NULL,                           "Sample Captures",      NULL,                           NULL,               G_CALLBACK(help_menu_SampleCaptures_cb) },
+#ifdef HAVE_SOFTWARE_UPDATE
+   { "/Help/CheckForUpdates",       NULL,                           "Check for Updates...", NULL,                           NULL,               G_CALLBACK(check_for_updates_cb) },
+#endif /* HAVE_SOFTWARE_UPDATE */
    { "/Help/AboutWireshark",        WIRESHARK_STOCK_ABOUT,          "_About Wireshark",     NULL,                           NULL,               G_CALLBACK(about_wireshark_cb) },
 };
 
@@ -1920,9 +1921,9 @@ apply_selected_filter_cb(GtkAction *action, gpointer user_data)
     /* path starts with "<Actions>" */
     if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
         /* Use different callbacks depending action path */
-        match_selected_plist_cb(user_data, MATCH_SELECTED_REPLACE|MATCH_SELECTED_APPLY_NOW);
+        match_selected_plist_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_REPLACE|MATCH_SELECTED_APPLY_NOW));
     } else {
-        match_selected_ptree_cb(user_data, MATCH_SELECTED_REPLACE|MATCH_SELECTED_APPLY_NOW);
+        match_selected_ptree_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_REPLACE|MATCH_SELECTED_APPLY_NOW));
     }
 }
 
@@ -1934,9 +1935,9 @@ apply_not_selected_cb(GtkAction *action, gpointer user_data)
     /* path starts with "<Actions>" */
     if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
         /* Use different callbacks depending action path */
-        match_selected_plist_cb(user_data, MATCH_SELECTED_NOT|MATCH_SELECTED_APPLY_NOW);
+        match_selected_plist_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_NOT|MATCH_SELECTED_APPLY_NOW));
     } else {
-        match_selected_ptree_cb(user_data, MATCH_SELECTED_NOT|MATCH_SELECTED_APPLY_NOW);
+        match_selected_ptree_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_NOT|MATCH_SELECTED_APPLY_NOW));
     }
 }
 
@@ -1948,9 +1949,9 @@ apply_and_selected_cb(GtkAction *action, gpointer user_data)
     /* path starts with "<Actions>" */
     if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
         /* Use different callbacks depending action path */
-        match_selected_plist_cb(user_data, MATCH_SELECTED_AND|MATCH_SELECTED_APPLY_NOW);
+        match_selected_plist_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_AND|MATCH_SELECTED_APPLY_NOW));
     } else {
-        match_selected_ptree_cb(user_data, MATCH_SELECTED_AND|MATCH_SELECTED_APPLY_NOW);
+        match_selected_ptree_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_AND|MATCH_SELECTED_APPLY_NOW));
     }
 }
 
@@ -1962,9 +1963,9 @@ apply_or_selected_cb(GtkAction *action, gpointer user_data)
     /* path starts with "<Actions>" */
     if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
         /* Use different callbacks depending action path */
-        match_selected_plist_cb(user_data, MATCH_SELECTED_OR|MATCH_SELECTED_APPLY_NOW);
+        match_selected_plist_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_OR|MATCH_SELECTED_APPLY_NOW));
     } else {
-        match_selected_ptree_cb(user_data, MATCH_SELECTED_OR|MATCH_SELECTED_APPLY_NOW);
+        match_selected_ptree_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_OR|MATCH_SELECTED_APPLY_NOW));
     }
 }
 
@@ -1976,9 +1977,9 @@ apply_and_not_selected_cb(GtkAction *action, gpointer user_data)
     /* path starts with "<Actions>" */
     if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
         /* Use different callbacks depending action path */
-        match_selected_plist_cb(user_data, MATCH_SELECTED_AND_NOT|MATCH_SELECTED_APPLY_NOW);
+        match_selected_plist_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_AND_NOT|MATCH_SELECTED_APPLY_NOW));
     } else {
-        match_selected_ptree_cb(user_data, MATCH_SELECTED_AND_NOT|MATCH_SELECTED_APPLY_NOW);
+        match_selected_ptree_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_AND_NOT|MATCH_SELECTED_APPLY_NOW));
     }
 }
 
@@ -1990,9 +1991,9 @@ apply_or_not_selected_cb(GtkAction *action, gpointer user_data)
     /* path starts with "<Actions>" */
     if (strncmp (path+9,"/PacketListPopUpMenuActionGroup",31) == 0){
         /* Use different callbacks depending action path */
-        match_selected_plist_cb(user_data,MATCH_SELECTED_OR_NOT|MATCH_SELECTED_APPLY_NOW);
+        match_selected_plist_cb(user_data,(MATCH_SELECTED_E)(MATCH_SELECTED_OR_NOT|MATCH_SELECTED_APPLY_NOW));
     } else {
-        match_selected_ptree_cb(user_data, MATCH_SELECTED_OR_NOT|MATCH_SELECTED_APPLY_NOW);
+        match_selected_ptree_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_OR_NOT|MATCH_SELECTED_APPLY_NOW));
     }
 }
 
@@ -2466,37 +2467,37 @@ packet_list_menu_copy_sum_csv(GtkAction *action _U_, gpointer user_data)
 static void
 packet_list_menu_copy_as_flt(GtkAction *action _U_, gpointer user_data)
 {
-    match_selected_plist_cb(user_data, MATCH_SELECTED_REPLACE|MATCH_SELECTED_COPY_ONLY);
+    match_selected_plist_cb(user_data, (MATCH_SELECTED_E)(MATCH_SELECTED_REPLACE|MATCH_SELECTED_COPY_ONLY));
 }
 
 static void
 packet_list_menu_copy_bytes_oht_cb(GtkAction *action _U_, gpointer user_data)
 {
-    copy_hex_cb( NULL /* widget _U_ */ , user_data,  CD_ALLINFO | CD_FLAGS_SELECTEDONLY);
+    copy_hex_cb( NULL /* widget _U_ */ , user_data, (copy_data_type)(CD_ALLINFO | CD_FLAGS_SELECTEDONLY));
 }
 
 static void
 packet_list_menu_copy_bytes_oh_cb(GtkAction *action _U_, gpointer user_data)
 {
-    copy_hex_cb( NULL /* widget _U_ */ , user_data, CD_HEXCOLUMNS | CD_FLAGS_SELECTEDONLY);
+    copy_hex_cb( NULL /* widget _U_ */ , user_data, (copy_data_type)(CD_HEXCOLUMNS | CD_FLAGS_SELECTEDONLY));
 }
 
 static void
 packet_list_menu_copy_bytes_text_cb(GtkAction *action _U_, gpointer user_data)
 {
-    copy_hex_cb( NULL /* widget _U_ */ , user_data, CD_TEXTONLY | CD_FLAGS_SELECTEDONLY);
+    copy_hex_cb( NULL /* widget _U_ */ , user_data, (copy_data_type)(CD_TEXTONLY | CD_FLAGS_SELECTEDONLY));
 }
 
 static void
 packet_list_menu_copy_bytes_hex_strm_cb(GtkAction *action _U_, gpointer user_data)
 {
-    copy_hex_cb( NULL /* widget _U_ */ , user_data,  CD_HEX | CD_FLAGS_SELECTEDONLY);
+    copy_hex_cb( NULL /* widget _U_ */ , user_data,  (copy_data_type)(CD_HEX | CD_FLAGS_SELECTEDONLY));
 }
 
 static void
 packet_list_menu_copy_bytes_bin_strm_cb(GtkAction *action _U_, gpointer user_data)
 {
-    copy_hex_cb( NULL /* widget _U_ */ , user_data, CD_BINARY | CD_FLAGS_SELECTEDONLY);
+    copy_hex_cb( NULL /* widget _U_ */ , user_data, (copy_data_type)(CD_BINARY | CD_FLAGS_SELECTEDONLY));
 }
 
 /* tree */
@@ -2590,7 +2591,7 @@ static void
 tree_view_menu_copy_as_flt(GtkAction *action _U_, gpointer user_data _U_)
 {
     /* match_selected_ptree_cb needs the popup_menu_object to get the right object E_DFILTER_TE_KEY */
-    match_selected_ptree_cb( popup_menu_object, MATCH_SELECTED_REPLACE|MATCH_SELECTED_COPY_ONLY);
+    match_selected_ptree_cb( popup_menu_object, (MATCH_SELECTED_E)(MATCH_SELECTED_REPLACE|MATCH_SELECTED_COPY_ONLY));
 }
 
 static const char *ui_desc_packet_list_heading_menu_popup =
@@ -2796,7 +2797,7 @@ static const GtkActionEntry packet_list_menu_popup_action_entries[] = {
   { "/Set Time Reference",              WIRESHARK_STOCK_TIME,   "Set Time Reference (toggle)",  NULL,                   NULL,           G_CALLBACK(packet_list_menu_set_ref_time_cb) },
   { "/TimeShift",                       WIRESHARK_STOCK_TIME,   "Time Shift...",                NULL,                   NULL,           G_CALLBACK(time_shift_cb) },
   { "/ManuallyResolveAddress",          NULL,                   "Manually Resolve Address",     NULL,                   NULL,           G_CALLBACK(manual_addr_resolv_dlg) },
-  { "/Edit/AddEditPktComment",          WIRESHARK_STOCK_EDIT,   "Edit or Add Packet Comment...",   NULL,                   NULL,           G_CALLBACK(edit_packet_comment_dlg) },
+  { "/Edit/AddEditPktComment",          WIRESHARK_STOCK_EDIT,   "Packet Comment...",   NULL,                   NULL,           G_CALLBACK(edit_packet_comment_dlg) },
 
 
   { "/Conversation Filter",             NULL, "Conversation Filter",    NULL, NULL, NULL },
@@ -2977,6 +2978,7 @@ static const char *ui_desc_tree_view_menu_popup =
 "     <menuitem name='DisableProtocol' action='/DisableProtocol'/>\n"
 "     <menuitem name='ResolveName' action='/ResolveName'/>\n"
 "     <menuitem name='GotoCorrespondingPacket' action='/GotoCorrespondingPacket'/>\n"
+"     <menuitem name='ShowPacketRefinNewWindow' action='/ShowPacketRefinNewWindow'/>\n"
 "  </popup>\n"
 "</ui>\n";
 
@@ -3028,6 +3030,7 @@ static const GtkActionEntry tree_view_menu_popup_action_entries[] = {
   { "/DisableProtocol",         WIRESHARK_STOCK_CHECKBOX,       "Disable Protocol...",                  NULL, NULL, G_CALLBACK(proto_disable_cb) },
   { "/ResolveName",                                 NULL,       "_Resolve Name",                        NULL, NULL, G_CALLBACK(resolve_name_cb) },
   { "/GotoCorrespondingPacket",                     NULL,       "_Go to Corresponding Packet",          NULL, NULL, G_CALLBACK(goto_framenum_cb) },
+  { "/ShowPacketRefinNewWindow",                    NULL,       "Show Packet Reference in New Window",  NULL, NULL, G_CALLBACK(new_window_cb_ref) },
 };
 
 static const char *ui_desc_bytes_menu_popup =
@@ -3051,7 +3054,7 @@ static const char *ui_statusbar_profiles_menu_popup =
 "     <menuitem name='Profiles' action='/Profiles'/>\n"
 "     <separator/>\n"
 "     <menuitem name='New' action='/New'/>\n"
-"     <menuitem name='Edit' action='/Edit'/>\n"
+"     <menuitem name='Rename' action='/Rename'/>\n"
 "     <menuitem name='Delete' action='/Delete'/>\n"
 "     <separator/>\n"
 "     <menu name='Change' action='/Change'>\n"
@@ -3061,12 +3064,12 @@ static const char *ui_statusbar_profiles_menu_popup =
 "</ui>\n";
 static const GtkActionEntry statusbar_profiles_menu_action_entries [] =
 {
-    { "/Profiles",  NULL,   "Configuration Profiles...",    NULL,   NULL,     G_CALLBACK(profile_dialog_cb) },
-    { "/New",   GTK_STOCK_NEW,  "New...",   NULL,   NULL,     G_CALLBACK(profile_new_cb) },
-    { "/Edit",  GTK_STOCK_EDIT, "Edit...",  NULL,   NULL,     G_CALLBACK(profile_edit_cb) },
-    { "/Delete",    GTK_STOCK_DELETE,   "Delete",   NULL,   NULL,     G_CALLBACK(profile_delete_cb) },
-    { "/Change",    NULL,       "Change",   NULL,   NULL,   NULL },
-    { "/Change/Default",    NULL,   "Default",  NULL,   NULL,     NULL },
+    { "/Profiles",       GTK_STOCK_INDEX,   "Manage Profiles...", NULL, NULL, G_CALLBACK(profile_dialog_cb) },
+    { "/New",            GTK_STOCK_NEW,     "New...",             NULL, NULL, G_CALLBACK(profile_new_cb) },
+    { "/Rename",         GTK_STOCK_EDIT,    "Rename...",          NULL, NULL, G_CALLBACK(profile_rename_cb) },
+    { "/Delete",         GTK_STOCK_DELETE,  "Delete",             NULL, NULL, G_CALLBACK(profile_delete_cb) },
+    { "/Change",         GTK_STOCK_JUMP_TO, "Switch to",          NULL, NULL, NULL },
+    { "/Change/Default", NULL,              "Default",            NULL, NULL, NULL },
 };
 
 GtkWidget *
@@ -3120,7 +3123,7 @@ main_menu_new(GtkAccelGroup ** table)
 #endif
 
 #ifdef HAVE_GTKOSXAPPLICATION
-    theApp = g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
+    theApp = (GtkosxApplication *)g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
 
     if(prefs.gui_macosx_style) {
         gtk_widget_hide(menubar);
@@ -3176,7 +3179,7 @@ main_menu_new(GtkAccelGroup ** table)
 static void
 menu_dissector_filter_cb(GtkAction *action _U_,  gpointer callback_data)
 {
-    dissector_filter_t      *filter_entry = callback_data;
+    dissector_filter_t      *filter_entry = (dissector_filter_t *)callback_data;
     GtkWidget               *filter_te;
     const char              *buf;
 
@@ -3199,7 +3202,7 @@ menu_dissector_filter_cb(GtkAction *action _U_,  gpointer callback_data)
 static gboolean
 menu_dissector_filter_spe_cb(frame_data *fd _U_, epan_dissect_t *edt, gpointer callback_data)
 {
-    dissector_filter_t *filter_entry = callback_data;
+    dissector_filter_t *filter_entry = (dissector_filter_t *)callback_data;
 
     /* XXX - this gets the packet_info of the last dissected packet, */
     /* which is not necessarily the last selected packet */
@@ -3237,7 +3240,7 @@ menu_dissector_filter(capture_file *cf)
     /* no items */
     if (!list_entry){
 
-      action = g_object_new (GTK_TYPE_ACTION,
+      action = (GtkAction *)g_object_new (GTK_TYPE_ACTION,
                  "name", "filter-list-empty",
                  "label", "No filters",
                  "sensitive", FALSE,
@@ -3257,10 +3260,10 @@ menu_dissector_filter(capture_file *cf)
     }
 
     while (list_entry != NULL) {
-        filter_entry = list_entry->data;
+        filter_entry = (dissector_filter_t *)list_entry->data;
         action_name = g_strdup_printf ("filter-%u", i);
         /*g_warning("action_name %s, filter_entry->name %s",action_name,filter_entry->name);*/
-        action = g_object_new (GTK_TYPE_ACTION,
+        action = (GtkAction *)g_object_new (GTK_TYPE_ACTION,
                  "name", action_name,
                  "label", filter_entry->name,
                  "sensitive", menu_dissector_filter_spe_cb(/* frame_data *fd _U_*/ NULL, cf->edt, filter_entry),
@@ -3301,12 +3304,12 @@ menus_init(void)
         packet_list_heading_action_group = gtk_action_group_new ("PacketListHeadingPopUpMenuActionGroup");
 
         gtk_action_group_add_actions (packet_list_heading_action_group,            /* the action group */
-            (gpointer)packet_list_heading_menu_popup_action_entries,               /* an array of action descriptions */
+            packet_list_heading_menu_popup_action_entries,               /* an array of action descriptions */
             G_N_ELEMENTS(packet_list_heading_menu_popup_action_entries),           /* the number of entries */
             popup_menu_object);                                                    /* data to pass to the action callbacks */
 
         gtk_action_group_add_toggle_actions(packet_list_heading_action_group,                     /* the action group */
-                                    (gpointer)packet_list_heading_menu_toggle_action_entries,     /* an array of action descriptions */
+                                    (GtkToggleActionEntry *)packet_list_heading_menu_toggle_action_entries,     /* an array of action descriptions */
                                     G_N_ELEMENTS(packet_list_heading_menu_toggle_action_entries), /* the number of entries */
                                     NULL);                                                        /* data to pass to the action callbacks */
 
@@ -3333,13 +3336,13 @@ menus_init(void)
         packet_list_action_group = gtk_action_group_new ("PacketListPopUpMenuActionGroup");
 
         gtk_action_group_add_actions (packet_list_action_group,                    /* the action group */
-            (gpointer)packet_list_menu_popup_action_entries,                       /* an array of action descriptions */
+            (GtkActionEntry *)packet_list_menu_popup_action_entries,                       /* an array of action descriptions */
             G_N_ELEMENTS(packet_list_menu_popup_action_entries),                   /* the number of entries */
             popup_menu_object);                                                    /* data to pass to the action callbacks */
 
         /* Add the filter menu items */
         gtk_action_group_add_actions (packet_list_action_group,                    /* the action group */
-            (gpointer)apply_prepare_filter_action_entries,                         /* an array of action descriptions */
+            (GtkActionEntry *)apply_prepare_filter_action_entries,                         /* an array of action descriptions */
             G_N_ELEMENTS(apply_prepare_filter_action_entries),                     /* the number of entries */
             popup_menu_object);                                                    /* data to pass to the action callbacks */
 
@@ -3368,14 +3371,14 @@ menus_init(void)
         packet_list_details_action_group = gtk_action_group_new ("PacketListDetailsMenuPopUpActionGroup");
 
         gtk_action_group_add_actions (packet_list_details_action_group,            /* the action group */
-            (gpointer)tree_view_menu_popup_action_entries,                         /* an array of action descriptions */
+            (GtkActionEntry *)tree_view_menu_popup_action_entries,                 /* an array of action descriptions */
             G_N_ELEMENTS(tree_view_menu_popup_action_entries),                     /* the number of entries */
             popup_menu_object);                                                    /* data to pass to the action callbacks */
 
         /* Add the filter menu items */
         gtk_action_group_add_actions (packet_list_details_action_group,            /* the action group */
-            (gpointer)apply_prepare_filter_action_entries,                        /* an array of action descriptions */
-            G_N_ELEMENTS(apply_prepare_filter_action_entries),                    /* the number of entries */
+            (GtkActionEntry *)apply_prepare_filter_action_entries,                 /* an array of action descriptions */
+            G_N_ELEMENTS(apply_prepare_filter_action_entries),                     /* the number of entries */
             popup_menu_object);                                                    /* data to pass to the action callbacks */
 
 
@@ -3413,7 +3416,7 @@ menus_init(void)
 
 
         gtk_action_group_add_radio_actions  (packet_list_byte_menu_action_group,            /* the action group */
-                                    (gpointer)bytes_menu_radio_action_entries,              /* an array of radio action descriptions  */
+                                    (GtkRadioActionEntry *)bytes_menu_radio_action_entries, /* an array of radio action descriptions  */
                                     G_N_ELEMENTS(bytes_menu_radio_action_entries),          /* the number of entries */
                                     recent.gui_bytes_view,                                  /* the value of the action to activate initially, or -1 if no action should be activated  */
                                     G_CALLBACK(select_bytes_view_cb),                       /* the callback to connect to the changed signal  */
@@ -3460,7 +3463,7 @@ menus_init(void)
 
         /* Add the filter menu actions */
         gtk_action_group_add_actions (main_menu_bar_action_group,                       /* the action group */
-                                    (gpointer)apply_prepare_filter_action_entries,      /* an array of action descriptions */
+                                    (GtkActionEntry *)apply_prepare_filter_action_entries,      /* an array of action descriptions */
                                     G_N_ELEMENTS(apply_prepare_filter_action_entries),  /* the number of entries */
                                     popup_menu_object);                                 /* data to pass to the action callbacks */
 
@@ -3516,7 +3519,7 @@ menus_init(void)
         statusbar_profiles_action_group = gtk_action_group_new ("StatusBarProfilesPopUpMenuActionGroup");
 
         gtk_action_group_add_actions (statusbar_profiles_action_group,   /* the action group */
-            (gpointer)statusbar_profiles_menu_action_entries,            /* an array of action descriptions */
+            (GtkActionEntry *)statusbar_profiles_menu_action_entries,    /* an array of action descriptions */
             G_N_ELEMENTS(statusbar_profiles_menu_action_entries),        /* the number of entries */
             popup_menu_object);                                          /* data to pass to the action callbacks */
 
@@ -3542,8 +3545,7 @@ menus_init(void)
         popup_menu_list = g_slist_append((GSList *)popup_menu_list, ui_manager_statusbar_profiles_menu);
 
         menu_dissector_filter(&cfile);
-        /* Only Lua uses this currently. */
-        merge_lua_menu_items(merge_lua_menu_items_list);
+        merge_menu_items(merge_menu_items_list);
 
         /* Add external menus and items */
         ws_menubar_build_external_menus();
@@ -3591,7 +3593,7 @@ ws_menubar_build_external_menus(void)
     void (*callback)(gpointer);
 
     while (build_menubar_items_callback_list != NULL) {
-        callback = build_menubar_items_callback_list->data;
+        callback = (void (*)(gpointer))build_menubar_items_callback_list->data;
         callback(ui_manager_main_menubar);
         build_menubar_items_callback_list = g_list_next(build_menubar_items_callback_list);
     }
@@ -3613,7 +3615,16 @@ typedef struct _menu_item {
     gboolean (*selected_tree_row_enabled)(field_info *, gpointer callback_data);
 } menu_item_t;
 
-void register_lua_menu_bar_menu_items(
+static gint
+insert_sorted_by_label(gconstpointer aparam, gconstpointer bparam)
+{
+    const menu_item_t *a = (menu_item_t *)aparam;
+    const menu_item_t *b = (menu_item_t *)bparam;
+
+    return g_ascii_strcasecmp(a->label, b->label);
+}
+
+void register_menu_bar_menu_items(
     const char   *gui_path,
     const char   *name,
     const gchar  *stock_id,
@@ -3628,21 +3639,22 @@ void register_lua_menu_bar_menu_items(
 {
     menu_item_t *menu_item_data;
 
-    menu_item_data = g_malloc0(sizeof (menu_item_t));
+    menu_item_data                   = g_new0(menu_item_t,1);
     menu_item_data->gui_path         = gui_path;
     menu_item_data->name             = name;
     menu_item_data->label            = label;
     menu_item_data->stock_id         = stock_id;
     menu_item_data->accelerator      = accelerator;
     menu_item_data->tooltip          = tooltip;
-    menu_item_data->callback         = callback;
+    menu_item_data->callback         = (GCallback)callback;
     menu_item_data->callback_data    = callback_data;
     menu_item_data->enabled          = enabled;
     menu_item_data->selected_packet_enabled = selected_packet_enabled;
     menu_item_data->selected_tree_row_enabled = selected_tree_row_enabled;
 
-    merge_lua_menu_items_list = g_list_append(merge_lua_menu_items_list, menu_item_data);
-
+    merge_menu_items_list = g_list_insert_sorted(merge_menu_items_list,
+                                                 menu_item_data,
+                                                 insert_sorted_by_label);
 }
 
 #define XMENU_MAX_DEPTH         (1 + 32)        /* max number of menus in an xpath (+1 for Menubar) */
@@ -3690,7 +3702,7 @@ void register_lua_menu_bar_menu_items(
  * http://developer.gnome.org/gtk/2.24/GtkUIManager.html#XML-UI
  * http://developer.gnome.org/gtk/2.24/GtkUIManager.html#gtk-ui-manager-add-ui-from-string
  */
-const gchar*
+static const gchar*
 make_menu_xml(const char *path)
 {
     GString     *xml;
@@ -3777,7 +3789,6 @@ make_menu_xml(const char *path)
 
     /* free the GString object, return the allocated char buf which must be g_freed */
     markup = g_string_free(xml, FALSE);
-    /* printf("Lua Menu XML:\n%s\n", markup); */
 
     return markup;
 }
@@ -3786,18 +3797,14 @@ make_menu_xml(const char *path)
  * Creates an action group for the menu items in xpath, and returns it. The caller should
  * use g_object_unref() on the returned pointer if transferring scope.
  */
-#ifdef HAVE_LUA
-/* NOTE currently only used from Lua, remove this ifdef when used
-  outside of #ifdef LUA */
 static GtkActionGroup*
-make_menu_actions(const char *path, const menu_item_t *menu_item_data)
+make_menu_actions(char *path, const menu_item_t *menu_item_data)
 {
     GtkActionGroup  *action_group;
     GtkAction       *action;
     char           **p;
     char           **tokens;
-    char            *lbl;
-    const char      *tok = path;
+    char            *tok = path, *lbl;
 
     action_group = gtk_action_group_new (path);
 
@@ -3819,10 +3826,10 @@ make_menu_actions(const char *path, const menu_item_t *menu_item_data)
                 *lbl++ = '\0';
             }
             if ((lbl == NULL) || (*lbl == '\0')) {
-                lbl = (char*)tok;
+                lbl = tok;
             }
 
-            action = g_object_new (
+            action = (GtkAction *)g_object_new (
                     GTK_TYPE_ACTION,
                     "name", tok,
                     "label", lbl,
@@ -3835,20 +3842,10 @@ make_menu_actions(const char *path, const menu_item_t *menu_item_data)
 
     /* handle menu item (blank names ok) */
     if ( (tok != NULL) /* && (tok[0] != '\0') */ && (menu_item_data != NULL) ) {
-
-        /* parse label from token */
-        lbl = strchr(tok, '|');
-        if (lbl != NULL) {
-            *lbl++ = '\0';
-        }
-        if ((lbl == NULL) || (*lbl == '\0')) {
-            lbl = (char*)tok;
-        }
-
-        action = g_object_new (
+        action = (GtkAction *)g_object_new (
                 GTK_TYPE_ACTION,
                 "name", tok,
-                "label", lbl,
+                "label", menu_item_data->label,
                 "stock-id", menu_item_data->stock_id,
                 "tooltip", menu_item_data->tooltip,
                 "sensitive", menu_item_data->enabled,
@@ -3871,18 +3868,9 @@ make_menu_actions(const char *path, const menu_item_t *menu_item_data)
 
     return action_group;
 }
-#endif
-
-#ifndef HAVE_LUA
-static void
-merge_lua_menu_items(GList *lcl_merge_lua_menu_items_list _U_)
-{
-}
-
-#else
 
 static void
-merge_lua_menu_items(GList *lcl_merge_lua_menu_items_list)
+merge_menu_items(GList *lcl_merge_menu_items_list)
 {
     guint           merge_id;
     GtkActionGroup *action_group;
@@ -3891,13 +3879,11 @@ merge_lua_menu_items(GList *lcl_merge_lua_menu_items_list)
     const gchar    *xml;
     gchar          *xpath;
 
-    while (lcl_merge_lua_menu_items_list != NULL) {
-        menu_item_data = lcl_merge_lua_menu_items_list->data;
+    while (lcl_merge_menu_items_list != NULL) {
+        menu_item_data = (menu_item_t *)lcl_merge_menu_items_list->data;
         xpath = g_strdup_printf("%s/%s", menu_item_data->gui_path, menu_item_data->name);
-
         xml = make_menu_xml(xpath);
         if (xml != NULL) {
-
             /* create action group for menu elements */
             action_group = make_menu_actions(xpath, menu_item_data);
             gtk_ui_manager_insert_action_group (ui_manager_main_menubar, action_group, 0);
@@ -3906,7 +3892,7 @@ merge_lua_menu_items(GList *lcl_merge_lua_menu_items_list)
             err = NULL;
             merge_id = gtk_ui_manager_add_ui_from_string (ui_manager_main_menubar, xml, -1, &err);
             if (err != NULL) {
-                fprintf (stderr, "Warning: building Lua menus failed: %s\n",
+                fprintf (stderr, "Warning: building menus failed: %s\n",
                         err->message);
                 g_error_free (err);
 
@@ -3919,11 +3905,28 @@ merge_lua_menu_items(GList *lcl_merge_lua_menu_items_list)
         }
 
         g_free(xpath);
-        lcl_merge_lua_menu_items_list = g_list_next(lcl_merge_lua_menu_items_list);
+        lcl_merge_menu_items_list = g_list_next(lcl_merge_menu_items_list);
     }
 }
-#endif
 
+const char *
+stat_group_name(register_stat_group_t group)
+{
+    /* See make_menu_xml() for an explanation of the string format */
+    static const value_string group_name_vals[] = {
+        {REGISTER_ANALYZE_GROUP_UNSORTED,            "/Menubar/AnalyzeMenu|Analyze"},                                                              /* unsorted analyze stuff */
+        {REGISTER_ANALYZE_GROUP_CONVERSATION_FILTER, "/Menubar/AnalyzeMenu|Analyze/ConversationFilterMenu|Analyze#ConversationFilter"},            /* conversation filters */
+        {REGISTER_STAT_GROUP_UNSORTED,               "/Menubar/StatisticsMenu|Statistics"},                                                        /* unsorted statistic function */
+        {REGISTER_STAT_GROUP_GENERIC,                "/Menubar/StatisticsMenu|Statistics"},                                                        /* generic statistic function, not specific to a protocol */
+        {REGISTER_STAT_GROUP_CONVERSATION_LIST,      "/Menubar/StatisticsMenu|Statistics/ConversationListMenu|Statistics#ConversationList"},       /* member of the conversation list */
+        {REGISTER_STAT_GROUP_ENDPOINT_LIST,          "/Menubar/StatisticsMenu|Statistics/EndpointListMenu|Statistics#EndpointList"},               /* member of the endpoint list */
+        {REGISTER_STAT_GROUP_RESPONSE_TIME,          "/Menubar/StatisticsMenu|Statistics/ServiceResponseTimeMenu|Statistics#ServiceResponseTime"}, /* member of the service response time list */
+        {REGISTER_STAT_GROUP_TELEPHONY,              "/Menubar/TelephonyMenu|Telephony"},                                                          /* telephony specific */
+        {REGISTER_TOOLS_GROUP_UNSORTED,              "/Menubar/ToolsMenu|Tools"},                                                                  /* unsorted tools */
+        {0, NULL}
+    };
+    return val_to_str_const(group, group_name_vals, "/Menubar/ToolsMenu|Tools");
+}
 
 /*
  * Enable/disable menu sensitivity.
@@ -3991,14 +3994,14 @@ set_menu_object_data (const gchar *path, const gchar *key, gpointer data)
 
 /* Recently used capture files submenu:
  * Submenu containing the recently used capture files.
- * The capture filenames are always kept with the absolute path, to be independant
+ * The capture filenames are always kept with the absolute path to be independent
  * of the current path.
  * They are only stored inside the labels of the submenu (no separate list). */
 
 #define MENU_RECENT_FILES_PATH "/Menubar/FileMenu/OpenRecent"
 #define MENU_RECENT_FILES_KEY "Recent File Name"
 
-/* Add a file name to the top of the list, if its allrady present remove it first */
+/* Add a file name to the top of the list; if it's already present remove it first */
 static GList *
 remove_present_file_name(GList *recent_files_list, const gchar *cf_name)
 {
@@ -4006,7 +4009,7 @@ remove_present_file_name(GList *recent_files_list, const gchar *cf_name)
     gchar *widget_cf_name;
 
     for (li = g_list_first(recent_files_list); li; li = li->next) {
-        widget_cf_name = li->data;
+        widget_cf_name = (gchar *)li->data;
         if (
 #ifdef _WIN32
             /* do a case insensitive compare on win32 */
@@ -4043,7 +4046,7 @@ recent_changed_cb (GtkUIManager *ui_manager,
   action_groups = gtk_ui_manager_get_action_groups (ui_manager);
   for (l = action_groups; l != NULL; l = l->next)
   {
-      GtkActionGroup *group = l->data;
+      GtkActionGroup *group = (GtkActionGroup *)l->data;
 
       if (strcmp (gtk_action_group_get_name (group), "recent-files-group") == 0){
           /* this unrefs the action group and all of its actions */
@@ -4065,7 +4068,7 @@ recent_clear_cb(GtkAction *action _U_, gpointer user_data _U_)
 
     /* Get the list of recent files, free the list and store the empty list with the widget */
     submenu_recent_files = gtk_ui_manager_get_widget(ui_manager_main_menubar, MENU_RECENT_FILES_PATH);
-    recent_files_list = g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
+    recent_files_list = (GList *)g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
     /* Free the name strings ?? */
     g_list_free(recent_files_list);
     recent_files_list = NULL;
@@ -4095,7 +4098,7 @@ add_recent_items (guint merge_id, GtkUIManager *ui_manager)
     if(!submenu_recent_files){
         g_warning("add_recent_items: No submenu_recent_files found, path= MENU_RECENT_FILES_PATH");
     }
-    items = g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
+    items = (GList *)g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
 
     gtk_ui_manager_insert_action_group (ui_manager, action_group, 0);
     g_object_set_data (G_OBJECT (ui_manager),
@@ -4104,7 +4107,7 @@ add_recent_items (guint merge_id, GtkUIManager *ui_manager)
     /* no items */
     if (!items){
 
-      action = g_object_new (GTK_TYPE_ACTION,
+      action = (GtkAction *)g_object_new (GTK_TYPE_ACTION,
                  "name", "recent-info-empty",
                  "label", "No recently used files",
                  "sensitive", FALSE,
@@ -4127,13 +4130,13 @@ add_recent_items (guint merge_id, GtkUIManager *ui_manager)
        i < prefs.gui_recent_files_count_max && l != NULL;
        i +=1, l = l->next)
     {
-      gchar *item_name = l->data;
+      gchar *item_name = (gchar *)l->data;
       action_name = g_strdup_printf ("recent-info-%u", i);
 
-      action = g_object_new (GTK_TYPE_ACTION,
+      action = (GtkAction *)g_object_new (GTK_TYPE_ACTION,
                  "name", action_name,
                  "label", item_name,
-                 "stock_id", WIRESHARK_STOCK_FILE,
+                 "stock_id", WIRESHARK_STOCK_SAVE,
                  NULL);
       g_signal_connect (action, "activate",
                         G_CALLBACK (menu_open_recent_file_cmd_cb), NULL);
@@ -4164,7 +4167,7 @@ add_recent_items (guint merge_id, GtkUIManager *ui_manager)
              FALSE);
 
     /* Add a clear Icon */
-    action = g_object_new (GTK_TYPE_ACTION,
+    action = (GtkAction *)g_object_new (GTK_TYPE_ACTION,
              "name", "clear-recent-info",
              "label", "Clear the recent files list",
              "stock_id", GTK_STOCK_CLEAR,
@@ -4214,7 +4217,7 @@ add_tap_plugins (guint merge_id, GtkUIManager *ui_manager)
         stats_tree_cfg *cfg = (stats_tree_cfg*)iter->data;
         if (cfg->plugin) {
             action_name = g_strdup_printf(MENU_STATISTICS_PATH "/%s", cfg->abbr);
-            action = g_object_new (GTK_TYPE_ACTION,
+            action = (GtkAction *)g_object_new (GTK_TYPE_ACTION,
                  "name", action_name,
                  "label", cfg->name,
                  NULL);
@@ -4236,7 +4239,7 @@ add_tap_plugins (guint merge_id, GtkUIManager *ui_manager)
     g_list_free(cfg_list);
 }
 
-/* Open a file by it's name
+/* Open a file by its name
    (Beware: will not ask to close existing capture file!) */
 void
 menu_open_filename(gchar *cf_name)
@@ -4250,7 +4253,7 @@ menu_open_filename(gchar *cf_name)
     if(!submenu_recent_files){
         g_warning("menu_open_filename: No submenu_recent_files found, path= MENU_RECENT_FILES_PATH");
     }
-    recent_files_list = g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
+    recent_files_list = (GList *)g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
     /* XXX: ask user to remove item, it's maybe only a temporary problem */
     /* open and read the capture file (this will close an existing file) */
     if (cf_open(&cfile, cf_name, FALSE, &err) == CF_OK) {
@@ -4277,7 +4280,7 @@ menu_open_recent_file_cmd(GtkAction *action)
 #if GTK_CHECK_VERSION(2,16,0)
     cf_name = gtk_action_get_label(action);
 #else
-    cf_name = g_object_get_data(G_OBJECT(action), "FileName");
+    cf_name = (const gchar *)g_object_get_data(G_OBJECT(action), "FileName");
 #endif
 
     /* open and read the capture file (this will close an existing file) */
@@ -4285,7 +4288,7 @@ menu_open_recent_file_cmd(GtkAction *action)
         cf_read(&cfile, FALSE);
     } else {
         submenu_recent_files = gtk_ui_manager_get_widget(ui_manager_main_menubar, MENU_RECENT_FILES_PATH);
-        recent_files_list = g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
+        recent_files_list = (GList *)g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
 
         recent_files_list = remove_present_file_name(recent_files_list, cf_name);
         g_object_set_data(G_OBJECT(submenu_recent_files), "recent-files-list", recent_files_list);
@@ -4306,7 +4309,7 @@ menu_open_recent_file_cmd_cb(GtkAction *action, gpointer data _U_)
 }
 
 static void
-add_menu_recent_capture_file_absolute(gchar *cf_name)
+add_menu_recent_capture_file_absolute(const gchar *cf_name)
 {
     GtkWidget *submenu_recent_files;
     GList     *li;
@@ -4328,10 +4331,10 @@ add_menu_recent_capture_file_absolute(gchar *cf_name)
         g_free(normalized_cf_name);
         return;
     }
-    recent_files_list = g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
+    recent_files_list = (GList *)g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
     cnt = 1;
     for (li = g_list_first(recent_files_list); li; cnt++) {
-        widget_cf_name = li->data;
+        widget_cf_name = (gchar *)li->data;
 
         /* Find the next element BEFORE we (possibly) free the current one below */
         li = li->next;
@@ -4362,7 +4365,7 @@ add_menu_recent_capture_file_absolute(gchar *cf_name)
  * http:                        //stackoverflow.com/questions/437212/how-do-you-register-a-most-recently-used-list-with-windows-in-preparation-for-win
  */
 void
-add_menu_recent_capture_file(gchar *cf_name)
+add_menu_recent_capture_file(const gchar *cf_name)
 {
     gchar *curr;
     gchar *absolute;
@@ -4396,10 +4399,10 @@ menu_recent_file_write_all(FILE *rf)
     if(!submenu_recent_files){
         g_warning("menu_recent_file_write_all: No submenu_recent_files found, path= MENU_RECENT_FILES_PATH");
     }
-    recent_files_list = g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
+    recent_files_list = (GList *)g_object_get_data(G_OBJECT(submenu_recent_files), "recent-files-list");
     list =  g_list_last(recent_files_list);
     while (list != NULL) {
-        cf_name = list->data;
+        cf_name = (gchar *)list->data;
         if (cf_name) {
             if(u3_active())
                 fprintf (rf, RECENT_KEY_CAPTURE_FILE ": %s\n", u3_contract_device_path(cf_name));
@@ -4418,7 +4421,7 @@ menu_recent_file_write_all(FILE *rf)
     child = g_list_last(children);
     while (child != NULL) {
         /* get capture filename from the menu item label */
-        cf_name = g_object_get_data(G_OBJECT(child->data), MENU_RECENT_FILES_KEY);
+        cf_name = (gchar *)g_object_get_data(G_OBJECT(child->data), MENU_RECENT_FILES_KEY);
         if (cf_name) {
             if(u3_active())
                 fprintf (rf, RECENT_KEY_CAPTURE_FILE ": %s\n", u3_contract_device_path(cf_name));
@@ -4435,7 +4438,7 @@ menu_recent_file_write_all(FILE *rf)
 void
 menu_name_resolution_changed(void)
 {
-    GtkWidget *menu = NULL;
+    GtkWidget *menu;
 
     menu = gtk_ui_manager_get_widget(ui_manager_main_menubar, "/Menubar/ViewMenu/NameResolution/EnableforMACLayer");
     if(!menu){
@@ -4527,7 +4530,7 @@ colorize_cb(GtkWidget *w, gpointer d _U_)
 void
 menu_recent_read_finished(void)
 {
-    GtkWidget *menu = NULL;
+    GtkWidget *menu;
 
     menu = gtk_ui_manager_get_widget(ui_manager_main_menubar, "/Menubar/ViewMenu/MainToolbar");
     if(!menu){
@@ -4627,13 +4630,13 @@ menu_recent_read_finished(void)
 
     switch (recent.gui_seconds_format) {
     case TS_SECONDS_DEFAULT:
-        recent.gui_seconds_format = -1;
+        recent.gui_seconds_format = (ts_seconds_type)-1;
         /* set_active will not trigger the callback when deactivating an inactive item! */
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menu), TRUE);
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menu), FALSE);
         break;
     case TS_SECONDS_HOUR_MIN_SEC:
-        recent.gui_seconds_format = -1;
+        recent.gui_seconds_format = (ts_seconds_type)-1;
         /* set_active will not trigger the callback when activating an active item! */
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menu), FALSE);
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menu), TRUE);
@@ -4740,37 +4743,15 @@ set_menus_for_capture_file(capture_file *cf)
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/ExportSelectedPacketBytes", FALSE);
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/ExportSSLSessionKeys", FALSE);
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/ExportObjects", FALSE);
+        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/ExportPDUs", FALSE);
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/ViewMenu/Reload", FALSE);
     } else {
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/Merge", cf_can_write_with_wiretap(cf));
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/Close", TRUE);
-        /*
-         * "Save" should be available only if:
-         *
-         *  the file has unsaved changes, and we can save it in some
-         *  format through Wiretap
-         *
-         * or
-         *
-         *  the file is a temporary file and has no unsaved changes (so
-         *  that "saving" it just means copying it).
-         */
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/Save",
-                             (cf->unsaved_changes && cf_can_write_with_wiretap(cf)) ||
-                             (cf->is_tempfile && !cf->unsaved_changes));
-        /*
-         * "Save As..." should be available only if:
-         *
-         *  we can save it in some format through Wiretap
-         *
-         * or
-         *
-         *  the file is a temporary file and has no unsaved changes (so
-         *  that "saving" it just means copying it).
-         */
+                             cf_can_save(cf));
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/SaveAs",
-                             cf_can_write_with_wiretap(cf) ||
-                             (cf->is_tempfile && !cf->unsaved_changes));
+                             cf_can_save_as(cf));
         /*
          * "Export Specified Packets..." should be available only if
          * we can write the file out in at least one format.
@@ -4781,6 +4762,7 @@ set_menus_for_capture_file(capture_file *cf)
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/ExportSelectedPacketBytes", TRUE);
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/ExportSSLSessionKeys", TRUE);
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/ExportObjects", TRUE);
+        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/ExportPDUs", TRUE);
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/ViewMenu/Reload", TRUE);
     }
 }
@@ -4820,7 +4802,7 @@ set_menus_for_capture_in_progress(gboolean capture_in_progress)
     set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/CaptureMenu/Options",
                          !capture_in_progress);
     set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/CaptureMenu/Start",
-                         !capture_in_progress);
+                         !capture_in_progress && global_capture_opts.num_selected > 0);
     set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/CaptureMenu/Stop",
                          capture_in_progress);
     set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/CaptureMenu/Restart",
@@ -4828,6 +4810,14 @@ set_menus_for_capture_in_progress(gboolean capture_in_progress)
 #endif /* HAVE_LIBPCAP */
 }
 
+#ifdef HAVE_LIBPCAP
+void
+set_menus_capture_start_sensitivity(gboolean enable)
+{
+    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/CaptureMenu/Start",
+                         enable);
+}
+#endif
 
 /* Disable menu items while we're waiting for the capture child to
    finish.  We disallow quitting until it finishes, and also disallow
@@ -4888,25 +4878,6 @@ set_menus_for_captured_packets(gboolean have_captured_packets)
                          have_captured_packets);
 }
 
-
-gboolean
-packet_is_ssl(epan_dissect_t* edt)
-{
-    GPtrArray* array;
-    int        ssl_id;
-    gboolean   is_ssl;
-
-    if (!edt || !edt->tree)
-        return FALSE;
-    ssl_id = proto_get_id_by_filter_name("ssl");
-    if (ssl_id < 0)
-        return FALSE;
-    array = proto_find_finfo(edt->tree, ssl_id);
-    is_ssl = (array->len > 0) ? TRUE : FALSE;
-    g_ptr_array_free(array, TRUE);
-    return is_ssl;
-}
-
 void
 set_menus_for_selected_packet(capture_file *cf)
 {
@@ -4920,7 +4891,7 @@ set_menus_for_selected_packet(capture_file *cf)
        desired item and has the added benefit, with large captures, of
        avoiding needless looping through huge lists for marked, ignored,
        or time-referenced packets. */
-    gboolean is_ssl = packet_is_ssl(cf->edt);
+    gboolean is_ssl = epan_dissect_packet_contains_field(cf->edt, "ssl");
     gboolean frame_selected = cf->current_frame != NULL;
         /* A frame is selected */
     gboolean have_marked = frame_selected && cf->marked_count > 0;
@@ -4948,7 +4919,7 @@ set_menus_for_selected_packet(capture_file *cf)
 
         for (ii = ga->len - 1; ii > 0 ; ii -= 1) {
 
-            v = g_ptr_array_index (ga, ii);
+            v = (field_info *)g_ptr_array_index (ga, ii);
             hfinfo =  v->hfinfo;
 
             if (!g_str_has_prefix(hfinfo->abbrev, "text") &&
@@ -4987,7 +4958,7 @@ set_menus_for_selected_packet(capture_file *cf)
                          frame_selected);
 #endif /* WANT_PACKET_EDITOR */
     set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/AddEditPktComment",
-                         frame_selected);
+                         frame_selected && wtap_dump_can_write(cf->linktypes, WTAP_COMMENT_PER_PACKET));
     set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/IgnorePacket",
                          frame_selected);
     set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/IgnoreAllDisplayedPackets",
@@ -5071,7 +5042,7 @@ set_menus_for_selected_packet(capture_file *cf)
                          frame_selected && decode_as_ok());
 
     if (properties) {
-        prev_abbrev = g_object_get_data(G_OBJECT(ui_manager_packet_list_menu), "menu_abbrev");
+        prev_abbrev = (char *)g_object_get_data(G_OBJECT(ui_manager_packet_list_menu), "menu_abbrev");
         if (!prev_abbrev || (strcmp(prev_abbrev, abbrev) != 0)) {
           /*No previous protocol or protocol changed - update Protocol Preferences menu*/
             module_t *prefs_module_p = prefs_find_module(abbrev);
@@ -5115,7 +5086,7 @@ set_menus_for_selected_packet(capture_file *cf)
         dissector_filter_t *filter_entry;
         gchar *path;
 
-        filter_entry = list_entry->data;
+        filter_entry = (dissector_filter_t *)list_entry->data;
         path = g_strdup_printf("/Menubar/AnalyzeMenu/ConversationFilterMenu/Filters/filter-%u", i);
 
         set_menu_sensitivity(ui_manager_main_menubar, path,
@@ -5130,8 +5101,8 @@ set_menus_for_selected_packet(capture_file *cf)
 static void
 menu_prefs_toggle_bool (GtkWidget *w, gpointer data)
 {
-    gboolean *value  = data;
-    module_t *module = g_object_get_data (G_OBJECT(w), "module");
+    gboolean *value  = (gboolean *)data;
+    module_t *module = (module_t *)g_object_get_data (G_OBJECT(w), "module");
 
     module->prefs_changed = TRUE;
     *value = !(*value);
@@ -5141,13 +5112,14 @@ menu_prefs_toggle_bool (GtkWidget *w, gpointer data)
         prefs_main_write();
     }
     redissect_packets();
+    redissect_all_packet_windows();
 }
 
 static void
 menu_prefs_change_enum (GtkWidget *w, gpointer data)
 {
-    gint     *value     = data;
-    module_t *module    = g_object_get_data (G_OBJECT(w), "module");
+    gint     *value     = (gint *)data;
+    module_t *module    = (module_t *)g_object_get_data (G_OBJECT(w), "module");
     gint      new_value = GPOINTER_TO_INT(g_object_get_data (G_OBJECT(w), "enumval"));
 
     if (!gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM(w)))
@@ -5162,6 +5134,7 @@ menu_prefs_change_enum (GtkWidget *w, gpointer data)
             prefs_main_write();
         }
         redissect_packets();
+        redissect_all_packet_windows();
     }
 }
 
@@ -5175,9 +5148,9 @@ menu_prefs_reset(void)
 static void
 menu_prefs_change_ok (GtkWidget *w, gpointer parent_w)
 {
-    GtkWidget   *entry     = g_object_get_data (G_OBJECT(w), "entry");
-    module_t    *module    = g_object_get_data (G_OBJECT(w), "module");
-    pref_t      *pref      = g_object_get_data (G_OBJECT(w), "pref");
+    GtkWidget   *entry     = (GtkWidget *)g_object_get_data (G_OBJECT(w), "entry");
+    module_t    *module    = (module_t *)g_object_get_data (G_OBJECT(w), "module");
+    pref_t      *pref      = (pref_t *)g_object_get_data (G_OBJECT(w), "pref");
     const gchar *new_value = gtk_entry_get_text(GTK_ENTRY(entry));
     range_t     *newrange;
     gchar       *p;
@@ -5185,7 +5158,7 @@ menu_prefs_change_ok (GtkWidget *w, gpointer parent_w)
 
     switch (pref->type) {
     case PREF_UINT:
-        uval = strtoul(new_value, &p, pref->info.base);
+        uval = (guint)strtoul(new_value, &p, pref->info.base);
         if (p == new_value || *p != '\0') {
             simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
                           "The value \"%s\" isn't a valid number.",
@@ -5232,6 +5205,7 @@ menu_prefs_change_ok (GtkWidget *w, gpointer parent_w)
             prefs_main_write();
         }
         redissect_packets();
+        redissect_all_packet_windows();
     }
 
     window_destroy(GTK_WIDGET(parent_w));
@@ -5246,11 +5220,11 @@ menu_prefs_change_cancel (GtkWidget *w _U_, gpointer parent_w)
 static void
 menu_prefs_edit_dlg (GtkWidget *w, gpointer data)
 {
-    pref_t    *pref   = data;
-    module_t  *module = g_object_get_data (G_OBJECT(w), "module");
+    pref_t    *pref   = (pref_t *)data;
+    module_t  *module = (module_t *)g_object_get_data (G_OBJECT(w), "module");
     gchar     *value  = NULL;
 
-    GtkWidget *win, *main_tb, *main_vb, *bbox, *cancel_bt, *ok_bt;
+    GtkWidget *win, *main_grid, *main_vb, *bbox, *cancel_bt, *ok_bt;
     GtkWidget *entry, *label;
 
     switch (pref->type) {
@@ -5290,18 +5264,18 @@ menu_prefs_edit_dlg (GtkWidget *w, gpointer data)
     gtk_container_add(GTK_CONTAINER(win), main_vb);
     gtk_container_set_border_width(GTK_CONTAINER(main_vb), 6);
 
-    main_tb = gtk_table_new(2, 2, FALSE);
-    gtk_box_pack_start(GTK_BOX(main_vb), main_tb, FALSE, FALSE, 0);
-    gtk_table_set_col_spacings(GTK_TABLE(main_tb), 10);
+    main_grid = ws_gtk_grid_new();
+    gtk_box_pack_start(GTK_BOX(main_vb), main_grid, FALSE, FALSE, 0);
+    ws_gtk_grid_set_column_spacing(GTK_GRID(main_grid), 10);
 
     label = gtk_label_new(ep_strdup_printf("%s:", pref->title));
-    gtk_table_attach_defaults(GTK_TABLE(main_tb), label, 0, 1, 1, 2);
+    ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), label, 0, 1, 1, 1);
     gtk_misc_set_alignment(GTK_MISC(label), 1.0f, 0.5f);
     if (pref->description)
         gtk_widget_set_tooltip_text(label, pref->description);
 
     entry = gtk_entry_new();
-    gtk_table_attach_defaults(GTK_TABLE(main_tb), entry, 1, 2, 1, 2);
+    ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), entry, 1, 1, 1, 1);
     gtk_entry_set_text(GTK_ENTRY(entry), value);
     if (pref->description)
         gtk_widget_set_tooltip_text(entry, pref->description);
@@ -5309,7 +5283,7 @@ menu_prefs_edit_dlg (GtkWidget *w, gpointer data)
     bbox = dlg_button_row_new(GTK_STOCK_CANCEL,GTK_STOCK_OK, NULL);
     gtk_box_pack_end(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 
-    ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+    ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
     g_object_set_data (G_OBJECT(ok_bt), "module", module);
     g_object_set_data (G_OBJECT(ok_bt), "entry", entry);
     g_object_set_data (G_OBJECT(ok_bt), "pref", pref);
@@ -5317,7 +5291,7 @@ menu_prefs_edit_dlg (GtkWidget *w, gpointer data)
 
     dlg_set_activate(entry, ok_bt);
 
-    cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+    cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
     g_signal_connect(cancel_bt, "clicked", G_CALLBACK(menu_prefs_change_cancel), win);
     window_set_cancel_button(win, cancel_bt, NULL);
 
@@ -5327,12 +5301,12 @@ menu_prefs_edit_dlg (GtkWidget *w, gpointer data)
 }
 
 static guint
-add_protocol_prefs_generic_menu(pref_t *pref, gpointer data, GtkUIManager *ui_menu, char *path)
+add_protocol_prefs_generic_menu(pref_t *pref, gpointer data, GtkUIManager *ui_menu, const char *path)
 {
     GtkWidget        *menu_preferences;
     GtkWidget        *menu_item, *menu_sub_item, *sub_menu;
     GSList           *group  = NULL;
-    module_t         *module = data;
+    module_t         *module = (module_t *)data;
     const enum_val_t *enum_valp;
     gchar            *label  = NULL;
 
@@ -5439,7 +5413,7 @@ add_protocol_prefs_packet_list_menu(pref_t *pref, gpointer data)
 
 static void
 rebuild_protocol_prefs_menu(module_t *prefs_module_p, gboolean preferences,
-        GtkUIManager *ui_menu, char *path)
+        GtkUIManager *ui_menu, const char *path)
 {
     GtkWidget *menu_preferences, *menu_item;
     GtkWidget *sub_menu;
@@ -5621,6 +5595,8 @@ set_menus_for_selected_tree_row(capture_file *cf)
         properties = prefs_is_registered_protocol(abbrev);
         set_menu_sensitivity(ui_manager_tree_view_menu,
                              "/TreeViewPopup/GotoCorrespondingPacket", hfinfo->type == FT_FRAMENUM);
+        set_menu_sensitivity(ui_manager_tree_view_menu,
+                             "/TreeViewPopup/ShowPacketRefinNewWindow", hfinfo->type == FT_FRAMENUM);
         set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/Copy",
                              TRUE);
         set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/Copy/AsFilter",
@@ -5663,7 +5639,7 @@ set_menus_for_selected_tree_row(capture_file *cf)
                              proto_can_match_selected(cf->finfo_selected, cf->edt));
         set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/ViewMenu/ExpandSubtrees",
                              cf->finfo_selected->tree_type != -1);
-        prev_abbrev = g_object_get_data(G_OBJECT(ui_manager_tree_view_menu), "menu_abbrev");
+        prev_abbrev = (char *)g_object_get_data(G_OBJECT(ui_manager_tree_view_menu), "menu_abbrev");
         if (!prev_abbrev || (strcmp (prev_abbrev, abbrev) != 0)) {
             /* No previous protocol or protocol changed - update Protocol Preferences menu */
             module_t *prefs_module_p = prefs_find_module(abbrev);
@@ -5717,9 +5693,9 @@ void set_menus_for_file_set(gboolean file_set, gboolean previous_file, gboolean 
     set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/FileMenu/Set/NextFile", next_file);
 }
 
-GtkWidget *menus_get_profiles_edit_menu (void)
+GtkWidget *menus_get_profiles_rename_menu (void)
 {
-    return gtk_ui_manager_get_widget(ui_manager_statusbar_profiles_menu, "/ProfilesMenuPopup/Edit");
+    return gtk_ui_manager_get_widget(ui_manager_statusbar_profiles_menu, "/ProfilesMenuPopup/Rename");
 }
 
 GtkWidget *menus_get_profiles_delete_menu (void)
@@ -5734,7 +5710,7 @@ GtkWidget *menus_get_profiles_change_menu (void)
 
 void set_menus_for_profiles(gboolean default_profile)
 {
-    set_menu_sensitivity(ui_manager_statusbar_profiles_menu, "/ProfilesMenuPopup/Edit", !default_profile);
+    set_menu_sensitivity(ui_manager_statusbar_profiles_menu, "/ProfilesMenuPopup/Rename", !default_profile);
     set_menu_sensitivity(ui_manager_statusbar_profiles_menu, "/ProfilesMenuPopup/Delete", !default_profile);
 }
 

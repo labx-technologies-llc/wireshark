@@ -36,6 +36,9 @@
  *	http://www.artisticlicence.com/art-net.pdf
  */
 
+void proto_register_artnet(void);
+void proto_reg_handoff_artnet(void);
+
 /* Define udp_port for ArtNET */
 
 #define UDP_PORT_ARTNET 0x1936
@@ -2463,13 +2466,13 @@ dissect_artnet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   opcode = tvb_get_letohs(tvb, offset);
 
   col_add_fstr(pinfo->cinfo, COL_INFO, "%s (0x%04x)",
-    val_to_str(opcode, artnet_opcode_vals, "Unknown"), opcode);
+    val_to_str_const(opcode, artnet_opcode_vals, "Unknown"), opcode);
 
   if (tree) {
     proto_tree_add_uint(artnet_header_tree, hf_artnet_header_opcode, tvb,
                         offset, 2, opcode);
 
-    proto_item_append_text(ti, ", Opcode: %s (0x%04x)", val_to_str(opcode, artnet_opcode_vals, "Unknown"), opcode);
+    proto_item_append_text(ti, ", Opcode: %s (0x%04x)", val_to_str_const(opcode, artnet_opcode_vals, "Unknown"), opcode);
   }
   offset += 2;
 

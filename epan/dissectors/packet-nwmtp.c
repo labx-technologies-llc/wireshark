@@ -66,7 +66,7 @@ static const value_string nwmtp_data_type_vals[] = {
 
 static void dissect_nwmtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-	int offset = 0;
+	gint offset = 0;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "NW MTP");
 	col_clear(pinfo->cinfo, COL_INFO);
@@ -106,6 +106,12 @@ static void dissect_nwmtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		next_tvb = tvb_new_subset(tvb, offset + 12, len, len);
 		if (tvb_length(next_tvb) > 0)
 			call_dissector(mtp_handle, next_tvb, pinfo, tree);
+		/* Check for overflows, which probably can't happen, but better
+		 * safe than sorry. See
+		 * https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=8169
+		 */
+		DISSECTOR_ASSERT(len < G_MAXUINT32 - 11);
+		DISSECTOR_ASSERT((guint64)offset + len + 12 < G_MAXINT);
 		offset += len + 12;
 	}
 }
@@ -161,3 +167,16 @@ void proto_reg_handoff_nwmtp(void)
 	dissector_add_handle("udp.port", nwmtp_handle);
 	mtp_handle = find_dissector("mtp3");
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

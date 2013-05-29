@@ -57,6 +57,9 @@
 
 #define STRLEN	80
 
+void proto_register_ax25_nol3(void);
+void proto_reg_handoff_ax25_nol3(void);
+
 /* Dissector handles - all the possibles are listed */
 static dissector_handle_t aprs_handle;
 static dissector_handle_t default_handle;
@@ -67,7 +70,7 @@ static int proto_dx			= -1;
 
 static int hf_dx_report			= -1;
 
-static int hf_text			= -1;
+/* static int hf_text			= -1; */
 
 /* Global preferences */
 static gboolean gPREF_APRS     = FALSE;
@@ -89,11 +92,10 @@ dissect_dx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	int data_len;
 	int offset;
 
-	offset = 0;
+	offset   = 0;
 	data_len = tvb_length_remaining( tvb, offset );
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, "DX" );
-
 	col_clear( pinfo->cinfo, COL_INFO );
 
 	col_add_fstr( pinfo->cinfo, COL_INFO, "%s", tvb_format_text( tvb, offset, 15 ) );
@@ -101,7 +103,7 @@ dissect_dx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	if ( parent_tree )
 		{
 		/* create display subtree for the protocol */
-		ti = proto_tree_add_protocol_format( parent_tree, proto_dx, tvb, 0, tvb_length_remaining( tvb, offset ),
+		ti = proto_tree_add_protocol_format( parent_tree, proto_dx, tvb, 0, -1,
 		    "DX (%s)", tvb_format_text( tvb, offset, 15 ) );
 		dx_tree = proto_item_add_subtree( ti, ett_dx );
 		offset = 0;
@@ -154,14 +156,14 @@ dissect_ax25_nol3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 {
 	proto_item *ti;
 	proto_tree *ax25_nol3_tree;
-	char *info_buffer;
-	int offset;
-	void *saved_private_data;
-	tvbuff_t *next_tvb = NULL;
-	guint8 dti = 0;
-	gboolean dissected;
+	char       *info_buffer;
+	int         offset;
+	void       *saved_private_data;
+	tvbuff_t   *next_tvb = NULL;
+	guint8      dti      = 0;
+	gboolean    dissected;
 
-	info_buffer = ep_alloc( STRLEN );
+	info_buffer = (char *)ep_alloc( STRLEN );
 	info_buffer[0] = '\0';
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, "AX.25-NoL3");
@@ -194,12 +196,12 @@ dissect_ax25_nol3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 							proto_ax25_nol3,
 							tvb,
 							0,
-							tvb_length_remaining( tvb, offset ),
+							-1,
 							"AX.25 No Layer 3 - (%s)", info_buffer );
 		ax25_nol3_tree = proto_item_add_subtree( ti, ett_ax25_nol3 );
 
 		saved_private_data = pinfo->private_data;
-		next_tvb = tvb_new_subset(tvb, offset, -1, -1);
+		next_tvb = tvb_new_subset_remaining(tvb, offset);
 
 		dissected = FALSE;
 		if ( gPREF_APRS )
@@ -231,6 +233,7 @@ proto_register_ax25_nol3(void)
 	module_t *ax25_nol3_module;
 
 	/* Setup list of header fields */
+#if 0 /* not used ? */
 	static hf_register_info hf[] = {
 		{ &hf_text,
 			{ "Text",			"ax25_nol3.text",
@@ -238,6 +241,7 @@ proto_register_ax25_nol3(void)
 			NULL, HFILL }
 		},
 	};
+#endif
 
 	static hf_register_info hf_dx[] = {
 		{ &hf_dx_report,
@@ -257,20 +261,20 @@ proto_register_ax25_nol3(void)
 	proto_ax25_nol3 = proto_register_protocol("AX.25 no Layer 3", "AX.25 no L3", "ax25_nol3");
 
 	/* Required function calls to register the header fields and subtrees used */
-	proto_register_field_array( proto_ax25_nol3, hf, array_length(hf ) );
+	/* proto_register_field_array( proto_ax25_nol3, hf, array_length(hf ) ); */
 	proto_register_subtree_array( ett, array_length( ett ) );
 
 	/* Register preferences module */
-        ax25_nol3_module = prefs_register_protocol( proto_ax25_nol3, NULL);
+	ax25_nol3_module = prefs_register_protocol( proto_ax25_nol3, NULL);
 
 	/* Register any preference */
-        prefs_register_bool_preference(ax25_nol3_module, "showaprs",
-             "Decode the APRS info field",
+	prefs_register_bool_preference(ax25_nol3_module, "showaprs",
+	     "Decode the APRS info field",
 	     "Enable decoding of the payload as APRS.",
 	     &gPREF_APRS );
 
-        prefs_register_bool_preference(ax25_nol3_module, "showcluster",
-             "Decode DX cluster info field",
+	prefs_register_bool_preference(ax25_nol3_module, "showcluster",
+	     "Decode DX cluster info field",
 	     "Enable decoding of the payload as DX cluster info.",
 	     &gPREF_DX );
 

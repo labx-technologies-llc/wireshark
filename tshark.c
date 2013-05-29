@@ -56,6 +56,7 @@
 #include <glib.h>
 #include <epan/epan.h>
 #include <epan/filesystem.h>
+#include <wsutil/crash_info.h>
 #include <wsutil/privileges.h>
 #include <wsutil/file_util.h>
 
@@ -70,7 +71,6 @@
 #include <epan/addr_resolv.h>
 #include "ui/util.h"
 #include "clopts_common.h"
-#include "console_io.h"
 #include "cmdarg_err.h"
 #include "version_info.h"
 #include <epan/plugins.h>
@@ -89,11 +89,12 @@
 #include "capture-wpcap.h"
 #include <wsutil/unicode-utils.h>
 #endif /* _WIN32 */
+#include "capture_session.h"
 #include "capture_sync.h"
+#include "capture_opts.h"
 #endif /* HAVE_LIBPCAP */
 #include "log.h"
 #include <epan/funnel.h>
-#include "capture_opts.h"
 
 /*
  * This is the template for the decode as option; it is shared between the
@@ -129,6 +130,7 @@ static gint print_summary = -1;    /* TRUE if we're to print packet summary info
 static gboolean print_details;     /* TRUE if we're to print packet details information */
 static gboolean print_hex;         /* TRUE if we're to print hex/ascci information */
 static gboolean line_buffered;
+static gboolean really_quiet = FALSE;
 
 static print_format_e print_format = PR_FMT_TEXT;
 static print_stream_t *print_stream;
@@ -136,7 +138,7 @@ static print_stream_t *print_stream;
 static output_fields_t* output_fields  = NULL;
 
 /* The line separator used between packets, changeable via the -S option */
-static char *separator = "";
+static const char *separator = "";
 
 #ifdef HAVE_LIBPCAP
 /*
@@ -145,6 +147,7 @@ static char *separator = "";
 static gboolean print_packet_counts = TRUE;
 
 static capture_options global_capture_opts;
+static capture_session global_capture_session;
 
 #ifdef SIGINFO
 static gboolean infodelay;      /* if TRUE, don't print capture info in SIGINFO handler */
@@ -165,8 +168,8 @@ static void report_counts_siginfo(int);
 
 static int load_cap_file(capture_file *, char *, int, gboolean, int, gint64);
 static gboolean process_packet(capture_file *cf, gint64 offset,
-    struct wtap_pkthdr *whdr,
-    const guchar *pd, gboolean filtering_tap_listeners, guint tap_flags);
+    struct wtap_pkthdr *whdr, const guchar *pd,
+    gboolean filtering_tap_listeners, guint tap_flags);
 static void show_capture_file_io_error(const char *, int, gboolean);
 static void show_print_file_io_error(int err);
 static gboolean write_preamble(capture_file *cf);
@@ -209,7 +212,7 @@ list_capture_types(void) {
   struct string_elem *captypes;
   GSList             *list = NULL;
 
-  captypes = g_malloc(sizeof(struct string_elem) * WTAP_NUM_FILE_TYPES);
+  captypes = g_new(struct string_elem, WTAP_NUM_FILE_TYPES);
 
   fprintf(stderr, "tshark: The available capture file types for the \"-F\" flag are:\n");
   for (i = 0; i < WTAP_NUM_FILE_TYPES; i++) {
@@ -255,7 +258,7 @@ print_usage(gboolean print_ver)
   fprintf(output, "  -I                       capture in monitor mode, if available\n");
 #endif
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-  fprintf(output, "  -B <buffer size>         size of kernel buffer (def: 1MB)\n");
+  fprintf(output, "  -B <buffer size>         size of kernel buffer (def: %dMB)\n", DEFAULT_CAPTURE_BUFFER_SIZE);
 #endif
   fprintf(output, "  -y <link type>           link layer type (def: first appropriate)\n");
   fprintf(output, "  -D                       print list of interfaces and exit\n");
@@ -283,7 +286,8 @@ print_usage(gboolean print_ver)
   fprintf(output, "\n");
   fprintf(output, "Processing:\n");
   fprintf(output, "  -2                       perform a two-pass analysis\n");
-  fprintf(output, "  -R <read filter>         packet filter in Wireshark display filter syntax\n");
+  fprintf(output, "  -R <read filter>         packet Read filter in Wireshark display filter syntax\n");
+  fprintf(output, "  -Y <display filter>      packet displaY filter in Wireshark display filter syntax\n");
   fprintf(output, "  -n                       disable all name resolutions (def: all enabled)\n");
   fprintf(output, "  -N <name resolve flags>  enable specific name resolution(s): \"mntC\"\n");
   fprintf(output, "  -d %s ...\n", decode_as_arg_template);
@@ -320,6 +324,7 @@ print_usage(gboolean print_ver)
   fprintf(output, "  -u s|hms                 output format of seconds (def: s: seconds)\n");
   fprintf(output, "  -l                       flush standard output after each packet\n");
   fprintf(output, "  -q                       be more quiet on stdout (e.g. when using statistics)\n");
+  fprintf(output, "  -Q                       only log true errors to stderr (quieter than -q)\n");
   fprintf(output, "  -g                       enable group read access on the output file(s)\n");
   fprintf(output, "  -W n                     Save extra information in the file, if supported.\n");
   fprintf(output, "                           n = write network address resolution information\n");
@@ -350,9 +355,7 @@ glossary_option_help(void)
   fprintf(output, "Usage: tshark -G [report]\n");
   fprintf(output, "\n");
   fprintf(output, "Glossary table reports:\n");
-  fprintf(output, "  -G [fields]              dump glossary in original format and exit\n");
-  fprintf(output, "  -G fields2               dump glossary in format 2 and exit\n");
-  fprintf(output, "  -G fields3               dump glossary in format 3 and exit\n");
+  fprintf(output, "  -G fields                dump fields glossary and exit\n");
   fprintf(output, "  -G protocols             dump protocols in registration database and exit\n");
   fprintf(output, "  -G values                dump value, range, true/false strings and exit\n");
   fprintf(output, "  -G ftypes                dump field type basic and descriptive names\n");
@@ -363,7 +366,6 @@ glossary_option_help(void)
   fprintf(output, "  -G defaultprefs          dump default preferences and exit\n");
   fprintf(output, "  -G currentprefs          dump current preferences and exit\n");
   fprintf(output, "\n");
-
 }
 
 /*
@@ -858,6 +860,8 @@ show_version(GString *comp_info_str, GString *runtime_info_str)
 int
 main(int argc, char *argv[])
 {
+  GString             *comp_info_str;
+  GString             *runtime_info_str;
   char                *init_progfile_dir_error;
   int                  opt;
   gboolean             arg_error = FALSE;
@@ -892,13 +896,15 @@ main(int argc, char *argv[])
   volatile gboolean    out_file_name_res = FALSE;
   gchar               *volatile cf_name = NULL;
   gchar               *rfilter = NULL;
+  gchar               *dfilter = NULL;
 #ifdef HAVE_PCAP_OPEN_DEAD
   struct bpf_program   fcode;
 #endif
   dfilter_t           *rfcode = NULL;
+  dfilter_t           *dfcode = NULL;
   e_prefs             *prefs_p;
   char                 badopt;
-  GLogLevelFlags       log_flags;
+  int                  log_flags;
   int                  optind_initial;
   gchar               *output_only = NULL;
 
@@ -923,12 +929,29 @@ main(int argc, char *argv[])
 #define OPTSTRING_I ""
 #endif
 
-#define OPTSTRING "2a:" OPTSTRING_A "b:" OPTSTRING_B "c:C:d:De:E:f:F:gG:hH:i:" OPTSTRING_I "K:lLnN:o:O:pPqr:R:s:S:t:T:u:vVw:W:xX:y:z:"
+#define OPTSTRING "2a:" OPTSTRING_A "b:" OPTSTRING_B "c:C:d:De:E:f:F:gG:hH:i:" OPTSTRING_I "K:lLnN:o:O:pPqQr:R:s:S:t:T:u:vVw:W:xX:y:Y:z:"
 
   static const char    optstring[] = OPTSTRING;
 
+  /* Assemble the compile-time version information string */
+  comp_info_str = g_string_new("Compiled ");
+  get_compiled_version_info(comp_info_str, NULL, epan_get_compiled_version_info);
+
+  /* Assemble the run-time version information string */
+  runtime_info_str = g_string_new("Running ");
+  get_runtime_version_info(runtime_info_str, NULL);
+
+  /* Add it to the information to be reported on a crash. */
+  ws_add_crash_info("TShark " VERSION "%s\n"
+         "\n"
+         "%s"
+         "\n"
+         "%s",
+      wireshark_svnversion, comp_info_str->str, runtime_info_str->str);
+
 #ifdef _WIN32
   arg_list_utf_16to8(argc, argv);
+  create_app_running_mutex();
 #if !GLIB_CHECK_VERSION(2,31,0)
   g_thread_init(NULL);
 #endif
@@ -1017,25 +1040,26 @@ main(int argc, char *argv[])
                     G_LOG_FLAG_FATAL|G_LOG_FLAG_RECURSION;
 
   g_log_set_handler(NULL,
-                    log_flags,
+                    (GLogLevelFlags)log_flags,
                     tshark_log_handler, NULL /* user_data */);
   g_log_set_handler(LOG_DOMAIN_MAIN,
-                    log_flags,
+                    (GLogLevelFlags)log_flags,
                     tshark_log_handler, NULL /* user_data */);
 
 #ifdef HAVE_LIBPCAP
   g_log_set_handler(LOG_DOMAIN_CAPTURE,
-                    log_flags,
+                    (GLogLevelFlags)log_flags,
                     tshark_log_handler, NULL /* user_data */);
   g_log_set_handler(LOG_DOMAIN_CAPTURE_CHILD,
-                    log_flags,
+                    (GLogLevelFlags)log_flags,
                     tshark_log_handler, NULL /* user_data */);
 #endif
 
   initialize_funnel_ops();
 
 #ifdef HAVE_LIBPCAP
-  capture_opts_init(&global_capture_opts, &cfile);
+  capture_opts_init(&global_capture_opts);
+  capture_session_init(&global_capture_session, (void *)&cfile);
 #endif
 
   timestamp_set_type(TS_RELATIVE);
@@ -1073,14 +1097,10 @@ main(int argc, char *argv[])
     proto_initialize_all_prefixes();
 
     if (argc == 2)
-      proto_registrar_dump_fields(1);
+      proto_registrar_dump_fields();
     else {
       if (strcmp(argv[2], "fields") == 0)
-        proto_registrar_dump_fields(1);
-      else if (strcmp(argv[2], "fields2") == 0)
-        proto_registrar_dump_fields(2);
-      else if (strcmp(argv[2], "fields3") == 0)
-        proto_registrar_dump_fields(3);
+        proto_registrar_dump_fields();
       else if (strcmp(argv[2], "protocols") == 0)
         proto_registrar_dump_protocols();
       else if (strcmp(argv[2], "values") == 0)
@@ -1349,6 +1369,10 @@ main(int argc, char *argv[])
     case 'q':        /* Quiet */
       quiet = TRUE;
       break;
+    case 'Q':        /* Really quiet */
+      quiet = TRUE;
+      really_quiet = TRUE;
+      break;
     case 'r':        /* Read capture file x */
       cf_name = g_strdup(optarg);
       break;
@@ -1424,18 +1448,15 @@ main(int argc, char *argv[])
       break;
     case 'v':         /* Show version and exit */
     {
-      GString             *comp_info_str;
-      GString             *runtime_info_str;
-      /* Assemble the compile-time version information string */
-      comp_info_str = g_string_new("Compiled ");
-      get_compiled_version_info(comp_info_str, NULL, epan_get_compiled_version_info);
-
-      /* Assemble the run-time version information string */
-      runtime_info_str = g_string_new("Running ");
-      get_runtime_version_info(runtime_info_str, NULL);
       show_version(comp_info_str, runtime_info_str);
       g_string_free(comp_info_str, TRUE);
       g_string_free(runtime_info_str, TRUE);
+      /* We don't really have to cleanup here, but it's a convenient way to test
+       * start-up and shut-down of the epan library without any UI-specific
+       * cruft getting in the way. Makes the results of running
+       * $ ./tools/valgrind-wireshark -n
+       * much more useful. */
+      epan_cleanup();
       return 0;
     }
     case 'O':        /* Only output these protocols */
@@ -1449,6 +1470,9 @@ main(int argc, char *argv[])
       break;
     case 'X':
       break;
+    case 'Y':
+      dfilter = optarg;
+      break;
     case 'z':
       /* We won't call the init function for the stat this soon
          as it would disallow MATE's fields (which are registered
@@ -1456,6 +1480,11 @@ main(int argc, char *argv[])
          part of a tap filter.  Instead, we just add the argument
          to a list of stat arguments. */
       if (!process_stat_cmd_arg(optarg)) {
+        if (strcmp("help", optarg)==0) {
+          fprintf(stderr, "tshark: The available statistics for the \"-z\" option are:\n");
+          list_stat_cmd_args();
+          return 0;
+        }
         cmdarg_err("Invalid -z argument \"%s\".", optarg);
         cmdarg_err_cont("  -z argument must be one of :");
         list_stat_cmd_args();
@@ -1488,18 +1517,18 @@ main(int argc, char *argv[])
         return 1;
   }
 
-  /* If no capture filter or read filter has been specified, and there are
+  /* If no capture filter or display filter has been specified, and there are
      still command-line arguments, treat them as the tokens of a capture
-     filter (if no "-r" flag was specified) or a read filter (if a "-r"
+     filter (if no "-r" flag was specified) or a display filter (if a "-r"
      flag was specified. */
   if (optind < argc) {
     if (cf_name != NULL) {
-      if (rfilter != NULL) {
-        cmdarg_err("Read filters were specified both with \"-R\" "
+      if (dfilter != NULL) {
+        cmdarg_err("Display filters were specified both with \"-d\" "
             "and with additional command-line arguments.");
         return 1;
       }
-      rfilter = get_args_as_string(argc, argv, optind);
+      dfilter = get_args_as_string(argc, argv, optind);
     } else {
 #ifdef HAVE_LIBPCAP
       guint i;
@@ -1597,6 +1626,11 @@ main(int argc, char *argv[])
     }
   }
 
+  if (rfilter != NULL && !perform_two_pass_analysis) {
+    /* Just a warning, so we don't return */
+    cmdarg_err("-R without -2 is deprecated. For single-pass filtering use -Y.");
+  }
+
 #ifdef HAVE_LIBPCAP
   if (list_link_layer_types) {
     /* We're supposed to list the link-layer types for an interface;
@@ -1681,10 +1715,14 @@ main(int argc, char *argv[])
             return 1;
           }
         }
-        /* Currently, we don't support read filters when capturing
+        /* Currently, we don't support read or display filters when capturing
            and saving the packets. */
         if (rfilter != NULL) {
           cmdarg_err("Read filters aren't supported when capturing and saving the captured packets.");
+          return 1;
+        }
+        if (dfilter != NULL) {
+          cmdarg_err("Display filters aren't supported when capturing and saving the captured packets.");
           return 1;
         }
       } else {
@@ -1762,7 +1800,7 @@ main(int argc, char *argv[])
         if (pc != NULL) {
           if (pcap_compile(pc, &fcode, rfilter, 0, 0) != -1) {
             cmdarg_err_cont(
-              "  Note: That display filter code looks like a valid capture filter;");
+              "  Note: That read filter code looks like a valid capture filter;");
             cmdarg_err_cont(
               "        maybe you mixed them up?");
           }
@@ -1774,6 +1812,31 @@ main(int argc, char *argv[])
     }
   }
   cfile.rfcode = rfcode;
+
+  if (dfilter != NULL) {
+    if (!dfilter_compile(dfilter, &dfcode)) {
+      cmdarg_err("%s", dfilter_error_msg);
+      epan_cleanup();
+#ifdef HAVE_PCAP_OPEN_DEAD
+      {
+        pcap_t *pc;
+
+        pc = pcap_open_dead(DLT_EN10MB, MIN_PACKET_SIZE);
+        if (pc != NULL) {
+          if (pcap_compile(pc, &fcode, dfilter, 0, 0) != -1) {
+            cmdarg_err_cont(
+              "  Note: That display filter code looks like a valid capture filter;");
+            cmdarg_err_cont(
+              "        maybe you mixed them up?");
+          }
+          pcap_close(pc);
+        }
+      }
+#endif
+      return 2;
+    }
+  }
+  cfile.dfcode = dfcode;
 
   if (print_packet_info) {
     /* If we're printing as text or PostScript, we have
@@ -1801,8 +1864,10 @@ main(int argc, char *argv[])
 
         we're using a read filter on the packets;
 
+        we're using a display filter on the packets;
+
         we're using any taps that need dissection. */
-  do_dissection = print_packet_info || rfcode || tap_listeners_require_dissection();
+  do_dissection = print_packet_info || rfcode || dfcode || tap_listeners_require_dissection();
 
   if (cf_name) {
     /*
@@ -1875,11 +1940,11 @@ main(int argc, char *argv[])
     }
   } else {
     /* No capture file specified, so we're supposed to do a live capture
-       (or get a list of link-layer types for a live capture device);
+       or get a list of link-layer types for a live capture device;
        do we have support for live captures? */
 #ifdef HAVE_LIBPCAP
-    /* trim the interface name and exit if that failed */
-    exit_status = capture_opts_trim_iface(&global_capture_opts,
+    /* if no interface was specified, pick a default */
+    exit_status = capture_opts_default_iface_if_necessary(&global_capture_opts,
         ((prefs_p->capture_device) && (*prefs_p->capture_device != '\0')) ? get_if_name(prefs_p->capture_device) : NULL);
     if (exit_status != 0)
         return exit_status;
@@ -1943,7 +2008,7 @@ main(int argc, char *argv[])
      * Instead, pass on the exit status from the capture child.
      */
     capture();
-    exit_status = global_capture_opts.fork_child_status;
+    exit_status = global_capture_session.fork_child_status;
 
     if (print_packet_info) {
       if (!write_finale()) {
@@ -2170,7 +2235,7 @@ capture(void)
 #endif /* SIGINFO */
 #endif /* _WIN32 */
 
-  global_capture_opts.state = CAPTURE_PREPARING;
+  global_capture_session.state = CAPTURE_PREPARING;
 
   /* Let the user know which interfaces were chosen. */
   for (i = 0; i < global_capture_opts.ifaces->len; i++) {
@@ -2204,11 +2269,12 @@ capture(void)
   } else {
     g_string_append_printf(str, "%u interfaces", global_capture_opts.ifaces->len);
   }
-  fprintf(stderr, "Capturing on %s\n", str->str);
+  if (really_quiet == FALSE)
+    fprintf(stderr, "Capturing on %s\n", str->str);
   fflush(stderr);
   g_string_free(str, TRUE);
 
-  ret = sync_pipe_start(&global_capture_opts);
+  ret = sync_pipe_start(&global_capture_opts, &global_capture_session);
 
   if (!ret)
     return FALSE;
@@ -2284,7 +2350,7 @@ void main_window_update(void)
 
 /* capture child detected an error */
 void
-capture_input_error_message(capture_options *capture_opts _U_, char *error_msg, char *secondary_error_msg)
+capture_input_error_message(capture_session *cap_session _U_, char *error_msg, char *secondary_error_msg)
 {
   cmdarg_err("%s", error_msg);
   cmdarg_err_cont("%s", secondary_error_msg);
@@ -2293,8 +2359,9 @@ capture_input_error_message(capture_options *capture_opts _U_, char *error_msg, 
 
 /* capture child detected an capture filter related error */
 void
-capture_input_cfilter_error_message(capture_options *capture_opts, guint i, char *error_message)
+capture_input_cfilter_error_message(capture_session *cap_session, guint i, char *error_message)
 {
+  capture_options *capture_opts = cap_session->capture_opts;
   dfilter_t         *rfcode = NULL;
   interface_options  interface_opts;
 
@@ -2327,27 +2394,28 @@ capture_input_cfilter_error_message(capture_options *capture_opts, guint i, char
 
 /* capture child tells us we have a new (or the first) capture file */
 gboolean
-capture_input_new_file(capture_options *capture_opts, gchar *new_file)
+capture_input_new_file(capture_session *cap_session, gchar *new_file)
 {
+  capture_options *capture_opts = cap_session->capture_opts;
   gboolean is_tempfile;
   int      err;
 
-  if (capture_opts->state == CAPTURE_PREPARING) {
+  if (cap_session->state == CAPTURE_PREPARING) {
     g_log(LOG_DOMAIN_CAPTURE, G_LOG_LEVEL_MESSAGE, "Capture started!");
   }
   g_log(LOG_DOMAIN_CAPTURE, G_LOG_LEVEL_MESSAGE, "File: \"%s\"", new_file);
 
-  g_assert(capture_opts->state == CAPTURE_PREPARING || capture_opts->state == CAPTURE_RUNNING);
+  g_assert(cap_session->state == CAPTURE_PREPARING || cap_session->state == CAPTURE_RUNNING);
 
   /* free the old filename */
   if (capture_opts->save_file != NULL) {
 
     /* we start a new capture file, close the old one (if we had one before) */
-    if ( ((capture_file *) capture_opts->cf)->state != FILE_CLOSED) {
-      if ( ((capture_file *) capture_opts->cf)->wth != NULL) {
-        wtap_close(((capture_file *) capture_opts->cf)->wth);
+    if ( ((capture_file *) cap_session->cf)->state != FILE_CLOSED) {
+      if ( ((capture_file *) cap_session->cf)->wth != NULL) {
+        wtap_close(((capture_file *) cap_session->cf)->wth);
       }
-      ((capture_file *) capture_opts->cf)->state = FILE_CLOSED;
+      ((capture_file *) cap_session->cf)->state = FILE_CLOSED;
     }
 
     g_free(capture_opts->save_file);
@@ -2363,7 +2431,7 @@ capture_input_new_file(capture_options *capture_opts, gchar *new_file)
   /* if we are in real-time mode, open the new file now */
   if (do_dissection) {
     /* Attempt to open the capture file and set up to read from it. */
-    switch(cf_open(capture_opts->cf, capture_opts->save_file, is_tempfile, &err)) {
+    switch(cf_open((capture_file *)cap_session->cf, capture_opts->save_file, is_tempfile, &err)) {
     case CF_OK:
       break;
     case CF_ERROR:
@@ -2375,7 +2443,7 @@ capture_input_new_file(capture_options *capture_opts, gchar *new_file)
     }
   }
 
-  capture_opts->state = CAPTURE_RUNNING;
+  cap_session->state = CAPTURE_RUNNING;
 
   return TRUE;
 }
@@ -2383,13 +2451,13 @@ capture_input_new_file(capture_options *capture_opts, gchar *new_file)
 
 /* capture child tells us we have new packets to read */
 void
-capture_input_new_packets(capture_options *capture_opts, int to_read)
+capture_input_new_packets(capture_session *cap_session, int to_read)
 {
   gboolean      ret;
   int           err;
   gchar        *err_info;
   gint64        data_offset;
-  capture_file *cf = capture_opts->cf;
+  capture_file *cf = (capture_file *)cap_session->cf;
   gboolean      filtering_tap_listeners;
   guint         tap_flags;
 
@@ -2414,7 +2482,7 @@ capture_input_new_packets(capture_options *capture_opts, int to_read)
       ret = wtap_read(cf->wth, &err, &err_info, &data_offset);
       if (ret == FALSE) {
         /* read from file failed, tell the capture child to stop */
-        sync_pipe_stop(capture_opts);
+        sync_pipe_stop(cap_session);
         wtap_close(cf->wth);
         cf->wth = NULL;
       } else {
@@ -2461,10 +2529,10 @@ capture_input_new_packets(capture_options *capture_opts, int to_read)
 static void
 report_counts(void)
 {
-  if (!print_packet_counts) {
+  if ((print_packet_counts == FALSE) && (really_quiet == FALSE)) {
     /* Report the count only if we aren't printing a packet count
        as packets arrive. */
-    fprintf(stderr, "%u packet%s captured\n", packet_count,
+      fprintf(stderr, "%u packet%s captured\n", packet_count,
             plurality(packet_count, "", "s"));
   }
 #ifdef SIGINFO
@@ -2491,7 +2559,7 @@ report_counts_siginfo(int signum _U_)
 
 /* capture child detected any packet drops? */
 void
-capture_input_drops(capture_options *capture_opts _U_, guint32 dropped)
+capture_input_drops(capture_session *cap_session _U_, guint32 dropped)
 {
   if (print_packet_counts) {
     /* We're printing packet counts to stderr.
@@ -2512,9 +2580,9 @@ capture_input_drops(capture_options *capture_opts _U_, guint32 dropped)
  * do the required cleanup.
  */
 void
-capture_input_closed(capture_options *capture_opts, gchar *msg)
+capture_input_closed(capture_session *cap_session, gchar *msg)
 {
-  capture_file *cf = (capture_file *) capture_opts->cf;
+  capture_file *cf = (capture_file *) cap_session->cf;
 
   if (msg != NULL)
     fprintf(stderr, "tshark: %s\n", msg);
@@ -2564,7 +2632,7 @@ capture_cleanup(DWORD ctrltype _U_)
      building it with Cygwin may make the problem go away). */
 
   /* tell the capture child to stop */
-  sync_pipe_stop(&global_capture_opts);
+  sync_pipe_stop(&global_capture_session);
 
   /* don't stop our own loop already here, otherwise status messages and
    * cleanup wouldn't be done properly. The child will indicate the stop of
@@ -2577,7 +2645,7 @@ static void
 capture_cleanup(int signum _U_)
 {
   /* tell the capture child to stop */
-  sync_pipe_stop(&global_capture_opts);
+  sync_pipe_stop(&global_capture_session);
 
   /* don't stop our own loop already here, otherwise status messages and
    * cleanup wouldn't be done properly. The child will indicate the stop of
@@ -2609,7 +2677,7 @@ process_packet_first_pass(capture_file *cf,
   frame_data_init(&fdlocal, framenum, whdr, offset, cum_bytes);
 
   /* If we're going to print packet information, or we're going to
-     run a read filter, or we're going to process taps, set up to
+     run a read filter, or display filter, or we're going to process taps, set up to
      do a dissection and do so. */
   if (do_dissection) {
     if (gbl_resolv_flags.mac_name || gbl_resolv_flags.network_name ||
@@ -2617,7 +2685,7 @@ process_packet_first_pass(capture_file *cf,
       /* Grab any resolved addresses */
       host_name_lookup_process();
 
-    /* If we're going to be applying a read filter, we'll need to
+    /* If we're going to be applying a filter, we'll need to
        create a protocol tree against which to apply the filter. */
     if (cf->rfcode)
       create_proto_tree = TRUE;
@@ -2643,14 +2711,27 @@ process_packet_first_pass(capture_file *cf,
 
   if (passed) {
     frame_data_set_after_dissect(&fdlocal, &cum_bytes);
-    prev_dis_frame = fdlocal;
-    prev_dis = &prev_dis_frame;
-    frame_data_sequence_add(cf->frames, &fdlocal);
-    cf->count++;
-  }
+    prev_cap = prev_dis = frame_data_sequence_add(cf->frames, &fdlocal);
 
-  prev_cap_frame = fdlocal;
-  prev_cap = &prev_cap_frame;
+    /* If we're not doing dissection then there won't be any dependent frames.
+     * More importantly, edt.pi.dependent_frames won't be initialized because
+     * epan hasn't been initialized.
+     */
+    if (do_dissection) {
+      g_slist_foreach(edt.pi.dependent_frames, find_and_mark_frame_depended_upon, cf->frames);
+    }
+
+    cf->count++;
+  } else {
+    /* if we don't add it to the frame_data_sequence, clean it up right now
+     * to avoid leaks */
+    frame_data_destroy(&fdlocal);
+    /* TODO, bug #8160 */
+    /*
+    prev_cap_frame = fdlocal;
+    prev_cap = &prev_cap_frame;
+     */
+  }
 
   if (do_dissection)
     epan_dissect_cleanup(&edt);
@@ -2682,7 +2763,7 @@ process_packet_second_pass(capture_file *cf, frame_data *fdata,
       /* Grab any resolved addresses */
       host_name_lookup_process();
 
-    if (cf->rfcode || print_details || filtering_tap_listeners ||
+    if (cf->dfcode || print_details || filtering_tap_listeners ||
         (tap_flags & TL_REQUIRES_PROTO_TREE) || have_custom_cols(&cf->cinfo))
       create_proto_tree = TRUE;
     else
@@ -2694,10 +2775,10 @@ process_packet_second_pass(capture_file *cf, frame_data *fdata,
        ("packet_details" is true). */
     epan_dissect_init(&edt, create_proto_tree, print_packet_info && print_details);
 
-    /* If we're running a read filter, prime the epan_dissect_t with that
+    /* If we're running a display filter, prime the epan_dissect_t with that
        filter. */
-    if (cf->rfcode)
-      epan_dissect_prime_dfilter(&edt, cf->rfcode);
+    if (cf->dfcode)
+      epan_dissect_prime_dfilter(&edt, cf->dfcode);
 
     col_custom_prime_edt(&edt, &cf->cinfo);
 
@@ -2714,9 +2795,9 @@ process_packet_second_pass(capture_file *cf, frame_data *fdata,
 
     epan_dissect_run_with_taps(&edt, phdr, pd, fdata, cinfo);
 
-    /* Run the read filter if we have one. */
-    if (cf->rfcode)
-      passed = dfilter_apply_edt(cf->rfcode, &edt);
+    /* Run the read/display filter if we have one. */
+    if (cf->dfcode)
+      passed = dfilter_apply_edt(cf->dfcode, &edt);
   }
 
   if (passed) {
@@ -2762,7 +2843,7 @@ process_packet_second_pass(capture_file *cf, frame_data *fdata,
   if (do_dissection) {
     epan_dissect_cleanup(&edt);
   }
-  return passed;
+  return passed || fdata->flags.dependent_of_displayed;
 }
 
 static int
@@ -2913,7 +2994,7 @@ load_cap_file(capture_file *cf, char *save_file, int out_file_type,
              filter, so, if we're writing to a capture file, write
              this packet out. */
           if (pdh != NULL) {
-            if (!wtap_dump(pdh, &cf->phdr, wtap_buf_ptr(cf->wth), &err)) {
+            if (!wtap_dump(pdh, &cf->phdr, cf->pd, &err)) {
               /* Error writing to a capture file */
               switch (err) {
 
@@ -3127,7 +3208,7 @@ process_packet(capture_file *cf, gint64 offset, struct wtap_pkthdr *whdr,
       /* Grab any resolved addresses */
       host_name_lookup_process();
 
-    if (cf->rfcode || print_details || filtering_tap_listeners ||
+    if (cf->rfcode || cf->dfcode || print_details || filtering_tap_listeners ||
         (tap_flags & TL_REQUIRES_PROTO_TREE) || have_custom_cols(&cf->cinfo))
       create_proto_tree = TRUE;
     else
@@ -3139,10 +3220,12 @@ process_packet(capture_file *cf, gint64 offset, struct wtap_pkthdr *whdr,
        ("packet_details" is true). */
     epan_dissect_init(&edt, create_proto_tree, print_packet_info && print_details);
 
-    /* If we're running a read filter, prime the epan_dissect_t with that
+    /* If we're running a filter, prime the epan_dissect_t with that
        filter. */
     if (cf->rfcode)
       epan_dissect_prime_dfilter(&edt, cf->rfcode);
+    if (cf->dfcode)
+      epan_dissect_prime_dfilter(&edt, cf->dfcode);
 
     col_custom_prime_edt(&edt, &cf->cinfo);
 
@@ -3163,15 +3246,15 @@ process_packet(capture_file *cf, gint64 offset, struct wtap_pkthdr *whdr,
 
     epan_dissect_run_with_taps(&edt, whdr, pd, &fdata, cinfo);
 
-    /* Run the read filter if we have one. */
+    /* Run the filters if we have them. */
     if (cf->rfcode)
       passed = dfilter_apply_edt(cf->rfcode, &edt);
+    if (passed && cf->dfcode)
+      passed = dfilter_apply_edt(cf->dfcode, &edt);
   }
 
   if (passed) {
     frame_data_set_after_dissect(&fdata, &cum_bytes);
-    prev_dis_frame = fdata;
-    prev_dis = &prev_dis_frame;
 
     /* Process this packet. */
     if (print_packet_info) {
@@ -3210,6 +3293,10 @@ process_packet(capture_file *cf, gint64 offset, struct wtap_pkthdr *whdr,
         exit(2);
       }
     }
+
+    /* this must be set after print_packet() [bug #8160] */
+    prev_dis_frame = fdata;
+    prev_dis = &prev_dis_frame;
   }
 
   prev_cap_frame = fdata;
@@ -3217,7 +3304,7 @@ process_packet(capture_file *cf, gint64 offset, struct wtap_pkthdr *whdr,
 
   if (do_dissection) {
     epan_dissect_cleanup(&edt);
-    frame_data_cleanup(&fdata);
+    frame_data_destroy(&fdata);
   }
   return passed;
 }
@@ -3259,11 +3346,11 @@ get_line_buf(size_t len)
     ;
   if (line_bufp == NULL) {
     line_buf_len = new_line_buf_len;
-    line_bufp = g_malloc(line_buf_len + 1);
+    line_bufp = (char *)g_malloc(line_buf_len + 1);
   } else {
     if (new_line_buf_len > line_buf_len) {
       line_buf_len = new_line_buf_len;
-      line_bufp = g_realloc(line_bufp, line_buf_len + 1);
+      line_bufp = (char *)g_realloc(line_bufp, line_buf_len + 1);
     }
   }
   return line_bufp;
@@ -3897,26 +3984,6 @@ write_failure_message(const char *filename, int err)
 {
   cmdarg_err("An error occurred while writing to the file \"%s\": %s.",
           filename, g_strerror(err));
-}
-
-/*
- * Print to the standard error.  This is a command-line tool, so there's
- * no need to pop up a console.
- */
-void
-vfprintf_stderr(const char *fmt, va_list ap)
-{
-  vfprintf(stderr, fmt, ap);
-}
-
-void
-fprintf_stderr(const char *fmt, ...)
-{
-  va_list ap;
-
-  va_start(ap, fmt);
-  vfprintf_stderr(fmt, ap);
-  va_end(ap);
 }
 
 /*

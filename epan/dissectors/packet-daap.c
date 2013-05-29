@@ -213,6 +213,9 @@
 #define daap_asdp ("daap.songdatepurchased")
 */
 
+void proto_register_daap(void);
+void proto_reg_handoff_daap(void);
+
 static dissector_handle_t png_handle;
 
 /*XXX: Sorted by value definition since it appears that the "value" is just */
@@ -391,32 +394,28 @@ dissect_daap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
    proto_item *ti;
    proto_tree *daap_tree;
    guint first_tag = 0;
-   gboolean is_request = (pinfo->destport == TCP_PORT_DAAP);
 
    first_tag = tvb_get_ntohl(tvb, 0);
    col_set_str(pinfo->cinfo, COL_PROTOCOL, "DAAP");
 
-   /* This catches album art coming back from iTunes */
+   /*
+    * This catches album art coming back from iTunes.
+    * XXX - will those have a media type of image/png
+    * rather than application/x-dmap-tagged?  If so,
+    * this is no longer necessary.
+    */
    if (first_tag == daap_png) {
       call_dissector(png_handle, tvb, pinfo, tree);
       return;
    }
 
-   /*
-    * XXX - what if the body is gzipped?  This isn't the only protocol
-    * running atop HTTP that might have a problem with that....
+   /* This is done in two functions on purpose. If the tvb_get_xxx()
+    * functions fail, at least something will be in the info column
     */
-   if (is_request) {
-      col_set_str(pinfo->cinfo, COL_INFO, "DAAP Request");
-   } else {
-      /* This is done in two functions on purpose. If the tvb_get_xxx()
-       * functions fail, at least something will be in the info column
-       */
-      col_set_str(pinfo->cinfo, COL_INFO, "DAAP Response");
-      col_append_fstr(pinfo->cinfo, COL_INFO, " [first tag: %s, size: %d]",
-                      tvb_format_text(tvb, 0, 4),
-                      tvb_get_ntohl(tvb, 4));
-   }
+   col_set_str(pinfo->cinfo, COL_INFO, "DAAP Response");
+   col_append_fstr(pinfo->cinfo, COL_INFO, " [first tag: %s, size: %d]",
+                   tvb_format_text(tvb, 0, 4),
+                   tvb_get_ntohl(tvb, 4));
 
    if (tree) {
       ti = proto_tree_add_item(tree, proto_daap, tvb, 0, -1, ENC_NA);
@@ -738,7 +737,8 @@ proto_reg_handoff_daap(void)
    dissector_handle_t daap_handle;
 
    daap_handle = create_dissector_handle(dissect_daap, proto_daap);
-   http_dissector_add(TCP_PORT_DAAP, daap_handle);
+   http_port_add(TCP_PORT_DAAP);
+   dissector_add_string("media_type", "application/x-dmap-tagged", daap_handle);
 
    png_handle = find_dissector("png");
 }

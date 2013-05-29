@@ -59,12 +59,15 @@
 
 #include <epan/packet.h>
 #include <epan/addr_and_mask.h>
-#include "packet-frame.h"
+#include <epan/show_exception.h>
 #include <epan/afn.h>
 #include <epan/prefs.h>
 #include <epan/emem.h>
 #include <epan/expert.h>
 #include <epan/etypes.h>
+
+void proto_register_bgp(void);
+void proto_reg_handoff_bgp(void);
 
 /* #define MAX_STR_LEN 256 */
 
@@ -87,17 +90,6 @@
 #define BGP_ROUTE_REFRESH 5
 #define BGP_CAPABILITY    6
 #define BGP_ROUTE_REFRESH_CISCO 0x80
-
-
-/* BGP ROUTE-REFRESH message */
-struct bgp_route_refresh {
-    guint8  bgpr_marker[BGP_MARKER_SIZE];
-    guint16 bgpr_len;
-    guint8  bgpr_type;
-    guint16 bgpr_afi;
-    guint8  bgpr_reserved;
-    guint8  bgpr_safi;
-};
 
 #define BGP_SIZE_OF_PATH_ATTRIBUTE       2
 
@@ -3961,29 +3953,26 @@ dissect_bgp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         /*
          * Dissect the PDU.
          *
-         * Catch the ReportedBoundsError exception; if this particular message
-         * happens to get a ReportedBoundsError exception, that doesn't mean
-         * that we should stop dissecting PDUs within this frame or chunk of
-         * reassembled data.
+         * If it gets an error that means there's no point in
+         * dissecting any more PDUs, rethrow the exception in
+         * question.
          *
-         * If it gets a BoundsError, we can stop, as there's nothing more to
-         * see, so we just re-throw it.
+         * If it gets any other error, report it and continue, as that
+         * means that PDU got an error, but that doesn't mean we should
+         * stop dissecting PDUs within this frame or chunk of reassembled
+         * data.
          */
         pd_save = pinfo->private_data;
         TRY {
             dissect_bgp_pdu(next_tvb, pinfo, tree, first);
         }
-        CATCH(BoundsError) {
-            RETHROW;
-        }
-        CATCH(ReportedBoundsError) {
+        CATCH_NONFATAL_ERRORS {
             /*  Restore the private_data structure in case one of the
              *  called dissectors modified it (and, due to the exception,
              *  was unable to restore it).
              */
             pinfo->private_data = pd_save;
-
-            show_reported_bounds_error(tvb, pinfo, tree);
+            show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
         }
         ENDTRY;
 
@@ -4047,7 +4036,7 @@ proto_register_bgp(void)
         { "Parameter Length", "bgp.open.opt.param.len", FT_UINT8, BASE_DEC,
           NULL, 0x0, "Length of the Parameter Value", HFILL }},
       { &hf_bgp_open_opt_param_auth,
-        { "Authentification Data", "bgp.open.opt.param.auth", FT_BYTES, BASE_NONE,
+        { "Authentication Data", "bgp.open.opt.param.auth", FT_BYTES, BASE_NONE,
           NULL, 0x0, "Deprecated", HFILL }},
       { &hf_bgp_open_opt_param_unknown,
         { "Unknown", "bgp.open.opt.param.unknown", FT_BYTES, BASE_NONE,

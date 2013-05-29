@@ -73,8 +73,8 @@ static int hf_auth_rjt_code = -1;
 static int hf_auth_rjt_codedet = -1;
 static int hf_auth_responder_wwn = -1;
 static int hf_auth_responder_name = -1;
-static int hf_auth_dhchap_groupid = -1;
-static int hf_auth_dhchap_hashid = -1;
+/* static int hf_auth_dhchap_groupid = -1; */
+/* static int hf_auth_dhchap_hashid = -1; */
 static int hf_auth_dhchap_chal_len = -1;
 static int hf_auth_dhchap_val_len = -1;
 static int hf_auth_dhchap_rsp_len  = -1;
@@ -171,10 +171,9 @@ static void dissect_fcsp_dhchap_auth_param(tvbuff_t *tvb, proto_tree *tree,
                                      int offset, gint32 total_len)
 {
     guint16 auth_param_tag;
-    guint16 param_len = 0, i;
+    guint16 param_len, i;
 
     if (tree) {
-        auth_param_tag = tvb_get_ntohs(tvb, offset);
         total_len -= 4;
 
         while (total_len > 0) {
@@ -206,6 +205,13 @@ static void dissect_fcsp_dhchap_auth_param(tvbuff_t *tvb, proto_tree *tree,
                 }
                 break;
             default:
+                /* If we don't recognize the auth_param_tag and the param_len
+                 * is 0 then just return to prevent an infinite loop. See
+                 * https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=8359
+                 */
+                if (param_len == 0) {
+                    return;
+                }
                 break;
             }
 
@@ -518,15 +524,19 @@ proto_register_fcsp(void)
             FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL}},
 
+#if 0
         { &hf_auth_dhchap_hashid,
           { "Hash Identifier", "fcsp.dhchap.hashid",
             FT_UINT32, BASE_HEX, NULL, 0x0,
             NULL, HFILL}},
+#endif
 
+#if 0
         { &hf_auth_dhchap_groupid,
           { "DH Group Identifier", "fcsp.dhchap.groupid",
             FT_UINT32, BASE_HEX, NULL, 0x0,
             NULL, HFILL}},
+#endif
 
         { &hf_auth_dhchap_chal_len,
           { "Challenge Value Length", "fcsp.dhchap.challen",

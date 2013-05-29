@@ -53,7 +53,7 @@ typedef enum {
 typedef enum {
     CF_WRITE_OK,      /**< operation succeeded */
     CF_WRITE_ERROR,   /**< operation got an error (function may provide err with details) */
-    CF_WRITE_ABORTED, /**< operation aborted by user */
+    CF_WRITE_ABORTED  /**< operation aborted by user */
 } cf_write_status_t;
 
 /** Return values from functions that print sets of packets. */
@@ -143,8 +143,8 @@ cf_read_status_t cf_read(capture_file *cf, gboolean from_save);
  *
  * @param cf the capture file from which to read the packet
  * @param fdata the frame_data structure for the packet in question
- * @param pseudo_header pointer to a wtap_pseudo_header union into
- * which to read the packet's pseudo-header
+ * @param phdr pointer to a wtap_pkthdr structure to contain the
+ * packet's pseudo-header and other metadata
  * @param pd a guin8 array into which to read the packet's raw data
  * @return TRUE if the read succeeded, FALSE if there was an error
  */
@@ -169,7 +169,7 @@ gboolean cf_read_frame(capture_file *cf, frame_data *fdata);
  * @param cf the capture file to be read from
  * @param fname the filename to be read from
  * @param is_tempfile is this a temporary file?
- * @param err the error code, if an error had occured
+ * @param err the error code, if an error had occurred
  * @return one of cf_status_t
  */
 cf_status_t cf_start_tail(capture_file *cf, const char *fname, gboolean is_tempfile, int *err);
@@ -179,7 +179,7 @@ cf_status_t cf_start_tail(capture_file *cf, const char *fname, gboolean is_tempf
  *
  * @param cf the capture file to be read from
  * @param to_read the number of packets to read
- * @param err the error code, if an error had occured
+ * @param err the error code, if an error had occurred
  * @return one of cf_read_status_t
  */
 cf_read_status_t cf_continue_tail(capture_file *cf, volatile int to_read, int *err);
@@ -195,19 +195,44 @@ void cf_fake_continue_tail(capture_file *cf);
  * Finish reading from "end" of a capture file.
  *
  * @param cf the capture file to be read from
- * @param err the error code, if an error had occured
+ * @param err the error code, if an error had occurred
  * @return one of cf_read_status_t
  */
 cf_read_status_t cf_finish_tail(capture_file *cf, int *err);
 
 /**
- * Determine whether this capture file (or a range of it) can be saved
+ * Determine whether this capture file (or a range of it) can be written
  * in any format using Wiretap rather than by copying the raw data.
+ *
+ * @param cf the capture file to check
+ * @return TRUE if it can be written, FALSE if it can't
+ */
+gboolean cf_can_write_with_wiretap(capture_file *cf);
+
+/**
+ * Determine whether this capture file can be saved with a "save" operation;
+ * if there's nothing unsaved, it can't.
  *
  * @param cf the capture file to check
  * @return TRUE if it can be saved, FALSE if it can't
  */
-gboolean cf_can_write_with_wiretap(capture_file *cf);
+gboolean cf_can_save(capture_file *cf);
+
+/**
+ * Determine whether this capture file can be saved with a "save as" operation.
+ *
+ * @param cf the capture file to check
+ * @return TRUE if it can be saved, FALSE if it can't
+ */
+gboolean cf_can_save_as(capture_file *cf);
+
+/**
+ * Determine whether this capture file has unsaved data.
+ *
+ * @param cf the capture file to check
+ * @return TRUE if it has unsaved data, FALSE if it doesn't
+ */
+gboolean cf_has_unsaved_data(capture_file *cf);
 
 /**
  * Save all packets in a capture file to a new file, and, if that succeeds,
@@ -220,7 +245,7 @@ gboolean cf_can_write_with_wiretap(capture_file *cf);
  * @param fname the filename to save to
  * @param save_format the format of the file to save (libpcap, ...)
  * @param compressed whether to gzip compress the file
- * @discard_comments TRUE if we should discard comments if the save
+ * @param discard_comments TRUE if we should discard comments if the save
  * succeeds (because we saved in a format that doesn't support
  * comments)
  * @param dont_reopen TRUE if it shouldn't reopen and make that file the
@@ -318,7 +343,7 @@ void cf_set_drops_known(capture_file *cf, gboolean drops_known);
  * Set the number of packet drops while capturing.
  *
  * @param cf the capture file
- * @param drops the number of packet drops occured while capturing
+ * @param drops the number of packet drops occurred while capturing
  */
 void cf_set_drops(capture_file *cf, guint32 drops);
 
@@ -334,7 +359,7 @@ gboolean cf_get_drops_known(capture_file *cf);
  * Get the number of packet drops while capturing.
  *
  * @param cf the capture file
- * @return the number of packet drops occured while capturing
+ * @return the number of packet drops occurred while capturing
  */
 guint32 cf_get_drops(capture_file *cf);
 
@@ -652,14 +677,15 @@ void cf_update_capture_comment(capture_file *cf, gchar *comment);
 void cf_update_packet_comment(capture_file *cf, frame_data *fdata, gchar *comment);
 
 /**
- * Does this capture file have any comments?
+ * What types of comments does this file have?
  *
  * @param cf the capture file
- * @return TRUE if it does, FALSE if it doesn't
+ * @return bitset of WTAP_COMMENT_ values
  */
-gboolean cf_has_comments(capture_file *cf);
+guint32 cf_comment_types(capture_file *cf);
 
 #if defined(HAVE_HEIMDAL_KERBEROS) || defined(HAVE_MIT_KERBEROS)
+WS_DLL_PUBLIC
 void read_keytab_file(const char *);
 #endif
 

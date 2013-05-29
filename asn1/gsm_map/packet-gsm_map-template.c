@@ -73,6 +73,9 @@
 #define PSNAME "GSM_MAP"
 #define PFNAME "gsm_map"
 
+void proto_register_gsm_map(void);
+void proto_reg_handoff_gsm_map(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_gsm_map = -1;
 static int proto_gsm_map_dialogue = -1;
@@ -1913,15 +1916,15 @@ dissect_gsm_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
     }
 
     dissect_gsm_map_GSMMAPPDU(FALSE, tvb, 0, &asn1_ctx, tree, -1);
-    match_strval_idx(opcode, gsm_map_opr_code_strings, &op_idx);
+    try_val_to_str_idx(opcode, gsm_map_opr_code_strings, &op_idx);
 
-    tap_rec.invoke = FALSE;
-    if ( gsmmap_pdu_type  == 1 )
-	tap_rec.invoke = TRUE;
-    tap_rec.opr_code_idx = op_idx;
-    tap_rec.size = gsm_map_pdu_size;
+    if (op_idx != -1) {
+        tap_rec.invoke = (gsmmap_pdu_type == 1) ? TRUE : FALSE;
+        tap_rec.opr_code_idx = op_idx;
+        tap_rec.size = gsm_map_pdu_size;
 
-    tap_queue_packet(gsm_map_tap, pinfo, &tap_rec);
+        tap_queue_packet(gsm_map_tap, pinfo, &tap_rec);
+    }
 }
 
 const value_string ssCode_vals[] = {
@@ -2217,6 +2220,7 @@ void proto_reg_handoff_gsm_map(void) {
         dtap_handle = find_dissector("gsm_a_dtap");
 
         map_handle = find_dissector("gsm_map");
+		oid_add_from_string("itu(0) administration(2) japan(440)","0.2.440" );
         register_ber_oid_dissector_handle("0.4.0.0.1.0.1.3", map_handle, proto_gsm_map,"networkLocUpContext-v3");
         register_ber_oid_dissector_handle("0.4.0.0.1.0.1.2", map_handle, proto_gsm_map,"networkLocUpContext-v2" );
         register_ber_oid_dissector_handle("0.4.0.0.1.0.1.1", map_handle, proto_gsm_map,"networkLocUpContext-v1" );
@@ -2395,7 +2399,7 @@ void proto_register_gsm_map(void) {
           FT_UINT8, BASE_HEX, VALS(pdp_type_org_values), 0x0f,
           NULL, HFILL }},
       { &hf_gsm_map_etsi_pdp_type_number,
-        { "PDP Type Number", "gsm_map.pdp_type_org",
+        { "PDP Type Number", "gsm_map.pdp_type_number",
           FT_UINT8, BASE_HEX, VALS(etsi_pdp_type_number_values), 0,
           "ETSI PDP Type Number", HFILL }},
       { &hf_gsm_map_ietf_pdp_type_number,
@@ -2556,14 +2560,14 @@ void proto_register_gsm_map(void) {
           FT_UINT8, BASE_DEC, VALS(gsm_map_disc_par_vals), 0,
           NULL, HFILL }},
       { &hf_gsm_map_dlci,
-        { "DLCI", "gsm_map.disc_par",
+        { "DLCI", "gsm_map.dlci",
           FT_UINT8, BASE_DEC, NULL, 0,
           "Data Link Connection Indicator", HFILL }},
       { &hf_gsm_apn_str,
         { "APN", "gsm_map.apn_str",
           FT_STRING, BASE_NONE, NULL, 0,
           NULL, HFILL }},
-	  { &hf_gsm_map_locationnumber_odd_even,
+      { &hf_gsm_map_locationnumber_odd_even,
         { "Odd/Even", "gsm_map.locationnumber.odd_even",
           FT_BOOLEAN, 8, NULL, 0x80,
           NULL, HFILL }},

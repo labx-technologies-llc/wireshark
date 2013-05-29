@@ -21,7 +21,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include "config.h"
@@ -54,7 +54,7 @@ static dissector_handle_t irda_handle;
 static int proto_sir = -1;
 static int ett_sir = -1;
 static int hf_sir_bof = -1;
-static int hf_sir_ce = -1;
+/* static int hf_sir_ce = -1; */
 static int hf_sir_eof = -1;
 static int hf_sir_fcs = -1;
 static int hf_sir_fcs_bad = -1;
@@ -71,7 +71,7 @@ unescape_data(tvbuff_t *tvb, packet_info *pinfo)
 	} else {
 		guint length = tvb_length(tvb);
 		guint offset;
-		guint8 *data = g_malloc(length);
+		guint8 *data = (guint8 *)g_malloc(length);
 		guint8 *dst = data;
 		tvbuff_t *next_tvb;
 
@@ -148,7 +148,7 @@ dissect_sir(tvbuff_t *tvb, packet_info *pinfo, proto_tree *root)
 				data_offset, eof_offset - data_offset, -1);
 			next_tvb = unescape_data(next_tvb, pinfo);
 			if (root) {
-				unsigned data_len = tvb_length(next_tvb) < 2 ? 0 :
+				guint data_len = tvb_length(next_tvb) < 2 ? 0 :
 					tvb_length(next_tvb) - 2;
 				proto_tree* ti = proto_tree_add_protocol_format(root,
 						proto_sir, tvb, offset, eof_offset - offset + 1,
@@ -198,10 +198,12 @@ proto_register_irsir(void)
 			{ "Beginning of frame", "sir.bof",
 				FT_UINT8, BASE_HEX, NULL, 0,
 				NULL, HFILL }},
+#if 0
 		{ &hf_sir_ce,
 			{ "Command escape", "sir.ce",
 				FT_UINT8, BASE_HEX, NULL, 0,
 				NULL, HFILL }},
+#endif
 		{ &hf_sir_eof,
 			{ "End of frame", "sir.eof",
 				FT_UINT8, BASE_HEX, NULL, 0,

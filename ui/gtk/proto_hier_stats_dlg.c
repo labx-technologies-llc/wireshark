@@ -308,12 +308,12 @@ static const GtkActionEntry proto_hier_stats_popup_entries[] = {
 static void
 fill_in_tree_node(GNode *node, gpointer data)
 {
-    ph_stats_node_t *stats = node->data;
-    draw_info_t     *di = data;
+    ph_stats_node_t *stats = (ph_stats_node_t *)node->data;
+    draw_info_t     *di = (draw_info_t *)data;
     ph_stats_t      *ps = di->ps;
     draw_info_t     child_di;
     double          seconds;
-    gchar           *text[NUM_STAT_COLUMNS];
+    gchar          *text[NUM_STAT_COLUMNS];
     float           percent_packets, percent_bytes;
     GtkTreeView     *tree_view = di->tree_view;
     GtkTreeIter     *iter = di->iter;
@@ -333,7 +333,7 @@ fill_in_tree_node(GNode *node, gpointer data)
         text[BANDWIDTH_COLUMN] = g_strdup_printf("%.3f",
             BANDWIDTH(stats->num_bytes_total, seconds));
     } else {
-        text[BANDWIDTH_COLUMN] = "n.c.";
+        text[BANDWIDTH_COLUMN] = g_strdup("n.c.");
     }
     text[END_PKTS_COLUMN] = g_strdup_printf("%u", stats->num_pkts_last);
     text[END_BYTES_COLUMN] = g_strdup_printf("%u", stats->num_bytes_last);
@@ -341,7 +341,7 @@ fill_in_tree_node(GNode *node, gpointer data)
         text[END_BANDWIDTH_COLUMN] = g_strdup_printf("%.3f",
             BANDWIDTH(stats->num_bytes_last, seconds));
     } else {
-        text[END_BANDWIDTH_COLUMN] = "n.c.";
+        text[END_BANDWIDTH_COLUMN] = g_strdup("n.c.");
     }
 
     store = GTK_TREE_STORE(gtk_tree_view_get_model(tree_view));
@@ -416,7 +416,7 @@ proto_hier_create_popup_menu(void)
 
     action_group = gtk_action_group_new ("ProtoHierStatsTFilterPopupActionGroup");
     gtk_action_group_add_actions (action_group,                                 /* the action group */
-                                (gpointer)proto_hier_stats_popup_entries,       /* an array of action descriptions */
+                                (GtkActionEntry *)proto_hier_stats_popup_entries,       /* an array of action descriptions */
                                 G_N_ELEMENTS(proto_hier_stats_popup_entries),   /* the number of entries */
                                 NULL);                                          /* data to pass to the action callbacks */
 
@@ -437,8 +437,6 @@ proto_hier_create_popup_menu(void)
 
 }
 
-#define MAX_DLG_HEIGHT 450
-#define DEF_DLG_WIDTH  700
 static void
 create_tree(GtkWidget *container, ph_stats_t *ps)
 {
@@ -532,13 +530,15 @@ create_tree(GtkWidget *container, ph_stats_t *ps)
     /* Fill in the data. */
     fill_in_tree(tree, ps);
 
-    gtk_widget_set_size_request(tree, DEF_DLG_WIDTH, MAX_DLG_HEIGHT);
     gtk_tree_view_expand_all(tree_view);
 
     proto_hier_create_popup_menu ();
 
     gtk_container_add(GTK_CONTAINER(sw), tree);
 }
+
+#define MAX_DLG_HEIGHT 450
+#define DEF_DLG_WIDTH  920
 
 void
 proto_hier_stats_cb(GtkWidget *w _U_, gpointer d _U_)
@@ -558,6 +558,7 @@ proto_hier_stats_cb(GtkWidget *w _U_, gpointer d _U_)
     }
 
     dlg = window_new(GTK_WINDOW_TOPLEVEL, "Wireshark: Protocol Hierarchy Statistics");
+    gtk_window_set_default_size(GTK_WINDOW(dlg), DEF_DLG_WIDTH, MAX_DLG_HEIGHT);
 
     vbox = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 5, FALSE);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 5);
@@ -583,10 +584,10 @@ proto_hier_stats_cb(GtkWidget *w _U_, gpointer d _U_)
     gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
     gtk_widget_show(bbox);
 
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(dlg, close_bt, window_cancel_button_cb);
 
-    help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_STATS_PROTO_HIERARCHY_DIALOG);
 
     g_signal_connect(dlg, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);

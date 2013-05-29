@@ -29,6 +29,10 @@
 #include "capture.h"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 typedef struct iface_options_tag {
     char    *name;
     char    *descr;
@@ -77,7 +81,7 @@ typedef struct _summary_tally {
     gchar        *opt_comment;      /**< comment from SHB block */
     gchar        *shb_hardware;     /**< Capture HW from SHB block */
     gchar        *shb_os;           /**< The OS the capture was made on from SHB block */
-    gchar        *shb_user_appl;    /**< The application that made the capture from SHB block */
+    const gchar  *shb_user_appl;    /**< The application that made the capture from SHB block */
     /* capture related, use summary_fill_in_capture() to get values */
     GArray       *ifaces;
     gboolean      legacy;
@@ -90,5 +94,9 @@ summary_fill_in(capture_file *cf, summary_tally *st);
 extern void
 summary_fill_in_capture(capture_file *cf, capture_options *capture_opts, summary_tally *st);
 #endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* summary.h */

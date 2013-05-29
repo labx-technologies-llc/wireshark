@@ -899,9 +899,9 @@ static int vwr_get_fpga_version(wtap *wth, int *err, gchar **err_info)
                 /* if we don't get it all, assume this isn't a vwr file */
                 if (file_read(rec, rec_size, wth->fh) != rec_size) {
                     *err = file_error(wth->fh, err_info);
-                    if (*err == 0)
-                        return(UNKNOWN_FPGA); /* short read - not a vwr file */
-                    return(-1);
+                    if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
+                        return(-1);
+                    return(UNKNOWN_FPGA); /* short read - not a vwr file */
                 }
 
 
@@ -983,9 +983,9 @@ static int vwr_get_fpga_version(wtap *wth, int *err, gchar **err_info)
     }
 
     *err = file_error(wth->fh, err_info);
-    if (*err == 0)
-        return(UNKNOWN_FPGA); /* short read - not a vwr file */
-    return(-1);
+    if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
+        return(-1);
+    return(UNKNOWN_FPGA); /* short read - not a vwr file */
 }
 
 /* copy the actual packet data from the capture file into the target data block */
@@ -1127,7 +1127,7 @@ static void vwr_read_rec_data(wtap *wth, guint8 *data_ptr, guint8 *rec, int rec_
     wth->phdr.presence_flags = WTAP_HAS_TS;
 
     wth->phdr.ts.secs = (time_t)s_sec;
-    wth->phdr.ts.nsecs = (long)(s_usec * 1000);
+    wth->phdr.ts.nsecs = (int)(s_usec * 1000);
     wth->phdr.pkt_encap = WTAP_ENCAP_IXVERIWAVE;
 
     /* generate and copy out the radiotap header, set the port type to 0 (WLAN) */
@@ -1460,7 +1460,7 @@ static void vwr_read_rec_data_vVW510021(wtap *wth, guint8 *data_ptr, guint8 *rec
     wth->phdr.presence_flags = WTAP_HAS_TS;
 
     wth->phdr.ts.secs = (time_t)s_sec;
-    wth->phdr.ts.nsecs = (long)(s_usec * 1000);
+    wth->phdr.ts.nsecs = (int)(s_usec * 1000);
     wth->phdr.pkt_encap = WTAP_ENCAP_IXVERIWAVE;
 
     /* generate and copy out the radiotap header, set the port type to 0 (WLAN) */
@@ -1740,7 +1740,7 @@ static void vwr_read_rec_data_ethernet(wtap *wth, guint8 *data_ptr, guint8 *rec,
     wth->phdr.presence_flags = WTAP_HAS_TS;
 
     wth->phdr.ts.secs = (time_t)s_sec;
-    wth->phdr.ts.nsecs = (long)(s_usec * 1000);
+    wth->phdr.ts.nsecs = (int)(s_usec * 1000);
     wth->phdr.pkt_encap = WTAP_ENCAP_IXVERIWAVE;
 
     /* generate and copy out the ETHERNETTAP header, set the port type to 1 (Ethernet) */

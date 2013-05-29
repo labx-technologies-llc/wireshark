@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-crmf.c                                                              */
 /* ../../tools/asn2wrs.py -b -p crmf -c ./crmf.cnf -s ./packet-crmf-template -D . -O ../../epan/dissectors CRMF.asn */
 
@@ -172,9 +172,6 @@ static gint ett_crmf_Attributes = -1;
 /*--- End of included file: packet-crmf-ett.c ---*/
 #line 50 "../../asn1/crmf/packet-crmf-template.c"
 
-static const char *object_identifier_id;
-
-
 /*--- Included file: packet-crmf-fn.c ---*/
 #line 1 "../../asn1/crmf/packet-crmf-fn.c"
 
@@ -229,7 +226,7 @@ dissect_crmf_CertTemplate(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
 
 static int
 dissect_crmf_T_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_crmf_type_oid, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_crmf_type_oid, (const char**)&actx->private_data);
 
   return offset;
 }
@@ -239,7 +236,7 @@ dissect_crmf_T_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
 static int
 dissect_crmf_T_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 74 "../../asn1/crmf/crmf.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback((const char*)actx->private_data, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -886,7 +883,7 @@ static void dissect_EncKeyWithID_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, 
 
 
 /*--- End of included file: packet-crmf-fn.c ---*/
-#line 54 "../../asn1/crmf/packet-crmf-template.c"
+#line 51 "../../asn1/crmf/packet-crmf-template.c"
 
 
 /*--- proto_register_crmf ----------------------------------------------*/
@@ -902,11 +899,11 @@ void proto_register_crmf(void) {
 /*--- Included file: packet-crmf-hfarr.c ---*/
 #line 1 "../../asn1/crmf/packet-crmf-hfarr.c"
     { &hf_crmf_CertRequest_PDU,
-      { "CertRequest", "crmf.CertRequest",
+      { "CertRequest", "crmf.CertRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_PBMParameter_PDU,
-      { "PBMParameter", "crmf.PBMParameter",
+      { "PBMParameter", "crmf.PBMParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_RegToken_PDU,
@@ -918,7 +915,7 @@ void proto_register_crmf(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_PKIPublicationInfo_PDU,
-      { "PKIPublicationInfo", "crmf.PKIPublicationInfo",
+      { "PKIPublicationInfo", "crmf.PKIPublicationInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_PKIArchiveOptions_PDU,
@@ -926,11 +923,11 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, VALS(crmf_PKIArchiveOptions_vals), 0,
         NULL, HFILL }},
     { &hf_crmf_OldCertId_PDU,
-      { "OldCertId", "crmf.OldCertId",
+      { "OldCertId", "crmf.OldCertId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_ProtocolEncrKey_PDU,
-      { "ProtocolEncrKey", "crmf.ProtocolEncrKey",
+      { "ProtocolEncrKey", "crmf.ProtocolEncrKey_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_UTF8Pairs_PDU,
@@ -938,15 +935,15 @@ void proto_register_crmf(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_EncKeyWithID_PDU,
-      { "EncKeyWithID", "crmf.EncKeyWithID",
+      { "EncKeyWithID", "crmf.EncKeyWithID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_CertReqMessages_item,
-      { "CertReqMsg", "crmf.CertReqMsg",
+      { "CertReqMsg", "crmf.CertReqMsg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_certReq,
-      { "certReq", "crmf.certReq",
+      { "certReq", "crmf.certReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CertRequest", HFILL }},
     { &hf_crmf_popo,
@@ -958,7 +955,7 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_AttributeTypeAndValue", HFILL }},
     { &hf_crmf_regInfo_item,
-      { "AttributeTypeAndValue", "crmf.AttributeTypeAndValue",
+      { "AttributeTypeAndValue", "crmf.AttributeTypeAndValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_certReqId,
@@ -966,7 +963,7 @@ void proto_register_crmf(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_crmf_certTemplate,
-      { "certTemplate", "crmf.certTemplate",
+      { "certTemplate", "crmf.certTemplate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_controls,
@@ -982,7 +979,7 @@ void proto_register_crmf(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_crmf_signingAlg,
-      { "signingAlg", "crmf.signingAlg",
+      { "signingAlg", "crmf.signingAlg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_crmf_template_issuer,
@@ -990,7 +987,7 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Name", HFILL }},
     { &hf_crmf_validity,
-      { "validity", "crmf.validity",
+      { "validity", "crmf.validity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OptionalValidity", HFILL }},
     { &hf_crmf_subject,
@@ -998,7 +995,7 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Name", HFILL }},
     { &hf_crmf_publicKey,
-      { "publicKey", "crmf.publicKey",
+      { "publicKey", "crmf.publicKey_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SubjectPublicKeyInfo", HFILL }},
     { &hf_crmf_issuerUID,
@@ -1022,7 +1019,7 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, VALS(pkix1explicit_Time_vals), 0,
         "Time", HFILL }},
     { &hf_crmf_Controls_item,
-      { "AttributeTypeAndValue", "crmf.AttributeTypeAndValue",
+      { "AttributeTypeAndValue", "crmf.AttributeTypeAndValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_type,
@@ -1030,15 +1027,15 @@ void proto_register_crmf(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_value,
-      { "value", "crmf.value",
+      { "value", "crmf.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_raVerified,
-      { "raVerified", "crmf.raVerified",
+      { "raVerified", "crmf.raVerified_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_signature,
-      { "signature", "crmf.signature",
+      { "signature", "crmf.signature_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "POPOSigningKey", HFILL }},
     { &hf_crmf_keyEncipherment,
@@ -1050,11 +1047,11 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, VALS(crmf_POPOPrivKey_vals), 0,
         "POPOPrivKey", HFILL }},
     { &hf_crmf_poposkInput,
-      { "poposkInput", "crmf.poposkInput",
+      { "poposkInput", "crmf.poposkInput_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "POPOSigningKeyInput", HFILL }},
     { &hf_crmf_algorithmIdentifier,
-      { "algorithmIdentifier", "crmf.algorithmIdentifier",
+      { "algorithmIdentifier", "crmf.algorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_sk_signature,
@@ -1070,11 +1067,11 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GeneralName", HFILL }},
     { &hf_crmf_publicKeyMAC,
-      { "publicKeyMAC", "crmf.publicKeyMAC",
+      { "publicKeyMAC", "crmf.publicKeyMAC_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PKMACValue", HFILL }},
     { &hf_crmf_algId,
-      { "algId", "crmf.algId",
+      { "algId", "crmf.algId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_crmf_pkmac_value,
@@ -1086,7 +1083,7 @@ void proto_register_crmf(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_crmf_owf,
-      { "owf", "crmf.owf",
+      { "owf", "crmf.owf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_crmf_iterationCount,
@@ -1094,7 +1091,7 @@ void proto_register_crmf(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_crmf_mac,
-      { "mac", "crmf.mac",
+      { "mac", "crmf.mac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_crmf_thisMessage,
@@ -1110,11 +1107,11 @@ void proto_register_crmf(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_crmf_agreeMAC,
-      { "agreeMAC", "crmf.agreeMAC",
+      { "agreeMAC", "crmf.agreeMAC_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PKMACValue", HFILL }},
     { &hf_crmf_encryptedKey,
-      { "encryptedKey", "crmf.encryptedKey",
+      { "encryptedKey", "crmf.encryptedKey_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EnvelopedData", HFILL }},
     { &hf_crmf_action,
@@ -1126,7 +1123,7 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_SinglePubInfo", HFILL }},
     { &hf_crmf_pubInfos_item,
-      { "SinglePubInfo", "crmf.SinglePubInfo",
+      { "SinglePubInfo", "crmf.SinglePubInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_pubMethod,
@@ -1150,19 +1147,19 @@ void proto_register_crmf(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_crmf_encryptedValue,
-      { "encryptedValue", "crmf.encryptedValue",
+      { "encryptedValue", "crmf.encryptedValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_envelopedData,
-      { "envelopedData", "crmf.envelopedData",
+      { "envelopedData", "crmf.envelopedData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_intendedAlg,
-      { "intendedAlg", "crmf.intendedAlg",
+      { "intendedAlg", "crmf.intendedAlg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_crmf_symmAlg,
-      { "symmAlg", "crmf.symmAlg",
+      { "symmAlg", "crmf.symmAlg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_crmf_encSymmKey,
@@ -1170,7 +1167,7 @@ void proto_register_crmf(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_crmf_keyAlg,
-      { "keyAlg", "crmf.keyAlg",
+      { "keyAlg", "crmf.keyAlg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_crmf_valueHint,
@@ -1186,7 +1183,7 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GeneralName", HFILL }},
     { &hf_crmf_enckeywid_privkey,
-      { "privateKey", "crmf.privateKey",
+      { "privateKey", "crmf.privateKey_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PrivateKeyInfo", HFILL }},
     { &hf_crmf_identifier,
@@ -1206,7 +1203,7 @@ void proto_register_crmf(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_crmf_privateKeyAlgorithm,
-      { "privateKeyAlgorithm", "crmf.privateKeyAlgorithm",
+      { "privateKeyAlgorithm", "crmf.privateKeyAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_crmf_privateKey,
@@ -1218,12 +1215,12 @@ void proto_register_crmf(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_crmf_Attributes_item,
-      { "Attribute", "crmf.Attribute",
+      { "Attribute", "crmf.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 
 /*--- End of included file: packet-crmf-hfarr.c ---*/
-#line 66 "../../asn1/crmf/packet-crmf-template.c"
+#line 63 "../../asn1/crmf/packet-crmf-template.c"
   };
 
   /* List of subtrees */
@@ -1259,7 +1256,7 @@ void proto_register_crmf(void) {
     &ett_crmf_Attributes,
 
 /*--- End of included file: packet-crmf-ettarr.c ---*/
-#line 71 "../../asn1/crmf/packet-crmf-template.c"
+#line 68 "../../asn1/crmf/packet-crmf-template.c"
   };
 
   /* Register protocol */
@@ -1293,6 +1290,6 @@ void proto_reg_handoff_crmf(void) {
 
 
 /*--- End of included file: packet-crmf-dis-tab.c ---*/
-#line 89 "../../asn1/crmf/packet-crmf-template.c"
+#line 86 "../../asn1/crmf/packet-crmf-template.c"
 }
 

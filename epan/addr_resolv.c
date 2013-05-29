@@ -373,7 +373,7 @@ add_async_dns_ipv4(int type, guint32 addr)
 {
   async_dns_queue_msg_t *msg;
 
-  msg = g_malloc(sizeof(async_dns_queue_msg_t));
+  msg = g_new(async_dns_queue_msg_t,1);
 #ifdef HAVE_C_ARES
   msg->family = type;
   msg->addr.ip4 = addr;
@@ -410,7 +410,7 @@ fgetline(char **buf, int *size, FILE *fp)
     if (*size == 0)
       *size = BUFSIZ;
 
-    *buf = g_malloc(*size);
+    *buf = (char *)g_malloc(*size);
   }
 
   g_assert(*buf);
@@ -422,7 +422,7 @@ fgetline(char **buf, int *size, FILE *fp)
   len = 0;
   while ((c = getc(fp)) != EOF && c != '\r' && c != '\n') {
     if (len+1 >= *size) {
-       *buf = g_realloc(*buf, *size += BUFSIZ);
+       *buf = (char *)g_realloc(*buf, *size += BUFSIZ);
     }
     (*buf)[len++] = c;
   }
@@ -582,7 +582,7 @@ initialize_services(void)
 
   /* set personal services path */
   if (g_pservices_path == NULL)
-    g_pservices_path = get_persconffile_path(ENAME_SERVICES, FALSE, FALSE);
+    g_pservices_path = get_persconffile_path(ENAME_SERVICES, FALSE);
 
   parse_services_file(g_pservices_path);
 
@@ -727,7 +727,7 @@ c_ares_ghba_cb(void *arg, int status, struct hostent *he) {
 #else
 c_ares_ghba_cb(void *arg, int status, int timeouts _U_, struct hostent *he) {
 #endif
-  async_dns_queue_msg_t *caqm = arg;
+  async_dns_queue_msg_t *caqm = (async_dns_queue_msg_t *)arg;
   char **p;
 
   if (!caqm) return;
@@ -825,7 +825,7 @@ host_lookup(const guint addr, gboolean *found)
        * else call gethostbyaddr and hope for the best
        */
 
-      hostp = gethostbyaddr((char *)&addr, 4, AF_INET);
+      hostp = gethostbyaddr((const char *)&addr, 4, AF_INET);
 
       if (hostp != NULL) {
         g_strlcpy(tp->name, hostp->h_name, MAXNAMELEN);
@@ -906,7 +906,7 @@ host_lookup6(const struct e_in6_addr *addr, gboolean *found)
   if ((gbl_resolv_flags.concurrent_dns) &&
       name_resolve_concurrency > 0 &&
       async_dns_initialized) {
-    caqm = g_malloc(sizeof(async_dns_queue_msg_t));
+    caqm = g_new(async_dns_queue_msg_t,1);
     caqm->family = AF_INET6;
     memcpy(&caqm->addr.ip6, addr, sizeof(caqm->addr.ip6));
     async_dns_queue_head = g_list_append(async_dns_queue_head, (gpointer) caqm);
@@ -924,7 +924,7 @@ host_lookup6(const struct e_in6_addr *addr, gboolean *found)
 #endif /* HAVE_C_ARES */
 
   /* Quick hack to avoid DNS/YP timeout */
-  hostp = gethostbyaddr((char *)addr, sizeof(*addr), AF_INET6);
+  hostp = gethostbyaddr((const char *)addr, sizeof(*addr), AF_INET6);
 
   if (hostp != NULL) {
     g_strlcpy(tp->name, hostp->h_name, MAXNAMELEN);
@@ -950,7 +950,7 @@ solve_address_to_name(const address *addr)
   switch (addr->type) {
 
   case AT_ETHER:
-    return get_ether_name(addr->data);
+    return get_ether_name((const guint8 *)addr->data);
 
   case AT_IPv4: {
     guint32 ip4_addr;
@@ -965,7 +965,7 @@ solve_address_to_name(const address *addr)
   }
 
   case AT_STRINGZ:
-    return addr->data;
+    return (const gchar *)addr->data;
 
   default:
     return NULL;
@@ -978,7 +978,7 @@ se_solve_address_to_name(const address *addr)
   switch (addr->type) {
 
   case AT_ETHER:
-    return get_ether_name(addr->data);
+    return get_ether_name((const guint8 *)addr->data);
 
   case AT_IPv4: {
     guint32 ip4_addr;
@@ -993,7 +993,7 @@ se_solve_address_to_name(const address *addr)
   }
 
   case AT_STRINGZ:
-    return se_strdup(addr->data);
+    return se_strdup((const gchar *)addr->data);
 
   default:
     return NULL;
@@ -1070,7 +1070,7 @@ parse_ether_address(const char *cp, ether_t *eth, unsigned int *mask,
       if (num == 0 || num >= 48)
         return FALSE;   /* bogus mask */
       /* Mask out the bits not covered by the mask */
-      *mask = num;
+      *mask = (int)num;
       for (i = 0; num >= 8; i++, num -= 8)
         ;   /* skip octets entirely covered by the mask */
       /* Mask out the first masked octet */
@@ -1301,7 +1301,7 @@ manuf_hash_new_entry(const guint8 *addr, gchar *name)
    *  not bytes) in make-manuf.  That doesn't mean a user can't put a longer
    *  name in their personal manuf file, though...
    */
-  mtp->name = g_strdup(name);
+  mtp->name = se_strdup(name);
   mtp->next = NULL;
   return mtp;
 } /* manuf_hash_new_entry */
@@ -1327,7 +1327,7 @@ add_manuf_name(const guint8 *addr, unsigned int mask, gchar *name)
 
   /*
    * XXX - can we use Standard Annotation Language annotations to
-   * note that mask, as returned by parse_ether_address() (and thus
+   * note that mask, as returned by parse_ethe)r_address() (and thus
    * by the routines that call it, and thus passed to us) cannot be > 48,
    * or is SAL too weak to express that?
    */
@@ -1362,7 +1362,7 @@ add_manuf_name(const guint8 *addr, unsigned int mask, gchar *name)
      well-known-address table, creating that table if necessary. */
   wka_tp = wka_table[mask];
   if (wka_tp == NULL)
-    wka_tp = wka_table[mask] = se_alloc0(sizeof *wka_table[mask]);
+    wka_tp = wka_table[mask] = (hashwka_t *(*)[HASHETHSIZE])se_alloc0(sizeof *wka_table[mask]);
 
   hash_idx = hash_eth_wka(addr, mask);
 
@@ -1483,7 +1483,7 @@ initialize_ethers(void)
    * with it. It's used in get_ethbyname() and get_ethbyaddr()
    */
   if (g_pethers_path == NULL)
-    g_pethers_path = get_persconffile_path(ENAME_ETHERS, FALSE, FALSE);
+    g_pethers_path = get_persconffile_path(ENAME_ETHERS, FALSE);
 
   /* manuf hash table initialization */
 
@@ -1893,7 +1893,7 @@ initialize_ipxnets(void)
    * with it. It's used in get_ipxnetbyname() and get_ipxnetbyaddr()
    */
   if (g_pipxnets_path == NULL)
-    g_pipxnets_path = get_persconffile_path(ENAME_IPXNETS, FALSE, FALSE);
+    g_pipxnets_path = get_persconffile_path(ENAME_IPXNETS, FALSE);
 
   ipxnet_resolution_initialized = TRUE;
 } /* initialize_ipxnets */
@@ -2079,14 +2079,10 @@ read_hosts_file (const char *hostspath)
 gboolean
 add_hosts_file (const char *hosts_file)
 {
-  FILE *hf;
   gboolean found = FALSE;
   guint i;
 
   if (!hosts_file)
-    return FALSE;
-
-  if ((hf = ws_fopen(hosts_file, "r")) == NULL)
     return FALSE;
 
   if (!extra_hosts_files)
@@ -2373,7 +2369,7 @@ subnet_name_lookup_init(void)
     subnet_length_entries[i].mask = get_subnet_mask(length);
   }
 
-  subnetspath = get_persconffile_path(ENAME_SUBNETS, FALSE, FALSE);
+  subnetspath = get_persconffile_path(ENAME_SUBNETS, FALSE);
   if (!read_subnets_file(subnetspath) && errno != ENOENT) {
     report_open_failure(subnetspath, errno, FALSE);
   }
@@ -2398,27 +2394,27 @@ void
 addr_resolve_pref_init(module_t *nameres)
 {
     prefs_register_bool_preference(nameres, "mac_name",
-                                   "Enable MAC name resolution",
+                                   "Resolve MAC addresses",
                                    "Resolve Ethernet MAC address to manufacturer names",
                                    &gbl_resolv_flags.mac_name);
 
     prefs_register_bool_preference(nameres, "transport_name",
-                                   "Enable transport name resolution",
+                                   "Resolve transport names",
                                    "Resolve TCP/UDP ports into service names",
                                    &gbl_resolv_flags.transport_name);
 
     prefs_register_bool_preference(nameres, "network_name",
-                                   "Enable network name resolution",
-                                   "Resolve IP addresses into host names."
+                                   "Resolve network (IP) addresses",
+                                   "Resolve IPv4, IPv6, and IPX addresses into host names."
                                    " Next set of check boxes determines how name resolution should be performed"
                                    " If unchecked name resolution is made from Wiresharks host file,"
                                    " name resolution block and DNS packets in the capture",
                                    &gbl_resolv_flags.network_name);
 
     prefs_register_bool_preference(nameres, "use_external_name_resolver",
-                                   "Use external network name resolver",
+                                   "Use an external network name resolver",
                                    "Use the (system's) configured name resolver"
-                                   " (e.g., DNS) to resolve network names."
+                                   " (usually DNS) to resolve network names."
                                    " Only applies when network name resolution"
                                    " is enabled",
                                    &gbl_resolv_flags.use_external_net_name_resolver);
@@ -2426,14 +2422,17 @@ addr_resolve_pref_init(module_t *nameres)
 #if defined(HAVE_C_ARES) || defined(HAVE_GNU_ADNS)
     prefs_register_bool_preference(nameres, "concurrent_dns",
                                    "Enable concurrent DNS name resolution",
-                                   "Enable concurrent DNS name resolution.  Only"
+                                   "Enable concurrent DNS name resolution. Only"
                                    " applies when network name resolution is"
-                                   " enabled",
+                                   " enabled. You probably want to enable this.",
                                   &gbl_resolv_flags.concurrent_dns);
 
     prefs_register_uint_preference(nameres, "name_resolve_concurrency",
                                    "Maximum concurrent requests",
-                                   "Maximum parallel running DNS requests",
+                                   "The maximum number of DNS requests that may"
+				   " be active at any time. A large value (many"
+				   " thousands) might overload the network or make"
+				   " your DNS server behave badly.",
                                    10,
                                    &name_resolve_concurrency);
 #else
@@ -2444,10 +2443,9 @@ addr_resolve_pref_init(module_t *nameres)
 #endif
 
     prefs_register_bool_preference(nameres, "hosts_file_handling",
-                                   "Use hosts file from profile dir only",
-                                   "By default hosts file(s) will be loaded from multiple sources"
-                                   " by checking this box only the hostfile for the current profile will be loaded"
-                                   " if the default profile is used the hosts file must be in the same dir as preferences",
+                                   "Only use the profile \"hosts\" file",
+                                   "By default \"hosts\" files will be loaded from multiple sources."
+                                   " Checking this box only loads the \"hosts\" in the current profile.",
                                    &gbl_resolv_flags.load_hosts_file_from_profile_only);
 
 }
@@ -2467,7 +2465,7 @@ host_name_lookup_init(void) {
 #endif /*GNU_ADNS */
 
   if (!addrinfo_list) {
-    ai = se_alloc0(sizeof(struct addrinfo));
+    ai = se_new0(struct addrinfo);
     addrinfo_list = addrinfo_list_last = ai;
   }
 
@@ -2475,7 +2473,7 @@ host_name_lookup_init(void) {
    * Load the user's hosts file, if they have one.
    */
   if(!gbl_resolv_flags.load_hosts_file_from_profile_only){
-    hostspath = get_persconffile_path(ENAME_HOSTS, TRUE, FALSE);
+    hostspath = get_persconffile_path(ENAME_HOSTS, TRUE);
     if (!read_hosts_file(hostspath) && errno != ENOENT) {
       report_open_failure(hostspath, errno, FALSE);
     }
@@ -2539,7 +2537,7 @@ host_name_lookup_init(void) {
   /* XXX - Any flags we should be using? */
   /* XXX - We could provide config settings for DNS servers, and
            pass them to ADNS with adns_init_strcfg */
-  if (adns_init(&ads, 0, 0 /*0=>stderr*/) != 0) {
+  if (adns_init(&ads, adns_if_none, 0 /*0=>stderr*/) != 0) {
     /*
      * XXX - should we report the error?  I'm assuming that some crashes
      * reported on a Windows machine with TCP/IP not configured are due
@@ -2620,6 +2618,7 @@ _host_name_lookup_cleanup(void) {
   }
 
   g_list_free(async_dns_queue_head);
+  async_dns_queue_head = NULL;
 
   if (async_dns_initialized) {
     ares_destroy(ghba_chan);
@@ -2658,7 +2657,7 @@ host_name_lookup_process(void) {
       g_snprintf(addr_str, sizeof addr_str, "%u.%u.%u.%u.in-addr.arpa.", addr_bytes[3],
                  addr_bytes[2], addr_bytes[1], addr_bytes[0]);
       /* XXX - what if it fails? */
-      adns_submit (ads, addr_str, adns_r_ptr, 0, NULL, &almsg->query);
+      adns_submit (ads, addr_str, adns_r_ptr, adns_qf_none, NULL, &almsg->query);
       almsg->submitted = TRUE;
       async_dns_in_flight++;
     }
@@ -2823,15 +2822,15 @@ add_ipv4_name(const guint addr, const gchar *name)
   new_resolved_objects = TRUE;
 
   if (!addrinfo_list) {
-    ai = se_alloc0(sizeof(struct addrinfo));
+    ai = se_new0(struct addrinfo);
     addrinfo_list = addrinfo_list_last = ai;
   }
 
-  sa4 = se_alloc0(sizeof(struct sockaddr_in));
+  sa4 = se_new0(struct sockaddr_in);
   sa4->sin_family = AF_INET;
   sa4->sin_addr.s_addr = addr;
 
-  ai = se_alloc0(sizeof(struct addrinfo));
+  ai = se_new0(struct addrinfo);
   ai->ai_family = AF_INET;
   ai->ai_addrlen = sizeof(struct sockaddr_in);
   ai->ai_canonname = (char *) tp->name;
@@ -2881,15 +2880,15 @@ add_ipv6_name(const struct e_in6_addr *addrp, const gchar *name)
   new_resolved_objects = TRUE;
 
   if (!addrinfo_list) {
-    ai = se_alloc0(sizeof(struct addrinfo));
+    ai = se_new0(struct addrinfo);
     addrinfo_list = addrinfo_list_last = ai;
   }
 
-  sa6 = se_alloc0(sizeof(struct sockaddr_in6));
+  sa6 = se_new0(struct sockaddr_in6);
   sa6->sin6_family = AF_INET;
   memcpy(sa6->sin6_addr.s6_addr, addrp, 16);
 
-  ai = se_alloc0(sizeof(struct addrinfo));
+  ai = se_new0(struct addrinfo);
   ai->ai_family = AF_INET6;
   ai->ai_addrlen = sizeof(struct sockaddr_in);
   ai->ai_canonname = (char *) tp->name;
@@ -2906,7 +2905,7 @@ add_ipv6_name(const struct e_in6_addr *addrp, const gchar *name)
 static gchar *
 ep_utoa(guint port)
 {
-  gchar *bp = ep_alloc(MAXNAMELEN);
+  gchar *bp = (gchar *)ep_alloc(MAXNAMELEN);
 
   /* XXX, guint32_to_str() ? */
   guint32_to_str_buf(port, bp, MAXNAMELEN);
@@ -3203,7 +3202,7 @@ get_eui64_name(const guint64 addr_eui64)
 {
   gchar *cur;
   hashmanuf_t  *mtp;
-  guint8 *addr = ep_alloc(8);
+  guint8 *addr = (guint8 *)ep_alloc(8);
 
   /* Copy and convert the address to network byte order. */
   *(guint64 *)(void *)(addr) = pntoh64(&(addr_eui64));
@@ -3227,7 +3226,7 @@ get_eui64_name_if_known(const guint64 addr_eui64)
 {
   gchar *cur;
   hashmanuf_t  *mtp;
-  guint8 *addr = ep_alloc(8);
+  guint8 *addr = (guint8 *)ep_alloc(8);
 
   /* Copy and convert the address to network byte order. */
   *(guint64 *)(void *)(addr) = pntoh64(&(addr_eui64));
@@ -3258,7 +3257,7 @@ c_ares_ghi_cb(void *arg, int status, int timeouts _U_, struct hostent *hp) {
    * XXX - If we wanted to be really fancy we could cache results here and
    * look them up in get_host_ipaddr* below.
    */
-  async_hostent_t *ahp = arg;
+  async_hostent_t *ahp = (async_hostent_t *)arg;
   if (status == ARES_SUCCESS && hp && ahp && hp->h_length == ahp->addr_size) {
     memcpy(ahp->addrp, hp->h_addr, hp->h_length);
     ahp->copied = hp->h_length;

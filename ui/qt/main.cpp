@@ -40,6 +40,8 @@
 #  include <portaudio.h>
 #endif /* HAVE_LIBPORTAUDIO */
 
+#include <wsutil/crash_info.h>
+
 #include <epan/epan.h>
 #include <epan/filesystem.h>
 #include <wsutil/privileges.h>
@@ -65,7 +67,6 @@
 /* general (not Qt specific) */
 #include "file.h"
 #include "summary.h"
-#include "filters.h"
 #include "disabled_protos.h"
 #include "color.h"
 #include "color_filters.h"
@@ -74,7 +75,6 @@
 #include "ringbuffer.h"
 #include "ui/util.h"
 #include "clopts_common.h"
-#include "console_io.h"
 #include "cmdarg_err.h"
 #include "version_info.h"
 #include "merge.h"
@@ -118,14 +118,19 @@
 
 #include <epan/crypt/airpdcap_ws.h>
 
-#include "monospace_font.h"
-
 #include <QDebug>
 #include <QDateTime>
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 #include <QTextCodec>
+#endif
 #include <qtranslator.h>
 #include <qlocale.h>
 #include <qlibraryinfo.h>
+
+#ifdef HAVE_LIBPCAP
+capture_options global_capture_opts;
+capture_session global_capture_session;
+#endif
 
 capture_file cfile;
 
@@ -148,10 +153,10 @@ extern capture_options global_capture_opts;
 #endif
 
 static void
-main_capture_callback(gint event, capture_options *capture_opts, gpointer user_data )
+main_capture_callback(gint event, capture_session *cap_session, gpointer user_data )
 {
     Q_UNUSED(user_data);
-    wsApp->captureCallback(event, capture_opts);
+    wsApp->captureCallback(event, cap_session);
 }
 
 static void
@@ -159,110 +164,6 @@ main_cf_callback(gint event, gpointer data, gpointer user_data )
 {
     Q_UNUSED(user_data);
     wsApp->captureFileCallback(event, data);
-}
-
-// XXX Copied from ui/gtk/main.c. This should be moved to a common location.
-static e_prefs *
-read_configuration_files(char **gdp_path, char **dp_path)
-{
-  int                  gpf_open_errno, gpf_read_errno;
-  int                  cf_open_errno, df_open_errno;
-  int                  gdp_open_errno, gdp_read_errno;
-  int                  dp_open_errno, dp_read_errno;
-  char                *gpf_path, *pf_path;
-  char                *cf_path, *df_path;
-  int                  pf_open_errno, pf_read_errno;
-  e_prefs             *prefs_p;
-
-  /* Read the preference files. */
-  prefs_p = read_prefs(&gpf_open_errno, &gpf_read_errno, &gpf_path,
-                     &pf_open_errno, &pf_read_errno, &pf_path);
-
-  if (gpf_path != NULL) {
-    if (gpf_open_errno != 0) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "Could not open global preferences file\n\"%s\": %s.", gpf_path,
-        g_strerror(gpf_open_errno));
-    }
-    if (gpf_read_errno != 0) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "I/O error reading global preferences file\n\"%s\": %s.", gpf_path,
-        g_strerror(gpf_read_errno));
-    }
-  }
-  if (pf_path != NULL) {
-    if (pf_open_errno != 0) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "Could not open your preferences file\n\"%s\": %s.", pf_path,
-        g_strerror(pf_open_errno));
-    }
-    if (pf_read_errno != 0) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "I/O error reading your preferences file\n\"%s\": %s.", pf_path,
-        g_strerror(pf_read_errno));
-    }
-    g_free(pf_path);
-    pf_path = NULL;
-  }
-
-#ifdef _WIN32
-  /* if the user wants a console to be always there, well, we should open one for him */
-  if (prefs_p->gui_console_open == console_open_always) {
-    create_console();
-  }
-#endif
-
-  /* Read the capture filter file. */
-  read_filter_list(CFILTER_LIST, &cf_path, &cf_open_errno);
-  if (cf_path != NULL) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "Could not open your capture filter file\n\"%s\": %s.", cf_path,
-        g_strerror(cf_open_errno));
-      g_free(cf_path);
-  }
-
-  /* Read the display filter file. */
-  read_filter_list(DFILTER_LIST, &df_path, &df_open_errno);
-  if (df_path != NULL) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "Could not open your display filter file\n\"%s\": %s.", df_path,
-        g_strerror(df_open_errno));
-      g_free(df_path);
-  }
-
-  /* Read the disabled protocols file. */
-  read_disabled_protos_list(gdp_path, &gdp_open_errno, &gdp_read_errno,
-                            dp_path, &dp_open_errno, &dp_read_errno);
-  if (*gdp_path != NULL) {
-    if (gdp_open_errno != 0) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "Could not open global disabled protocols file\n\"%s\": %s.",
-        *gdp_path, g_strerror(gdp_open_errno));
-    }
-    if (gdp_read_errno != 0) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "I/O error reading global disabled protocols file\n\"%s\": %s.",
-        *gdp_path, g_strerror(gdp_read_errno));
-    }
-    g_free(*gdp_path);
-    *gdp_path = NULL;
-  }
-  if (*dp_path != NULL) {
-    if (dp_open_errno != 0) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "Could not open your disabled protocols file\n\"%s\": %s.", *dp_path,
-        g_strerror(dp_open_errno));
-    }
-    if (dp_read_errno != 0) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-        "I/O error reading your disabled protocols file\n\"%s\": %s.", *dp_path,
-        g_strerror(dp_read_errno));
-    }
-    g_free(*dp_path);
-    *dp_path = NULL;
-  }
-
-  return prefs_p;
 }
 
 /* update the main window */
@@ -330,7 +231,7 @@ print_usage(gboolean print_ver) {
     fprintf(output, "  -S                       update packet display when new packets are captured\n");
     fprintf(output, "  -l                       turn on automatic scrolling while -S is in use\n");
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-    fprintf(output, "  -B <buffer size>         size of kernel buffer (def: 1MB)\n");
+    fprintf(output, "  -B <buffer size>         size of kernel buffer (def: %dMB)\n", DEFAULT_CAPTURE_BUFFER_SIZE);
 #endif
     fprintf(output, "  -y <link type>           link layer type (def: first appropriate)\n");
     fprintf(output, "  -D                       print list of interfaces and exit\n");
@@ -396,10 +297,6 @@ print_usage(gboolean print_ver) {
 static void
 show_version(void)
 {
-#ifdef _WIN32
-    create_console();
-#endif
-
     printf(PACKAGE " " VERSION "%s\n"
            "\n"
            "%s"
@@ -409,36 +306,6 @@ show_version(void)
            "%s",
            wireshark_svnversion, get_copyright_info(), comp_info_str->str,
            runtime_info_str->str);
-
-#ifdef _WIN32
-    destroy_console();
-#endif
-}
-
-/*
- * Print to the standard error.  On Windows, create a console for the
- * standard error to show up on, if necessary.
- * XXX - pop this up in a window of some sort on UNIX+X11 if the controlling
- * terminal isn't the standard error?
- */
-// xxx copied from ../gtk/main.c
-void
-vfprintf_stderr(const char *fmt, va_list ap)
-{
-#ifdef _WIN32
-    create_console();
-#endif
-    vfprintf(stderr, fmt, ap);
-}
-
-void
-fprintf_stderr(const char *fmt, ...)
-{
-    va_list ap;
-
-    va_start(ap, fmt);
-    vfprintf_stderr(fmt, ap);
-    va_end(ap);
 }
 
 /*
@@ -451,11 +318,14 @@ cmdarg_err(const char *fmt, ...)
 {
     va_list ap;
 
-    fprintf_stderr("wireshark: ");
+#ifdef _WIN32
+    create_console();
+#endif
+    fprintf(stderr, "wireshark: ");
     va_start(ap, fmt);
-    vfprintf_stderr(fmt, ap);
+    vfprintf(stderr, fmt, ap);
     va_end(ap);
-    fprintf_stderr("\n");
+    fprintf(stderr, "\n");
 }
 
 /*
@@ -470,9 +340,12 @@ cmdarg_err_cont(const char *fmt, ...)
 {
     va_list ap;
 
+#ifdef _WIN32
+    create_console();
+#endif
     va_start(ap, fmt);
-    vfprintf_stderr(fmt, ap);
-    fprintf_stderr("\n");
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
     va_end(ap);
 }
 
@@ -585,8 +458,8 @@ get_gui_runtime_info(GString *str)
 /* And now our feature presentation... [ fade to music ] */
 int main(int argc, char *argv[])
 {
-    WiresharkApplication a(argc, argv);
-    MainWindow *w;
+    WiresharkApplication ws_app(argc, argv);
+    MainWindow *main_w;
 
 //    char                *init_progfile_dir_error;
 //    char                *s;
@@ -632,29 +505,38 @@ int main(int argc, char *argv[])
 
     //initialize language !
 
+#ifdef _WIN32
+    create_app_running_mutex();
+#endif
+
     QString locale = QLocale::system().name();
 
     g_log(NULL, G_LOG_LEVEL_DEBUG, "Translator %s", locale.toStdString().c_str());
     QTranslator translator;
     translator.load(QString(":/i18n/qtshark_") + locale);
-    a.installTranslator(&translator);
+    ws_app.installTranslator(&translator);
 
     QTranslator qtTranslator;
     qtTranslator.load("qt_" + QLocale::system().name(), QLibraryInfo::location(QLibraryInfo::TranslationsPath));
-    a.installTranslator(&qtTranslator);
+    ws_app.installTranslator(&qtTranslator);
 
+    // In Qt 5, C strings are treated always as UTF-8 when converted to
+    // QStrings; in Qt 4, the codec must be set to make that happen
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
     // Hopefully we won't have to use QString::fromUtf8() in as many places.
     QTextCodec *utf8codec = QTextCodec::codecForName("UTF-8");
     QTextCodec::setCodecForCStrings(utf8codec);
+    // XXX - QObject doesn't *have* a tr method in 5.0, as far as I can see...
     QTextCodec::setCodecForTr(utf8codec);
+#endif
 
-    w = new(MainWindow);
+    main_w = new(MainWindow);
 //    w->setEnabled(false);
-    w->show();
+    main_w->show();
     // We may not need a queued connection here but it would seem to make sense
     // to force the issue.
-    w->connect(&a, SIGNAL(openCaptureFile(QString&)),
-            w, SLOT(openCaptureFile(QString&)));
+    main_w->connect(&ws_app, SIGNAL(openCaptureFile(QString&)),
+            main_w, SLOT(openCaptureFile(QString&)));
 
     // XXX Should the remaining code be in WiresharkApplcation::WiresharkApplication?
 #ifdef HAVE_LIBPCAP
@@ -676,6 +558,24 @@ int main(int argc, char *argv[])
 #define OPTSTRING "a:b:" OPTSTRING_B "c:C:Df:g:Hhi:" OPTSTRING_I "jJ:kK:lLm:nN:o:P:pQr:R:Ss:t:u:vw:X:y:z:"
 
     static const char optstring[] = OPTSTRING;
+
+    /* Assemble the compile-time version information string */
+    comp_info_str = g_string_new("Compiled ");
+
+    // xxx qtshark
+    get_compiled_version_info(comp_info_str, get_qt_compiled_info, get_gui_compiled_info);
+
+    /* Assemble the run-time version information string */
+    runtime_info_str = g_string_new("Running ");
+    // xxx qtshark
+    get_runtime_version_info(runtime_info_str, get_gui_runtime_info);
+
+    ws_add_crash_info(PACKAGE " " VERSION "%s\n"
+           "\n"
+           "%s"
+           "\n"
+           "%s",
+        wireshark_svnversion, comp_info_str->str, runtime_info_str->str);
 
     /*
      * Get credential information for later use, and drop privileges
@@ -699,11 +599,11 @@ int main(int argc, char *argv[])
 
 // xxx qtshark
 #ifdef _WIN32
-  /* Load wpcap if possible. Do this before collecting the run-time version information */
-  load_wpcap();
+    /* Load wpcap if possible. Do this before collecting the run-time version information */
+    load_wpcap();
 
-  /* ... and also load the packet.dll from wpcap */
-  wpcap_packet_load();
+    /* ... and also load the packet.dll from wpcap */
+    wpcap_packet_load();
 
 #ifdef HAVE_AIRPCAP
     /* Load the airpcap.dll.  This must also be done before collecting
@@ -753,17 +653,6 @@ int main(int argc, char *argv[])
 
     profile_store_persconffiles (TRUE);
 
-    /* Assemble the compile-time version information string */
-    comp_info_str = g_string_new("Compiled ");
-
-    // xxx qtshark
-    get_compiled_version_info(comp_info_str, get_qt_compiled_info, get_gui_compiled_info);
-
-    /* Assemble the run-time version information string */
-    runtime_info_str = g_string_new("Running ");
-    // xxx qtshark
-    get_runtime_version_info(runtime_info_str, get_gui_runtime_info);
-
     /* Read the profile independent recent file.  We have to do this here so we can */
     /* set the profile before it can be set from the command line parameterts */
     recent_read_static(&rf_path, &rf_open_errno);
@@ -812,13 +701,19 @@ int main(int argc, char *argv[])
                 }
                 exit(2);
             }
+#ifdef _WIN32
+            create_console();
+#endif /* _WIN32 */
             capture_opts_print_interfaces(if_list);
             free_interface_list(if_list);
+#ifdef _WIN32
+            destroy_console();
+#endif /* _WIN32 */
             exit(0);
-#else
+#else /* HAVE_LIBPCAP */
             capture_option_specified = TRUE;
             arg_error = TRUE;
-#endif
+#endif /* HAVE_LIBPCAP */
             break;
         case 'h':        /* Print help and exit */
             print_usage(TRUE);
@@ -838,15 +733,21 @@ int main(int argc, char *argv[])
             }
             break;
         case 'v':        /* Show version and exit */
+#ifdef _WIN32
+            create_console();
+#endif
             show_version();
+#ifdef _WIN32
+            destroy_console();
+#endif
             exit(0);
             break;
         case 'X':
             /*
-           *  Extension command line options have to be processed before
-           *  we call epan_init() as they are supposed to be used by dissectors
-           *  or taps very early in the registration process.
-           */
+             *  Extension command line options have to be processed before
+             *  we call epan_init() as they are supposed to be used by dissectors
+             *  or taps very early in the registration process.
+             */
             ex_opt_add(optarg);
             break;
         case '?':        /* Ignore errors - the "real" scan will catch them. */
@@ -876,7 +777,7 @@ int main(int argc, char *argv[])
     }
 
 #ifdef HAVE_LIBPCAP
-  capture_callback_add(main_capture_callback, NULL);
+    capture_callback_add(main_capture_callback, NULL);
 #endif
     cf_callback_add(main_cf_callback, NULL);
 
@@ -915,7 +816,9 @@ int main(int argc, char *argv[])
 
     /* Set the initial values in the capture options. This might be overwritten
        by preference settings and then again by the command line parameters. */
-    capture_opts_init(&global_capture_opts, &cfile);
+    capture_opts_init(&global_capture_opts);
+
+    capture_session_init(&global_capture_session, (void *)&cfile);
 #endif
 
     /* Register all dissectors; we must do this before checking for the
@@ -946,7 +849,7 @@ int main(int argc, char *argv[])
 
     splash_update(RA_PREFERENCES, NULL, NULL);
 
-    prefs_p = read_configuration_files (&gdp_path, &dp_path);
+    prefs_p = ws_app.readConfigurationFiles (&gdp_path, &dp_path);
     /* Removed thread code:
      * http://anonsvn.wireshark.org/viewvc/viewvc.cgi?view=rev&revision=35027
      */
@@ -1009,8 +912,10 @@ int main(int argc, char *argv[])
 //  }
 
 //  if (start_capture || list_link_layer_types) {
-//    /* Did the user specify an interface to use? */
-//    status = capture_opts_trim_iface(&global_capture_opts,
+//    /* We're supposed to do a live capture or get a list of link-layer
+//       types for a live capture device; if the user didn't specify an
+//       interface to use, pick a default. */
+//    status = capture_opts_default_iface_if_necessary(&global_capture_opts,
 //        (prefs_p->capture_device) ? get_if_name(prefs_p->capture_device) : NULL);
 //    if (status != 0) {
 //      exit(status);
@@ -1041,10 +946,16 @@ int main(int argc, char *argv[])
 //          exit(2);
 //        }
 //#if defined(HAVE_PCAP_CREATE)
+//#ifdef _WIN32
+//        create_console();
+//#endif /* _WIN32 */
 //        capture_opts_print_if_capabilities(caps, device.name, device.monitor_mode_supported);
 //#else
 //        capture_opts_print_if_capabilities(caps, device.name, FALSE);
 //#endif
+//#ifdef _WIN32
+//        destroy_console();
+//#endif /* _WIN32 */
 //        free_if_capabilities(caps);
 //      }
 //    }
@@ -1058,7 +969,8 @@ int main(int argc, char *argv[])
     /* Notify all registered modules that have had any of their preferences
        changed either from one of the preferences file or from the command
        line that their preferences have changed. */
-    wsApp->applyAllPreferences();
+    prefs_apply_all();
+    wsApp->emitAppSignal(WiresharkApplication::PreferencesChanged);
 
 #ifdef HAVE_LIBPCAP
     if ((global_capture_opts.num_selected == 0) &&
@@ -1092,12 +1004,12 @@ int main(int argc, char *argv[])
 //  #else
 //    gtk_rc_parse(rc_file);
 //    g_free(rc_file);
-//    rc_file = get_persconffile_path(RC_FILE, FALSE, FALSE);
+//    rc_file = get_persconffile_path(RC_FILE, FALSE);
 //    gtk_rc_parse(rc_file);
 //  #endif
 //    g_free(rc_file);
 
-    font_init();
+    wsApp->setMonospaceFont(prefs.gui_qt_font_name);
 
 ////////
 
@@ -1117,25 +1029,25 @@ int main(int argc, char *argv[])
 
 ////////
 
-    switch (user_font_apply()) {
-    case FA_SUCCESS:
-        break;
-    case FA_FONT_NOT_RESIZEABLE:
-        /* "user_font_apply()" popped up an alert box. */
-        /* turn off zooming - font can't be resized */
-    case FA_FONT_NOT_AVAILABLE:
-        /* XXX - did we successfully load the un-zoomed version earlier?
-        If so, this *probably* means the font is available, but not at
-        this particular zoom level, but perhaps some other failure
-        occurred; I'm not sure you can determine which is the case,
-        however. */
-        /* turn off zooming - zoom level is unavailable */
-    default:
-        /* in any other case than FA_SUCCESS, turn off zooming */
-//        recent.gui_zoom_level = 0;
-        /* XXX: would it be a good idea to disable zooming (insensitive GUI)? */
-        break;
-    }
+//    switch (user_font_apply()) {
+//    case FA_SUCCESS:
+//        break;
+//    case FA_FONT_NOT_RESIZEABLE:
+//        /* "user_font_apply()" popped up an alert box. */
+//        /* turn off zooming - font can't be resized */
+//    case FA_FONT_NOT_AVAILABLE:
+//        /* XXX - did we successfully load the un-zoomed version earlier?
+//        If so, this *probably* means the font is available, but not at
+//        this particular zoom level, but perhaps some other failure
+//        occurred; I'm not sure you can determine which is the case,
+//        however. */
+//        /* turn off zooming - zoom level is unavailable */
+//    default:
+//        /* in any other case than FA_SUCCESS, turn off zooming */
+////        recent.gui_zoom_level = 0;
+//        /* XXX: would it be a good idea to disable zooming (insensitive GUI)? */
+//        break;
+//    }
 
 ////////
     color_filters_init();

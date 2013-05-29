@@ -68,7 +68,6 @@
 #include <epan/prefs.h>
 
 #include "../globals.h"
-#include "ui/simple_dialog.h"
 #include "../codecs/G711a/G711adecode.h"
 #include "../codecs/G711u/G711udecode.h"
 
@@ -82,6 +81,7 @@
 #include "ui/gtk/stock_icons.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+#include "ui/gtk/gui_utils.h"
 
 /*define this symbol to compile with G729 and G723 codecs*/
 /*#define HAVE_G729_G723 1*/
@@ -125,9 +125,10 @@ static int new_jitter_buff;
 /* a hash table with the RTP streams to play per audio channel */
 static GHashTable *rtp_channels_hash = NULL;
 
+static int sample_rate = 8000;
+
 /* Port Audio stuff */
-#define SAMPLE_RATE  (8000)
-#define NUM_CHANNELS    (2)
+static int output_channels = 2;
 
 #define PA_SAMPLE_TYPE  paInt16
 typedef gint16 SAMPLE;
@@ -184,7 +185,7 @@ typedef struct _rtp_channel_info {
 	GArray *samples;			/* the array with decoded audio */
 	guint16 call_num;
 	gboolean selected;
-	guint32 frame_index;
+	unsigned long frame_index;
 	guint32 drop_by_jitter_buff;
 	guint32 out_of_seq;
 	guint32 wrong_timestamp;
@@ -205,7 +206,7 @@ typedef struct _rtp_channel_info {
 #else /* PORTAUDIO_API_1 */
 	PaTime cursor_prev;
 #endif /* PORTAUDIO_API_1 */
-	GdkColor bg_color[MAX_NUM_COL_CONV+1];
+	GdkRGBA bg_color[MAX_NUM_COL_CONV+1];
 	gboolean cursor_catch;
 	rtp_stream_info_t *first_stream;	/* This is the first RTP stream in the channel */
 	guint32 num_packets;
@@ -214,7 +215,7 @@ typedef struct _rtp_channel_info {
 /* defines a RTP packet */
 typedef struct _rtp_packet {
 	struct _rtp_info *info;	/* the RTP dissected info */
-	double arrive_offset;	/* arrive offset time since the begining of the stream in ms */
+	double arrive_offset;	/* arrive offset time since the beginning of the stream in ms */
 	guint8* payload_data;
 } rtp_packet_t;
 
@@ -225,10 +226,10 @@ typedef struct _rtp_play_channles {
 	guint32 end_index[2];
 	int channel;
 	guint32 max_frame_index;
-	guint32 frame_index;
+	unsigned long frame_index;
 	gboolean pause;
 	gboolean stop;
-	gint32 pause_duration;
+	unsigned long pause_duration;
 #if PORTAUDIO_API_1
 	PaTimestamp out_diff_time;
 #else /* PORTAUDIO_API_1 */
@@ -258,7 +259,7 @@ rtp_key_destroy(gpointer key)
 static void
 rtp_channel_value_destroy(gpointer rci_arg)
 {
-	rtp_channel_info_t *rci = rci_arg;
+	rtp_channel_info_t *rci = (rtp_channel_info_t *)rci_arg;
 
 	g_array_free(rci->samples, TRUE);
 	g_free(rci);
@@ -269,14 +270,14 @@ rtp_channel_value_destroy(gpointer rci_arg)
 static void
 rtp_stream_value_destroy(gpointer rsi_arg)
 {
-	rtp_stream_info_t *rsi = rsi_arg;
+	rtp_stream_info_t *rsi = (rtp_stream_info_t *)rsi_arg;
 	GList*  rtp_packets_list;
 	rtp_packet_t *rp;
 
 	rtp_packets_list = g_list_first(rsi->rtp_packets_list);
 	while (rtp_packets_list)
 	{
-		rp = rtp_packets_list->data;
+		rp = (rtp_packet_t *)rtp_packets_list->data;
 
 		g_free(rp->info);
 		g_free(rp->payload_data);
@@ -295,7 +296,7 @@ rtp_stream_value_destroy(gpointer rsi_arg)
 static void
 rtp_decoder_value_destroy(gpointer dec_arg)
 {
-	rtp_decoder_t *dec = dec_arg;
+	rtp_decoder_t *dec = (rtp_decoder_t *)dec_arg;
 
 	if (dec->handle)
 		codec_release(dec->handle, dec->context);
@@ -372,11 +373,11 @@ add_rtp_packet(const struct _rtp_info *rtp_info, packet_info *pinfo)
 		pinfo->destport, rtp_info->info_sync_src );
 
 	/* lookup for this RTP packet in the stream hash table */
-	stream_info =  g_hash_table_lookup( rtp_streams_hash, key_str->str);
+	stream_info =  (rtp_stream_info_t *)g_hash_table_lookup( rtp_streams_hash, key_str->str);
 
 	/* if it is not in the hash table, create a new stream */
 	if (stream_info==NULL) {
-		stream_info = g_malloc(sizeof(rtp_stream_info_t));
+		stream_info = g_new(rtp_stream_info_t,1);
 		COPY_ADDRESS(&(stream_info->src_addr), &(pinfo->src));
 		stream_info->src_port = pinfo->srcport;
 		COPY_ADDRESS(&(stream_info->dest_addr), &(pinfo->dst));
@@ -400,14 +401,14 @@ add_rtp_packet(const struct _rtp_info *rtp_info, packet_info *pinfo)
 	stream_info->num_packets++;
 
 	/* Add the RTP packet to the list */
-	new_rtp_packet = g_malloc(sizeof(rtp_packet_t));
-	new_rtp_packet->info = g_malloc(sizeof(struct _rtp_info));
+	new_rtp_packet = g_new(rtp_packet_t,1);
+	new_rtp_packet->info = (struct _rtp_info *)g_malloc(sizeof(struct _rtp_info));
 
 	memcpy(new_rtp_packet->info, rtp_info, sizeof(struct _rtp_info));
 	new_rtp_packet->arrive_offset = nstime_to_msec(&pinfo->fd->rel_ts) - stream_info->start_time;
 	/* copy the RTP payload to the rtp_packet to be decoded later */
 	if (rtp_info->info_all_data_present && (rtp_info->info_payload_len != 0)) {
-		new_rtp_packet->payload_data = g_malloc(rtp_info->info_payload_len);
+		new_rtp_packet->payload_data = (guint8 *)g_malloc(rtp_info->info_payload_len);
 		memcpy(new_rtp_packet->payload_data, &(rtp_info->info_data[rtp_info->info_payload_offset]), rtp_info->info_payload_len);
 	} else {
 		new_rtp_packet->payload_data = NULL;
@@ -439,14 +440,14 @@ mark_rtp_stream_to_play(gchar *key _U_ , rtp_stream_info_t *rsi, gpointer ptr _U
 	graph_list = g_list_first(voip_calls->graph_analysis->list);
 	while (graph_list)
 	{
-		graph_item = graph_list->data;
+		graph_item = (graph_analysis_item_t *)graph_list->data;
 		if (rsi->first_frame_number == graph_item->fd->num) {
 			rsi->call_num = graph_item->conv_num;
 			/* if it is in the graph list, then check if the voip_call is selected */
 			voip_calls_list = g_list_first(voip_calls->callsinfo_list);
 			while (voip_calls_list)
 			{
-				tmp_voip_call = voip_calls_list->data;
+				tmp_voip_call = (voip_calls_info_t *)voip_calls_list->data;
 				if ( (tmp_voip_call->call_num == rsi->call_num) && (tmp_voip_call->selected == TRUE) ) {
 					rsi->play = TRUE;
 					total_packets += rsi->num_packets;
@@ -492,12 +493,12 @@ decode_rtp_packet(rtp_packet_t *rp, SAMPLE **out_buff, GHashTable *decoders_hash
 	payload_type = rp->info->info_payload_type;
 
 	/* Look for registered codecs */
-	decoder = g_hash_table_lookup(decoders_hash, GUINT_TO_POINTER(payload_type));
+	decoder = (rtp_decoder_t *)g_hash_table_lookup(decoders_hash, GUINT_TO_POINTER(payload_type));
 	if (!decoder) {  /* Put either valid or empty decoder into the hash table */
-		decoder = g_malloc(sizeof(rtp_decoder_t));
+		decoder = g_new(rtp_decoder_t,1);
 		decoder->handle = NULL;
 		decoder->context = NULL;
-		p = match_strval_ext(payload_type, &rtp_payload_type_short_vals_ext);
+		p = try_val_to_str_ext(payload_type, &rtp_payload_type_short_vals_ext);
 		if (p) {
 			decoder->handle = find_codec(p);
 			if (decoder->handle)
@@ -507,7 +508,7 @@ decode_rtp_packet(rtp_packet_t *rp, SAMPLE **out_buff, GHashTable *decoders_hash
 	}
 	if (decoder->handle) {  /* Decode with registered codec */
 		tmp_buff_len = codec_decode(decoder->handle, decoder->context, rp->payload_data, rp->info->info_payload_len, NULL, NULL);
-		tmp_buff = g_malloc(tmp_buff_len);
+		tmp_buff = (SAMPLE *)g_malloc(tmp_buff_len);
 		decoded_bytes = codec_decode(decoder->handle, decoder->context, rp->payload_data, rp->info->info_payload_len, tmp_buff, &tmp_buff_len);
 		*out_buff = tmp_buff;
 		return decoded_bytes;
@@ -518,13 +519,13 @@ decode_rtp_packet(rtp_packet_t *rp, SAMPLE **out_buff, GHashTable *decoders_hash
 	switch (payload_type) {
 
 	case PT_PCMU:	/* G.711 u-law */
-		tmp_buff = g_malloc(sizeof(SAMPLE) * rp->info->info_payload_len * 1);
+		tmp_buff = (SAMPLE *)g_malloc(sizeof(SAMPLE) * rp->info->info_payload_len * 1);
 		decodeG711u(rp->payload_data, rp->info->info_payload_len,
 			  tmp_buff, &decoded_bytes);
 		break;
 
 	case PT_PCMA:	/* G.711 A-law */
-		tmp_buff = g_malloc(sizeof(SAMPLE) * rp->info->info_payload_len * 1);
+		tmp_buff = (SAMPLE *)g_malloc(sizeof(SAMPLE) * rp->info->info_payload_len * 1);
 		decodeG711a(rp->payload_data, rp->info->info_payload_len,
 			  tmp_buff, &decoded_bytes);
 		break;
@@ -597,15 +598,14 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 	double start_rtp_time = 0;
 	double diff;
 	double pack_period;
-#ifdef DEBUG /* ?? */
-	double total_time;
-#endif
 	gint32 silence_frames;
 	int seq;
-#ifdef DEBUG /* ?? */
+#ifdef DEBUG /* XXX: "mean_delay" and "variation" are always zero */
+	double total_time;
 	double mean_delay;
 	double variation;
 #endif
+
 	int decoded_bytes;
 	int decoded_bytes_prev;
 	int jitter_buff;
@@ -645,11 +645,11 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 	}
 
 	/* lookup for this stream in the channel hash table */
-	rci =  g_hash_table_lookup( rtp_channels_hash, key_str->str);
+	rci =  (rtp_channel_info_t *)g_hash_table_lookup( rtp_channels_hash, key_str->str);
 
 	/* ..if it is not in the hash, create an entry */
 	if (rci == NULL) {
-		rci = g_malloc(sizeof(rtp_channel_info_t));
+		rci = g_new(rtp_channel_info_t,1);
 		rci->call_num = rsi->call_num;
 		rci->start_time = rsi->start_time;
 		rci->start_time_abs = rsi->start_time_abs;
@@ -678,7 +678,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 		g_hash_table_insert(rtp_channels_hash, g_strdup(key_str->str), rci);
 	} else {
 		/* Add silence between the two streams if needed */
-		silence_frames = (gint32)( ((rsi->start_time - rci->end_time)/1000)*SAMPLE_RATE );
+		silence_frames = (gint32)( ((rsi->start_time - rci->end_time)/1000)*sample_rate );
 		for (i = 0; i< silence_frames; i++) {
 			g_array_append_val(rci->samples, silence);
 		}
@@ -694,12 +694,10 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 	pack_period = 0;
 #ifdef DEBUG /* ?? */
 	total_time = 0;
-#endif
-	seq = 0;
-#ifdef DEBUG /* ?? */
 	mean_delay = 0;
 	variation = 0;
 #endif
+	seq = 0;
 	start_timestamp = 0;
 	decoders_hash = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, rtp_decoder_value_destroy);
 
@@ -728,7 +726,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 		}
 
 
-		rp = rtp_packets_list->data;
+		rp = (rtp_packet_t *)rtp_packets_list->data;
 		if (first == TRUE) {
 			start_timestamp = rp->info->info_timestamp; /* defined start_timestmp to avoid overflow in timestamp. TODO: handle the timestamp correctly */
 			start_rtp_time = 0;
@@ -742,7 +740,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 			seq = rp->info->info_seq_num;
 		}
 
-		rtp_time = (double)(rp->info->info_timestamp-start_timestamp)/SAMPLE_RATE - start_rtp_time;
+		rtp_time = (double)(rp->info->info_timestamp-start_timestamp)/sample_rate - start_rtp_time;
 
 		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(cb_use_rtp_timestamp))) {
 			arrive_time = rtp_time;
@@ -763,8 +761,8 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 #ifdef DEBUG
 		total_time = (double)rp->arrive_offset/1000;
 		printf("seq = %d arr = %f abs_diff = %f index = %d tim = %f ji=%d jb=%f\n",rp->info->info_seq_num,
-			total_time, diff, rci->samples->len, ((double)rci->samples->len/8000 - total_time)*1000, 0,
-				(mean_delay + 4*variation)*1000);
+			total_time, diff, rci->samples->len, ((double)rci->samples->len / sample_rate - total_time) * 1000, 0,
+				(mean_delay + 4 * variation) * 1000);
 		fflush(stdout);
 #endif
 		/* if the jitter buffer was exceeded */
@@ -780,7 +778,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 #ifdef DEBUG
 				printf("Resync...\n");
 #endif
-				silence_frames = (gint32)((arrive_time - arrive_time_prev)*SAMPLE_RATE - decoded_bytes_prev/2);
+				silence_frames = (gint32)((arrive_time - arrive_time_prev)*sample_rate - decoded_bytes_prev/2);
 
 				/* Fix for bug 4119/5902: don't insert too many silence frames.
 				 * XXX - is there a better thing to do here?
@@ -805,7 +803,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 			}
 		} else {
 			/* Add silence if it is necessary */
-			silence_frames = (gint32)((rtp_time - rtp_time_prev)*SAMPLE_RATE - decoded_bytes_prev/2);
+			silence_frames = (gint32)((rtp_time - rtp_time_prev)*sample_rate - decoded_bytes_prev/2);
 			if (silence_frames != 0) {
 				rci->wrong_timestamp++;
 				status = S_WRONG_TIMESTAMP;
@@ -838,7 +836,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 			}
 
 			rtp_time_prev = rtp_time;
-			pack_period = (double)(decoded_bytes/2)/SAMPLE_RATE;
+			pack_period = (double)(decoded_bytes/2)/sample_rate;
 			decoded_bytes_prev = decoded_bytes;
 			arrive_time_prev = arrive_time;
 		}
@@ -851,7 +849,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 		progbar_count++;
 	}
 	rci->max_frame_index = rci->samples->len;
-	rci->end_time = rci->start_time + ((double)rci->samples->len/SAMPLE_RATE)*1000;
+	rci->end_time = rci->start_time + ((double)rci->samples->len/sample_rate)*1000;
 
 	g_string_free(key_str, TRUE);
 	g_hash_table_destroy(decoders_hash);
@@ -861,7 +859,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr _U_)
 static gint
 h_scrollbar_changed(GtkWidget *widget _U_, gpointer user_data)
 {
-	rtp_channel_info_t *rci = user_data;
+	rtp_channel_info_t *rci = (rtp_channel_info_t *)user_data;
 	rci->cursor_catch = TRUE;
 	return TRUE;
 }
@@ -943,7 +941,7 @@ draw_channel_cursor(rtp_channel_info_t *rci, guint32 start_index)
 #if PORTAUDIO_API_1
 	idx = Pa_StreamTime( pa_stream ) - rtp_channels->pause_duration - rtp_channels->out_diff_time - start_index;
 #else  /* PORTAUDIO_API_1 */
-	idx = ((guint32)(SAMPLE_RATE) * (Pa_GetStreamTime(pa_stream)-rtp_channels->pa_start_time))- rtp_channels->pause_duration - rtp_channels->out_diff_time - start_index;
+	idx = ((guint32)(sample_rate) * (Pa_GetStreamTime(pa_stream)-rtp_channels->pa_start_time))- rtp_channels->pause_duration - rtp_channels->out_diff_time - start_index;
 #endif  /* PORTAUDIO_API_1 */
 
 
@@ -973,7 +971,7 @@ draw_channel_cursor(rtp_channel_info_t *rci, guint32 start_index)
 		cairo_fill (cr);
 
 #if GTK_CHECK_VERSION(2,22,0)
-		cairo_set_source_surface (cr, rci->surface, idx/MULT, 0); 
+		cairo_set_source_surface (cr, rci->surface, idx/MULT, 0);
 #else
 		gdk_cairo_set_source_pixmap (cr, rci->pixmap,idx/MULT, 0);
 #endif
@@ -994,22 +992,26 @@ draw_channel_cursor(rtp_channel_info_t *rci, guint32 start_index)
 		rci->cursor_pixbuf = gdk_pixbuf_get_from_drawable(NULL, rci->pixmap, NULL, (int) (idx/MULT), 0, 0, 0, 1, widget_alloc.height-HEIGHT_TIME_LABEL);
 		cr = gdk_cairo_create (rci->pixmap);
 #endif
-		cairo_set_line_width (cr, 1.0);
-		cairo_move_to(cr, idx/MULT, 0);
-		cairo_line_to(cr, idx/MULT, widget_alloc.height-HEIGHT_TIME_LABEL);
-		cairo_stroke(cr);
-		cairo_destroy(cr);
+		if (cr != NULL) {
+			cairo_set_line_width (cr, 1.0);
+			cairo_move_to(cr, idx/MULT, 0);
+			cairo_line_to(cr, idx/MULT, widget_alloc.height-HEIGHT_TIME_LABEL);
+			cairo_stroke(cr);
+			cairo_destroy(cr);
+		}
 
 		cr = gdk_cairo_create (gtk_widget_get_window(rci->draw_area));
+		if (cr != NULL) {
 #if GTK_CHECK_VERSION(2,22,0)
-		cairo_set_source_surface (cr, rci->surface, idx/MULT, 0);
+			cairo_set_source_surface (cr, rci->surface, idx/MULT, 0);
 #else
-		gdk_cairo_set_source_pixmap (cr, rci->pixmap, idx/MULT, 0);
+			gdk_cairo_set_source_pixmap (cr, rci->pixmap, idx/MULT, 0);
 #endif
-		cairo_pattern_set_extend (cairo_get_source (cr), CAIRO_EXTEND_REPEAT);
-		cairo_rectangle (cr, idx/MULT, 0, 1, widget_alloc.height-HEIGHT_TIME_LABEL);
-		cairo_fill (cr);
-		cairo_destroy (cr);
+			cairo_pattern_set_extend (cairo_get_source (cr), CAIRO_EXTEND_REPEAT);
+			cairo_rectangle (cr, idx/MULT, 0, 1, widget_alloc.height-HEIGHT_TIME_LABEL);
+			cairo_fill (cr);
+			cairo_destroy (cr);
+		}
 	}
 
 	/* Disconnect the scroll bar "value" signal to not be called */
@@ -1114,22 +1116,22 @@ init_rtp_channels_vals(void)
 
 	/* if the two channels are to be played, then we need to sync both based on the start/end time of each one */
 	} else {
-		rpci->max_frame_index = (guint32)(SAMPLE_RATE/1000) * (guint32)(MAX(rpci->rci[0]->end_time, rpci->rci[1]->end_time) -
+		rpci->max_frame_index = (guint32)(sample_rate/1000) * (guint32)(MAX(rpci->rci[0]->end_time, rpci->rci[1]->end_time) -
 							(guint32)MIN(rpci->rci[0]->start_time, rpci->rci[1]->start_time));
 
 		if (rpci->rci[0]->start_time < rpci->rci[1]->start_time) {
 			rpci->start_index[0] = 0;
-			rpci->start_index[1] = (guint32)(SAMPLE_RATE/1000) * (guint32)(rpci->rci[1]->start_time - rpci->rci[0]->start_time);
+			rpci->start_index[1] = (guint32)(sample_rate/1000) * (guint32)(rpci->rci[1]->start_time - rpci->rci[0]->start_time);
 		} else {
 			rpci->start_index[1] = 0;
-			rpci->start_index[0] = (guint32)(SAMPLE_RATE/1000) * (guint32)(rpci->rci[0]->start_time - rpci->rci[1]->start_time);
+			rpci->start_index[0] = (guint32)(sample_rate/1000) * (guint32)(rpci->rci[0]->start_time - rpci->rci[1]->start_time);
 		}
 
 		if (rpci->rci[0]->end_time < rpci->rci[1]->end_time) {
-			rpci->end_index[0] = rpci->max_frame_index - ((guint32)(SAMPLE_RATE/1000) * (guint32)(rpci->rci[1]->end_time - rpci->rci[0]->end_time));
+			rpci->end_index[0] = rpci->max_frame_index - ((guint32)(sample_rate/1000) * (guint32)(rpci->rci[1]->end_time - rpci->rci[0]->end_time));
 			rpci->end_index[1] = rpci->max_frame_index;
 		} else {
-			rpci->end_index[1] = rpci->max_frame_index - ((guint32)(SAMPLE_RATE/1000) * (guint32)(rpci->rci[0]->end_time - rpci->rci[1]->end_time));
+			rpci->end_index[1] = rpci->max_frame_index - ((guint32)(sample_rate/1000) * (guint32)(rpci->rci[0]->end_time - rpci->rci[1]->end_time));
 			rpci->end_index[0] = rpci->max_frame_index;
 		}
 	}
@@ -1143,14 +1145,14 @@ init_rtp_channels_vals(void)
  */
 #if PORTAUDIO_API_1
 
-static int paCallback(   void *inputBuffer, void *outputBuffer,
+static int paCallback(   void *inputBuffer _U_, void *outputBuffer,
 			 unsigned long framesPerBuffer,
-			 PaTimestamp outTime, void *userData)
+			 PaTimestamp outTime _U_, void *userData)
 {
 #else /* PORTAUDIO_API_1 */
-static int paCallback( const void *inputBuffer, void *outputBuffer,
+static int paCallback( const void *inputBuffer _U_, void *outputBuffer,
 		       unsigned long framesPerBuffer,
-		       const PaStreamCallbackTimeInfo* outTime,
+		       const PaStreamCallbackTimeInfo* outTime _U_,
 		       PaStreamCallbackFlags statusFlags _U_,
 		       void *userData)
 {
@@ -1158,10 +1160,10 @@ static int paCallback( const void *inputBuffer, void *outputBuffer,
 	rtp_play_channels_t *rpci = (rtp_play_channels_t *)userData;
 	SAMPLE *wptr = (SAMPLE*)outputBuffer;
 	sample_t sample;
-	unsigned int i;
+	unsigned long i;
 	int finished;
-	unsigned int framesLeft;
-	int framesToPlay;
+	unsigned long framesLeft;
+	unsigned long framesToPlay;
 
 	/* if it is pasued, we keep the stream running but with silence only */
 	if (rtp_channels->pause) {
@@ -1176,7 +1178,7 @@ static int paCallback( const void *inputBuffer, void *outputBuffer,
 #if PORTAUDIO_API_1
 	rpci->out_diff_time = outTime -  Pa_StreamTime(pa_stream) ;
 #else /* PORTAUDIO_API_1 */
-	rpci->out_diff_time = (guint32)(SAMPLE_RATE) * (outTime->outputBufferDacTime - Pa_GetStreamTime(pa_stream)) ;
+	rpci->out_diff_time = (guint32)(sample_rate) * (outTime->outputBufferDacTime - Pa_GetStreamTime(pa_stream)) ;
 #endif /* PORTAUDIO_API_1 */
 
 
@@ -1187,9 +1189,6 @@ static int paCallback( const void *inputBuffer, void *outputBuffer,
 	}
 
 	framesLeft = rpci->max_frame_index - rpci->frame_index;
-
-	(void) inputBuffer; /* Prevent unused variable warnings. */
-	(void) outTime;
 
 	if( framesLeft < framesPerBuffer )
 	{
@@ -1232,7 +1231,7 @@ static int paCallback( const void *inputBuffer, void *outputBuffer,
 static void
 on_bt_check_clicked(GtkButton *button _U_, gpointer user_data)
 {
-	rtp_channel_info_t *rci = user_data;
+	rtp_channel_info_t *rci = (rtp_channel_info_t *)user_data;
 
 	if (rci->selected) {
 		if (rtp_channels->rci[0] == rci) {
@@ -1277,12 +1276,13 @@ static void channel_draw(rtp_channel_info_t* rci)
 	int progbar_quantum;
 	gfloat progbar_val;
 	guint status;
-	GdkColor red_color = {0, 65535, 0, 0};
-	GdkColor amber_color = {0, 65535, 49152, 0};
-	GdkColor white_color = {0, 65535, 65535, 65535};
-	GdkColor black_color = {0, 0, 0, 0};
+	GdkRGBA red_color =    {1.0, 0.0, 0.1, 1.0}; /* Red */
+	/*GdkColor amber_color = {0, 65535, 49152, 0};*/
+	GdkRGBA amber_color =  {1.0, 0.75, 0.0, 1.0};
+	GdkRGBA white_color =  {1.0, 1.0, 1.0, 1.0 };
+	GdkRGBA black_color =  {0.0, 0.0, 0.0, 1.0}; /* Black */
 
-	GdkColor *draw_color_p;
+	GdkRGBA *draw_color_p;
 	time_t seconds;
 	struct tm *timestamp;
 	GtkAllocation widget_alloc;
@@ -1292,7 +1292,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 	gtk_widget_get_allocation(rci->draw_area, &widget_alloc);
 	/* Clear out old plot */
 	cr = cairo_create (rci->surface);
-	gdk_cairo_set_source_color (cr, &rci->bg_color[1+rci->call_num%MAX_NUM_COL_CONV]);
+	gdk_cairo_set_source_rgba (cr, &rci->bg_color[1+rci->call_num%MAX_NUM_COL_CONV]);
 	cairo_rectangle (cr, 0, 0, widget_alloc.width,widget_alloc.height);
 	cairo_fill (cr);
 	cairo_destroy (cr);
@@ -1302,7 +1302,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 	pango_layout_set_font_description(small_layout, pango_font_description_from_string("Helvetica,Sans,Bold 7"));
 
 	/* calculated the pixel offset to display integer seconds */
-	offset = ((double)rci->start_time/1000 - floor((double)rci->start_time/1000))*SAMPLE_RATE/MULT;
+	offset = ((double)rci->start_time/1000 - floor((double)rci->start_time/1000))*sample_rate/MULT;
 
 	cr = cairo_create (rci->surface);
 	cairo_set_line_width (cr, 1.0);
@@ -1355,14 +1355,14 @@ static void channel_draw(rtp_channel_info_t* rci)
 		} else if (status == S_SILENCE) {
 			draw_color_p = &white_color;
 		} else {
-			draw_color_p = &black_color;				
+			draw_color_p = &black_color;
 		}
 
 		/* if silence added by Wireshark, graphically show it with letter to indicate why */
 		if ((status == S_DROP_BY_JITT) || (status == S_WRONG_TIMESTAMP) || (status == S_SILENCE)) {
 			cr = cairo_create (rci->surface);
 			cairo_set_line_width (cr, 1.0);
-			gdk_cairo_set_source_color (cr, draw_color_p);
+			gdk_cairo_set_source_rgba (cr, draw_color_p);
 			cairo_move_to(cr, i+0.5, 0);
 			cairo_line_to(cr, i+0.5, (widget_alloc.height-HEIGHT_TIME_LABEL)-1);
 			cairo_stroke(cr);
@@ -1376,7 +1376,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 			pango_layout_set_text(small_layout, label_string, -1);
 			pango_layout_get_pixel_size(small_layout, &label_width, &label_height);
 			cr = cairo_create (rci->surface);
-			gdk_cairo_set_source_color (cr, draw_color_p);
+			gdk_cairo_set_source_rgba (cr, draw_color_p);
 			cairo_move_to (cr, i, 0);
 			pango_cairo_show_layout (cr, small_layout);
 			cairo_destroy (cr);
@@ -1385,7 +1385,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 			/* Draw a graphical representation of the sample */
 			cr = cairo_create (rci->surface);
 			cairo_set_line_width (cr, 1.0);
-			gdk_cairo_set_source_color (cr, draw_color_p);
+			gdk_cairo_set_source_rgba (cr, draw_color_p);
 			cairo_move_to(cr, i+0.5, ( (0x7FFF+min) * (widget_alloc.height-HEIGHT_TIME_LABEL))/0xFFFF);
 			cairo_line_to(cr, i+0.5, ( (0x7FFF+max) * (widget_alloc.height-HEIGHT_TIME_LABEL))/0xFFFF);
 			cairo_stroke(cr);
@@ -1395,7 +1395,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 		/* Draw the x-axis (seconds since beginning of packet flow for this call) */
 
 		/* Draw tick mark and put a number for each whole second */
-		if ( !((i*MULT)%(SAMPLE_RATE)) ) {
+		if ( !((i*MULT)%(sample_rate)) ) {
 			cr = cairo_create (rci->surface);
 			cairo_set_line_width (cr, 1.0);
 			cairo_move_to(cr, i - offset+0.5, widget_alloc.height-HEIGHT_TIME_LABEL);
@@ -1405,11 +1405,11 @@ static void channel_draw(rtp_channel_info_t* rci)
 			cr=NULL;
 
 			if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(cb_view_as_time_of_day))) {
-				seconds = rci->start_time_abs.secs + i * MULT / SAMPLE_RATE;
+				seconds = rci->start_time_abs.secs + i * MULT / sample_rate;
 				timestamp = localtime(&seconds);
 				g_snprintf(label_string, MAX_TIME_LABEL, "%02d:%02d:%02d", timestamp->tm_hour, timestamp->tm_min, timestamp->tm_sec);
 			} else {
-				g_snprintf(label_string, MAX_TIME_LABEL, "%.0f s", floor(rci->start_time/1000) + i*MULT/SAMPLE_RATE);
+				g_snprintf(label_string, MAX_TIME_LABEL, "%.0f s", floor(rci->start_time/1000) + i*MULT/sample_rate);
 			}
 
 			pango_layout_set_text(small_layout, label_string, -1);
@@ -1422,7 +1422,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 
 
 		/* Draw only a tick mark for half second intervals */
-		} else if ( !((i*MULT)%(SAMPLE_RATE/2)) ) {
+		} else if ( !((i*MULT)%(sample_rate/2)) ) {
 			cr = cairo_create (rci->surface);
 			cairo_set_line_width (cr, 1.0);
 			cairo_move_to(cr,i - offset+0.5, widget_alloc.height-HEIGHT_TIME_LABEL);
@@ -1440,7 +1440,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 		gtk_widget_get_allocation(rci->draw_area, &widget_alloc);
 		/* Clear out old plot */
 		cr = gdk_cairo_create (rci->pixmap);
-		gdk_cairo_set_source_color (cr, &rci->bg_color[1+rci->call_num%MAX_NUM_COL_CONV]);
+		gdk_cairo_set_source_rgba (cr, &rci->bg_color[1+rci->call_num%MAX_NUM_COL_CONV]);
 		cairo_rectangle (cr, 0, 0, widget_alloc.width,widget_alloc.height);
 		cairo_fill (cr);
 		cairo_destroy (cr);
@@ -1450,7 +1450,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 		pango_layout_set_font_description(small_layout, pango_font_description_from_string("Helvetica,Sans,Bold 7"));
 
 		/* calculated the pixel offset to display integer seconds */
-		offset = ((double)rci->start_time/1000 - floor((double)rci->start_time/1000))*SAMPLE_RATE/MULT;
+		offset = ((double)rci->start_time/1000 - floor((double)rci->start_time/1000))*sample_rate/MULT;
 
 		cr = gdk_cairo_create (rci->pixmap);
 		cairo_set_line_width (cr, 1.0);
@@ -1503,14 +1503,14 @@ static void channel_draw(rtp_channel_info_t* rci)
 			} else if (status == S_SILENCE) {
 				draw_color_p = &white_color;
 			} else {
-				draw_color_p = &black_color;				
+				draw_color_p = &black_color;
 			}
 
 			/* if silence added by Wireshark, graphically show it with letter to indicate why */
 			if ((status == S_DROP_BY_JITT) || (status == S_WRONG_TIMESTAMP) || (status == S_SILENCE)) {
 				cr = gdk_cairo_create (rci->pixmap);
 				cairo_set_line_width (cr, 1.0);
-				gdk_cairo_set_source_color (cr, draw_color_p);
+				gdk_cairo_set_source_rgba (cr, draw_color_p);
 				cairo_move_to(cr, i+0.5, 0);
 				cairo_line_to(cr, i+0.5, (widget_alloc.height-HEIGHT_TIME_LABEL)-1);
 				cairo_stroke(cr);
@@ -1524,7 +1524,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 				pango_layout_set_text(small_layout, label_string, -1);
 				pango_layout_get_pixel_size(small_layout, &label_width, &label_height);
 				cr = gdk_cairo_create (rci->pixmap);
-				gdk_cairo_set_source_color (cr, draw_color_p);
+				gdk_cairo_set_source_rgba (cr, draw_color_p);
 				cairo_move_to (cr, i, 0);
 				pango_cairo_show_layout (cr, small_layout);
 				cairo_destroy (cr);
@@ -1533,7 +1533,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 				/* Draw a graphical representation of the sample */
 				cr = gdk_cairo_create (rci->pixmap);
 				cairo_set_line_width (cr, 1.0);
-				gdk_cairo_set_source_color (cr, draw_color_p);
+				gdk_cairo_set_source_rgba (cr, draw_color_p);
 				cairo_move_to(cr, i+0.5, ( (0x7FFF+min) * (widget_alloc.height-HEIGHT_TIME_LABEL))/0xFFFF);
 				cairo_line_to(cr, i+0.5, ( (0x7FFF+max) * (widget_alloc.height-HEIGHT_TIME_LABEL))/0xFFFF);
 				cairo_stroke(cr);
@@ -1543,7 +1543,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 			/* Draw the x-axis (seconds since beginning of packet flow for this call) */
 
 			/* Draw tick mark and put a number for each whole second */
-			if ( !((i*MULT)%(SAMPLE_RATE)) ) {
+			if ( !((i*MULT)%(sample_rate)) ) {
 				cr = gdk_cairo_create (rci->pixmap);
 				cairo_set_line_width (cr, 1.0);
 				cairo_move_to(cr, i - offset+0.5, widget_alloc.height-HEIGHT_TIME_LABEL);
@@ -1553,11 +1553,11 @@ static void channel_draw(rtp_channel_info_t* rci)
 				cr=NULL;
 
 				if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(cb_view_as_time_of_day))) {
-					seconds = rci->start_time_abs.secs + i * MULT / SAMPLE_RATE;
+					seconds = rci->start_time_abs.secs + i * MULT / sample_rate;
 					timestamp = localtime(&seconds);
 					g_snprintf(label_string, MAX_TIME_LABEL, "%02d:%02d:%02d", timestamp->tm_hour, timestamp->tm_min, timestamp->tm_sec);
 				} else {
-					g_snprintf(label_string, MAX_TIME_LABEL, "%.0f s", floor(rci->start_time/1000) + i*MULT/SAMPLE_RATE);
+					g_snprintf(label_string, MAX_TIME_LABEL, "%.0f s", floor(rci->start_time/1000) + i*MULT/sample_rate);
 				}
 
 				pango_layout_set_text(small_layout, label_string, -1);
@@ -1570,7 +1570,7 @@ static void channel_draw(rtp_channel_info_t* rci)
 
 
 			/* Draw only a tick mark for half second intervals */
-			} else if ( !((i*MULT)%(SAMPLE_RATE/2)) ) {
+			} else if ( !((i*MULT)%(sample_rate/2)) ) {
 				cr = gdk_cairo_create (rci->pixmap);
 				cairo_set_line_width (cr, 1.0);
 				cairo_move_to(cr,i - offset+0.5, widget_alloc.height-HEIGHT_TIME_LABEL);
@@ -1590,13 +1590,13 @@ static void channel_draw(rtp_channel_info_t* rci)
 /****************************************************************************/
 static gboolean expose_event_channels(GtkWidget *widget, GdkEventExpose *event, gpointer user_data)
 {
-	rtp_channel_info_t *rci = user_data;
+	rtp_channel_info_t *rci = (rtp_channel_info_t *)user_data;
 	cairo_t *cr;
 
 	if (gtk_widget_is_drawable(widget)){
 		cr = gdk_cairo_create (gtk_widget_get_window(widget));
 #if GTK_CHECK_VERSION(2,22,0)
-		cairo_set_source_surface (cr, rci->surface, 0, 0); 
+		cairo_set_source_surface (cr, rci->surface, 0, 0);
 #else
 		gdk_cairo_set_source_pixmap (cr, rci->pixmap, event->area.x, event->area.y);
 #endif
@@ -1613,7 +1613,7 @@ static gboolean expose_event_channels(GtkWidget *widget, GdkEventExpose *event, 
 static gboolean
 configure_event_channels(GtkWidget *widget, GdkEventConfigure *event _U_, gpointer user_data)
 {
-	rtp_channel_info_t *rci = user_data;
+	rtp_channel_info_t *rci = (rtp_channel_info_t *)user_data;
 	int i;
 	GtkAllocation widget_alloc;
 	cairo_t *cr;
@@ -1622,6 +1622,7 @@ configure_event_channels(GtkWidget *widget, GdkEventConfigure *event _U_, gpoint
 	 * the other collors are the same as in the Voip Graph analysys
 	 * to match the same calls
 	 */
+#if 0
 	static GdkColor col[MAX_NUM_COL_CONV+1] = {
 		{0,	0x00FF, 0x00FF, 0xFFFF},
 		{0,	0x90FF, 0xEEFF, 0x90FF},
@@ -1633,65 +1634,79 @@ configure_event_channels(GtkWidget *widget, GdkEventConfigure *event _U_, gpoint
 		{0,	0xE0FF, 0xFFFF, 0xFFFF},
 		{0,	0xB0FF, 0xC4FF, 0xDEFF},
 		{0,	0x87FF, 0xCEFF, 0xFAFF},
-		{0,	0xD3FF, 0xD3FF, 0xD3FF}
+	 	{0,	0xD3FF, 0xD3FF, 0xD3FF}
+	};
+#endif
+
+    static GdkRGBA col[MAX_NUM_COL_CONV+1] = {
+        /* Red, Green, Blue Alpha */
+        {0.0039, 0.0039, 1.0000, 1.0},
+        {0.5664, 0.6289, 0.5664, 1.0},
+        {1.0000, 0.6289, 0.4805, 1.0},
+        {1.0000, 0.7148, 0.7578, 1.0},
+        {0.9805, 0.9805, 0.8242, 1.0},
+        {1.0000, 1.0000, 0.2031, 1.0},
+        {0.4023, 0.8046, 0.6680, 1.0},
+        {0.8789, 1.0000, 1.0000, 1.0},
+        {0.6914, 0.7695, 0.8710, 1.0},
+        {0.8281, 0.8281, 0.8281, 1.0},
 	};
 
 #if GTK_CHECK_VERSION(2,22,0)
-	if(rci->surface){
-		cairo_surface_destroy (rci->surface);
-		rci->surface=NULL;
-	}
-	gtk_widget_get_allocation(widget, &widget_alloc);
-	rci->surface = gdk_window_create_similar_surface (gtk_widget_get_window(widget),
-			CAIRO_CONTENT_COLOR,
-			widget_alloc.width,
-			widget_alloc.height);
+    if(rci->surface){
+        cairo_surface_destroy (rci->surface);
+        rci->surface=NULL;
+    }
+    gtk_widget_get_allocation(widget, &widget_alloc);
+    rci->surface = gdk_window_create_similar_surface (gtk_widget_get_window(widget),
+            CAIRO_CONTENT_COLOR,
+            widget_alloc.width,
+            widget_alloc.height);
 
-	cr = cairo_create (rci->surface);
-	cairo_set_source_rgb (cr, 1, 1, 1);
-	cairo_rectangle (cr, 0, 0, widget_alloc.width,widget_alloc.height);
-	cairo_fill (cr);
-	cairo_destroy (cr);
+    cr = cairo_create (rci->surface);
+    cairo_set_source_rgb (cr, 1, 1, 1);
+    cairo_rectangle (cr, 0, 0, widget_alloc.width,widget_alloc.height);
+    cairo_fill (cr);
+    cairo_destroy (cr);
 #else
-	if(rci->pixmap){
-		g_object_unref(rci->pixmap);
-		rci->pixmap=NULL;
-	}
-	gtk_widget_get_allocation(widget, &widget_alloc);
-	rci->pixmap = gdk_pixmap_new(gtk_widget_get_window(widget),
-					widget_alloc.width,
-					widget_alloc.height,
-					-1);
-	if ( GDK_IS_DRAWABLE(rci->pixmap) ){
-		cr = gdk_cairo_create (rci->pixmap);
-		cairo_set_source_rgb (cr, 1, 1, 1);
-		cairo_rectangle (cr, 0, 0, widget_alloc.width,widget_alloc.height);
-		cairo_fill (cr);
-		cairo_destroy (cr);
-	}
+    if(rci->pixmap){
+        g_object_unref(rci->pixmap);
+        rci->pixmap=NULL;
+    }
+    gtk_widget_get_allocation(widget, &widget_alloc);
+    rci->pixmap = gdk_pixmap_new(gtk_widget_get_window(widget),
+                    widget_alloc.width,
+                    widget_alloc.height,
+                    -1);
+    if ( GDK_IS_DRAWABLE(rci->pixmap) ){
+        cr = gdk_cairo_create (rci->pixmap);
+        cairo_set_source_rgb (cr, 1, 1, 1);
+        cairo_rectangle (cr, 0, 0, widget_alloc.width,widget_alloc.height);
+        cairo_fill (cr);
+        cairo_destroy (cr);
+    }
 #endif
 
-	/* create gc's for the background color of each channel */
-	for (i=0; i<MAX_NUM_COL_CONV+1; i++){
-		rci->bg_color[i].pixel=col[i].pixel;
-		rci->bg_color[i].red=col[i].red;
-		rci->bg_color[i].green=col[i].green;
-		rci->bg_color[i].blue=col[i].blue;
+    /* create gc's for the background color of each channel */
+    for (i=0; i<MAX_NUM_COL_CONV+1; i++){
+        rci->bg_color[i].alpha=col[i].alpha;
+        rci->bg_color[i].red=col[i].red;
+        rci->bg_color[i].green=col[i].green;
+        rci->bg_color[i].blue=col[i].blue;
+    }
 
-	}
+    channel_draw(rci);
 
-	channel_draw(rci);
-
-	return TRUE;
+    return TRUE;
 }
 
 /****************************************************************************/
 static gboolean
 button_press_event_channel(GtkWidget *widget _U_, GdkEventButton *event _U_, gpointer user_data)
 {
-	rtp_channel_info_t *rci = user_data;
+	rtp_channel_info_t *rci = (rtp_channel_info_t *)user_data;
 	int this_channel;
-	guint32 prev_index;
+	unsigned long prev_index;
 
 	if (!rci->selected) {
 
@@ -1763,7 +1778,7 @@ button_press_event_channel(GtkWidget *widget _U_, GdkEventButton *event _U_, gpo
 static void
 add_channel_to_window(gchar *key _U_ , rtp_channel_info_t *rci, guint *counter _U_ )
 {
-	GString *label = NULL;
+	GString *label;
 	GtkWidget *viewport;
 
 
@@ -1802,14 +1817,14 @@ add_channel_to_window(gchar *key _U_ , rtp_channel_info_t *rci, guint *counter _
 		g_string_printf(label, "From %s:%d to %s:%d   Duration:%.2f   Out of Seq: %d(%.1f%%)   Wrong Timestamp: %d(%.1f%%)",
 		get_addr_name(&(rci->first_stream->src_addr)), rci->first_stream->src_port,
 		get_addr_name(&(rci->first_stream->dest_addr)), rci->first_stream->dest_port,
-		(double)rci->samples->len/SAMPLE_RATE,
+		(double)rci->samples->len/sample_rate,
 		rci->out_of_seq, (double)rci->out_of_seq * 100 / (double)rci->num_packets,
 		rci->wrong_timestamp, (double)rci->wrong_timestamp * 100 / (double)rci->num_packets);
 	} else {
 		g_string_printf(label, "From %s:%d to %s:%d   Duration:%.2f   Drop by Jitter Buff:%d(%.1f%%)   Out of Seq: %d(%.1f%%)   Wrong Timestamp: %d(%.1f%%)",
 		get_addr_name(&(rci->first_stream->src_addr)), rci->first_stream->src_port,
 		get_addr_name(&(rci->first_stream->dest_addr)), rci->first_stream->dest_port,
-		(double)rci->samples->len/SAMPLE_RATE,
+		(double)rci->samples->len/sample_rate,
 		rci->drop_by_jitter_buff, (double)rci->drop_by_jitter_buff * 100 / (double)rci->num_packets,
 		rci->out_of_seq, (double)rci->out_of_seq * 100 / (double)rci->num_packets,
 		rci->wrong_timestamp, (double)rci->wrong_timestamp * 100 / (double)rci->num_packets);
@@ -1863,10 +1878,10 @@ play_channels(void)
 			  PA_SAMPLE_TYPE, /* 16 bit Integer input */
 			  NULL,
 			  Pa_GetDefaultOutputDeviceID(),
-			  NUM_CHANNELS,   /* Stereo output */
+			  output_channels,   /* Stereo output */
 			  PA_SAMPLE_TYPE, /* 16 bit Integer output */
 			  NULL,
-			  SAMPLE_RATE,    /* 8 kHz */
+			  sample_rate,    /* 8 kHz */
 			  FRAMES_PER_BUFFER,
 			  0,              /* number of buffers, if zero then use default minimum */
 			  paClipOff,      /* we won't output out of range samples so don't bother clipping them */
@@ -1906,9 +1921,9 @@ play_channels(void)
 			err = Pa_OpenDefaultStream(
 				&pa_stream,
 				0,
-				NUM_CHANNELS,     /* Stereo output */
+				output_channels,     /* Stereo output */
 				PA_SAMPLE_TYPE,   /* 16 bit Integer output */
-				SAMPLE_RATE,      /* 8 kHz */
+				sample_rate,      /* 8 kHz */
 				FRAMES_PER_BUFFER,
 				paCallback,
 				rtp_channels );
@@ -1938,7 +1953,7 @@ play_channels(void)
 			{
 				PaStreamParameters stream_parameters;
 				stream_parameters.device = host_api_info->defaultOutputDevice;
-				stream_parameters.channelCount = NUM_CHANNELS;       /* Stereo output */
+				stream_parameters.channelCount = output_channels;       /* Stereo output */
 				stream_parameters.sampleFormat = PA_SAMPLE_TYPE;     /* 16 bit Integer output */
 				stream_parameters.suggestedLatency = 0;
 				stream_parameters.hostApiSpecificStreamInfo = NULL;
@@ -1949,7 +1964,7 @@ play_channels(void)
 					&pa_stream,
 					NULL,           /* no input */
 					&stream_parameters,
-					SAMPLE_RATE,    /* 8 kHz */
+					sample_rate,    /* 8 kHz */
 					FRAMES_PER_BUFFER,
 					paClipOff,      /* we won't output out of range samples so don't bother clipping them */
 					paCallback,
@@ -2039,7 +2054,7 @@ play_channels(void)
 	}
 
 	/* Draw the cursor in the graph */
-	g_timeout_add_full(G_PRIORITY_DEFAULT_IDLE, MULT*1000/SAMPLE_RATE, draw_cursors, NULL, NULL);
+	g_timeout_add_full(G_PRIORITY_DEFAULT_IDLE, MULT*1000/sample_rate, draw_cursors, NULL, NULL);
 
 }
 
@@ -2052,7 +2067,7 @@ pause_channels(void)
 	/* reactivate the cusrosr display if no in pause */
 	if (!rtp_channels->pause) {
 		/* Draw the cursor in the graph */
-		g_timeout_add_full(G_PRIORITY_DEFAULT_IDLE, MULT*1000/SAMPLE_RATE, draw_cursors, NULL, NULL);
+		g_timeout_add_full(G_PRIORITY_DEFAULT_IDLE, MULT*1000/sample_rate, draw_cursors, NULL, NULL);
 	}
 
 	/* set the sensitive state of the buttons (decode, play, pause, stop) */
@@ -2339,11 +2354,15 @@ rtp_player_dlg_create(void)
 	gtk_widget_set_size_request(main_scrolled_window, CHANNEL_WIDTH, 0);
 
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (main_scrolled_window), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-	gtk_container_add(GTK_CONTAINER(main_vb), main_scrolled_window);
+        gtk_box_pack_start(GTK_BOX(main_vb), main_scrolled_window, TRUE, TRUE, 0);
 
 	channels_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
 	gtk_container_set_border_width (GTK_CONTAINER (channels_vb), 2);
-	gtk_scrolled_window_add_with_viewport((GtkScrolledWindow *) main_scrolled_window, channels_vb);
+#if ! GTK_CHECK_VERSION(3,8,0)
+	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW (main_scrolled_window), channels_vb);
+#else
+	gtk_container_add(GTK_CONTAINER (main_scrolled_window), channels_vb);
+#endif
 
 	timestamp_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
 	gtk_box_pack_start(GTK_BOX(main_vb), timestamp_hb, FALSE, FALSE, 0);
@@ -2465,7 +2484,7 @@ rtp_player_init(voip_calls_tapinfo_t *voip_calls_tap)
 #endif /* HAVE_G729_G723 */
 
 	if (!rtp_channels) {
-		rtp_channels = g_malloc(sizeof(rtp_play_channels_t));
+		rtp_channels = g_new(rtp_play_channels_t,1);
 	}
 
 	reset_rtp_channels();

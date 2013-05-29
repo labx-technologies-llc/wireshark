@@ -72,49 +72,49 @@ extern void packet_list_mark_frame_cb(GtkWidget *widget, gpointer data);
 
 /** Toggle Mark on all displayed packets.
  *
- * @param widget parent widget (unused)
+ * @param w parent widget (unused)
  * @param data unused
  */
 extern void packet_list_toggle_mark_all_displayed_frames_cb(GtkWidget *w _U_, gpointer data _U_);
 
 /** Mark all displayed packets.
  *
- * @param widget parent widget (unused)
+ * @param w parent widget (unused)
  * @param data unused
  */
 extern void packet_list_mark_all_displayed_frames_cb(GtkWidget *w _U_, gpointer data _U_);
 
 /** UnMark all packets in the capture.
  *
- * @param widget parent widget (unused)
+ * @param w parent widget (unused)
  * @param data unused
  */
 extern void packet_list_unmark_all_displayed_frames_cb(GtkWidget *w _U_, gpointer data _U_);
 
 /** Ignore the currently selected packet.
  *
- * @param widget parent widget (unused)
+ * @param widget parent widget
  * @param data unused
  */
 extern void packet_list_ignore_frame_cb(GtkWidget *widget, gpointer data);
 
 /** Ignore/Unignore all displayed packets.
  *
- * @param widget parent widget (unused)
+ * @param w parent widget (unused)
  * @param data unused
  */
 extern void packet_list_ignore_all_displayed_frames_cb(GtkWidget *w _U_, gpointer data _U_);
 
 /** Un-ignore all packets in the list.
  *
- * @param widget parent widget (unused)
+ * @param w parent widget (unused)
  * @param data unused
  */
 extern void packet_list_unignore_all_frames_cb(GtkWidget *w _U_, gpointer data _U_);
 
 /** Un-Time Reference all packets in the capture.
  *
- * @param widget parent widget (unused)
+ * @param w parent widget (unused)
  * @param data unused
  */
 extern void packet_list_untime_reference_all_frames_cb(GtkWidget *w _U_, gpointer data _U_);
@@ -127,25 +127,16 @@ typedef enum {
 
 /** Called when user clicks on menu item to copy summary data.
  *
- *  @param w Not used.
  *  @param data Not used.
  *  @param copy_type Mode in which to copy data (e.g. tab-separated, CSV)
  */
 void packet_list_copy_summary_cb(gpointer data _U_, copy_summary_type copy_type);
 
-gchar *packet_list_get_packet_comment(void);
+const gchar *packet_list_get_packet_comment(void);
 void packet_list_update_packet_comment(gchar *new_packet_comment);
 void packet_list_return_all_comments(GtkTextBuffer *buffer);
 
 GtkWidget * packet_list_get_widget(void);
 void packet_list_colorize_packets(void);
-
-/** Set the selection mode of the packet list window.
- *
- * @param val TRUE for GTK_SELECTION_SINGLE, FALSE for GTK_SELECTION_BROWSE
- * @param force_set TRUE to force setting of the selection mode even if it
- *                  was already set (used within packet_list_recreate).
- */
-extern void packet_list_set_sel_browse(gboolean val, gboolean force_set);
 
 #endif /* __PACKET_LIST_H__ */

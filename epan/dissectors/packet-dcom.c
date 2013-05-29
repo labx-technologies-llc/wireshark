@@ -24,7 +24,7 @@
 
 /* A few words about DCOM:
  *
- * DCOM uses DCERPC as it's underlying "transport" protocol.
+ * DCOM uses DCERPC as its underlying "transport" protocol.
  *
  * The DCOM dissectors are called by DCERPC request and response calls.
  * DCOM uses a small header after the DCERPC calls.
@@ -96,14 +96,17 @@
 #include "packet-dcerpc.h"
 #include "packet-dcom.h"
 
+void proto_register_dcom (void);
+void proto_reg_handoff_dcom (void);
+
 static int proto_dcom = -1;
 
 gboolean dcom_prefs_display_unmarshalling_details = FALSE;
 
 
 static gint ett_dcom_this = -1;
-static int hf_dcom_this_version_major = -1;
-static int hf_dcom_this_version_minor = -1;
+/* static int hf_dcom_this_version_major = -1; */
+/* static int hf_dcom_this_version_minor = -1; */
 static int hf_dcom_this_flags = -1;
 static int hf_dcom_this_res = -1;
 static int hf_dcom_this_cid = -1;
@@ -132,7 +135,7 @@ static gint ett_dcom_lpwstr = -1;
 static int hf_dcom_max_count = -1;
 static int hf_dcom_offset = -1;
 static int hf_dcom_byte_length = -1;
-static int hf_dcom_actual_count = -1;
+/* static int hf_dcom_actual_count = -1; */
 
 static gint ett_dcom_objref = -1;
 static int hf_dcom_objref = -1;
@@ -199,7 +202,7 @@ static int hf_dcom_sa_features_dispatch = -1;
 static int hf_dcom_sa_features_variant = -1;
 
 static gint ett_dcom_variant = -1;
-static int hf_dcom_variant = -1;
+/* static int hf_dcom_variant = -1; */
 static int hf_dcom_variant_type = -1;
 static int hf_dcom_variant_size = -1;
 static int hf_dcom_variant_rpc_res = -1;
@@ -261,15 +264,15 @@ void dcom_interface_dump(void) {
 
 
 	for(machines = dcom_machines; machines != NULL; machines = g_list_next(machines)) {
-		machine = machines->data;
+		machine = (dcom_machine_t *)machines->data;
 		g_warning("Machine(#%4u): IP:%s", machine->first_packet, ip_to_str(machine->ip));
 
 		for(objects = machine->objects; objects != NULL; objects = g_list_next(objects)) {
-			object = objects->data;
+			object = (dcom_object_t *)objects->data;
 			g_warning(" Object(#%4u): OID:0x%" G_GINT64_MODIFIER "x private:%p", object->first_packet, object->oid, object->private_data);
 
 			for(interfaces = object->interfaces; interfaces != NULL; interfaces = g_list_next(interfaces)) {
-				interf = interfaces->data;
+				interf = (dcom_interface_t *)interfaces->data;
 				g_warning("  Interface(#%4u): iid:%s",
 					  interf->first_packet, guids_resolve_uuid_to_str(&interf->iid));
 				g_warning("   ipid:%s", guids_resolve_uuid_to_str(&interf->ipid));
@@ -291,7 +294,7 @@ dcom_interface_t *dcom_interface_find(packet_info *pinfo _U_, const guint8 *ip _
 	}
 
 	for(interfaces = dcom_interfaces; interfaces != NULL; interfaces = g_list_next(interfaces)) {
-		interf = interfaces->data;
+		interf = (dcom_interface_t *)interfaces->data;
 
 		if(memcmp(&interf->ipid, ipid, sizeof(e_uuid_t)) == 0) {
 			return interf;
@@ -319,7 +322,7 @@ dcom_interface_t *dcom_interface_new(packet_info *pinfo, const guint8 *ip, e_uui
 	if(oxid == 0 || oid == 0) {
 		/*g_warning("interface_new#%u", pinfo->fd->num);*/
 
-		interf = se_alloc(sizeof(dcom_interface_t));
+		interf = se_new(dcom_interface_t);
 		interf->parent = NULL;
 		interf->private_data = NULL;
 		interf->first_packet = pinfo->fd->num;
@@ -333,7 +336,7 @@ dcom_interface_t *dcom_interface_new(packet_info *pinfo, const guint8 *ip, e_uui
 	/* find machine */
 	dcom_iter = dcom_machines;
 	while(dcom_iter != NULL) {
-		machine = dcom_iter->data;
+		machine = (dcom_machine_t *)dcom_iter->data;
 		if(memcmp(machine->ip, ip, 4) == 0) {
 			break;
 		}
@@ -342,7 +345,7 @@ dcom_interface_t *dcom_interface_new(packet_info *pinfo, const guint8 *ip, e_uui
 
 	/* create new machine if not found */
 	if(dcom_iter == NULL) {
-		machine = g_malloc(sizeof(dcom_machine_t));
+		machine = g_new(dcom_machine_t,1);
 		memcpy(machine->ip, ip, 4);
 		machine->objects = NULL;
 		machine->first_packet = pinfo->fd->num;
@@ -352,7 +355,7 @@ dcom_interface_t *dcom_interface_new(packet_info *pinfo, const guint8 *ip, e_uui
 	/* find object */
 	dcom_iter = machine->objects;
 	while(dcom_iter != NULL) {
-		object = dcom_iter->data;
+		object = (dcom_object_t *)dcom_iter->data;
 		if(object->oid == oid) {
 			break;
 		}
@@ -361,7 +364,7 @@ dcom_interface_t *dcom_interface_new(packet_info *pinfo, const guint8 *ip, e_uui
 
 	/* create new object if not found */
 	if(dcom_iter == NULL) {
-		object = g_malloc(sizeof(dcom_object_t));
+		object = g_new(dcom_object_t,1);
 		object->parent = machine;
 		object->interfaces = NULL;
 		object->private_data = NULL;
@@ -375,7 +378,7 @@ dcom_interface_t *dcom_interface_new(packet_info *pinfo, const guint8 *ip, e_uui
 	/* find interface */
 	dcom_iter = object->interfaces;
 	while(dcom_iter != NULL) {
-		interf = dcom_iter->data;
+		interf = (dcom_interface_t *)dcom_iter->data;
 		if(memcmp(&interf->ipid, ipid, sizeof(e_uuid_t)) == 0) {
 			break;
 		}
@@ -384,7 +387,7 @@ dcom_interface_t *dcom_interface_new(packet_info *pinfo, const guint8 *ip, e_uui
 
 	/* create new interface if not found */
 	if(dcom_iter == NULL) {
-		interf = g_malloc(sizeof(dcom_interface_t));
+		interf = g_new(dcom_interface_t,1);
 		interf->parent = object;
 		interf->private_data = NULL;
 		interf->first_packet = pinfo->fd->num;
@@ -1066,7 +1069,7 @@ dissect_dcom_HRESULT_item(tvbuff_t *tvb, int offset,	packet_info *pinfo,
 }
 
 
-/* dissect hresult field of a usual DCOM call (seperate method, because often used) */
+/* dissect hresult field of a usual DCOM call (separate method, because often used) */
 int
 dissect_dcom_HRESULT(tvbuff_t *tvb, int offset,	packet_info *pinfo,
 					 proto_tree *tree, guint8 *drep,
@@ -1938,7 +1941,7 @@ dcom_register_rountine(dcom_dissect_fn_t routine, e_uuid_t* uuid)
 	if (dcom_get_rountine_by_uuid(uuid))
 		return -1;
 
-	marshaler = se_alloc(sizeof(dcom_marshaler_t));
+	marshaler = se_new(dcom_marshaler_t);
 	if (!marshaler) {
 		/*memory error*/
 		return -1;
@@ -1967,7 +1970,7 @@ dcom_get_rountine_by_uuid(const e_uuid_t* uuid)
 
 	for(marshalers = dcom_marshalers; marshalers!= NULL;
 		    marshalers = g_list_next(marshalers)) {
-		marsh = marshalers->data;
+		marsh = (dcom_marshaler_t *)marshalers->data;
 		/*print_uuid(&marsh->uuid);*/
 		/*print_uuid(uuid);*/
 		if(memcmp(&marsh->uuid, uuid, sizeof(e_uuid_t)) == 0) {
@@ -2152,12 +2155,12 @@ static void dcom_reinit( void) {
 		GList *machines;
 
 		for(machines = dcom_machines; machines != NULL; machines = g_list_next(machines)) {
-			dcom_machine_t *machine = machines->data;
+			dcom_machine_t *machine = (dcom_machine_t *)machines->data;
 
 			if (machine->objects != NULL) {
 				GList *objects;
 				for(objects = machine->objects; objects != NULL; objects = g_list_next(objects)) {
-					dcom_object_t *object = objects->data;
+					dcom_object_t *object = (dcom_object_t *)objects->data;
 
 					if (object->interfaces != NULL) {
 						GList *interface;
@@ -2199,10 +2202,14 @@ void
 proto_register_dcom (void)
 {
 	static hf_register_info hf_dcom_this_array[] = {
+#if 0
 		{ &hf_dcom_this_version_major,
 		{ "VersionMajor", "dcom.this.version_major", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+#endif
+#if 0
 		{ &hf_dcom_this_version_minor,
 		{ "VersionMinor", "dcom.this.version_minor", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+#endif
 		{ &hf_dcom_this_flags,
 		{ "Flags", "dcom.this.flags", FT_UINT32, BASE_HEX, VALS(dcom_thisthat_flag_vals), 0x0, NULL, HFILL }},
 		{ &hf_dcom_this_res,
@@ -2242,14 +2249,18 @@ proto_register_dcom (void)
 		{ "Offset", "dcom.offset", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 		{ &hf_dcom_byte_length,
 		{ "ByteLength", "dcom.byte_length", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+#if 0
 		{ &hf_dcom_actual_count,
 		{ "ActualCount", "dcom.actual_count", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+#endif
 		{ &hf_dcom_tobedone,
 		{ "To Be Done", "dcom.tobedone", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
 		{ &hf_dcom_nospec,
 		{ "No Specification Available", "dcom.nospec", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+#if 0
 		{ &hf_dcom_variant,
 		{ "Variant", "dcom.variant", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+#endif
 		{ &hf_dcom_variant_type,
 		{ "VarType", "dcom.variant_type", FT_UINT16, BASE_HEX, VALS(dcom_variant_type_vals), 0x0, NULL, HFILL }},
 		{ &hf_dcom_variant_type32,

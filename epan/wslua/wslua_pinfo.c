@@ -57,7 +57,7 @@ CLEAR_OUTSTANDING(PrivateTable,expired, TRUE)
 Pinfo* push_Pinfo(lua_State* L, packet_info* ws_pinfo) {
     Pinfo pinfo = NULL;
     if (ws_pinfo) {
-        pinfo = g_malloc(sizeof(struct _wslua_pinfo));
+        pinfo = (Pinfo)g_malloc(sizeof(struct _wslua_pinfo));
         pinfo->ws_pinfo = ws_pinfo;
         pinfo->expired = FALSE;
         g_ptr_array_add(outstanding_Pinfo,pinfo);
@@ -76,7 +76,7 @@ WSLUA_CONSTRUCTOR NSTime_new(lua_State *L) {
 	/* Creates a new NSTime object */
 #define WSLUA_OPTARG_NSTime_new_SECONDS 1 /* Seconds */
 #define WSLUA_OPTARG_NSTime_new_NSECONDS 2 /* Nano seconds */
-    NSTime nstime = g_malloc(sizeof(nstime_t));
+    NSTime nstime = (NSTime)g_malloc(sizeof(nstime_t));
 
     if (!nstime) return 0;
 
@@ -100,7 +100,7 @@ WSLUA_METAMETHOD NSTime__tostring(lua_State* L) {
 WSLUA_METAMETHOD NSTime__add(lua_State* L) { /* Calculates the sum of two NSTimes */
     NSTime time1 = checkNSTime(L,1);
     NSTime time2 = checkNSTime(L,2);
-    NSTime time3 = g_malloc (sizeof (nstime_t));
+    NSTime time3 = (NSTime)g_malloc (sizeof (nstime_t));
 
     nstime_sum (time3, time1, time2);
     pushNSTime (L, time3);
@@ -111,7 +111,7 @@ WSLUA_METAMETHOD NSTime__add(lua_State* L) { /* Calculates the sum of two NSTime
 WSLUA_METAMETHOD NSTime__sub(lua_State* L) { /* Calculates the diff of two NSTimes */
     NSTime time1 = checkNSTime(L,1);
     NSTime time2 = checkNSTime(L,2);
-    NSTime time3 = g_malloc (sizeof (nstime_t));
+    NSTime time3 = (NSTime)g_malloc (sizeof (nstime_t));
 
     nstime_delta (time3, time1, time2);
     pushNSTime (L, time3);
@@ -121,7 +121,7 @@ WSLUA_METAMETHOD NSTime__sub(lua_State* L) { /* Calculates the diff of two NSTim
 
 WSLUA_METAMETHOD NSTime__unm(lua_State* L) { /* Calculates the negative NSTime */
     NSTime time1 = checkNSTime(L,1);
-    NSTime time2 = g_malloc (sizeof (nstime_t));
+    NSTime time2 = (NSTime)g_malloc (sizeof (nstime_t));
 
     nstime_set_zero (time2);
     nstime_subtract (time2, time1);
@@ -179,7 +179,7 @@ WSLUA_METAMETHOD NSTime__lt(lua_State* L) { /* Compares two NSTimes */
 }
 
 typedef struct {
-    gchar* name;
+    const gchar* name;
     lua_CFunction get;
     lua_CFunction set;
 } nstime_actions_t;
@@ -273,6 +273,7 @@ static int NSTime__newindex(lua_State* L) {
     return 0;
 }
 
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
 static int NSTime__gc(lua_State* L) {
     NSTime nstime = checkNSTime(L,1);
 
@@ -292,7 +293,6 @@ WSLUA_META NSTime_meta[] = {
     {"__eq", NSTime__eq},
     {"__le", NSTime__le},
     {"__lt", NSTime__lt},
-    {"__gc", NSTime__gc},
     { NULL, NULL}
 };
 
@@ -311,8 +311,8 @@ WSLUA_CONSTRUCTOR Address_ip(lua_State* L) {
 	/* Creates an Address Object representing an IP address. */
 
 #define WSLUA_ARG_Address_ip_HOSTNAME 1 /* The address or name of the IP host. */
-    Address addr = g_malloc(sizeof(address));
-    guint32* ip_addr = g_malloc(sizeof(guint32));
+    Address addr = (Address)g_malloc(sizeof(address));
+    guint32* ip_addr = (guint32 *)g_malloc(sizeof(guint32));
     const gchar* name = luaL_checkstring(L,WSLUA_ARG_Address_ip_HOSTNAME);
 
     if (! get_host_ipaddr(name, (guint32*)ip_addr)) {
@@ -433,22 +433,22 @@ static int Address_tipc(lua_State* L) {
 #endif
 
 WSLUA_METHODS Address_methods[] = {
-	{"ip", Address_ip },
-	{"ipv4", Address_ip },
+    WSLUA_CLASS_FNREG(Address,ip),
+    WSLUA_CLASS_FNREG_ALIAS(Address,ipv4,ip),
 #if 0
-    {"ipv6", Address_ipv6 },
-    {"ss7pc", Address_ss7 },
-    {"eth", Address_eth },
-    {"sna", Address_sna },
-    {"atalk", Address_atalk },
-    {"vines", Address_vines },
-    {"osi", Address_osi },
-    {"arcnet", Address_arcnet },
-    {"fc", Address_fc },
-    {"string", Address_string },
-    {"eui64", Address_eui64 },
-    {"uri", Address_uri },
-    {"tipc", Address_tipc },
+    WSLUA_CLASS_FNREG(Address,ipv6),
+    WSLUA_CLASS_FNREG_ALIAS(Address,ss7pc,ss7),
+    WSLUA_CLASS_FNREG(Address,eth),
+    WSLUA_CLASS_FNREG(Address,sna},
+    WSLUA_CLASS_FNREG(Address,atalk),
+    WSLUA_CLASS_FNREG(Address,vines),
+    WSLUA_CLASS_FNREG(Address,osi),
+    WSLUA_CLASS_FNREG(Address,arcnet),
+    WSLUA_CLASS_FNREG(Address,fc),
+    WSLUA_CLASS_FNREG(Address,string),
+    WSLUA_CLASS_FNREG(Address,eui64),
+    WSLUA_CLASS_FNREG(Address,uri),
+    WSLUA_CLASS_FNREG(Address,tipc),
 #endif
     {0,0}
 };
@@ -461,6 +461,7 @@ WSLUA_METAMETHOD Address__tostring(lua_State* L) {
     WSLUA_RETURN(1); /* The string representing the address. */
 }
 
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
 static int Address__gc(lua_State* L) {
     Address addr = checkAddress(L,1);
 
@@ -512,7 +513,6 @@ WSLUA_METAMETHOD Address__lt(lua_State* L) { /* Compares two Addresses */
 }
 
 WSLUA_META Address_meta[] = {
-    {"__gc", Address__gc },
     {"__tostring", Address__tostring },
     {"__eq",Address__eq},
     {"__le",Address__le},
@@ -604,19 +604,24 @@ static const gchar*  col_id_to_name(gint id) {
 
 WSLUA_METAMETHOD Column__tostring(lua_State *L) {
     Column c = checkColumn(L,1);
-    const gchar* name;
+    const gchar* text;
 
-    if (!(c)) {
-        return 0;
+    if (!c) {
+        lua_pushstring(L,"(nil)");
+    }
+    else if (!c->cinfo) {
+        text = col_id_to_name(c->col);
+        lua_pushfstring(L, "(%s)", text ? text : "unknown");
+    }
+    else {
+        text = col_get_text(c->cinfo, c->col);
+        lua_pushstring(L, text ? text : "(nil)");
     }
 
-    /* XXX: should return the column's text ! */
-    name = col_id_to_name(c->col);
-    lua_pushstring(L,name ? name : "Unknown Column");
-
-    WSLUA_RETURN(1); /* A string representing the column */
+    WSLUA_RETURN(1); /* The column's string text (in parenthesis if not available) */
 }
 
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS */
 static int Column__gc(lua_State* L) {
     Column col = checkColumn(L,1);
 
@@ -674,7 +679,7 @@ WSLUA_METHOD Column_append(lua_State *L) {
     return 0;
 }
 
-WSLUA_METHOD Column_preppend(lua_State *L) {
+WSLUA_METHOD Column_prepend(lua_State *L) {
 	/* Prepends text to a Column */
 #define WSLUA_ARG_Column_prepend_TEXT 2 /* The text to prepend to the Column */
     Column c = checkColumn(L,1);
@@ -691,18 +696,30 @@ WSLUA_METHOD Column_preppend(lua_State *L) {
     return 0;
 }
 
+WSLUA_METHOD Column_fence(lua_State *L) {
+        /* Sets Column text fence, to prevent overwriting */
+    Column c = checkColumn(L,1);
+
+    if (c && c->cinfo)
+        col_set_fence(c->cinfo, c->col);
+
+    return 0;
+}  
+
+
 WSLUA_METHODS Column_methods[] = {
-    {"clear", Column_clear },
-    {"set", Column_set },
-    {"append", Column_append },
-    {"preppend", Column_preppend },
+    WSLUA_CLASS_FNREG(Column,clear),
+    WSLUA_CLASS_FNREG(Column,set),
+    WSLUA_CLASS_FNREG(Column,append),
+    WSLUA_CLASS_FNREG(Column,prepend),
+    WSLUA_CLASS_FNREG_ALIAS(Column,preppend,prepend),
+    WSLUA_CLASS_FNREG(Column,fence),
     {0,0}
 };
 
 
 WSLUA_META Column_meta[] = {
     {"__tostring", Column__tostring },
-    {"__gc", Column__gc },
     {0,0}
 };
 
@@ -726,6 +743,10 @@ WSLUA_METAMETHOD Columns__tostring(lua_State *L) {
     /* The string "Columns", no real use, just for debugging purposes. */
 }
 
+/* 
+ * To document this is very odd - it won't make sense to a person reading the
+ * API docs to see this metamethod as a method, but oh well.
+ */
 WSLUA_METAMETHOD Columns__newindex(lua_State *L) {
 	/* Sets the text of a specific column */
 #define WSLUA_ARG_Columns__newindex_COLUMN 2 /* The name of the column to set */
@@ -760,7 +781,7 @@ WSLUA_METAMETHOD Columns_index(lua_State *L) {
     const char* colname = luaL_checkstring(L,2);
 
     if (!cols) {
-        Column c = g_malloc(sizeof(struct _wslua_col_info));
+        Column c = (Column)g_malloc(sizeof(struct _wslua_col_info));
         c->cinfo = NULL;
         c->col = col_name_to_id(colname);
 	c->expired = FALSE;
@@ -779,7 +800,7 @@ WSLUA_METAMETHOD Columns_index(lua_State *L) {
 
     for(cn = colnames; cn->name; cn++) {
         if( g_str_equal(cn->name,colname) ) {
-            Column c = g_malloc(sizeof(struct _wslua_col_info));
+            Column c = (Column)g_malloc(sizeof(struct _wslua_col_info));
             c->cinfo = cols->cinfo;
             c->col = col_name_to_id(colname);
 	    c->expired = FALSE;
@@ -792,7 +813,8 @@ WSLUA_METAMETHOD Columns_index(lua_State *L) {
     return 0;
 }
 
-static int Columns_gc(lua_State* L) {
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_META */
+static int Columns__gc(lua_State* L) {
     Columns cols = checkColumns(L,1);
 
     if (!cols) return 0;
@@ -811,7 +833,6 @@ static const luaL_Reg Columns_meta[] = {
     {"__tostring", Columns__tostring },
     {"__newindex", Columns__newindex },
     {"__index",  Columns_index},
-    {"__gc",  Columns_gc},
     { NULL, NULL }
 };
 
@@ -835,7 +856,7 @@ WSLUA_METAMETHOD PrivateTable__tostring(lua_State* L) {
     keys = g_hash_table_get_keys (priv->table);
     key = g_list_first (keys);
     while (key) {
-        key_string = g_string_append (key_string, key->data);
+        key_string = g_string_append (key_string, (const gchar *)key->data);
         key = g_list_next (key);
         if (key) {
             key_string = g_string_append_c (key_string, ',');
@@ -863,7 +884,7 @@ static int PrivateTable__index(lua_State* L) {
         return 0;
     }
 
-    string = g_hash_table_lookup (priv->table, (gpointer) name);
+    string = (const gchar *)g_hash_table_lookup (priv->table, (gpointer) name);
 
     if (string) {
         lua_pushstring(L, string);
@@ -907,6 +928,7 @@ static int PrivateTable__newindex(lua_State* L) {
     return 1;
 }
 
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
 static int PrivateTable__gc(lua_State* L) {
     PrivateTable priv = checkPrivateTable(L,1);
 
@@ -928,7 +950,6 @@ WSLUA_META PrivateTable_meta[] = {
     {"__index", PrivateTable__index},
     {"__newindex", PrivateTable__newindex},
     {"__tostring", PrivateTable__tostring},
-    {"__gc", PrivateTable__gc},
     { NULL, NULL}
 };
 
@@ -1054,7 +1075,7 @@ static int Pinfo_columns(lua_State *L) {
         return 0;
     }
 
-    cols = g_malloc(sizeof(struct _wslua_cols));
+    cols = (Columns)g_malloc(sizeof(struct _wslua_cols));
     cols->cinfo = pinfo->ws_pinfo->cinfo;
     cols->expired = FALSE;
 
@@ -1087,7 +1108,7 @@ static int Pinfo_private(lua_State *L) {
         is_allocated = TRUE;
     }
 
-    priv = g_malloc(sizeof(struct _wslua_private_table));
+    priv = (PrivateTable)g_malloc(sizeof(struct _wslua_private_table));
     priv->table = pinfo->ws_pinfo->private_table;
     priv->is_allocated = is_allocated;
     priv->expired = FALSE;
@@ -1218,7 +1239,7 @@ static int Pinfo_hi(lua_State *L) {
         return 0;
     }
 
-    addr = g_malloc(sizeof(address));
+    addr = (Address)g_malloc(sizeof(address));
     if (CMP_ADDRESS(&(pinfo->ws_pinfo->src), &(pinfo->ws_pinfo->dst) ) >= 0) {
         COPY_ADDRESS(addr, &(pinfo->ws_pinfo->src));
     } else {
@@ -1239,7 +1260,7 @@ static int Pinfo_lo(lua_State *L) {
         return 0;
     }
 
-    addr = g_malloc(sizeof(address));
+    addr = (Address)g_malloc(sizeof(address));
     if (CMP_ADDRESS(&(pinfo->ws_pinfo->src), &(pinfo->ws_pinfo->dst) ) < 0) {
         COPY_ADDRESS(addr, &(pinfo->ws_pinfo->src));
     } else {
@@ -1418,7 +1439,8 @@ static int Pinfo_setindex(lua_State* L) {
     return method(L,pinfo->ws_pinfo,param_type);
 }
 
-static int Pinfo_gc(lua_State* L) {
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
+static int Pinfo__gc(lua_State* L) {
     Pinfo pinfo = checkPinfo(L,1);
 
     if (!pinfo) return 0;
@@ -1436,7 +1458,6 @@ static const luaL_Reg Pinfo_meta[] = {
     {"__index", Pinfo_index},
     {"__newindex",Pinfo_setindex},
     {"__tostring", Pinfo_tostring},
-    {"__gc", Pinfo_gc},
     { NULL, NULL }
 };
 

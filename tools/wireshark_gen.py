@@ -16,7 +16,7 @@
 #  Wireshark is available at http://www.wireshark.org/
 #
 #  Omniidl is part of the OmniOrb distribution, and is available at
-#  http://www.uk.research.att.com/omniORB/omniORB.html
+#  http://omniorb.sourceforge.net
 #
 #  This program is free software; you can redistribute it and/or modify it
 #  under the terms of the GNU General Public License as published by
@@ -378,6 +378,19 @@ class wireshark_gen_C:
             for cl in uc.labels():      # for all Caselabel objects in this UnionCase
                 self.st.out(self.template_hf, name=sname + "_" + uc.declarator().identifier())
 
+
+    #
+    # genExpertInfoDeclares()
+    #
+    # Generate ei variables for expert info filters
+    #
+
+    def genExpertInfoDeclares(self):
+        if self.DEBUG:
+            print "XXX genExpertInfoDeclares"
+
+        self.st.out(self.template_proto_register_ei_filters, dissector_name=self.dissname)
+
     #
     # genDeclares
     #
@@ -425,6 +438,9 @@ class wireshark_gen_C:
             self.st.out(self.template_proto_register_un_filter_comment)
         for un in unlist:
             self.genUnionDeclares(un)
+
+        #expert info filters
+        self.genExpertInfoDeclares()
 
         # prototype for start_dissecting()
 
@@ -818,14 +834,14 @@ class wireshark_gen_C:
         self.st.out(self.template_helper_switch_msgtype_reply_user_exception_end)
         self.st.dec_indent()
 
-        self.st.out(self.template_helper_switch_msgtype_reply_default_start)
+        self.st.out(self.template_helper_switch_msgtype_reply_default_start, dissector_name=self.dissname)
         self.st.out(self.template_helper_switch_msgtype_reply_default_end)
 
         self.st.out(self.template_helper_switch_rep_status_end)
 
         self.st.dec_indent()
 
-        self.st.out(self.template_helper_switch_msgtype_default_start)
+        self.st.out(self.template_helper_switch_msgtype_default_start, dissector_name=self.dissname)
         self.st.out(self.template_helper_switch_msgtype_default_end)
 
         self.st.out(self.template_helper_switch_msgtype_end)
@@ -1903,11 +1919,13 @@ class wireshark_gen_C:
 
     template_helper_function_vars_end = """\
 /* Operation specific Variable declarations End */
+
+(void)item; /* Avoid coverity param_set_but_unused parse warning */
 """
 
     template_helper_function_start = """\
 static void
-decode_@sname@(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_@sname@(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header, const gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {"""
 
     template_helper_function_end = """\
@@ -1958,7 +1976,7 @@ static guint32  boundary = GIOP_HEADER_SIZE;  /* initial value */"""
     template_plugin_register = """
 #if 0
 
-G_MODULE_EXPORT void
+WS_DLL_PUBLIC_NOEXTERN void
 plugin_register(void)
 {
    if (proto_@dissector_name@ == -1) {
@@ -1966,7 +1984,7 @@ plugin_register(void)
    }
 }
 
-G_MODULE_EXPORT void
+WS_DLL_PUBLIC_NOEXTERN void
 plugin_reg_handoff(void){
    proto_register_handoff_giop_@dissector_name@();
 }
@@ -1988,16 +2006,28 @@ void proto_register_giop_@dissector_name@(void)
     template_proto_register_end = """
    };
 
+   static ei_register_info ei[] = {
+      { &ei_@dissector_name@_unknown_giop_msg, { "giop-@dissector_name@.unknown_giop_msg", PI_PROTOCOL, PI_WARN, "Unknown GIOP message", EXPFILL }},
+      { &ei_@dissector_name@_unknown_exception, { "giop-@dissector_name@.unknown_exception", PI_PROTOCOL, PI_WARN, "Unknown exception", EXPFILL }},
+      { &ei_@dissector_name@_unknown_reply_status, { "giop-@dissector_name@.unknown_reply_status", PI_PROTOCOL, PI_WARN, "Unknown reply status", EXPFILL }},
+   };
+
    /* setup protocol subtree array */
 
    static gint *ett[] = {
       &ett_@dissector_name@,
    };
 
+   expert_module_t* expert_@dissector_name@;
+
+
    /* Register the protocol name and description */
    proto_@dissector_name@ = proto_register_protocol(\"@description@\" , \"@protocol_name@\", \"giop-@dissector_name@\" );
    proto_register_field_array(proto_@dissector_name@, hf, array_length(hf));
-   proto_register_subtree_array(ett,array_length(ett));
+   proto_register_subtree_array(ett, array_length(ett));
+
+   expert_@dissector_name@ = expert_register_protocol(proto_@dissector_name@);
+   expert_register_field_array(expert_@dissector_name@, ei, array_length(ei));
 }
 """
 
@@ -2016,6 +2046,12 @@ void proto_register_giop_@dissector_name@(void)
     template_proto_register_un_filter_comment = """\
         /* Union filters */"""
 
+    template_proto_register_ei_filters = """\
+        /* Expert info filters */
+static expert_field ei_@dissector_name@_unknown_giop_msg = EI_INIT;
+static expert_field ei_@dissector_name@_unknown_exception = EI_INIT;
+static expert_field ei_@dissector_name@_unknown_reply_status = EI_INIT;
+"""
 
     #
     # template for delegation code
@@ -2042,7 +2078,7 @@ switch(header->message_type) {"""
     template_helper_switch_msgtype_default_start = """\
 default:
     /* Unknown GIOP Message */
-    expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);"""
+    expert_add_info_format_text(pinfo, item, &ei_@dissector_name@_unknown_giop_msg, "Unknown GIOP message %d", header->message_type);"""
     
     template_helper_switch_msgtype_default_end = """\
 break;"""
@@ -2074,7 +2110,7 @@ break;"""
     template_helper_switch_msgtype_reply_default_start = """\
 default:
     /* Unknown Exception */
-    expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown exception %d", header->rep_status);"""
+    expert_add_info_format_text(pinfo, item, &ei_@dissector_name@_unknown_exception, "Unknown exception %d", header->rep_status);"""
     
     template_helper_switch_msgtype_reply_default_end = """\
     break;"""
@@ -2085,7 +2121,7 @@ break;"""
     template_helper_switch_msgtype_default_start = """\
 default:
     /* Unknown GIOP Message */
-    expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown GIOP message %d", header->message_type);"""
+    expert_add_info_format_text(pinfo, item, &ei_@dissector_name@_unknown_giop_msg, "Unknown GIOP message %d", header->message_type);"""
     
     template_helper_switch_msgtype_default_end = """\
     break;"""
@@ -2096,7 +2132,7 @@ switch(header->rep_status) {"""
     template_helper_switch_rep_status_default_start = """\
 default:
     /* Unknown Reply Status */
-    expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Unknown reply status %d", header->rep_status);"""
+    expert_add_info_format_text(pinfo, item, &ei_@dissector_name@_unknown_reply_status, "Unknown reply status %d", header->rep_status);"""
     
     template_helper_switch_rep_status_default_end = """\
     break;"""
@@ -2155,6 +2191,7 @@ proto_tree_add_text(tree,tvb,*offset-@length@, @length@, "@varname@ < @digits@, 
 """
     template_get_CDR_enum_symbolic = """\
 u_octet4 = get_CDR_enum(tvb,offset,stream_is_big_endian, boundary);
+/* coverity[returned_pointer] */
 item = proto_tree_add_uint(tree, hf_@hfname@, tvb, *offset-4, 4, u_octet4);
 """
     template_get_CDR_string = """\
@@ -2188,6 +2225,7 @@ get_CDR_object(tvb, pinfo, tree, offset, stream_is_big_endian, boundary);
 
     template_get_CDR_sequence_length = """\
 u_octet4_loop_@seqname@ = get_CDR_ulong(tvb, offset, stream_is_big_endian, boundary);
+/* coverity[returned_pointer] */
 item = proto_tree_add_uint(tree, hf_@seqname@, tvb,*offset-4, 4, u_octet4_loop_@seqname@);
 """
     template_get_CDR_sequence_loop_start = """\
@@ -2394,7 +2432,7 @@ start_dissecting(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, int *offs
 }
 
 static proto_item*
-process_RequestOperation(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, MessageHeader *header, gchar *operation)
+process_RequestOperation(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, MessageHeader *header, const gchar *operation)
 {
     proto_item *pi;
     if(header->message_type == Reply) {
@@ -2408,7 +2446,7 @@ process_RequestOperation(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, M
 }
 
 static gboolean
-dissect_@dissname@(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, int *offset, MessageHeader *header, gchar *operation, gchar *idlname)
+dissect_@dissname@(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ptree, int *offset, MessageHeader *header, const gchar *operation, gchar *idlname)
 {
     proto_item *item _U_;
     proto_tree *tree _U_;
@@ -2488,7 +2526,7 @@ default:
  *
  */
 static gboolean
-decode_user_exception(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *ptree _U_, int *offset _U_, MessageHeader *header, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_user_exception(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *ptree _U_, int *offset _U_, MessageHeader *header, const gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
     proto_tree *tree _U_;
 
@@ -2526,7 +2564,7 @@ if (strcmp(header->exception_id, "@exname@") == 0) {
     template_exception_helper_function_start = """\
 /* Exception = @exname@ */
 static void
-decode_ex_@sname@(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header _U_, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_ex_@sname@(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header _U_, const gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
     proto_item *item _U_;
 """
@@ -2544,7 +2582,7 @@ decode_ex_@sname@(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U
     template_struct_helper_function_start = """\
 /* Struct = @stname@ */
 static void
-decode_@sname@_st(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header _U_, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_@sname@_st(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header _U_, const gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
 """
 
@@ -2560,7 +2598,7 @@ decode_@sname@_st(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U
     template_union_helper_function_start = """\
 /* Union = @unname@ */
 static void
-decode_@sname@_un(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header _U_, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_@sname@_un(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header _U_, const gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
     proto_item* item _U_;
 """
@@ -2673,7 +2711,7 @@ if (strcmp(operation, set_@sname@_at) == 0 && (header->message_type == Request) 
 
 /* Attribute = @atname@ */
 static void
-decode_@sname@_at(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header _U_, gchar *operation _U_, gboolean stream_is_big_endian _U_)
+decode_@sname@_at(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header _U_, const gchar *operation _U_, gboolean stream_is_big_endian _U_)
 {
     proto_item* item _U_;
 """
@@ -2796,7 +2834,7 @@ static proto_tree *start_dissecting(tvbuff_t *tvb, packet_info *pinfo, proto_tre
 """
     template_prototype_struct_body = """\
 /* Struct = @stname@ */
-static void decode_@name@_st(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header _U_, gchar *operation _U_, gboolean stream_is_big_endian _U_);
+static void decode_@name@_st(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, proto_item *item _U_, int *offset _U_, MessageHeader *header _U_, const gchar *operation _U_, gboolean stream_is_big_endian _U_);
 """
     template_decode_struct = """\
 decode_@name@_st(tvb, pinfo, tree, item, offset, header, operation, stream_is_big_endian);"""
@@ -2809,7 +2847,7 @@ decode_@name@_st(tvb, pinfo, tree, item, offset, header, operation, stream_is_bi
 
     template_prototype_union_body = """
 /* Union = @unname@ */
-static void decode_@name@_un(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header _U_, gchar *operation _U_, gboolean stream_is_big_endian _U_);
+static void decode_@name@_un(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, int *offset _U_, MessageHeader *header _U_, const gchar *operation _U_, gboolean stream_is_big_endian _U_);
 """
     template_decode_union = """
 decode_@name@_un(tvb, pinfo, tree, offset, header, operation, stream_is_big_endian);

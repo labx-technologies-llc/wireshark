@@ -121,13 +121,8 @@ static gint64 eyesdn_seek_next_packet(wtap *wth, int *err, gchar **err_info)
 			return cur_off;
 		}
 	}
-	if (file_eof(wth->fh)) {
-		/* We got an EOF. */
-		*err = 0;
-	} else {
-		/* We got an error. */
-		*err = file_error(wth->fh, err_info);
-	}
+	/* EOF or error. */
+	*err = file_error(wth->fh, err_info);
 	return -1;
 }
 
@@ -141,7 +136,7 @@ int eyesdn_open(wtap *wth, int *err, gchar **err_info)
 	bytes_read = file_read(&magic, sizeof magic, wth->fh);
 	if (bytes_read != sizeof magic) {
 		*err = file_error(wth->fh, err_info);
-		if (*err != 0)
+		if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
 			return -1;
 		return 0;
 	}

@@ -14,6 +14,9 @@
  * (c) Copyright 2012, Aditya Ambadkar and Diana Chris <arambadk,dvchris@ncsu.edu>
  *   -  support for the flowlabel sub-tlv as per RFC 6391
  *
+ * (c) Copyright 2013, Gaurav Patwardhan <gspatwar@ncsu.edu>
+ *   -  support for the GTSM flag as per RFC 6720
+ *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -41,8 +44,9 @@
 #include <epan/prefs.h>
 #include <epan/afn.h>
 #include <epan/emem.h>
+#include <epan/expert.h>
+#include <epan/show_exception.h>
 
-#include "packet-frame.h"
 #include "packet-diffserv-mpls-common.h"
 #include "packet-ldp.h"
 
@@ -54,8 +58,8 @@ void proto_reg_handoff_ldp(void);
 static int proto_ldp = -1;
 
 /* Delete the following if you do not use it, or add to it if you need */
-static int hf_ldp_req = -1;
-static int hf_ldp_rsp = -1;
+/* static int hf_ldp_req = -1; */
+/* static int hf_ldp_rsp = -1; */
 static int hf_ldp_version = -1;
 static int hf_ldp_pdu_len = -1;
 static int hf_ldp_lsr = -1;
@@ -74,6 +78,7 @@ static int hf_ldp_tlv_val_hold = -1;
 static int hf_ldp_tlv_val_target = -1;
 static int hf_ldp_tlv_val_request = -1;
 static int hf_ldp_tlv_val_res = -1;
+static int hf_ldp_tlv_val_gtsm_flag = -1;
 static int hf_ldp_tlv_ipv4_taddr = -1;
 static int hf_ldp_tlv_config_seqno = -1;
 static int hf_ldp_tlv_ipv6_taddr = -1;
@@ -215,7 +220,7 @@ static int hf_ldp_tlv_set_prio = -1;
 static int hf_ldp_tlv_hold_prio = -1;
 static int hf_ldp_tlv_route_pinning = -1;
 static int hf_ldp_tlv_resource_class = -1;
-static int hf_ldp_tlv_diffserv = -1;
+/* static int hf_ldp_tlv_diffserv = -1; */
 static int hf_ldp_tlv_diffserv_type = -1;
 static int hf_ldp_tlv_diffserv_mapnb = -1;
 static int hf_ldp_tlv_diffserv_map = -1;
@@ -295,6 +300,11 @@ static int ett_ldp_gen_agi = -1;
 static int ett_ldp_gen_saii = -1;
 static int ett_ldp_gen_taii = -1;
 static int ett_ldp_gen_aai_type2 = -1;
+
+static expert_field ei_ldp_dtsm_and_target = EI_INIT;
+static expert_field ei_ldp_gtsm_supported = EI_INIT;
+static expert_field ei_ldp_gtsm_not_supported_basic_discovery = EI_INIT;
+static expert_field ei_ldp_gtsm_not_supported = EI_INIT;
 
 /* desegmentation of LDP over TCP */
 static gboolean ldp_desegment = TRUE;
@@ -972,7 +982,7 @@ dissect_tlv_fec(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
                 break;
             }
 
-            addr=ep_alloc0(addr_size);
+            addr=(guint8 *)ep_alloc0(addr_size);
 
             for(ax=0; ax+1 <= prefix_len_octets; ax++)
                 addr[ax]=tvb_get_guint8(tvb, offset+ax);
@@ -1047,7 +1057,7 @@ dissect_tlv_fec(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
                 break;
             }
 
-            addr=ep_alloc0(addr_size);
+            addr=(guint8 *)ep_alloc0(addr_size);
 
             for(ax=0; ax+1 <= host_len; ax++)
                 addr[ax]=tvb_get_guint8(tvb, offset+ax);
@@ -1246,7 +1256,7 @@ dissect_tlv_fec(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
                     }
                 }
                 rem -= 2 + gen_fec_id_len;
-                vc_len -= 2 + gen_fec_id_len;
+                /*vc_len -= 2 + gen_fec_id_len;*/
                 offset += 2 + gen_fec_id_len;
 
 
@@ -1310,7 +1320,7 @@ dissect_tlv_address_list(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
     ti=proto_tree_add_text(tree, tvb, offset, rem, "Addresses");
     val_tree=proto_item_add_subtree(ti, ett_ldp_tlv_val);
 
-    addr=ep_alloc(addr_size);
+    addr=(guint8 *)ep_alloc(addr_size);
 
     for(ix=1; rem >= addr_size; ix++, offset += addr_size,
             rem -= addr_size) {
@@ -1516,16 +1526,17 @@ dissect_tlv_returned_message(tvbuff_t *tvb, guint offset, proto_tree *tree, int 
 
 static void
 #if 0
-dissect_tlv_common_hello_parms(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
+dissect_tlv_common_hello_parms(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tree *tree, int rem)
 #else
-dissect_tlv_common_hello_parms(tvbuff_t *tvb, guint offset, proto_tree *tree)
+dissect_tlv_common_hello_parms(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tree *tree)
 #endif
 {
 #if 0
     proto_tree *ti;
 #endif
     proto_tree *val_tree;
-
+    proto_item *gtsm_flag_item;
+    guint16 gtsm_flag_buffer;
 #if 0
     ti = proto_tree_add_item(tree, hf_ldp_tlv_value, tvb, offset, rem, ENC_NA);
     val_tree = proto_item_add_subtree(ti, ett_ldp_tlv_val);
@@ -1535,6 +1546,24 @@ dissect_tlv_common_hello_parms(tvbuff_t *tvb, guint offset, proto_tree *tree)
     proto_tree_add_item(val_tree, hf_ldp_tlv_val_hold, tvb, offset, 2, ENC_BIG_ENDIAN);
     proto_tree_add_item(val_tree, hf_ldp_tlv_val_target, tvb, offset + 2, 2, ENC_BIG_ENDIAN);
     proto_tree_add_item(val_tree, hf_ldp_tlv_val_request, tvb, offset + 2, 2, ENC_BIG_ENDIAN);
+    gtsm_flag_item = proto_tree_add_item(val_tree, hf_ldp_tlv_val_gtsm_flag, tvb, offset + 2, 2, ENC_BIG_ENDIAN);
+
+    gtsm_flag_buffer = tvb_get_bits16(tvb, ((offset+2)*8), 16, ENC_BIG_ENDIAN);
+
+    if ( gtsm_flag_buffer & 0x2000 ) {
+        if ( gtsm_flag_buffer & 0x8000 ) {
+            expert_add_info(pinfo, gtsm_flag_item, &ei_ldp_dtsm_and_target);
+        } else {
+            expert_add_info(pinfo, gtsm_flag_item, &ei_ldp_gtsm_supported);
+        }
+    } else {
+        if ( gtsm_flag_buffer & 0x8000 ) {
+                expert_add_info(pinfo, gtsm_flag_item, &ei_ldp_gtsm_not_supported_basic_discovery);
+        } else {
+                expert_add_info(pinfo, gtsm_flag_item, &ei_ldp_gtsm_not_supported);
+        }
+    }
+
     proto_tree_add_item(val_tree, hf_ldp_tlv_val_res, tvb, offset + 2, 2, ENC_BIG_ENDIAN);
 }
 
@@ -2096,10 +2125,10 @@ dissect_tlv_diffserv(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
 
 
 static int
-dissect_tlv(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem);
+dissect_tlv(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tree *tree, int rem);
 
 static void
-dissect_tlv_er(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
+dissect_tlv_er(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tree *tree, int rem)
 {
     proto_tree *ti, *val_tree;
     int len;
@@ -2109,7 +2138,7 @@ dissect_tlv_er(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
 
     if(val_tree != NULL) {
         while (rem > 0) {
-            len = dissect_tlv (tvb, offset, val_tree, rem);
+            len = dissect_tlv (tvb, pinfo, offset, val_tree, rem);
             offset += len;
             rem -= len;
         }
@@ -2126,7 +2155,7 @@ dissect_tlv_pw_grouping(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem);
 /* Dissect a TLV and return the number of bytes consumed ... */
 
 static int
-dissect_tlv(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
+dissect_tlv(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tree *tree, int rem)
 {
     guint16 type, typebak;
     int length;
@@ -2264,9 +2293,9 @@ dissect_tlv(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
 
         case TLV_COMMON_HELLO_PARMS:
 #if 0
-            dissect_tlv_common_hello_parms(tvb, offset + 4, tlv_tree, length);
+            dissect_tlv_common_hello_parms(tvb, pinfo, offset + 4, tlv_tree, length);
 #else
-            dissect_tlv_common_hello_parms(tvb, offset + 4, tlv_tree);
+            dissect_tlv_common_hello_parms(tvb, pinfo, offset + 4, tlv_tree);
 #endif
             break;
 
@@ -2352,7 +2381,7 @@ dissect_tlv(tvbuff_t *tvb, guint offset, proto_tree *tree, int rem)
             break;
 
         case TLV_ER:
-            dissect_tlv_er(tvb, offset + 4, tlv_tree, length);
+            dissect_tlv_er(tvb, pinfo, offset + 4, tlv_tree, length);
             break;
 
         case TLV_ER_HOP_IPV4:
@@ -2601,19 +2630,9 @@ dissect_msg(tvbuff_t *tvb, guint offset, packet_info *pinfo, proto_tree *tree)
         proto_tree_add_item(msg_tree, hf_ldp_msg_len, tvb, offset+2, 2, ENC_BIG_ENDIAN);
         proto_tree_add_item(msg_tree, hf_ldp_msg_id, tvb, offset+4, 4, ENC_BIG_ENDIAN);
         if(extra){
-            int hf_tmp;
-
-            switch(type){
-            case LDP_VENDOR_PRIVATE_START:
-                hf_tmp=hf_ldp_msg_vendor_id;
-                break;
-            case LDP_EXPERIMENTAL_MESSAGE_START:
-                hf_tmp=hf_ldp_msg_experiment_id;
-                break;
-            default:
-                hf_tmp = 0;
-            }
-            proto_tree_add_item(msg_tree, hf_tmp, tvb, offset+8, extra, ENC_BIG_ENDIAN);
+            proto_tree_add_item(msg_tree, (type == LDP_VENDOR_PRIVATE_START) ?
+                hf_ldp_msg_vendor_id : hf_ldp_msg_experiment_id, tvb, offset+8,
+                extra, ENC_BIG_ENDIAN);
         }
     }
 
@@ -2622,7 +2641,7 @@ dissect_msg(tvbuff_t *tvb, guint offset, packet_info *pinfo, proto_tree *tree)
 
     if (tree) {
         while ( (length-ao) > 0 ) {
-            co = dissect_tlv(tvb, offset, msg_tree, length-ao);
+            co = dissect_tlv(tvb, pinfo, offset, msg_tree, length-ao);
             offset += co;
             ao += co;
         }
@@ -3022,30 +3041,26 @@ dissect_ldp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
         /*
          * Dissect the LDP packet.
          *
-         * Catch the ReportedBoundsError exception; if this
-         * particular message happens to get a ReportedBoundsError
-         * exception, that doesn't mean that we should stop
-         * dissecting LDP messages within this frame or chunk of
-         * reassembled data.
+         * If it gets an error that means there's no point in
+         * dissecting any more PDUs, rethrow the exception in
+         * question.
          *
-         * If it gets a BoundsError, we can stop, as there's nothing
-         * more to see, so we just re-throw it.
+         * If it gets any other error, report it and continue, as that
+         * means that PDU got an error, but that doesn't mean we should
+         * stop dissecting PDUs within this frame or chunk of reassembled
+         * data.
          */
         pd_save = pinfo->private_data;
         TRY {
             dissect_ldp_pdu(next_tvb, pinfo, tree);
         }
-        CATCH(BoundsError) {
-            RETHROW;
-        }
-        CATCH(ReportedBoundsError) {
+        CATCH_NONFATAL_ERRORS {
             /*  Restore the private_data structure in case one of the
              *  called dissectors modified it (and, due to the exception,
              *  was unable to restore it).
              */
             pinfo->private_data = pd_save;
-
-            show_reported_bounds_error(tvb, pinfo, tree);
+            show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
         }
         ENDTRY;
 
@@ -3063,14 +3078,18 @@ void
 proto_register_ldp(void)
 {
     static hf_register_info hf[] = {
+#if 0
         { &hf_ldp_req,
           /* Change the following to the type you need */
           { "Request", "ldp.req", FT_BOOLEAN, BASE_NONE,
             NULL, 0x0, NULL, HFILL }},
+#endif
 
+#if 0
         { &hf_ldp_rsp,
           { "Response", "ldp.rsp", FT_BOOLEAN, BASE_NONE,
             NULL, 0x0, NULL, HFILL }},
+#endif
 
         { &hf_ldp_version,
           { "Version", "ldp.hdr.version", FT_UINT16, BASE_DEC,
@@ -3140,9 +3159,13 @@ proto_register_ldp(void)
           { "Hello Requested", "ldp.msg.tlv.hello.requested", FT_BOOLEAN, 16,
             TFS(&hello_requested_vals), 0x4000, "Hello Common Parameters Hello Requested Bit", HFILL }},
 
+        { &hf_ldp_tlv_val_gtsm_flag,
+          { "GTSM Flag", "ldp.msg.tlv.hello.gtsm", FT_BOOLEAN, 16,
+            TFS(&tfs_set_notset), 0x2000, "Hello Common Parameters GTSM bit", HFILL }},
+
         { &hf_ldp_tlv_val_res,
           { "Reserved", "ldp.msg.tlv.hello.res", FT_UINT16, BASE_HEX,
-            NULL, 0x3FFF, "Hello Common Parameters Reserved Field", HFILL }},
+            NULL, 0x1FFF, "Hello Common Parameters Reserved Field", HFILL }},
 
         { &hf_ldp_tlv_ipv4_taddr,
           { "IPv4 Transport Address", "ldp.msg.tlv.ipv4.taddr", FT_IPv4, BASE_NONE,
@@ -3442,11 +3465,11 @@ proto_register_ldp(void)
 
         { &hf_ldp_tlv_fec_vc_intparam_length,
           { "Length", "ldp.msg.tlv.fec.vc.intparam.length", FT_UINT8, BASE_DEC,
-            NULL, 0x0, "VC FEC Interface Paramater Length", HFILL }},
+            NULL, 0x0, "VC FEC Interface Parameter Length", HFILL }},
 
         { &hf_ldp_tlv_fec_vc_intparam_mtu,
           { "MTU", "ldp.msg.tlv.fec.vc.intparam.mtu", FT_UINT16, BASE_DEC,
-            NULL, 0x0, "VC FEC Interface Paramater MTU", HFILL }},
+            NULL, 0x0, "VC FEC Interface Parameter MTU", HFILL }},
 
         { &hf_ldp_tlv_fec_vc_intparam_tdmbps,
           { "BPS", "ldp.msg.tlv.fec.vc.intparam.tdmbps", FT_UINT32, BASE_DEC,
@@ -3454,7 +3477,7 @@ proto_register_ldp(void)
 
         { &hf_ldp_tlv_fec_vc_intparam_id,
           { "ID", "ldp.msg.tlv.fec.vc.intparam.id", FT_UINT8, BASE_HEX,
-            VALS(fec_vc_interfaceparm), 0x0, "VC FEC Interface Paramater ID", HFILL }},
+            VALS(fec_vc_interfaceparm), 0x0, "VC FEC Interface Parameter ID", HFILL }},
 
         { &hf_ldp_tlv_fec_vc_intparam_maxcatmcells,
           { "Number of Cells", "ldp.msg.tlv.fec.vc.intparam.maxatm", FT_UINT16, BASE_DEC,
@@ -3514,7 +3537,7 @@ proto_register_ldp(void)
 
         { &hf_ldp_tlv_fec_vc_intparam_fcslen,
           { "FCS Length", "ldp.msg.tlv.fec.vc.intparam.fcslen", FT_UINT16, BASE_DEC,
-            NULL, 0x0, "VC FEC Interface Paramater FCS Length", HFILL }},
+            NULL, 0x0, "VC FEC Interface Parameter FCS Length", HFILL }},
 
         { &hf_ldp_tlv_fec_vc_intparam_tdmopt_r,
           { "R Bit", "ldp.msg.tlv.fec.vc.intparam.tdmopt_r", FT_BOOLEAN, 16,
@@ -3705,9 +3728,11 @@ proto_register_ldp(void)
           { "Resource Class", "ldp.msg.tlv.resource_class", FT_UINT32, BASE_HEX,
             NULL, 0, "Resource Class (Color)", HFILL}},
 
+#if 0
         { &hf_ldp_tlv_diffserv,
           { "Diff-Serv TLV", "ldp.msg.tlv.diffserv", FT_NONE, BASE_NONE,
             NULL, 0, "Diffserv TLV", HFILL}},
+#endif
 
         { &hf_ldp_tlv_diffserv_type,
           { "LSP Type", "ldp.msg.tlv.diffserv.type", FT_UINT8, BASE_DEC,
@@ -3824,11 +3849,11 @@ proto_register_ldp(void)
 
         { &hf_ldp_tlv_intparam_length,
           { "Length", "ldp.msg.tlv.intparam.length", FT_UINT8, BASE_DEC,
-            NULL, 0x0, "VC FEC Interface Paramater Length", HFILL }},
+            NULL, 0x0, "VC FEC Interface Parameter Length", HFILL }},
 
         { &hf_ldp_tlv_intparam_mtu,
           { "MTU", "ldp.msg.tlv.intparam.mtu", FT_UINT16, BASE_DEC,
-            NULL, 0x0, "VC FEC Interface Paramater MTU", HFILL }},
+            NULL, 0x0, "VC FEC Interface Parameter MTU", HFILL }},
 
         { &hf_ldp_tlv_intparam_tdmbps,
           { "BPS", "ldp.msg.tlv.intparam.tdmbps", FT_UINT32, BASE_DEC,
@@ -3836,7 +3861,7 @@ proto_register_ldp(void)
 
         { &hf_ldp_tlv_intparam_id,
           { "ID", "ldp.msg.tlv.intparam.id", FT_UINT8, BASE_HEX,
-            VALS(fec_vc_interfaceparm), 0x0, "VC FEC Interface Paramater ID", HFILL }},
+            VALS(fec_vc_interfaceparm), 0x0, "VC FEC Interface Parameter ID", HFILL }},
 
         { &hf_ldp_tlv_intparam_maxcatmcells,
           { "Number of Cells", "ldp.msg.tlv.intparam.maxatm", FT_UINT16, BASE_DEC,
@@ -3896,7 +3921,7 @@ proto_register_ldp(void)
 
         { &hf_ldp_tlv_intparam_fcslen,
           { "FCS Length", "ldp.msg.tlv.intparam.fcslen", FT_UINT16, BASE_DEC,
-            NULL, 0x0, "VC FEC Interface Paramater FCS Length", HFILL }},
+            NULL, 0x0, "VC FEC Interface Parameter FCS Length", HFILL }},
 
         { &hf_ldp_tlv_intparam_tdmopt_r,
           { "R Bit", "ldp.msg.tlv.intparam.tdmopt_r", FT_BOOLEAN, 16,
@@ -3975,13 +4000,23 @@ proto_register_ldp(void)
         &ett_ldp_gen_aai_type2
     };
 
+    static ei_register_info ei[] = {
+        { &ei_ldp_dtsm_and_target, { "ldp.dtsm_and_target", PI_PROTOCOL, PI_WARN,"ERROR - Both GTSM and Target Flag are enabled.", EXPFILL }},
+        { &ei_ldp_gtsm_supported, { "ldp.gtsm_supported", PI_PROTOCOL, PI_CHAT,"GTSM is supported by the source", EXPFILL }},
+        { &ei_ldp_gtsm_not_supported_basic_discovery, { "ldp.gtsm_not_supported_basic_discovery", PI_PROTOCOL, PI_WARN,"GTSM is not supported by the source, since basic discovery is not enabled", EXPFILL }},
+        { &ei_ldp_gtsm_not_supported, { "ldp.gtsm_not_supported", PI_PROTOCOL, PI_CHAT,"GTSM is not supported by the source", EXPFILL }},
+    };
+
     module_t *ldp_module;
+    expert_module_t* expert_ldp;
 
     proto_ldp = proto_register_protocol("Label Distribution Protocol",
                                         "LDP", "ldp");
 
     proto_register_field_array(proto_ldp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_ldp = expert_register_protocol(proto_ldp);
+    expert_register_field_array(expert_ldp, ei, array_length(ei));
 
     /* Register our configuration options for , particularly our port */
 

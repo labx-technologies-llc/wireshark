@@ -56,8 +56,8 @@ typedef struct _wsp_stats_t {
 	guint32		 num_pdus;
 	GtkWidget 	*win;
 	GHashTable	*hash;
-	GtkWidget	*table_pdu_types;
-	GtkWidget	*table_status_code;
+	GtkWidget	*grid_pdu_types;
+	GtkWidget	*grid_status_code;
 	guint		 index;	/* Number of status codes to display */
 } wspstat_t;
 
@@ -76,7 +76,7 @@ wsp_reset_hash(gchar *key _U_ , wsp_status_code_t *data, gpointer ptr _U_)
 }
 
 /* Update the entry corresponding to the number of packets of a special status code
- * or create it if it don't exist.
+ * or create it if it doesn't exist.
  */
 static void
 wsp_draw_statuscode(gchar *key _U_, wsp_status_code_t *data, gchar *unused _U_)
@@ -94,13 +94,13 @@ wsp_draw_statuscode(gchar *key _U_, wsp_status_code_t *data, gchar *unused _U_)
 		/* Maybe we should display the hexadecimal value ? */
 		/* g_snprintf(string_buff, sizeof(string_buff), "%s  (0X%x)", data->name, *key); */
 		tmp = gtk_label_new(data->name  /* string_buff */ );
-		gtk_table_attach_defaults(GTK_TABLE(data->sp->table_status_code), tmp, x, x+1, y, y+1);
+		ws_gtk_grid_attach_defaults(GTK_GRID(data->sp->grid_status_code), tmp, x, y, 1, 1);
 		gtk_label_set_justify(GTK_LABEL(tmp), GTK_JUSTIFY_LEFT);
 		gtk_widget_show(tmp);
 
 		g_snprintf(string_buff, sizeof(string_buff), "%9d", data->packets);
 		data->widget = gtk_label_new(string_buff);
-		gtk_table_attach_defaults(GTK_TABLE(data->sp->table_status_code), data->widget, x+1, x+2, y, y+1);
+		ws_gtk_grid_attach_defaults(GTK_GRID(data->sp->grid_status_code), data->widget, x+1, y, 1, 1);
 		gtk_label_set_justify(GTK_LABEL(data->widget), GTK_JUSTIFY_LEFT);
 		gtk_widget_show(data->widget);
 
@@ -114,7 +114,7 @@ wsp_draw_statuscode(gchar *key _U_, wsp_status_code_t *data, gchar *unused _U_)
 static void
 wspstat_reset(void *psp)
 {
-	wspstat_t *sp = psp;
+	wspstat_t *sp = (wspstat_t *)psp;
 	guint32    i;
 
 	for(i=1; i<=sp->num_pdus; i++)
@@ -158,19 +158,19 @@ index2pdut(gint pdut)
 static int
 wspstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *pri)
 {
-	wspstat_t *sp = psp;
-	const wsp_info_value_t *value = pri;
+	wspstat_t *sp = (wspstat_t *)psp;
+	const wsp_info_value_t *value = (wsp_info_value_t *)pri;
 	gint       idx   = pdut2index(value->pdut);
 	gboolean   retour = FALSE;
 
 	if (value->status_code != 0) {
 		wsp_status_code_t *sc;
-		sc = g_hash_table_lookup(
+		sc = (wsp_status_code_t *)g_hash_table_lookup(
 			sp->hash,
 			GINT_TO_POINTER(value->status_code));
 		if (!sc) {
 			g_warning("%s:%d What's Wrong, doc ?\n", __FILE__, __LINE__);
-			sc = g_malloc(sizeof(wsp_status_code_t));
+			sc = (wsp_status_code_t *)g_malloc(sizeof(wsp_status_code_t));
 			sc -> packets = 1;
 			sc -> name    = NULL;
 			sc -> widget  = NULL;
@@ -199,7 +199,7 @@ wspstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const
 static void
 wspstat_draw(void *psp)
 {
-	wspstat_t *sp = psp;
+	wspstat_t *sp = (wspstat_t *)psp;
 	guint32    i;
 	char       str[256];
 
@@ -231,7 +231,7 @@ add_table_entry(wspstat_t *sp, const char *str, int x, int y, int idx)
 	GtkWidget *tmp;
 
 	tmp = gtk_label_new(str);
-	gtk_table_attach_defaults(GTK_TABLE(sp->table_pdu_types), tmp, x, x+1, y, y+1);
+	ws_gtk_grid_attach_defaults(GTK_GRID(sp->grid_pdu_types), tmp, x, y, 1, 1);
 	gtk_label_set_justify(GTK_LABEL(tmp), GTK_JUSTIFY_LEFT);
 	gtk_widget_show(tmp);
 	if (idx != 0) {
@@ -261,10 +261,10 @@ wsp_init_table(wspstat_t *sp)
 		/* Maybe we should display the hexadecimal value ? */
 #if 0
 		g_snprintf(buffer, sizeof(buffer), "%s  (0X%x)",
-			   match_strval_ext(index2pdut(i), &wsp_vals_pdu_type_ext), index2pdut(i));
+			   try_val_to_str_ext(index2pdut(i), &wsp_vals_pdu_type_ext), index2pdut(i));
 #endif
 		add_table_entry(sp,
-				match_strval_ext(index2pdut(i), &wsp_vals_pdu_type_ext), /* or buffer, */
+				try_val_to_str_ext(index2pdut(i), &wsp_vals_pdu_type_ext), /* or buffer, */
 				x,
 				pos,
 				0
@@ -304,7 +304,7 @@ gtk_wspstat_init(const char *opt_arg, void *userdata _U_)
 		filter = NULL;
 	}
 
-	sp = g_malloc(sizeof(wspstat_t));
+	sp = (wspstat_t *)g_malloc(sizeof(wspstat_t));
 	sp->win = dlg_window_new("wsp-stat");  /* transient_for top_level */
 	gtk_window_set_destroy_with_parent(GTK_WINDOW(sp->win), TRUE);
 
@@ -312,7 +312,7 @@ gtk_wspstat_init(const char *opt_arg, void *userdata _U_)
 	wsp_vals_status_p = VALUE_STRING_EXT_VS_P(&wsp_vals_status_ext);
 	for (i=0; wsp_vals_status_p[i].strptr; i++)
 	{
-		sc  = g_malloc(sizeof(wsp_status_code_t));
+		sc  = (wsp_status_code_t *)g_malloc(sizeof(wsp_status_code_t));
 		sc->name    = wsp_vals_status_p[i].strptr;
 		sc->packets = 0;
 		sc->widget  = NULL;
@@ -323,7 +323,7 @@ gtk_wspstat_init(const char *opt_arg, void *userdata _U_)
 				sc);
 	}
 	sp->num_pdus  = 16;
-	sp->pdu_stats = g_malloc((sp->num_pdus+1) * sizeof(wsp_pdu_t));
+	sp->pdu_stats = (wsp_pdu_t *)g_malloc((sp->num_pdus+1) * sizeof(wsp_pdu_t));
 	if (filter) {
 		sp->filter = g_strdup(filter);
 		title = g_strdup_printf("Wireshark: WAP-WSP statistics with filter: %s", filter);
@@ -346,21 +346,21 @@ gtk_wspstat_init(const char *opt_arg, void *userdata _U_)
 
 	/* PDU Types frame */
 	pdutypes_fr = gtk_frame_new("Summary of PDU Types (wsp.pdu_type)");
-  	gtk_container_add(GTK_CONTAINER(main_vb), pdutypes_fr);
+	gtk_box_pack_start(GTK_BOX(main_vb), pdutypes_fr, TRUE, TRUE, 0);
 
-	sp->table_pdu_types = gtk_table_new((sp->num_pdus+1) / 2 + 1, 4, FALSE);
-	gtk_container_add(GTK_CONTAINER(pdutypes_fr), sp->table_pdu_types);
-	gtk_container_set_border_width(GTK_CONTAINER(sp->table_pdu_types), 10);
+	sp->grid_pdu_types = ws_gtk_grid_new();
+	gtk_container_add(GTK_CONTAINER(pdutypes_fr), sp->grid_pdu_types);
+	gtk_container_set_border_width(GTK_CONTAINER(sp->grid_pdu_types), 10);
 
 	wsp_init_table(sp);
 
 	/* Status Codes frame */
 	statuscode_fr = gtk_frame_new("Summary of Status Code (wsp.reply.status)");
-  	gtk_container_add(GTK_CONTAINER(main_vb), statuscode_fr);
+	gtk_box_pack_start(GTK_BOX(main_vb), statuscode_fr, FALSE, FALSE, 0);
 
-	sp->table_status_code = gtk_table_new(0, 4, FALSE);
-	gtk_container_add(GTK_CONTAINER(statuscode_fr), sp->table_status_code);
-	gtk_container_set_border_width(GTK_CONTAINER(sp->table_status_code), 10);
+	sp->grid_status_code = ws_gtk_grid_new();
+	gtk_container_add(GTK_CONTAINER(statuscode_fr), sp->grid_status_code);
+	gtk_container_set_border_width(GTK_CONTAINER(sp->grid_status_code), 10);
 	sp->index = 0; 		/* No answers to display yet */
 
 	error_string = register_tap_listener(
@@ -385,7 +385,7 @@ gtk_wspstat_init(const char *opt_arg, void *userdata _U_)
 	bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
 	gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 
-	bt_close = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	bt_close = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(sp->win, bt_close, window_cancel_button_cb);
 
 	g_signal_connect(sp->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -414,7 +414,7 @@ static tap_param_dlg wsp_stat_dlg = {
 void
 register_tap_listener_gtkwspstat(void)
 {
-	register_dfilter_stat(&wsp_stat_dlg, "_WAP-WSP",
+	register_param_stat(&wsp_stat_dlg, "_WAP-WSP",
 	    REGISTER_STAT_GROUP_TELEPHONY);
 }
 

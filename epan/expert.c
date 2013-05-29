@@ -26,6 +26,8 @@
 
 #include "config.h"
 
+#include <stdio.h>
+
 #include "packet.h"
 #include "expert.h"
 #include "emem.h"
@@ -47,33 +49,36 @@ static int hf_expert_msg      = -1;
 static int hf_expert_group    = -1;
 static int hf_expert_severity = -1;
 
-const value_string expert_group_vals[] = {
-	{ PI_CHECKSUM,          "Checksum" },
-	{ PI_SEQUENCE,          "Sequence" },
-	{ PI_RESPONSE_CODE,     "Response" },
-	{ PI_REQUEST_CODE,      "Request" },
-	{ PI_UNDECODED,         "Undecoded" },
-	{ PI_REASSEMBLE,        "Reassemble" },
-	{ PI_MALFORMED,         "Malformed" },
-	{ PI_DEBUG,             "Debug" },
-	{ PI_PROTOCOL,          "Protocol" },
-	{ PI_SECURITY,          "Security" },
-	{ PI_COMMENTS_GROUP,    "Comment" },
-	{ 0, NULL }
+struct expert_module
+{
+	const char* proto_name;
+	int        proto_id;      /* Cache this for registering hfs */
+	GList      *experts;      /* expert_infos for this protocol */
+	GList      *last_expert;  /* pointer to end of list of expert_infos */
 };
 
-const value_string expert_severity_vals[] = {
-	{ PI_ERROR,             "Error" },
-	{ PI_WARN,              "Warn" },
-	{ PI_NOTE,              "Note" },
-	{ PI_CHAT,              "Chat" },
-	{ PI_COMMENT,           "Comment" },
-	{ 0,                    "Ok" },
-	{ 0, NULL }
-};
+/* List which stores protocols and expert_info that have been registered */
+typedef struct _gpa_expertinfo_t {
+	guint32             len;
+	guint32             allocated_len;
+	expert_field_info **ei;
+} gpa_expertinfo_t;
+static gpa_expertinfo_t gpa_expertinfo;
+
+/*
+ * List of all modules with expert info.
+ */
+static emem_tree_t *expert_modules = NULL;
+
+
+#define EXPERT_REGISTRAR_GET_NTH(eiindex, expinfo)						\
+	if((guint)eiindex >= gpa_expertinfo.len && getenv("WIRESHARK_ABORT_ON_DISSECTOR_BUG"))	\
+		g_error("Unregistered expert info! index=%d", eiindex);					\
+	DISSECTOR_ASSERT_HINT((guint)eiindex < gpa_expertinfo.len, "Unregistered expert info!");\
+	expinfo = gpa_expertinfo.ei[eiindex];
 
 void
-expert_init(void)
+expert_packet_init(void)
 {
 	static hf_register_info hf[] = {
 		{ &hf_expert_msg,
@@ -103,13 +108,34 @@ expert_init(void)
 	}
 
 	highest_severity = 0;
+
+	if (expert_modules == NULL) {
+		expert_modules = pe_tree_create(EMEM_TREE_TYPE_RED_BLACK, "expert_modules");
+	}
 }
 
+void
+expert_init(void)
+{
+	gpa_expertinfo.len           = 0;
+	gpa_expertinfo.allocated_len = 0;
+	gpa_expertinfo.ei          = NULL;
+}
+
+void
+expert_packet_cleanup(void)
+{
+}
 
 void
 expert_cleanup(void)
 {
-
+	if (gpa_expertinfo.allocated_len) {
+		gpa_expertinfo.len           = 0;
+		gpa_expertinfo.allocated_len = 0;
+		g_free(gpa_expertinfo.ei);
+		gpa_expertinfo.ei          = NULL;
+	}
 }
 
 
@@ -117,6 +143,97 @@ int
 expert_get_highest_severity(void)
 {
 	return highest_severity;
+}
+
+expert_module_t *expert_register_protocol(int id)
+{
+	expert_module_t *module;
+	protocol_t *protocol;
+
+	protocol = find_protocol_by_id(id);
+
+	module = g_new(expert_module_t,1);
+	module->proto_id = id;
+	module->proto_name = proto_get_protocol_short_name(protocol);
+	module->experts = NULL;
+	module->last_expert = NULL;
+
+	/*
+	 * Insert this module into the appropriate place in the tree.
+	 */
+	pe_tree_insert_string(expert_modules, module->proto_name, module, EMEM_TREE_STRING_NOCASE);
+
+	return module;
+}
+
+static int
+expert_register_field_init(expert_field_info *expinfo, expert_module_t* module)
+{
+	expinfo->protocol      = module->proto_name;
+
+	/* if we always add and never delete, then id == len - 1 is correct */
+	if (gpa_expertinfo.len >= gpa_expertinfo.allocated_len) {
+		if (!gpa_expertinfo.ei) {
+			gpa_expertinfo.allocated_len = PRE_ALLOC_EXPERT_FIELDS_MEM;
+			gpa_expertinfo.ei = (expert_field_info **)g_malloc(sizeof(expert_field_info *)*PRE_ALLOC_EXPERT_FIELDS_MEM);
+		} else {
+			gpa_expertinfo.allocated_len += 1000;
+			gpa_expertinfo.ei = (expert_field_info **)g_realloc(gpa_expertinfo.ei,
+						   sizeof(expert_field_info *)*gpa_expertinfo.allocated_len);
+		}
+	}
+	gpa_expertinfo.ei[gpa_expertinfo.len] = expinfo;
+	gpa_expertinfo.len++;
+	expinfo->id = gpa_expertinfo.len - 1;
+
+	return expinfo->id;
+}
+
+
+/* for use with static arrays only, since we don't allocate our own copies
+of the expert_field_info struct contained within the exp_register_info struct */
+void
+expert_register_field_array(expert_module_t* module, ei_register_info *exp, const int num_records)
+{
+	int		  i;
+	ei_register_info *ptr = exp;
+
+	for (i = 0; i < num_records; i++, ptr++) {
+		/*
+		 * Make sure we haven't registered this yet.
+		 * Most fields have variables associated with them
+		 * that are initialized to -1; some have array elements,
+		 * or possibly uninitialized variables, so we also allow
+		 * 0 (which is unlikely to be the field ID we get back
+		 * from "expert_register_field_init()").
+		 */
+		if (ptr->ids->ei != -1 && ptr->ids->ei != 0) {
+			fprintf(stderr,
+				"Duplicate field detected in call to expert_register_field_array: '%s' is already registered\n",
+				ptr->eiinfo.summary);
+			return;
+		}
+
+		if (module != NULL) {
+			if (module->experts == NULL) {
+				module->experts = g_list_append(NULL, ptr);
+				module->last_expert = module->experts;
+			} else {
+				module->last_expert =
+					g_list_append(module->last_expert, ptr)->next;
+			}
+		}
+
+		/* Register the field with the experts */
+		ptr->ids->ei = expert_register_field_init(&ptr->eiinfo, module);
+
+		/* Register with the header field info, so it's display filterable */
+		ptr->eiinfo.hf_info.p_id = &ptr->ids->hf;
+		ptr->eiinfo.hf_info.hfinfo.abbrev = ptr->eiinfo.name;
+		ptr->eiinfo.hf_info.hfinfo.blurb = ptr->eiinfo.summary;
+
+		proto_register_field_array(module->proto_id, &ptr->eiinfo.hf_info, 1);
+	}
 }
 
 
@@ -156,7 +273,8 @@ expert_create_tree(proto_item *pi, int group, int severity, const char *msg)
 }
 
 static void
-expert_set_info_vformat(packet_info *pinfo, proto_item *pi, int group, int severity, const char *format, va_list ap)
+expert_set_info_vformat(packet_info *pinfo, proto_item *pi, int group, int severity, int hf_index, gboolean use_vaformat,
+                        const char *format, va_list ap)
 {
 	char            formatted[ITEM_LABEL_LENGTH];
 	int             tap;
@@ -181,14 +299,32 @@ expert_set_info_vformat(packet_info *pinfo, proto_item *pi, int group, int sever
 		expert_set_item_flags(pi, group, severity);
 	}
 
-	col_add_str(pinfo->cinfo, COL_EXPERT, val_to_str(severity, expert_severity_vals, "Unknown (%u)"));
+	if ((pi == NULL) || (PITEM_FINFO(pi) == NULL) || 
+		((guint)severity >= FI_GET_FLAG(PITEM_FINFO(pi), PI_SEVERITY_MASK))) {
+		col_add_str(pinfo->cinfo, COL_EXPERT, val_to_str(severity, expert_severity_vals, "Unknown (%u)"));
+	}
 
-	g_vsnprintf(formatted, ITEM_LABEL_LENGTH, format, ap);
+	if (use_vaformat) {
+		g_vsnprintf(formatted, ITEM_LABEL_LENGTH, format, ap);
+	} else {
+		g_strlcpy(formatted, format, ITEM_LABEL_LENGTH);
+	}
 
 	tree = expert_create_tree(pi, group, severity, formatted);
 
-	ti = proto_tree_add_string(tree, hf_expert_msg, NULL, 0, 0, formatted);
-	PROTO_ITEM_SET_GENERATED(ti);
+	if (hf_index == -1) {
+		/* If no filterable expert info, just add the message */
+		ti = proto_tree_add_string(tree, hf_expert_msg, NULL, 0, 0, formatted);
+		PROTO_ITEM_SET_GENERATED(ti);
+	} else {
+		/* If filterable expert info, hide the "generic" form of the message,
+		   and generate the formatted filterable expert info */
+		ti = proto_tree_add_none_format(tree, hf_index, NULL, 0, 0, "%s", formatted);
+		PROTO_ITEM_SET_GENERATED(ti);
+		ti = proto_tree_add_string(tree, hf_expert_msg, NULL, 0, 0, formatted);
+		PROTO_ITEM_SET_HIDDEN(ti);
+	}
+
 	ti = proto_tree_add_uint_format_value(tree, hf_expert_severity, NULL, 0, 0, severity,
 					      "%s", val_to_str_const(severity, expert_severity_vals, "Unknown"));
 	PROTO_ITEM_SET_GENERATED(ti);
@@ -201,7 +337,7 @@ expert_set_info_vformat(packet_info *pinfo, proto_item *pi, int group, int sever
 	if (!tap)
 		return;
 
-	ei = ep_alloc(sizeof(expert_info_t));
+	ei = ep_new(expert_info_t);
 
 	ei->packet_num  = PINFO_FD_NUM(pinfo);
 	ei->group       = group;
@@ -226,7 +362,32 @@ expert_add_info_format(packet_info *pinfo, proto_item *pi, int group, int severi
 	va_list ap;
 
 	va_start(ap, format);
-	expert_set_info_vformat(pinfo, pi, group, severity, format, ap);
+	expert_set_info_vformat(pinfo, pi, group, severity, -1, TRUE, format, ap);
+	va_end(ap);
+}
+
+void
+expert_add_info(packet_info *pinfo, proto_item *pi, expert_field *expindex)
+{
+	expert_field_info* eiinfo;
+
+	/* Look up the item */
+	EXPERT_REGISTRAR_GET_NTH(expindex->ei, eiinfo);
+
+	expert_set_info_vformat(pinfo, pi, eiinfo->group, eiinfo->severity, *eiinfo->hf_info.p_id, FALSE, eiinfo->summary, NULL);
+}
+
+void
+expert_add_info_format_text(packet_info *pinfo, proto_item *pi, expert_field *expindex, const char *format, ...)
+{
+	va_list ap;
+	expert_field_info* eiinfo;
+
+	/* Look up the item */
+	EXPERT_REGISTRAR_GET_NTH(expindex->ei, eiinfo);
+
+	va_start(ap, format);
+	expert_set_info_vformat(pinfo, pi, eiinfo->group, eiinfo->severity, *eiinfo->hf_info.p_id, TRUE, format, ap);
 	va_end(ap);
 }
 

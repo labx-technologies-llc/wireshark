@@ -42,6 +42,9 @@ void toolbar_redraw_all(void);
  * @param key the key
  * @param data the data to set
  */
-void set_toolbar_object_data(gchar *key, gpointer data);
+void set_toolbar_object_data(const gchar *key, gpointer data);
+
+void set_start_button_sensitive(gboolean enable);
+void set_menus_capture_start_sensitivity(gboolean enable);
 
 #endif /* __TOOLBAR_H__ */

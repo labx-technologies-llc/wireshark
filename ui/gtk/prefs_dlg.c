@@ -28,7 +28,6 @@
 
 #include <string.h>
 
-#include <epan/filesystem.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/strutil.h>
@@ -37,13 +36,14 @@
 
 #include "../file.h"
 #include "../print.h"
+#include "ui/preference_utils.h"
 #include "ui/simple_dialog.h"
 
 #include "ui/gtk/main.h"
 #include "ui/gtk/prefs_column.h"
 #include "ui/gtk/prefs_dlg.h"
 #include "ui/gtk/prefs_filter_expressions.h"
-#include "ui/gtk/prefs_stream.h"
+#include "ui/gtk/prefs_font_color.h"
 #include "ui/gtk/prefs_gui.h"
 #include "ui/gtk/prefs_layout.h"
 #include "ui/gtk/prefs_capture.h"
@@ -55,6 +55,8 @@
 #include "ui/gtk/uat_gui.h"
 #include "ui/gtk/old-gtk-compat.h"
 #include "ui/gtk/file_dlg.h"
+#include "ui/gtk/dlg_utils.h"
+#include "ui/gtk/packet_win.h"
 
 #ifdef HAVE_LIBPCAP
 #ifdef _WIN32
@@ -75,8 +77,8 @@ static gboolean prefs_main_delete_event_cb(GtkWidget *, GdkEvent *, gpointer);
 static void     prefs_main_destroy_cb(GtkWidget *, gpointer);
 static void     prefs_tree_select_cb(GtkTreeSelection *, gpointer);
 
-static GtkWidget *create_preference_filename_entry(GtkWidget *, int,
-   const gchar *, const gchar *, char *);
+static GtkWidget *create_preference_path_entry(GtkWidget *, int,
+   const gchar *, const gchar *, char *, gboolean);
 
 #define E_PREFSW_SCROLLW_KEY          "prefsw_scrollw"
 #define E_PREFSW_TREE_KEY             "prefsw_tree"
@@ -90,10 +92,11 @@ static GtkWidget *create_preference_filename_entry(GtkWidget *, int,
 #define E_GUI_LAYOUT_PAGE_KEY         "gui_layout_page"
 #define E_GUI_COLUMN_PAGE_KEY         "gui_column_options_page"
 #define E_GUI_FONT_PAGE_KEY           "gui_font_options_page"
-#define E_GUI_COLORS_PAGE_KEY         "gui_colors_options_page"
+#define E_GUI_FONT_COLORS_PAGE_KEY    "gui_font_colors_options_page"
 #define E_CAPTURE_PAGE_KEY            "capture_options_page"
 #define E_NAMERES_PAGE_KEY            "nameres_options_page"
 #define E_FILTER_EXPRESSIONS_PAGE_KEY "filter_expressions_page"
+#define E_GRID_MODULE_KEY             "grid_module"
 
 /*
  * Keep a static pointer to the current "Preferences" window, if any, so that
@@ -118,22 +121,31 @@ pref_exists(pref_t *pref _U_, gpointer user_data _U_)
   return 1;
 }
 
-/* show a single preference on the GtkTable of a preference page */
+/* show a single preference on the GtkGrid of a preference page */
 static guint
 pref_show(pref_t *pref, gpointer user_data)
 {
-  GtkWidget  *main_tb = user_data;
+  GtkWidget  *main_grid = (GtkWidget *)user_data;
+  module_t   *module  = (module_t *)g_object_get_data(G_OBJECT(main_grid), E_GRID_MODULE_KEY);
   const char *title;
+  const char *type_name = prefs_pref_type_name(pref);
   char       *label_string;
   size_t      label_len;
   char        uint_str[10+1];
+  char *tooltip_txt;
 
   /* Give this preference a label which is its title, followed by a colon,
      and left-align it. */
   title = pref->title;
   label_len = strlen(title) + 2;
-  label_string = g_malloc(label_len);
+  label_string = (char *)g_malloc(label_len);
   g_strlcpy(label_string, title, label_len);
+
+  tooltip_txt = pref->description? g_strdup_printf("%s.%s: %s\n%s",
+                                                   module->name,
+                                                   pref->name,
+                                                   type_name ? type_name : "Unknown",
+                                                   pref->description): NULL;
 
   /*
    * Sometimes we don't want to append a ':' after a static text string...
@@ -142,14 +154,14 @@ pref_show(pref_t *pref, gpointer user_data)
   if (pref->type != PREF_STATIC_TEXT)
     g_strlcat(label_string, ":", label_len);
 
+  pref_stash(pref, NULL);
+
   /* Save the current value of the preference, so that we can revert it if
      the user does "Apply" and then "Cancel", and create the control for
      editing the preference. */
   switch (pref->type) {
 
   case PREF_UINT:
-    pref->saved_val.uint = *pref->varp.uint;
-
     /* XXX - there are no uint spinbuttons, so we can't use a spinbutton.
        Even more annoyingly, even if there were, GLib doesn't define
        G_MAXUINT - but I think ANSI C may define UINT_MAX, so we could
@@ -157,87 +169,86 @@ pref_show(pref_t *pref, gpointer user_data)
     switch (pref->info.base) {
 
     case 10:
-      g_snprintf(uint_str, sizeof(uint_str), "%u", pref->saved_val.uint);
+      g_snprintf(uint_str, sizeof(uint_str), "%u", pref->stashed_val.uint);
       break;
 
     case 8:
-      g_snprintf(uint_str, sizeof(uint_str), "%o", pref->saved_val.uint);
+      g_snprintf(uint_str, sizeof(uint_str), "%o", pref->stashed_val.uint);
       break;
 
     case 16:
-      g_snprintf(uint_str, sizeof(uint_str), "%x", pref->saved_val.uint);
+      g_snprintf(uint_str, sizeof(uint_str), "%x", pref->stashed_val.uint);
       break;
     }
-    pref->control = create_preference_entry(main_tb, pref->ordinal,
-                                            label_string, pref->description,
+    pref->control = create_preference_entry(main_grid, pref->ordinal,
+                                            label_string, tooltip_txt,
                                             uint_str);
     break;
 
   case PREF_BOOL:
-    pref->saved_val.boolval = *pref->varp.boolp;
-    pref->control = create_preference_check_button(main_tb, pref->ordinal,
-                                                   label_string, pref->description,
-                                                   pref->saved_val.boolval);
+    pref->control = create_preference_check_button(main_grid, pref->ordinal,
+                                                   label_string, tooltip_txt,
+                                                   pref->stashed_val.boolval);
     break;
 
   case PREF_ENUM:
-    pref->saved_val.enumval = *pref->varp.enump;
     if (pref->info.enum_info.radio_buttons) {
       /* Show it as radio buttons. */
-      pref->control = create_preference_radio_buttons(main_tb, pref->ordinal,
-                                                      label_string, pref->description,
+      pref->control = create_preference_radio_buttons(main_grid, pref->ordinal,
+                                                      label_string, tooltip_txt,
                                                       pref->info.enum_info.enumvals,
-                                                      pref->saved_val.enumval);
+                                                      pref->stashed_val.enumval);
     } else {
       /* Show it as an option menu. */
-      pref->control = create_preference_option_menu(main_tb, pref->ordinal,
-                                                    label_string, pref->description,
+      pref->control = create_preference_option_menu(main_grid, pref->ordinal,
+                                                    label_string, tooltip_txt,
                                                     pref->info.enum_info.enumvals,
-                                                    pref->saved_val.enumval);
+                                                    pref->stashed_val.enumval);
     }
     break;
 
   case PREF_STRING:
-    g_free(pref->saved_val.string);
-    pref->saved_val.string = g_strdup(*pref->varp.string);
-    pref->control = create_preference_entry(main_tb, pref->ordinal,
-                                            label_string, pref->description,
-                                            pref->saved_val.string);
+    pref->control = create_preference_entry(main_grid, pref->ordinal,
+                                            label_string, tooltip_txt,
+                                            pref->stashed_val.string);
     break;
 
   case PREF_FILENAME:
-    g_free(pref->saved_val.string);
-    pref->saved_val.string = g_strdup(*pref->varp.string);
-    pref->control = create_preference_filename_entry(main_tb, pref->ordinal,
+    pref->control = create_preference_path_entry(main_grid, pref->ordinal,
                                                      label_string,
-                                                     pref->description,
-                                                     pref->saved_val.string);
+                                                     tooltip_txt,
+                                                     pref->stashed_val.string, FALSE);
+    break;
+
+  case PREF_DIRNAME:
+    pref->control = create_preference_path_entry(main_grid, pref->ordinal,
+                                                     label_string,
+                                                     tooltip_txt,
+                                                     pref->stashed_val.string, TRUE);
     break;
 
   case PREF_RANGE:
   {
     char *range_str_p;
 
-    g_free(pref->saved_val.range);
-    pref->saved_val.range = range_copy(*pref->varp.range);
     range_str_p = range_convert_range(*pref->varp.range);
-    pref->control = create_preference_entry(main_tb, pref->ordinal,
-                                            label_string, pref->description,
+    pref->control = create_preference_entry(main_grid, pref->ordinal,
+                                            label_string, tooltip_txt,
                                             range_str_p);
     break;
   }
 
   case PREF_STATIC_TEXT:
   {
-    pref->control = create_preference_static_text(main_tb, pref->ordinal,
-                                                  label_string, pref->description);
+    pref->control = create_preference_static_text(main_grid, pref->ordinal,
+                                                  label_string, tooltip_txt);
     break;
   }
 
   case PREF_UAT:
   {
-    pref->control = create_preference_uat(main_tb, pref->ordinal,
-                                          label_string, pref->description,
+    pref->control = create_preference_uat(main_grid, pref->ordinal,
+                                          label_string, tooltip_txt,
                                           pref->varp.uat);
     break;
   }
@@ -250,6 +261,7 @@ pref_show(pref_t *pref, gpointer user_data)
     g_assert_not_reached();
     break;
   }
+  g_free(tooltip_txt);
   g_free(label_string);
 
   return 0;
@@ -264,26 +276,40 @@ prefs_tree_page_add(const gchar *title, gint page_nr,
 {
   prefs_tree_iter   iter;
 
-  gtk_tree_store_append(store, &iter, parent_iter);
-  gtk_tree_store_set(store, &iter, 0, title, 1, page_nr, -1);
+  gtk_tree_store_append((GtkTreeStore *)store, &iter, parent_iter);
+  gtk_tree_store_set((GtkTreeStore *)store, &iter, 0, title, 1, page_nr, -1);
   return iter;
 }
 
 /* add a page to the notebook */
 static GtkWidget *
-prefs_nb_page_add(GtkWidget *notebook, const gchar *title, GtkWidget *page, const char *page_key)
+prefs_nb_page_add(GtkWidget *notebook, const gchar *title _U_, GtkWidget *page, const char *page_key)
 {
+  GtkWidget         *sw;
   GtkWidget         *frame;
 
-  frame = gtk_frame_new(title);
+  sw = gtk_scrolled_window_new(NULL, NULL);
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+  gtk_widget_show(sw);
+
+  frame = gtk_frame_new(NULL);
+  gtk_frame_set_shadow_type(GTK_FRAME(frame), GTK_SHADOW_NONE);
+  gtk_container_set_border_width(GTK_CONTAINER(frame), DLG_OUTER_MARGIN);
+#if ! GTK_CHECK_VERSION(3,8,0)
+  gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(sw), frame);
+#else
+  gtk_container_add(GTK_CONTAINER(sw), frame);
+#endif
   gtk_widget_show(frame);
+
   if (page) {
     gtk_container_add(GTK_CONTAINER(frame), page);
     g_object_set_data(G_OBJECT(prefs_w), page_key, page);
   }
-  gtk_notebook_append_page (GTK_NOTEBOOK(notebook), frame, NULL);
 
-  return frame;
+  gtk_notebook_append_page (GTK_NOTEBOOK(notebook), sw, NULL);
+
+  return sw;
 }
 
 #define MAX_TREE_NODE_NAME_LEN 64
@@ -292,9 +318,9 @@ prefs_nb_page_add(GtkWidget *notebook, const gchar *title, GtkWidget *page, cons
 static guint
 module_prefs_show(module_t *module, gpointer user_data)
 {
-  struct ct_struct *cts = user_data;
+  struct ct_struct *cts = (struct ct_struct *)user_data;
   struct ct_struct  child_cts;
-  GtkWidget        *main_vb, *main_tb, *frame, *main_sw;
+  GtkWidget        *main_vb, *main_grid, *frame, *main_sw;
   gchar             label_str[MAX_TREE_NODE_NAME_LEN];
   GtkTreeStore     *model;
   GtkTreeIter       iter;
@@ -369,9 +395,14 @@ module_prefs_show(module_t *module, gpointer user_data)
   gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(main_sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
 
   /* Frame */
-  frame = gtk_frame_new(module->description);
-  gtk_container_set_border_width(GTK_CONTAINER(frame), 5);
+  frame = gtk_frame_new(NULL);
+  gtk_frame_set_shadow_type(GTK_FRAME(frame), GTK_SHADOW_NONE);
+  gtk_container_set_border_width(GTK_CONTAINER(frame), DLG_OUTER_MARGIN);
+#if ! GTK_CHECK_VERSION(3,8,0)
   gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(main_sw), frame);
+#else
+  gtk_container_add(GTK_CONTAINER(main_sw), frame);
+#endif
   g_object_set_data(G_OBJECT(main_sw), E_PAGESW_FRAME_KEY, frame);
 
   /* Main vertical box */
@@ -379,14 +410,19 @@ module_prefs_show(module_t *module, gpointer user_data)
   gtk_container_set_border_width(GTK_CONTAINER(main_vb), 5);
   gtk_container_add(GTK_CONTAINER(frame), main_vb);
 
-  /* Main table */
-  main_tb = gtk_table_new(module->numprefs, 2, FALSE);
-  gtk_box_pack_start(GTK_BOX(main_vb), main_tb, FALSE, FALSE, 0);
-  gtk_table_set_row_spacings(GTK_TABLE(main_tb), 10);
-  gtk_table_set_col_spacings(GTK_TABLE(main_tb), 15);
+  /* Main grid */
+  main_grid = ws_gtk_grid_new();
+  gtk_box_pack_start(GTK_BOX(main_vb), main_grid, FALSE, FALSE, 0);
+#if GTK_CHECK_VERSION(3,0,0)
+  gtk_widget_set_vexpand(GTK_WIDGET(main_grid), FALSE); /* Ignore VEXPAND requests from children */
+#endif
+  ws_gtk_grid_set_row_spacing(GTK_GRID(main_grid), 10);
+  ws_gtk_grid_set_column_spacing(GTK_GRID(main_grid), 15);
 
   /* Add items for each of the preferences */
-  prefs_pref_foreach(module, pref_show, main_tb);
+  g_object_set_data(G_OBJECT(main_grid), E_GRID_MODULE_KEY, module);
+  prefs_pref_foreach(module, pref_show, main_grid);
+  g_object_set_data(G_OBJECT(main_grid), E_GRID_MODULE_KEY, NULL);
 
   /* Associate this module with the page's frame. */
   g_object_set_data(G_OBJECT(frame), E_PAGE_MODULE_KEY, module);
@@ -419,7 +455,6 @@ prefs_page_cb(GtkWidget *w _U_, gpointer dummy _U_, PREFS_PAGE_E prefs_page)
 {
   GtkWidget         *top_hb, *bbox, *prefs_nb, *ct_sb,
                     *ok_bt, *apply_bt, *save_bt, *cancel_bt, *help_bt;
-  GtkWidget         *gui_font_pg;
   gchar              label_str[MAX_TREE_NODE_NAME_LEN];
   struct ct_struct   cts;
   GtkTreeStore      *store;
@@ -439,10 +474,11 @@ prefs_page_cb(GtkWidget *w _U_, gpointer dummy _U_, PREFS_PAGE_E prefs_page)
   }
 
   prefs_w = dlg_conf_window_new("Wireshark: Preferences");
+  gtk_window_set_default_size(GTK_WINDOW(prefs_w), 400, 650);
 
   /*
-   * Unfortunately, we can't arrange that a GtkTable widget wrap an event box
-   * around a table row, so the spacing between the preference item's label
+   * Unfortunately, we can't arrange that a GtkGrid widget wrap an event box
+   * around a grid row, so the spacing between the preference item's label
    * and its control widgets is inactive and the tooltip doesn't pop up when
    * the mouse is over it.
    */
@@ -516,34 +552,13 @@ prefs_page_cb(GtkWidget *w _U_, gpointer dummy _U_, PREFS_PAGE_E prefs_page)
   columns_iter = prefs_tree_page_add(label_str, cts.page, store, &gui_iter);
   columns_page = cts.page++;
 
-  /* GUI Font prefs */
-  g_strlcpy(label_str, "Font", MAX_TREE_NODE_NAME_LEN);
-  gui_font_pg = gui_font_prefs_show();
-  prefs_nb_page_add(prefs_nb, label_str, gui_font_pg, E_GUI_FONT_PAGE_KEY);
-  prefs_tree_page_add(label_str, cts.page, store, &gui_iter);
-  cts.page++;
-
-  gtk_container_set_border_width( GTK_CONTAINER(gui_font_pg), 5 );
-
-  /* IMPORTANT: the following gtk_font_selection_set_font_name() function will
-     only work if the widget and it's corresponding window is already shown
-     (so don't put the following into gui_font_prefs_show()) !!! */
-
-  /* We set the current font now, because setting it appears not to work
-     when run before appending the frame to the notebook. */
-#if GTK_CHECK_VERSION(3,2,0)
-  gtk_font_chooser_set_font(GTK_FONT_CHOOSER(gui_font_pg), prefs.gui_font_name);
-#else
-  gtk_font_selection_set_font_name(
-    GTK_FONT_SELECTION(gui_font_pg), prefs.gui_font_name);
-#endif /* GTK_CHECK_VERSION(3,2,0) */
   /* GUI Colors prefs */
-  g_strlcpy(label_str, "Colors", MAX_TREE_NODE_NAME_LEN);
-  prefs_nb_page_add(prefs_nb, label_str, stream_prefs_show(), E_GUI_COLORS_PAGE_KEY);
+  g_strlcpy(label_str, "Font and Colors", MAX_TREE_NODE_NAME_LEN);
+  prefs_nb_page_add(prefs_nb, label_str, font_color_prefs_show(), E_GUI_FONT_COLORS_PAGE_KEY);
   prefs_tree_page_add(label_str, cts.page, store, &gui_iter);
   cts.page++;
 
-  /* select the main GUI page as the default page and expand it's children */
+  /* select the main GUI page as the default page and expand its children */
   gtk_tree_selection_select_iter(selection, &gui_iter);
   /* (expand will only take effect, when at least one child exists) */
   gtk_tree_view_expand_all(GTK_TREE_VIEW(cts.tree));
@@ -580,23 +595,23 @@ prefs_page_cb(GtkWidget *w _U_, gpointer dummy _U_, PREFS_PAGE_E prefs_page)
   gtk_box_pack_start(GTK_BOX(cts.main_vb), bbox, FALSE, FALSE, 0);
   gtk_widget_show(bbox);
 
-  ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+  ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
   g_signal_connect(ok_bt, "clicked", G_CALLBACK(prefs_main_ok_cb), prefs_w);
 
-  apply_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_APPLY);
+  apply_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_APPLY);
   g_signal_connect(apply_bt, "clicked", G_CALLBACK(prefs_main_apply_cb), prefs_w);
 
-  save_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_SAVE);
+  save_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_SAVE);
   g_signal_connect(save_bt, "clicked", G_CALLBACK(prefs_main_save_cb), prefs_w);
   g_object_set_data(G_OBJECT(prefs_w), E_PREFSW_SAVE_BT_KEY, save_bt);
 
-  cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+  cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
   g_signal_connect(cancel_bt, "clicked", G_CALLBACK(prefs_main_cancel_cb), prefs_w);
   window_set_cancel_button(prefs_w, cancel_bt, NULL);
 
   gtk_widget_grab_default(ok_bt);
 
-  help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+  help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
   g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_PREFERENCES_DIALOG);
 
   g_signal_connect(prefs_w, "delete_event", G_CALLBACK(prefs_main_delete_event_cb), NULL);
@@ -614,16 +629,16 @@ prefs_page_cb(GtkWidget *w _U_, gpointer dummy _U_, PREFS_PAGE_E prefs_page)
   switch (prefs_page) {
   case PREFS_PAGE_LAYOUT:
     gtk_tree_selection_select_iter(selection, &layout_iter);
-    gtk_notebook_set_current_page(g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), layout_page);
+    gtk_notebook_set_current_page((GtkNotebook *)g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), layout_page);
     break;
   case PREFS_PAGE_COLUMNS:
     gtk_tree_selection_select_iter(selection, &columns_iter);
-    gtk_notebook_set_current_page(g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), columns_page);
+    gtk_notebook_set_current_page((GtkNotebook *)g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), columns_page);
     break;
   case PREFS_PAGE_CAPTURE:
     if (capture_page) {
       gtk_tree_selection_select_iter(selection, &capture_iter);
-      gtk_notebook_set_current_page(g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), capture_page);
+      gtk_notebook_set_current_page((GtkNotebook *)g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), capture_page);
     }
     break;
   default:
@@ -635,7 +650,7 @@ prefs_page_cb(GtkWidget *w _U_, gpointer dummy _U_, PREFS_PAGE_E prefs_page)
 }
 
 static void
-set_option_label(GtkWidget *main_tb, int table_position,
+set_option_label(GtkWidget *main_grid, int grid_position,
     const gchar *label_text, const gchar *tooltip_text)
 {
   GtkWidget *label;
@@ -647,8 +662,7 @@ set_option_label(GtkWidget *main_tb, int table_position,
 
   event_box = gtk_event_box_new();
   gtk_event_box_set_visible_window (GTK_EVENT_BOX(event_box), FALSE);
-  gtk_table_attach_defaults(GTK_TABLE(main_tb), event_box, 0, 1,
-                            table_position, table_position + 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), event_box, 0, grid_position, 1, 1);
   if (tooltip_text != NULL)
     gtk_widget_set_tooltip_text(event_box, tooltip_text);
   gtk_container_add(GTK_CONTAINER(event_box), label);
@@ -656,17 +670,16 @@ set_option_label(GtkWidget *main_tb, int table_position,
 }
 
 GtkWidget *
-create_preference_check_button(GtkWidget *main_tb, int table_position,
+create_preference_check_button(GtkWidget *main_grid, int grid_position,
     const gchar *label_text, const gchar *tooltip_text, gboolean active)
 {
   GtkWidget *check_box;
 
-  set_option_label(main_tb, table_position, label_text, tooltip_text);
+  set_option_label(main_grid, grid_position, label_text, tooltip_text);
 
   check_box = gtk_check_button_new();
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(check_box), active);
-  gtk_table_attach_defaults(GTK_TABLE(main_tb), check_box, 1, 2,
-                            table_position, table_position + 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), check_box, 1, grid_position, 1, 1);
   if (tooltip_text != NULL)
     gtk_widget_set_tooltip_text(check_box, tooltip_text);
 
@@ -674,7 +687,7 @@ create_preference_check_button(GtkWidget *main_tb, int table_position,
 }
 
 GtkWidget *
-create_preference_radio_buttons(GtkWidget *main_tb, int table_position,
+create_preference_radio_buttons(GtkWidget *main_grid, int grid_position,
     const gchar *label_text, const gchar *tooltip_text,
     const enum_val_t *enumvals, gint current_val)
 {
@@ -684,7 +697,7 @@ create_preference_radio_buttons(GtkWidget *main_tb, int table_position,
   const enum_val_t *enum_valp;
   GtkWidget        *event_box;
 
-  set_option_label(main_tb, table_position, label_text, tooltip_text);
+  set_option_label(main_grid, grid_position, label_text, tooltip_text);
 
   radio_button_hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
   rb_group = NULL;
@@ -706,8 +719,7 @@ create_preference_radio_buttons(GtkWidget *main_tb, int table_position,
   event_box = gtk_event_box_new();
   gtk_event_box_set_visible_window (GTK_EVENT_BOX(event_box), FALSE);
   gtk_container_add(GTK_CONTAINER(event_box), radio_button_hbox);
-  gtk_table_attach_defaults(GTK_TABLE(main_tb), event_box, 1, 2,
-                            table_position, table_position+1);
+  ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), event_box, 1, grid_position, 1, 1);
   if (tooltip_text != NULL)
     gtk_widget_set_tooltip_text(event_box, tooltip_text);
   gtk_widget_show(event_box);
@@ -756,7 +768,7 @@ fetch_preference_radio_buttons_val(GtkWidget *button,
   button = NULL;
   for (rb_entry = rb_group; rb_entry != NULL;
        rb_entry = g_slist_next(rb_entry)) {
-    button = rb_entry->data;
+    button = (GtkWidget *)rb_entry->data;
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(button)))
       break;
   }
@@ -766,7 +778,7 @@ fetch_preference_radio_buttons_val(GtkWidget *button,
 }
 
 GtkWidget *
-create_preference_option_menu(GtkWidget *main_tb, int table_position,
+create_preference_option_menu(GtkWidget *main_grid, int grid_position,
     const gchar *label_text, const gchar *tooltip_text,
     const enum_val_t *enumvals, gint current_val)
 {
@@ -775,7 +787,7 @@ create_preference_option_menu(GtkWidget *main_tb, int table_position,
   const enum_val_t *enum_valp;
   GtkWidget        *event_box;
 
-  set_option_label(main_tb, table_position, label_text, tooltip_text);
+  set_option_label(main_grid, grid_position, label_text, tooltip_text);
 
   /* Create a menu from the enumvals */
   combo_box = gtk_combo_box_text_new();
@@ -793,7 +805,7 @@ create_preference_option_menu(GtkWidget *main_tb, int table_position,
 
   /*
    * Put the combo box in an hbox, so that it's only as wide
-   * as the widest entry, rather than being as wide as the table
+   * as the widest entry, rather than being as wide as the grid
    * space.
    */
   menu_box = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
@@ -801,8 +813,7 @@ create_preference_option_menu(GtkWidget *main_tb, int table_position,
 
   event_box = gtk_event_box_new();
   gtk_event_box_set_visible_window (GTK_EVENT_BOX(event_box), FALSE);
-  gtk_table_attach_defaults(GTK_TABLE(main_tb), event_box,
-                            1, 2, table_position, table_position + 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), event_box, 1, grid_position, 1, 1);
   if (tooltip_text != NULL)
     gtk_widget_set_tooltip_text(event_box, tooltip_text);
   gtk_container_add(GTK_CONTAINER(event_box), menu_box);
@@ -825,18 +836,17 @@ fetch_preference_option_menu_val(GtkWidget *combo_box, const enum_val_t *enumval
 }
 
 GtkWidget *
-create_preference_entry(GtkWidget *main_tb, int table_position,
+create_preference_entry(GtkWidget *main_grid, int grid_position,
     const gchar *label_text, const gchar *tooltip_text, char *value)
 {
   GtkWidget *entry;
 
-  set_option_label(main_tb, table_position, label_text, tooltip_text);
+  set_option_label(main_grid, grid_position, label_text, tooltip_text);
 
   entry = gtk_entry_new();
   if (value != NULL)
     gtk_entry_set_text(GTK_ENTRY(entry), value);
-  gtk_table_attach_defaults(GTK_TABLE(main_tb), entry, 1, 2,
-                            table_position, table_position + 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), entry, 1, grid_position, 1, 1);
   if (tooltip_text != NULL)
     gtk_widget_set_tooltip_text(entry, tooltip_text);
   gtk_widget_show(entry);
@@ -848,21 +858,28 @@ static void
 preference_filename_entry_cb(GtkWidget *button, GtkWidget *filename_te)
 {
     /* XXX - use a better browser dialog title */
-    file_selection_browse(button, filename_te, "Wireshark: file preference",
+    file_selection_browse(button, filename_te, "Wireshark: File preference",
                           FILE_SELECTION_READ_BROWSE);
 }
 
+static void
+preference_dirname_entry_cb(GtkWidget *button, GtkWidget *filename_te)
+{
+    /* XXX - use a better browser dialog title */
+    file_selection_browse(button, filename_te, "Wireshark: Directory preference",
+                          FILE_SELECTION_CREATE_FOLDER);
+}
+
 static GtkWidget *
-create_preference_filename_entry(GtkWidget *main_tb, int table_position,
-    const gchar *label_text, const gchar *tooltip_text, char *value)
+create_preference_path_entry(GtkWidget *main_grid, int grid_position,
+    const gchar *label_text, const gchar *tooltip_text, char *value, gboolean dir_only)
 {
   GtkWidget *entry;
   GtkWidget *button, *file_bt_hb;
 
-  set_option_label(main_tb, table_position, label_text, tooltip_text);
+  set_option_label(main_grid, grid_position, label_text, tooltip_text);
   file_bt_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
-  gtk_table_attach_defaults(GTK_TABLE(main_tb), file_bt_hb, 1, 2,
-                            table_position, table_position + 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), file_bt_hb, 1, grid_position, 1, 1);
   gtk_widget_show(file_bt_hb);
 
   button = gtk_button_new_from_stock(WIRESHARK_STOCK_BROWSE);
@@ -877,14 +894,17 @@ create_preference_filename_entry(GtkWidget *main_tb, int table_position,
     gtk_widget_set_tooltip_text(entry, tooltip_text);
   gtk_widget_show(entry);
 
-  g_signal_connect(button, "clicked", G_CALLBACK(preference_filename_entry_cb), entry);
-
+  if (dir_only) {
+    g_signal_connect(button, "clicked", G_CALLBACK(preference_dirname_entry_cb), entry);
+  } else {
+    g_signal_connect(button, "clicked", G_CALLBACK(preference_filename_entry_cb), entry);
+  }
 
   return entry;
 }
 
 GtkWidget *
-create_preference_static_text(GtkWidget *main_tb, int table_position,
+create_preference_static_text(GtkWidget *main_grid, int grid_position,
     const gchar *label_text, const gchar *tooltip_text)
 {
   GtkWidget *label;
@@ -893,8 +913,7 @@ create_preference_static_text(GtkWidget *main_tb, int table_position,
     label = gtk_label_new(label_text);
   else
     label = gtk_label_new("");
-  gtk_table_attach_defaults(GTK_TABLE(main_tb), label, 0, 2,
-                            table_position, table_position + 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), label, 0, grid_position, 2, 1);
   if (tooltip_text != NULL)
     gtk_widget_set_tooltip_text(label, tooltip_text);
   gtk_widget_show(label);
@@ -903,19 +922,18 @@ create_preference_static_text(GtkWidget *main_tb, int table_position,
 }
 
 GtkWidget *
-create_preference_uat(GtkWidget *main_tb, int table_position,
+create_preference_uat(GtkWidget *main_grid, int grid_position,
     const gchar *label_text, const gchar *tooltip_text, void* uat)
 {
   GtkWidget *button;
 
-  set_option_label(main_tb, table_position, label_text, tooltip_text);
+  set_option_label(main_grid, grid_position, label_text, tooltip_text);
 
   button = gtk_button_new_from_stock(WIRESHARK_STOCK_EDIT);
 
   g_signal_connect(button, "clicked", G_CALLBACK(uat_window_cb), uat);
 
-  gtk_table_attach_defaults(GTK_TABLE(main_tb), button, 1, 2,
-                            table_position, table_position+1);
+  ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), button, 1, grid_position, 1, 1);
   if (tooltip_text != NULL)
     gtk_widget_set_tooltip_text(button, tooltip_text);
   gtk_widget_show(button);
@@ -929,7 +947,7 @@ pref_check(pref_t *pref, gpointer user_data)
 {
   const char  *str_val;
   char        *p;
-  pref_t     **badpref = user_data;
+  pref_t     **badpref = (pref_t **)user_data;
 
   /* Fetch the value of the preference, and check whether it's valid. */
   switch (pref->type) {
@@ -968,6 +986,7 @@ pref_check(pref_t *pref, gpointer user_data)
 
   case PREF_STRING:
   case PREF_FILENAME:
+  case PREF_DIRNAME:
     /* Value can't be bad. */
     break;
 
@@ -1022,7 +1041,7 @@ pref_fetch(pref_t *pref, gpointer user_data)
   guint       uval;
   gboolean    bval;
   gint        enumval;
-  gboolean   *pref_changed_p = user_data;
+  gboolean   *pref_changed_p = (gboolean *)user_data;
 
   /* Fetch the value of the preference, and set the appropriate variable
      to it. */
@@ -1030,7 +1049,7 @@ pref_fetch(pref_t *pref, gpointer user_data)
 
   case PREF_UINT:
     str_val = gtk_entry_get_text(GTK_ENTRY(pref->control));
-    uval = strtoul(str_val, &p, pref->info.base);
+    uval = (guint)strtoul(str_val, &p, pref->info.base);
 #if 0
     if (p == value || *p != '\0')
       return PREFS_SET_SYNTAX_ERR;      /* number was bad */
@@ -1051,10 +1070,10 @@ pref_fetch(pref_t *pref, gpointer user_data)
 
   case PREF_ENUM:
     if (pref->info.enum_info.radio_buttons) {
-      enumval = fetch_preference_radio_buttons_val(pref->control,
+      enumval = fetch_preference_radio_buttons_val((GtkWidget *)pref->control,
           pref->info.enum_info.enumvals);
     } else {
-      enumval = fetch_preference_option_menu_val(pref->control,
+      enumval = fetch_preference_option_menu_val((GtkWidget *)pref->control,
                                                  pref->info.enum_info.enumvals);
     }
 
@@ -1066,6 +1085,7 @@ pref_fetch(pref_t *pref, gpointer user_data)
 
   case PREF_STRING:
   case PREF_FILENAME:
+  case PREF_DIRNAME:
     str_val = gtk_entry_get_text(GTK_ENTRY(pref->control));
     if (strcmp(*pref->varp.string, str_val) != 0) {
       *pref_changed_p = TRUE;
@@ -1116,7 +1136,7 @@ pref_fetch(pref_t *pref, gpointer user_data)
 static guint
 module_prefs_fetch(module_t *module, gpointer user_data)
 {
-  gboolean *must_redissect_p = user_data;
+  gboolean *must_redissect_p = (gboolean *)user_data;
 
   /* Ignore any preferences with their own interface */
   if (!module->use_gui) {
@@ -1208,51 +1228,7 @@ prefs_airpcap_update(void)
 #endif
 
 static guint
-pref_clean(pref_t *pref, gpointer user_data _U_)
-{
-  switch (pref->type) {
-
-  case PREF_UINT:
-    break;
-
-  case PREF_BOOL:
-    break;
-
-  case PREF_ENUM:
-    break;
-
-  case PREF_STRING:
-  case PREF_FILENAME:
-    if (pref->saved_val.string != NULL) {
-      g_free(pref->saved_val.string);
-      pref->saved_val.string = NULL;
-    }
-    break;
-
-  case PREF_RANGE:
-    if (pref->saved_val.range != NULL) {
-      g_free(pref->saved_val.range);
-      pref->saved_val.range = NULL;
-    }
-    break;
-
-  case PREF_STATIC_TEXT:
-  case PREF_UAT:
-    break;
-
-  case PREF_COLOR:
-  case PREF_CUSTOM:
-      /* currently not supported */
-
-  case PREF_OBSOLETE:
-    g_assert_not_reached();
-    break;
-  }
-  return 0;
-}
-
-static guint
-module_prefs_clean(module_t *module, gpointer user_data _U_)
+module_prefs_clean_stash(module_t *module, gpointer user_data _U_)
 {
   /* Ignore any preferences with their own interface */
   if (!module->use_gui) {
@@ -1261,7 +1237,7 @@ module_prefs_clean(module_t *module, gpointer user_data _U_)
 
   /* For all preferences in this module, clean up any cruft allocated for
      use by the GUI code. */
-  prefs_pref_foreach(module, pref_clean, NULL);
+  prefs_pref_foreach(module, pref_clean_stash, NULL);
   return 0;     /* keep cleaning modules */
 }
 
@@ -1299,22 +1275,22 @@ prefs_main_fetch_all(GtkWidget *dlg, gboolean *must_redissect)
   /* Fetch the preferences (i.e., make sure all the values set in all of
      the preferences panes have been copied to "prefs" and the registered
      preferences). */
-  gui_prefs_fetch(g_object_get_data(G_OBJECT(dlg), E_GUI_PAGE_KEY));
-  layout_prefs_fetch(g_object_get_data(G_OBJECT(dlg), E_GUI_LAYOUT_PAGE_KEY));
-  column_prefs_fetch(g_object_get_data(G_OBJECT(dlg), E_GUI_COLUMN_PAGE_KEY));
-  stream_prefs_fetch(g_object_get_data(G_OBJECT(dlg), E_GUI_COLORS_PAGE_KEY));
+  gui_prefs_fetch((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_PAGE_KEY));
+  layout_prefs_fetch((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_LAYOUT_PAGE_KEY));
+  column_prefs_fetch((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_COLUMN_PAGE_KEY));
+  font_color_prefs_fetch((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_FONT_COLORS_PAGE_KEY));
 
 #ifdef HAVE_LIBPCAP
 #ifdef _WIN32
   /* Is WPcap loaded? */
   if (has_wpcap) {
 #endif /* _WIN32 */
-  capture_prefs_fetch(g_object_get_data(G_OBJECT(dlg), E_CAPTURE_PAGE_KEY));
+  capture_prefs_fetch((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_CAPTURE_PAGE_KEY));
 #ifdef _WIN32
   }
 #endif /* _WIN32 */
 #endif /* HAVE_LIBPCAP */
-  filter_expressions_prefs_fetch(g_object_get_data(G_OBJECT(dlg),
+  filter_expressions_prefs_fetch((GtkWidget *)g_object_get_data(G_OBJECT(dlg),
     E_FILTER_EXPRESSIONS_PAGE_KEY));
   prefs_modules_foreach(module_prefs_fetch, must_redissect);
 
@@ -1334,24 +1310,24 @@ prefs_main_apply_all(GtkWidget *dlg, gboolean redissect)
    */
   prefs_apply_all();
 
-  gui_prefs_apply(g_object_get_data(G_OBJECT(dlg), E_GUI_PAGE_KEY), redissect);
-  layout_prefs_apply(g_object_get_data(G_OBJECT(dlg), E_GUI_LAYOUT_PAGE_KEY));
-  column_prefs_apply(g_object_get_data(G_OBJECT(dlg), E_GUI_COLUMN_PAGE_KEY));
-  stream_prefs_apply(g_object_get_data(G_OBJECT(dlg), E_GUI_COLORS_PAGE_KEY));
+  gui_prefs_apply((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_PAGE_KEY));
+  layout_prefs_apply((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_LAYOUT_PAGE_KEY));
+  column_prefs_apply((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_COLUMN_PAGE_KEY));
+  font_color_prefs_apply((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_FONT_COLORS_PAGE_KEY), redissect);
 
 #ifdef HAVE_LIBPCAP
 #ifdef _WIN32
   /* Is WPcap loaded? */
   if (has_wpcap) {
 #endif /* _WIN32 */
-  capture_prefs_apply(g_object_get_data(G_OBJECT(dlg), E_CAPTURE_PAGE_KEY));
+  capture_prefs_apply((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_CAPTURE_PAGE_KEY));
 #ifdef _WIN32
   }
 #endif /* _WIN32 */
 #endif /* HAVE_LIBPCAP */
 
   /* show/hide the Save button - depending on setting */
-  save_bt = g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_SAVE_BT_KEY);
+  save_bt = (GtkWidget *)g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_SAVE_BT_KEY);
   if (prefs.gui_use_pref_save) {
     gtk_widget_show(save_bt);
   } else {
@@ -1368,23 +1344,23 @@ prefs_main_destroy_all(GtkWidget *dlg)
   GtkWidget *frame;
 
   for (page_num = 0;
-       (frame = gtk_notebook_get_nth_page(g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), page_num)) != NULL;
+       (frame = gtk_notebook_get_nth_page((GtkNotebook *)g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), page_num)) != NULL;
        page_num++) {
     if (g_object_get_data(G_OBJECT(frame), E_PAGE_ITER_KEY))
-      gtk_tree_iter_free(g_object_get_data(G_OBJECT(frame), E_PAGE_ITER_KEY));
+      gtk_tree_iter_free((GtkTreeIter *)g_object_get_data(G_OBJECT(frame), E_PAGE_ITER_KEY));
   }
 
-  gui_prefs_destroy(g_object_get_data(G_OBJECT(dlg), E_GUI_PAGE_KEY));
-  layout_prefs_destroy(g_object_get_data(G_OBJECT(dlg), E_GUI_LAYOUT_PAGE_KEY));
-  column_prefs_destroy(g_object_get_data(G_OBJECT(dlg), E_GUI_COLUMN_PAGE_KEY));
-  stream_prefs_destroy(g_object_get_data(G_OBJECT(dlg), E_GUI_COLORS_PAGE_KEY));
+  gui_prefs_destroy((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_PAGE_KEY));
+  layout_prefs_destroy((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_LAYOUT_PAGE_KEY));
+  column_prefs_destroy((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_COLUMN_PAGE_KEY));
+  font_color_prefs_destroy((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_GUI_FONT_COLORS_PAGE_KEY));
 
 #ifdef HAVE_LIBPCAP
 #ifdef _WIN32
   /* Is WPcap loaded? */
   if (has_wpcap) {
 #endif /* _WIN32 */
-  capture_prefs_destroy(g_object_get_data(G_OBJECT(dlg), E_CAPTURE_PAGE_KEY));
+  capture_prefs_destroy((GtkWidget *)g_object_get_data(G_OBJECT(dlg), E_CAPTURE_PAGE_KEY));
 #ifdef _WIN32
   }
 #endif /* _WIN32 */
@@ -1392,51 +1368,7 @@ prefs_main_destroy_all(GtkWidget *dlg)
 
   /* Free up the saved preferences (both for "prefs" and for registered
      preferences). */
-  prefs_modules_foreach(module_prefs_clean, NULL);
-}
-
-
-static guint
-pref_copy(pref_t *pref, gpointer user_data _U_)
-{
-  switch (pref->type) {
-
-  case PREF_UINT:
-    pref->saved_val.uint = *pref->varp.uint;
-    break;
-
-  case PREF_BOOL:
-    pref->saved_val.boolval = *pref->varp.boolp;
-    break;
-
-  case PREF_ENUM:
-    pref->saved_val.enumval = *pref->varp.enump;
-    break;
-
-  case PREF_STRING:
-  case PREF_FILENAME:
-    g_free(pref->saved_val.string);
-    pref->saved_val.string = g_strdup(*pref->varp.string);
-    break;
-
-  case PREF_RANGE:
-    g_free(pref->saved_val.range);
-    pref->saved_val.range = range_copy(*pref->varp.range);
-    break;
-
-  case PREF_STATIC_TEXT:
-  case PREF_UAT:
-    break;
-
-  case PREF_COLOR:
-  case PREF_CUSTOM:
-      /* currently not supported */
-
-  case PREF_OBSOLETE:
-    g_assert_not_reached();
-    break;
-  }
-  return 0;
+  prefs_modules_foreach(module_prefs_clean_stash, NULL);
 }
 
 static guint
@@ -1448,7 +1380,7 @@ module_prefs_copy(module_t *module, gpointer user_data _U_)
   }
 
   /* For all preferences in this module, (re)save current value */
-  prefs_pref_foreach(module, pref_copy, NULL);
+  prefs_pref_foreach(module, pref_stash, NULL);
   return 0;     /* continue making copies */
 }
 
@@ -1458,30 +1390,17 @@ static void prefs_copy(void) {
   prefs_modules_foreach(module_prefs_copy, NULL);
 }
 
-
-void
-prefs_main_write(void)
+static void
+prefs_main_ok_cb(GtkWidget *ok_bt _U_, gpointer parent_w)
 {
-  int   err;
-  char *pf_dir_path;
-  char *pf_path;
+  gboolean must_redissect = FALSE;
 
-  /* Create the directory that holds personal configuration files, if
-     necessary.  */
-  if (create_persconffile_dir(&pf_dir_path) == -1) {
-    simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
-                  "Can't create directory\n\"%s\"\nfor preferences file: %s.", pf_dir_path,
-                  g_strerror(errno));
-    g_free(pf_dir_path);
-  } else {
-    /* Write the preferencs out. */
-    err = write_prefs(&pf_path);
-    if (err != 0) {
-      simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
-                    "Can't open preferences file\n\"%s\": %s.", pf_path,
-                    g_strerror(err));
-      g_free(pf_path);
-    }
+  if (!prefs_main_fetch_all((GtkWidget *)parent_w, &must_redissect))
+    return; /* Errors in some preference setting - already reported */
+
+  /* if we don't have a Save button, just save the settings now */
+  if (!prefs.gui_use_pref_save) {
+    prefs_main_write();
   }
 
 #ifdef HAVE_AIRPCAP
@@ -1491,23 +1410,8 @@ prefs_main_write(void)
    */
   airpcap_load_decryption_keys(airpcap_if_list);
 #endif
-}
 
-
-static void
-prefs_main_ok_cb(GtkWidget *ok_bt _U_, gpointer parent_w)
-{
-  gboolean must_redissect = FALSE;
-
-  if (!prefs_main_fetch_all(parent_w, &must_redissect))
-    return; /* Errors in some preference setting - already reported */
-
-  /* if we don't have a Save button, just save the settings now */
-  if (!prefs.gui_use_pref_save) {
-    prefs_main_write();
-  }
-
-  prefs_main_apply_all(parent_w, must_redissect);
+  prefs_main_apply_all((GtkWidget *)parent_w, must_redissect);
 
   /* Fill in capture options with values from the preferences */
   prefs_to_capture_opts();
@@ -1522,6 +1426,7 @@ prefs_main_ok_cb(GtkWidget *ok_bt _U_, gpointer parent_w)
   if (must_redissect) {
     /* Redissect all the packets, and re-evaluate the display filter. */
     redissect_packets();
+    redissect_all_packet_windows();
   }
 
 }
@@ -1531,7 +1436,7 @@ prefs_main_apply_cb(GtkWidget *apply_bt _U_, gpointer parent_w)
 {
   gboolean must_redissect = FALSE;
 
-  if (!prefs_main_fetch_all(parent_w, &must_redissect))
+  if (!prefs_main_fetch_all((GtkWidget *)parent_w, &must_redissect))
     return; /* Errors in some preference setting - already reported */
 
   /* if we don't have a Save button, just save the settings now */
@@ -1540,7 +1445,7 @@ prefs_main_apply_cb(GtkWidget *apply_bt _U_, gpointer parent_w)
     prefs_copy();     /* save prefs for reverting if Cancel */
   }
 
-  prefs_main_apply_all(parent_w, must_redissect);
+  prefs_main_apply_all((GtkWidget *)parent_w, must_redissect);
 
   /* Fill in capture options with values from the preferences */
   prefs_to_capture_opts();
@@ -1552,6 +1457,7 @@ prefs_main_apply_cb(GtkWidget *apply_bt _U_, gpointer parent_w)
   if (must_redissect) {
     /* Redissect all the packets, and re-evaluate the display filter. */
     redissect_packets();
+    redissect_all_packet_windows();
   }
 }
 
@@ -1560,7 +1466,7 @@ prefs_main_save_cb(GtkWidget *save_bt _U_, gpointer parent_w)
 {
   gboolean must_redissect = FALSE;
 
-  if (!prefs_main_fetch_all(parent_w, &must_redissect))
+  if (!prefs_main_fetch_all((GtkWidget *)parent_w, &must_redissect))
     return; /* Errors in some preference setting - already reported */
 
   prefs_main_write();
@@ -1580,7 +1486,7 @@ prefs_main_save_cb(GtkWidget *save_bt _U_, gpointer parent_w)
            "Apply" after this, we know we have to redissect;
 
         4) we did apply the protocol preferences, at least, in the past. */
-  prefs_main_apply_all(parent_w, must_redissect);
+  prefs_main_apply_all((GtkWidget *)parent_w, must_redissect);
 
   /* Fill in capture options with values from the preferences */
   prefs_to_capture_opts();
@@ -1588,74 +1494,14 @@ prefs_main_save_cb(GtkWidget *save_bt _U_, gpointer parent_w)
   if (must_redissect) {
     /* Redissect all the packets, and re-evaluate the display filter. */
     redissect_packets();
+    redissect_all_packet_windows();
   }
-}
-
-static guint
-pref_revert(pref_t *pref, gpointer user_data)
-{
-  gboolean *pref_changed_p = user_data;
-
-  /* Revert the preference to its saved value. */
-  switch (pref->type) {
-
-  case PREF_UINT:
-    if (*pref->varp.uint != pref->saved_val.uint) {
-      *pref_changed_p = TRUE;
-      *pref->varp.uint = pref->saved_val.uint;
-    }
-    break;
-
-  case PREF_BOOL:
-    if (*pref->varp.boolp != pref->saved_val.boolval) {
-      *pref_changed_p = TRUE;
-      *pref->varp.boolp = pref->saved_val.boolval;
-    }
-    break;
-
-  case PREF_ENUM:
-    if (*pref->varp.enump != pref->saved_val.enumval) {
-      *pref_changed_p = TRUE;
-      *pref->varp.enump = pref->saved_val.enumval;
-    }
-    break;
-
-  case PREF_STRING:
-  case PREF_FILENAME:
-    if (strcmp(*pref->varp.string, pref->saved_val.string) != 0) {
-      *pref_changed_p = TRUE;
-      g_free((void *)*pref->varp.string);
-      *pref->varp.string = g_strdup(pref->saved_val.string);
-    }
-    break;
-
-  case PREF_RANGE:
-    if (!ranges_are_equal(*pref->varp.range, pref->saved_val.range)) {
-      *pref_changed_p = TRUE;
-      g_free(*pref->varp.range);
-      *pref->varp.range = range_copy(pref->saved_val.range);
-    }
-    break;
-
-  case PREF_STATIC_TEXT:
-  case PREF_UAT:
-    break;
-
-  case PREF_COLOR:
-  case PREF_CUSTOM:
-      /* currently not supported */
-
-  case PREF_OBSOLETE:
-    g_assert_not_reached();
-    break;
-  }
-  return 0;
 }
 
 static guint
 module_prefs_revert(module_t *module, gpointer user_data)
 {
-  gboolean *must_redissect_p = user_data;
+  gboolean *must_redissect_p = (gboolean *)user_data;
 
   /* Ignore any preferences with their own interface */
   if (!module->use_gui) {
@@ -1666,7 +1512,7 @@ module_prefs_revert(module_t *module, gpointer user_data)
      it had when we popped up the Preferences dialog.  Find out whether
      this changes any of them. */
   module->prefs_changed = FALSE;        /* assume none of them changed */
-  prefs_pref_foreach(module, pref_revert, &module->prefs_changed);
+  prefs_pref_foreach(module, pref_unstash, &module->prefs_changed);
 
   /* If any of them changed, indicate that we must redissect and refilter
      the current capture (if we have one), as the preference change
@@ -1690,13 +1536,14 @@ prefs_main_cancel_cb(GtkWidget *cancel_bt _U_, gpointer parent_w)
   prefs_modules_foreach(module_prefs_revert, &must_redissect);
 
   /* Now apply the reverted-to preferences. */
-  prefs_main_apply_all(parent_w, must_redissect);
+  prefs_main_apply_all((GtkWidget *)parent_w, must_redissect);
 
   window_destroy(GTK_WIDGET(parent_w));
 
   if (must_redissect) {
     /* Redissect all the packets, and re-evaluate the display filter. */
     redissect_packets();
+    redissect_all_packet_windows();
   }
 }
 
@@ -1714,7 +1561,7 @@ prefs_main_delete_event_cb(GtkWidget *prefs_w_lcl, GdkEvent *event _U_,
 static void
 prefs_main_destroy_cb(GtkWidget *win _U_, gpointer parent_w)
 {
-  prefs_main_destroy_all(parent_w);
+  prefs_main_destroy_all((GtkWidget *)parent_w);
 
   /* Note that we no longer have a "Preferences" dialog box. */
   prefs_w = NULL;
@@ -1823,7 +1670,7 @@ properties_cb(GtkWidget *w, gpointer dummy)
 
         for (i = ga->len - 1; i > 0 ; i -= 1) {
 
-            v = g_ptr_array_index (ga, i);
+            v = (field_info *)g_ptr_array_index (ga, i);
             hfinfo =  v->hfinfo;
 
             if (!g_str_has_prefix(hfinfo->abbrev, "text") &&
@@ -1872,18 +1719,18 @@ properties_cb(GtkWidget *w, gpointer dummy)
   /* Search all the pages in that window for the one with the specified
      module. */
   for (page_num = 0;
-       (sw = gtk_notebook_get_nth_page(g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), page_num)) != NULL;
+       (sw = gtk_notebook_get_nth_page((GtkNotebook *)g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), page_num)) != NULL;
        page_num++) {
     /* Get the frame from the scrollable window */
-    frame = g_object_get_data(G_OBJECT(sw), E_PAGESW_FRAME_KEY);
+    frame = (GtkWidget *)g_object_get_data(G_OBJECT(sw), E_PAGESW_FRAME_KEY);
     /* Get the module for this page (non-protocol prefs don't have one). */
     if (frame) {
-      page_module = g_object_get_data(G_OBJECT(frame), E_PAGE_MODULE_KEY);
+      page_module = (module_t *)g_object_get_data(G_OBJECT(frame), E_PAGE_MODULE_KEY);
       if (page_module != NULL) {
         if (page_module == p.module) {
           tree_select_node(
-            g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_TREE_KEY),
-            g_object_get_data(G_OBJECT(frame), E_PAGE_ITER_KEY));
+            (GtkWidget *)g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_TREE_KEY),
+            (GtkTreeIter *)g_object_get_data(G_OBJECT(frame), E_PAGE_ITER_KEY));
           return;
         }
       }
@@ -1904,7 +1751,7 @@ prefs_tree_select_cb(GtkTreeSelection *sel, gpointer dummy _U_)
   {
     gtk_tree_model_get(model, &iter, 1, &page, -1);
     if (page >= 0)
-      gtk_notebook_set_current_page(g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), page);
+      gtk_notebook_set_current_page((GtkNotebook *)g_object_get_data(G_OBJECT(prefs_w), E_PREFSW_NOTEBOOK_KEY), page);
   }
 }
 

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-c1222.c                                                             */
 /* ../../tools/asn2wrs.py -b -p c1222 -c ./c1222.cnf -s ./packet-c1222-template -D . -O ../../epan/dissectors c1222.asn */
 
@@ -35,7 +35,6 @@
 
 #include <glib.h>
 #include <epan/conversation.h>
-#include <wsutil/crc16.h>
 #include <epan/expert.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
@@ -88,6 +87,7 @@
 #define C1222_CMD_TIMING_SETUP 0x71
 
 static dissector_handle_t c1222_handle=NULL;
+static dissector_handle_t c1222_udp_handle=NULL;
 
 /* Initialize the protocol and registered fields */
 static int proto_c1222 = -1;
@@ -149,7 +149,6 @@ static int hf_c1222_epsem_total = -1;
 static int hf_c1222_cmd = -1;
 static int hf_c1222_err = -1;
 static int hf_c1222_data = -1;
-static int hf_c1222_crc = -1;
 /* individual epsem fields */
 static int hf_c1222_logon_id = -1;
 static int hf_c1222_logon_user = -1;
@@ -225,7 +224,7 @@ static gint ett_c1222_Calling_authentication_value_c1222_U = -1;
 static gint ett_c1222_Calling_authentication_value_c1221_U = -1;
 
 /*--- End of included file: packet-c1222-ett.c ---*/
-#line 184 "../../asn1/c1222/packet-c1222-template.c"
+#line 183 "../../asn1/c1222/packet-c1222-template.c"
 
 
 /*------------------------------
@@ -331,11 +330,11 @@ static uat_t *c1222_uat;
 #define FILL_START int length, start_offset = offset;
 #define FILL_TABLE(fieldname)  \
   length = offset - start_offset; \
-  fieldname = tvb_memdup(tvb, start_offset, length); \
+  fieldname = (guint8 *)tvb_memdup(tvb, start_offset, length); \
   fieldname##_len = length;
 #define FILL_TABLE_TRUNCATE(fieldname, len)  \
   length = 1 + 2*(offset - start_offset); \
-  fieldname = tvb_memdup(tvb, start_offset, length); \
+  fieldname = (guint8 *)tvb_memdup(tvb, start_offset, length); \
   fieldname##_len = len;
 #else /* HAVE_LIBGCRYPT */
 #define FILL_TABLE(fieldname)
@@ -714,7 +713,7 @@ encode_ber_len(guint8 *ptr, guint32 n, int maxsize)
 static void
 c1222_uat_data_update_cb(void* n, const char** err)
 {
-  c1222_uat_data_t* new_rec = n;
+  c1222_uat_data_t* new_rec = (c1222_uat_data_t *)n;
 
   if (new_rec->keynum > 0xff) {
     *err = "Invalid key number; must be less than 256";
@@ -934,7 +933,7 @@ dissect_epsem(tvbuff_t *tvb, int offset, guint32 len, packet_info *pinfo, proto_
         return offset;
       encrypted = TRUE;
       if (c1222_decrypt) {
-	buffer = tvb_memdup(tvb, offset, len2);
+	buffer = (guchar *)tvb_memdup(tvb, offset, len2);
 	if (!decrypt_packet(buffer, len2, TRUE)) {
 	  g_free(buffer);
 	  crypto_bad = TRUE;
@@ -953,8 +952,8 @@ dissect_epsem(tvbuff_t *tvb, int offset, guint32 len, packet_info *pinfo, proto_
       len2 = tvb_length_remaining(tvb, offset);
       if (len2 <= 0)
         return offset;
-      buffer = tvb_memdup(tvb, offset, len2);
-      epsem_buffer = tvb_new_subset(tvb, offset, -1, -1);
+      buffer = (guchar *)tvb_memdup(tvb, offset, len2);
+      epsem_buffer = tvb_new_subset_remaining(tvb, offset);
       if (c1222_decrypt) {
 	if (!decrypt_packet(buffer, len2, FALSE)) {
 #ifdef HAVE_LIBGCRYPT
@@ -970,7 +969,7 @@ dissect_epsem(tvbuff_t *tvb, int offset, guint32 len, packet_info *pinfo, proto_
       break;
     default:
       /* it's not encrypted */
-      epsem_buffer = tvb_new_subset(tvb, offset, -1, -1);
+      epsem_buffer = tvb_new_subset_remaining(tvb, offset);
   }
   /* it's only encrypted if we have an undecrypted payload */
   if (encrypted) {
@@ -1388,7 +1387,7 @@ dissect_c1222_Calling_authentication_value(gboolean implicit_tag _U_, tvbuff_t *
 static int
 dissect_c1222_User_information(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 26 "../../asn1/c1222/c1222.cnf"
-  gint8 class;
+  gint8 end_device_class;
   gboolean pc, ind;
   gint32 tag;
   guint32 len;
@@ -1397,11 +1396,11 @@ dissect_c1222_User_information(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
   FILL_START;
   
   /* get Tag and Length */
-  offset = dissect_ber_identifier(actx->pinfo, tree, tvb, offset, &class, &pc, &tag);
+  offset = dissect_ber_identifier(actx->pinfo, tree, tvb, offset, &end_device_class, &pc, &tag);
   offset = dissect_ber_length(actx->pinfo, tree, tvb, offset, &len, &ind);
   FILL_TABLE_TRUNCATE(user_information, len+offset-start_offset);
   if (tag == 0x8) {  /* BER_TAG_EXTERNAL */
-    offset = dissect_ber_identifier(actx->pinfo, tree, tvb, offset, &class, &pc, &tag);
+    offset = dissect_ber_identifier(actx->pinfo, tree, tvb, offset, &end_device_class, &pc, &tag);
     offset = dissect_ber_length(actx->pinfo, tree, tvb, offset, &len, &ind);
     if (tag == 0x1) { /* implicit octet string */
       tf = proto_tree_add_item(tree, hf_c1222_user_information, tvb, offset, len, ENC_NA);
@@ -1458,7 +1457,7 @@ static void dissect_C1222_MESSAGE_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_,
 
 
 /*--- End of included file: packet-c1222-fn.c ---*/
-#line 989 "../../asn1/c1222/packet-c1222-template.c"
+#line 988 "../../asn1/c1222/packet-c1222-template.c"
 
 /**
  * Dissects a a full (reassembled) C12.22 message.
@@ -1468,7 +1467,7 @@ static void dissect_C1222_MESSAGE_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_,
  * \param tree
  */
 static void
-dissect_c1222_full(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_c1222_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     proto_item      *c1222_item = NULL;
     proto_tree	    *c1222_tree = NULL;
@@ -1516,7 +1515,7 @@ static void
 dissect_c1222(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     tcp_dissect_pdus(tvb, pinfo, tree, c1222_desegment, 5,
-	    get_c1222_message_len, dissect_c1222_full);
+	    get_c1222_message_len, dissect_c1222_common);
 }
 
 /*--- proto_register_c1222 -------------------------------------------*/
@@ -1722,12 +1721,6 @@ void proto_register_c1222(void) {
     NULL, 0x0,
     NULL, HFILL }
    },
-   { &hf_c1222_crc,
-    { "C12.22 CRC", "c1222.crc",
-    FT_UINT16, BASE_HEX,
-    NULL, 0x0,
-    NULL, HFILL }
-   },
    { &hf_c1222_epsem_crypto_good,
     { "Crypto good", "c1222.crypto_good",
     FT_BOOLEAN, BASE_NONE,
@@ -1744,7 +1737,7 @@ void proto_register_c1222(void) {
 /*--- Included file: packet-c1222-hfarr.c ---*/
 #line 1 "../../asn1/c1222/packet-c1222-hfarr.c"
     { &hf_c1222_C1222_MESSAGE_PDU,
-      { "C1222-MESSAGE", "c1222.C1222_MESSAGE",
+      { "C1222-MESSAGE", "c1222.C1222_MESSAGE_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_c1222_aSO_context,
@@ -1776,11 +1769,11 @@ void proto_register_c1222(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_c1222_calling_authentication_value,
-      { "calling-authentication-value", "c1222.calling_authentication_value",
+      { "calling-authentication-value", "c1222.calling_authentication_value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_c1222_user_information,
-      { "user-information", "c1222.user_information",
+      { "user-information", "c1222.user_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_c1222_calling_authentication_value_indirect,
@@ -1800,7 +1793,7 @@ void proto_register_c1222(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_c1222_calling_authentication_value_c1222,
-      { "calling-authentication-value-c1222", "c1222.calling_authentication_value_c1222",
+      { "calling-authentication-value-c1222", "c1222.calling_authentication_value_c1222_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_c1222_calling_authentication_value_c1221,
@@ -1829,7 +1822,7 @@ void proto_register_c1222(void) {
         "OCTET_STRING_SIZE_CONSTR002", HFILL }},
 
 /*--- End of included file: packet-c1222-hfarr.c ---*/
-#line 1271 "../../asn1/c1222/packet-c1222-template.c"
+#line 1264 "../../asn1/c1222/packet-c1222-template.c"
   };
 
   /* List of subtrees */
@@ -1850,7 +1843,7 @@ void proto_register_c1222(void) {
     &ett_c1222_Calling_authentication_value_c1221_U,
 
 /*--- End of included file: packet-c1222-ettarr.c ---*/
-#line 1281 "../../asn1/c1222/packet-c1222-template.c"
+#line 1274 "../../asn1/c1222/packet-c1222-template.c"
   };
 
   module_t *c1222_module;
@@ -1883,7 +1876,7 @@ void proto_register_c1222(void) {
       sizeof(c1222_uat_data_t),		/* record size */
       "c1222_decryption_table",		/* filename */
       TRUE,				/* from_profile */
-      (void*)&c1222_uat_data,		/* data_ptr */
+      (void**)&c1222_uat_data,		/* data_ptr */
       &num_c1222_uat_data,		/* numitems_ptr */
       UAT_AFFECTS_DISSECTION,		/* affects dissection of packets, but not set of named fields */
       NULL,				/* help */
@@ -1909,7 +1902,9 @@ proto_reg_handoff_c1222(void)
 
     if( !initialized ) {
         c1222_handle = create_dissector_handle(dissect_c1222, proto_c1222);
+		c1222_udp_handle = create_dissector_handle(dissect_c1222_common, proto_c1222);
         dissector_add_uint("tcp.port", global_c1222_port, c1222_handle);
+        dissector_add_uint("udp.port", global_c1222_port, c1222_udp_handle);
         initialized = TRUE;
     }
 }

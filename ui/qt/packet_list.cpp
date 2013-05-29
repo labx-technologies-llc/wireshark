@@ -33,8 +33,8 @@
 #include <epan/packet.h>
 
 #include "packet_list.h"
-#include "monospace_font.h"
 #include "proto_tree.h"
+#include "wireshark_application.h"
 
 #include "qt_ui_utils.h"
 
@@ -43,16 +43,21 @@
 #include "ui/recent_utils.h"
 #include "ui/ui_util.h"
 
+#include "wsutil/str_util.h"
+
 #include <QTreeWidget>
 #include <QTabWidget>
 #include <QTextEdit>
 #include <QScrollBar>
 #include <QContextMenuEvent>
+#include <QMessageBox>
 
 // If we ever add the ability to open multiple capture files we might be
 // able to use something like QMap<capture_file *, PacketList *> to match
 // capture files against packet lists and models.
 static PacketList *gbl_cur_packet_list = NULL;
+
+const int max_comments_to_fetch_ = 20000000; // Arbitrary
 
 guint
 packet_list_append(column_info *cinfo, frame_data *fdata, packet_info *pinfo)
@@ -231,14 +236,14 @@ PacketList::PacketList(QWidget *parent) :
 
     packet_list_model_ = new PacketListModel(this, cap_file_);
     setModel(packet_list_model_);
-    packet_list_model_->setColorEnabled(true); // We don't yet fetch color settings.
-//    packet_list_model_->setColorEnabled(recent.packet_list_colorize);
+    packet_list_model_->setColorEnabled(recent.packet_list_colorize);
 
-//    "     <menuitem name='MarkPacket' action='/MarkPacket'/>\n"
-//    "     <menuitem name='IgnorePacket' action='/IgnorePacket'/>\n"
-//    "     <menuitem name='SetTimeReference' action='/Set Time Reference'/>\n"
-//    "     <menuitem name='TimeShift' action='/TimeShift'/>\n"
-//    "     <menuitem name='AddEditPktComment' action='/Edit/AddEditPktComment'/>\n"
+    ctx_menu_.addAction(window()->findChild<QAction *>("actionEditMarkPacket"));
+    ctx_menu_.addAction(window()->findChild<QAction *>("actionEditIgnorePacket"));
+    ctx_menu_.addAction(window()->findChild<QAction *>("actionEditSetTimeReference"));
+    ctx_menu_.addAction(window()->findChild<QAction *>("actionEditTimeShift"));
+    ctx_menu_.addAction(window()->findChild<QAction *>("actionEditPacketComment"));
+
     ctx_menu_.addSeparator();
 //    "     <menuitem name='ManuallyResolveAddress' action='/ManuallyResolveAddress'/>\n"
     ctx_menu_.addSeparator();
@@ -390,9 +395,9 @@ void PacketList::showEvent (QShowEvent *event) {
         fmt = get_column_format(i);
         long_str = get_column_width_string(fmt, i);
         if (long_str) {
-            col_width = get_monospace_text_size(long_str, TRUE);
+            col_width = wsApp->monospaceTextSize(long_str);
         } else {
-            col_width = get_monospace_text_size(MIN_COL_WIDTH_STR, TRUE);
+            col_width = wsApp->monospaceTextSize(MIN_COL_WIDTH_STR);
         }
         setColumnWidth(i, col_width);
     }
@@ -422,7 +427,7 @@ void PacketList::selectionChanged (const QItemSelection & selected, const QItemS
 
         for (src_le = cap_file_->edt->pi.data_src; src_le != NULL; src_le = src_le->next) {
             source = (struct data_source *)src_le->data;
-            byte_view_tab_->addTab(get_data_source_name(source), get_data_source_tvb(source), cap_file_->edt->tree, proto_tree_, cap_file_->current_frame->flags.encoding);
+            byte_view_tab_->addTab(get_data_source_name(source), get_data_source_tvb(source), cap_file_->edt->tree, proto_tree_, (packet_char_enc)cap_file_->current_frame->flags.encoding);
         }
         byte_view_tab_->setCurrentIndex(0);
     }
@@ -444,12 +449,58 @@ void PacketList::contextMenuEvent(QContextMenuEvent *event)
     }
 }
 
+void PacketList::markFramesReady()
+{
+    packets_bar_update();
+    updateAll();
+}
+
+void PacketList::setFrameMark(gboolean set, frame_data *fdata)
+{
+    if (set)
+        cf_mark_frame(cap_file_, fdata);
+    else
+        cf_unmark_frame(cap_file_, fdata);
+}
+
+void PacketList::setFrameIgnore(gboolean set, frame_data *fdata)
+{
+    if (set)
+        cf_ignore_frame(cap_file_, fdata);
+    else
+        cf_unignore_frame(cap_file_, fdata);
+}
+
+void PacketList::setFrameReftime(gboolean set, frame_data *fdata)
+{
+    if (!fdata || !cap_file_) return;
+    if (set) {
+        fdata->flags.ref_time=1;
+        cap_file_->ref_time_count++;
+    } else {
+        fdata->flags.ref_time=0;
+        cap_file_->ref_time_count--;
+    }
+    cf_reftime_packets(cap_file_);
+    if (!fdata->flags.ref_time && !fdata->flags.passed_dfilter) {
+        cap_file_->displayed_count--;
+        packet_list_model_->recreateVisibleRows();
+    }
+    updateAll();
+}
+
 // Redraw the packet list and detail
 void PacketList::updateAll() {
     update();
 
-    if (cap_file_ && selectedIndexes().length() > 0) {
+    if (!cap_file_) return;
+
+    if (selectedIndexes().length() > 0) {
         cf_select_packet(cap_file_, selectedIndexes()[0].row());
+    }
+
+    if (cap_file_->edt && cap_file_->edt->tree) {
+        proto_tree_->fillProtocolTree(cap_file_->edt->tree);
     }
 }
 
@@ -508,7 +559,7 @@ QString &PacketList::getFilterFromRowAndColumn()
 
     if (!cap_file_ || !packet_list_model_ || ctx_column_ < 0 || ctx_column_ >= cap_file_->cinfo.num_cols) return filter;
 
-    fdata = (frame_data *) packet_list_model_->getRowFdata(row);
+    fdata = packet_list_model_->getRowFdata(row);
 
     if (fdata != NULL) {
         epan_dissect_t edt;
@@ -561,6 +612,72 @@ QString &PacketList::getFilterFromRowAndColumn()
     return filter;
 }
 
+QString PacketList::packetComment()
+{
+    int row = currentIndex().row();
+    frame_data *fdata;
+
+    if (!cap_file_ || !packet_list_model_) return NULL;
+
+    fdata = packet_list_model_->getRowFdata(row);
+
+    if (!fdata) return NULL;
+
+    return QString(fdata->opt_comment);
+}
+
+void PacketList::setPacketComment(QString new_comment)
+{
+    int row = currentIndex().row();
+    frame_data *fdata;
+    gchar *new_packet_comment = new_comment.toUtf8().data();
+
+    if (!cap_file_ || !packet_list_model_) return;
+
+    fdata = packet_list_model_->getRowFdata(row);
+
+    if (!fdata) return;
+
+    /* Check if the comment has changed */
+    if (fdata->opt_comment) {
+        if (strcmp(fdata->opt_comment, new_packet_comment) == 0) {
+            return;
+        }
+    }
+
+    /* Check if we are clearing the comment */
+    if(new_comment.isEmpty()) {
+        new_packet_comment = NULL;
+    }
+
+    /* The comment has changed, let's update it */
+    cf_update_packet_comment(cap_file_, fdata, g_strdup(new_packet_comment));
+
+    updateAll();
+}
+
+QString PacketList::allPacketComments()
+{
+    guint32 framenum;
+    frame_data *fdata;
+    QString buf_str;
+
+    if (!cap_file_) return buf_str;
+
+    for (framenum = 1; framenum <= cap_file_->count ; framenum++) {
+        fdata = frame_data_sequence_find(cap_file_->frames, framenum);
+        if (fdata->opt_comment) {
+            buf_str.append(QString(tr("Frame %1: %2 \n\n")).arg(framenum).arg(fdata->opt_comment));
+        }
+        if (buf_str.length() > max_comments_to_fetch_) {
+            buf_str.append(QString(tr("[ Comment text exceeds %1. Stopping. ]"))
+                           .arg(format_size(max_comments_to_fetch_, format_size_unit_bytes|format_size_prefix_si)));
+            return buf_str;
+        }
+    }
+    return buf_str;
+}
+
 // Slots
 
 void PacketList::setCaptureFile(capture_file *cf)
@@ -589,6 +706,104 @@ void PacketList::goToPacket(int packet) {
     if (packet > 0 && packet <= packet_list_model_->rowCount()) {
         setCurrentIndex(packet_list_model_->index(packet - 1, 0));
     }
+}
+
+void PacketList::markFrame()
+{
+    int row = currentIndex().row();
+    frame_data *fdata;
+
+    if (!cap_file_ || !packet_list_model_) return;
+
+    fdata = packet_list_model_->getRowFdata(row);
+
+    setFrameMark(!fdata->flags.marked, fdata);
+    markFramesReady();
+}
+
+void PacketList::markAllDisplayedFrames(bool set)
+{
+    guint32 framenum;
+    frame_data *fdata;
+
+    if (!cap_file_ || !packet_list_model_) return;
+
+    for (framenum = 1; framenum <= cap_file_->count; framenum++) {
+        fdata = frame_data_sequence_find(cap_file_->frames, framenum);
+        if (fdata->flags.passed_dfilter)
+            setFrameMark(set, fdata);
+    }
+    markFramesReady();
+}
+
+void PacketList::ignoreFrame()
+{
+    int row = currentIndex().row();
+    frame_data *fdata;
+
+    if (!cap_file_ || !packet_list_model_) return;
+
+    fdata = packet_list_model_->getRowFdata(row);
+
+    setFrameIgnore(!fdata->flags.ignored, fdata);
+    emit packetDissectionChanged();
+}
+
+void PacketList::ignoreAllDisplayedFrames(bool set)
+{
+    guint32 framenum;
+    frame_data *fdata;
+
+    if (!cap_file_ || !packet_list_model_) return;
+
+    for (framenum = 1; framenum <= cap_file_->count; framenum++) {
+        fdata = frame_data_sequence_find(cap_file_->frames, framenum);
+        if (!set || fdata->flags.passed_dfilter)
+            setFrameIgnore(set, fdata);
+    }
+    emit packetDissectionChanged();
+}
+
+void PacketList::setTimeReference()
+{
+    if (!cap_file_) return;
+
+    if (cap_file_->current_frame) {
+        if(recent.gui_time_format != TS_RELATIVE && cap_file_->current_frame->flags.ref_time==0) {
+            int ret = QMessageBox::question(
+                        this,
+                        tr("Change Time Display Format?"),
+                        tr("Time References don't work well with the currently selected Time Display Format.\n"
+                           "Do you want to switch to \"Seconds Since Beginning of Capture\" now?"),
+                        QMessageBox::Yes | QMessageBox::No
+                        );
+            if (ret == QMessageBox::Yes) {
+                timestamp_set_type(TS_RELATIVE);
+                recent.gui_time_format  = TS_RELATIVE;
+                cf_timestamp_auto_precision(cap_file_);
+            }
+        } else {
+            setFrameReftime(!cap_file_->current_frame->flags.ref_time,
+                            cap_file_->current_frame);
+        }
+    }
+    updateAll();
+}
+
+void PacketList::unsetAllTimeReferences()
+{
+    if (!cap_file_) return;
+
+    /* XXX: we might need a progressbar here */
+    guint32 framenum;
+    frame_data *fdata;
+    for (framenum = 1; framenum <= cap_file_->count && cap_file_->ref_time_count > 0; framenum++) {
+        fdata = frame_data_sequence_find(cap_file_->frames, framenum);
+        if (fdata->flags.ref_time == 1) {
+            setFrameReftime(FALSE, fdata);
+        }
+    }
+    updateAll();
 }
 
 /*

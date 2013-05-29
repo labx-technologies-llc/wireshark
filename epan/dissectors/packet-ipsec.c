@@ -88,7 +88,7 @@ ADD: Additional generic (non-checked) ICV length of 128, 192 and 256.
 /* If you want to be able to decrypt or Check Authentication of ESP packets you MUST define this : */
 #ifdef HAVE_LIBGCRYPT
 #include <epan/uat.h>
-#include <gcrypt.h>
+#include <wsutil/wsgcrypt.h>
 #endif /* HAVE_LIBGCRYPT */
 
 
@@ -129,6 +129,9 @@ static dissector_table_t ip_dissector_table;
 
 /* Encryption algorithm defined in RFC 2144 */
 #define IPSEC_ENCRYPT_CAST5_CBC 7
+
+/* Encryption algorithm defined in RFC 4106 */
+#define IPSEC_ENCRYPT_AES_GCM 8
 
 /* Authentication algorithms defined in RFC 4305 */
 #define IPSEC_AUTH_NULL 0
@@ -268,13 +271,13 @@ static void uat_esp_sa_record_free_cb(void*r) {
     g_free(rec->authentication_key);
 }
 
-UAT_VS_DEF(uat_esp_sa_records, protocol, uat_esp_sa_record_t, IPSEC_SA_IPV4, "IPv4")
+UAT_VS_DEF(uat_esp_sa_records, protocol, uat_esp_sa_record_t, guint8, IPSEC_SA_IPV4, "IPv4")
 UAT_CSTRING_CB_DEF(uat_esp_sa_records, srcIP, uat_esp_sa_record_t)
 UAT_CSTRING_CB_DEF(uat_esp_sa_records, dstIP, uat_esp_sa_record_t)
 UAT_CSTRING_CB_DEF(uat_esp_sa_records, spi, uat_esp_sa_record_t)
-UAT_VS_DEF(uat_esp_sa_records, encryption_algo, uat_esp_sa_record_t, 0, "FIXX")
+UAT_VS_DEF(uat_esp_sa_records, encryption_algo, uat_esp_sa_record_t, guint8, 0, "FIXX")
 UAT_CSTRING_CB_DEF(uat_esp_sa_records, encryption_key, uat_esp_sa_record_t)
-UAT_VS_DEF(uat_esp_sa_records, authentication_algo, uat_esp_sa_record_t, 0, "FIXX")
+UAT_VS_DEF(uat_esp_sa_records, authentication_algo, uat_esp_sa_record_t, guint8, 0, "FIXX")
 UAT_CSTRING_CB_DEF(uat_esp_sa_records, authentication_key, uat_esp_sa_record_t)
 
 /* Default ESP payload decode to off */
@@ -884,7 +887,7 @@ dissect_ah_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     col_clear(pinfo->cinfo, COL_INFO);
 
     tvb_memcpy(tvb, (guint8 *)&ah, 0, sizeof(ah));
-    advance = sizeof(ah) + ((ah.ah_len - 1) << 2);
+    advance = (int)sizeof(ah) + ((ah.ah_len - 1) << 2);
 
     if (check_col(pinfo->cinfo, COL_INFO)) {
         col_add_fstr(pinfo->cinfo, COL_INFO, "AH (SPI=0x%08x)",
@@ -1381,7 +1384,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         crypt_algo_libgcrypt = GCRY_CIPHER_3DES;
                         crypt_mode_libgcrypt = GCRY_CIPHER_MODE_CBC;
 
-                        decrypted_len = len - sizeof(struct newesp);
+                        decrypted_len = len - (int)sizeof(struct newesp);
 
                         if (decrypted_len <= 0)
                             decrypt_ok = FALSE;
@@ -1416,7 +1419,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         esp_iv_len = 16;
                         crypt_mode_libgcrypt = GCRY_CIPHER_MODE_CBC;
 
-                        decrypted_len = len - sizeof(struct newesp);
+                        decrypted_len = len - (int)sizeof(struct newesp);
 
                         if (decrypted_len <= 0)
                             decrypt_ok = FALSE;
@@ -1464,7 +1467,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         esp_iv_len = 8;
                         crypt_mode_libgcrypt = GCRY_CIPHER_MODE_CBC;
 
-                        decrypted_len = len - sizeof(struct newesp);
+                        decrypted_len = len - (int)sizeof(struct newesp);
 
                         if (decrypted_len <= 0)
                             decrypt_ok = FALSE;
@@ -1501,7 +1504,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         esp_iv_len = 8;
                         crypt_algo_libgcrypt = GCRY_CIPHER_DES;
                         crypt_mode_libgcrypt = GCRY_CIPHER_MODE_CBC;
-                        decrypted_len = len - sizeof(struct newesp);
+                        decrypted_len = len - (int)sizeof(struct newesp);
 
                         if (decrypted_len <= 0)
                             decrypt_ok = FALSE;
@@ -1524,6 +1527,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         break;
 
                     case IPSEC_ENCRYPT_AES_CTR :
+                    case IPSEC_ENCRYPT_AES_GCM :
                         /* RFC 3686 says :
                         AES supports three key sizes: 128 bits, 192 bits,
                         and 256 bits.  The default key size is 128 bits,
@@ -1536,7 +1540,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         esp_iv_len = 8;
                         crypt_mode_libgcrypt = GCRY_CIPHER_MODE_CTR;
 
-                        decrypted_len = len - sizeof(struct newesp);
+                        decrypted_len = len - (int)sizeof(struct newesp);
 
                         if (decrypted_len <= 0)
                             decrypt_ok = FALSE;
@@ -1565,7 +1569,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                 break;
 
                             default:
-                                fprintf (stderr, "<ESP Preferences> Error in Encryption Algorithm AES-CTR : Bad Keylen (%i Bits)\n",
+                                fprintf (stderr, "<ESP Preferences> Error in Encryption Algorithm AES-CTR / AES-GCM : Bad Keylen (%i Bits)\n",
                                     esp_crypt_key_len * 8);
                                 decrypt_ok = FALSE;
                             }
@@ -1583,7 +1587,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         esp_iv_len = 16;
                         crypt_mode_libgcrypt = GCRY_CIPHER_MODE_CBC;
 
-                        decrypted_len = len - sizeof(struct newesp);
+                        decrypted_len = len - (int)sizeof(struct newesp);
 
                         if (decrypted_len <= 0)
                             decrypt_ok = FALSE;
@@ -1629,7 +1633,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         crypt_algo_libgcrypt = GCRY_CIPHER_BLOWFISH;
                         crypt_mode_libgcrypt = GCRY_CIPHER_MODE_CBC;
 
-                        decrypted_len = len - sizeof(struct newesp);
+                        decrypted_len = len - (int)sizeof(struct newesp);
 
                         if (decrypted_len <= 0)
                             decrypt_ok = FALSE;
@@ -1655,7 +1659,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     default :
                         /* Fix parameters */
                         esp_iv_len = 0;
-                        decrypted_len = len - sizeof(struct newesp);
+                        decrypted_len = len - (int)sizeof(struct newesp);
 
                         if (decrypted_len <= 0)
                             decrypt_ok = FALSE;
@@ -1715,6 +1719,8 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                     memcpy(ctr_block, esp_crypt_key + esp_crypt_key_len - 4, 4);
                                     memcpy(ctr_block + 4, encrypted_data, 8);
                                     ctr_block[15] = 1;
+                                    if (esp_crypt_algo == IPSEC_ENCRYPT_AES_GCM)
+                                      ctr_block[15]++;
                                     err = gcry_cipher_setctr (cypher_hd, ctr_block, 16);
                                     if (!err)
                                     {
@@ -1762,8 +1768,8 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
                     if(decrypt_ok && (decrypted_len > esp_iv_len))
                     {
-                        tvb_decrypted = tvb_new_child_real_data(tvb, g_memdup(decrypted_data+sizeof(guint8)*esp_iv_len,
-                            (decrypted_len - esp_iv_len)*sizeof(guint8)),
+                        tvb_decrypted = tvb_new_child_real_data(tvb, (guint8 *)g_memdup(decrypted_data+sizeof(guint8)*esp_iv_len,
+                            decrypted_len - esp_iv_len),
                             decrypted_len - esp_iv_len, decrypted_len - esp_iv_len);
                         g_free(decrypted_data);
 
@@ -1871,7 +1877,7 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if(!g_esp_enable_encryption_decode && g_esp_enable_authentication_check && sad_is_present)
     {
         call_dissector(data_handle,
-            tvb_new_subset(tvb, sizeof(struct newesp), len - sizeof(struct newesp) - esp_auth_len, -1),
+            tvb_new_subset(tvb, (int)sizeof(struct newesp), len - (int)sizeof(struct newesp) - esp_auth_len, -1),
             pinfo, esp_tree);
 
         if(esp_tree)
@@ -1899,9 +1905,9 @@ dissect_esp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 if(dissector_try_uint(ip_dissector_table,
                     encapsulated_protocol,
                     tvb_new_subset(tvb,
-                    sizeof(struct newesp),
+                    (int)sizeof(struct newesp),
                     -1,
-                    len - sizeof(struct newesp) - 14 - esp_pad_len),
+                    len - (int)sizeof(struct newesp) - 14 - esp_pad_len),
                     pinfo,
                     tree))
                 {
@@ -1961,7 +1967,7 @@ dissect_ipcomp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   tvb_memcpy(tvb, (guint8 *)&ipcomp, 0, sizeof(ipcomp));
 
   if (check_col(pinfo->cinfo, COL_INFO)) {
-    p = match_strval(g_ntohs(ipcomp.comp_cpi), cpi2val);
+    p = try_val_to_str(g_ntohs(ipcomp.comp_cpi), cpi2val);
     if (p == NULL) {
       col_add_fstr(pinfo->cinfo, COL_INFO, "IPComp (CPI=0x%04x)",
 		   g_ntohs(ipcomp.comp_cpi));
@@ -1990,7 +1996,7 @@ dissect_ipcomp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			offsetof(struct ipcomp, comp_cpi), 2,
 			g_ntohs(ipcomp.comp_cpi));
 
-    data = tvb_new_subset(tvb, sizeof(struct ipcomp), -1, -1);
+    data = tvb_new_subset_remaining(tvb, sizeof(struct ipcomp));
     call_dissector(data_handle, data, pinfo, ipcomp_tree);
 
     /*
@@ -2080,6 +2086,7 @@ proto_register_ipsec(void)
     { IPSEC_ENCRYPT_CAST5_CBC, "CAST5-CBC [RFC2144]" },
     { IPSEC_ENCRYPT_BLOWFISH_CBC, "BLOWFISH-CBC [RFC2451]" },
     { IPSEC_ENCRYPT_TWOFISH_CBC, "TWOFISH-CBC" },
+    { IPSEC_ENCRYPT_AES_GCM, "AES-GCM [RFC4106]" },
     { 0x00, NULL }
   };
 
@@ -2160,7 +2167,7 @@ proto_register_ipsec(void)
             sizeof(uat_esp_sa_record_t),    /* record size */
             "esp_sa",                       /* filename */
             TRUE,                           /* from_profile */
-            (void*) &uat_esp_sa_records,    /* data_ptr */
+            (void**) &uat_esp_sa_records,   /* data_ptr */
             &num_sa_uat,                    /* numitems_ptr */
             UAT_AFFECTS_DISSECTION,         /* affects dissection of packets, but not set of named fields */
             NULL,                           /* help */

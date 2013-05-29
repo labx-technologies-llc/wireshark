@@ -219,9 +219,9 @@ static dissector_handle_t data_handle;
 #define SEQUENCE_ANALYSIS_PDCP_ONLY 2
 
 /* Preference variables */
-static gboolean global_pdcp_dissect_user_plane_as_ip = FALSE;
-static gboolean global_pdcp_dissect_signalling_plane_as_rrc = FALSE;
-static gint     global_pdcp_check_sequence_numbers = FALSE;
+static gboolean global_pdcp_dissect_user_plane_as_ip = TRUE;
+static gboolean global_pdcp_dissect_signalling_plane_as_rrc = TRUE;
+static gint     global_pdcp_check_sequence_numbers = TRUE;
 static gboolean global_pdcp_dissect_rohc = FALSE;
 
 /* Which layer info to show in the info column */
@@ -240,11 +240,11 @@ typedef struct
 {
     /* Using bit fields to fit into 32 bits, so avoiding the need to allocate
        heap memory for these structs */
-    unsigned           ueId : 16;
-    unsigned           plane : 2;
-    unsigned           channelId : 6;
-    unsigned           direction : 1;
-    unsigned           notUsed : 7;
+    guint           ueId : 16;
+    guint           plane : 2;
+    guint           channelId : 6;
+    guint           direction : 1;
+    guint           notUsed : 7;
 } pdcp_channel_hash_key;
 
 /* Channel state */
@@ -276,12 +276,12 @@ static guint pdcp_channel_hash_func(gconstpointer v)
 /* Hash table types & functions for frame reports */
 
 typedef struct {
-    guint32            frameNumber;
-    unsigned           SN :       15;
-    unsigned           plane :    2;
-    unsigned           channelId: 5;
-    unsigned           direction: 1;
-    unsigned           notUsed :  9;
+    guint32         frameNumber;
+    guint32         SN :       15;
+    guint32         plane :    2;
+    guint32         channelId: 5;
+    guint32         direction: 1;
+    guint32         notUsed :  9;
 } pdcp_result_hash_key;
 
 static gint pdcp_result_hash_equal(gconstpointer v, gconstpointer v2)
@@ -345,6 +345,10 @@ static gpointer get_report_hash_key(guint16 SN, guint32 frameNumber,
 
 
 /* Info to attach to frame when first read, recording what to show about sequence */
+typedef enum
+{
+    SN_OK, SN_Repeated, SN_MAC_Retx, SN_Retx, SN_Missing
+} sequence_state;
 typedef struct
 {
     gboolean sequenceExpectedCorrect;
@@ -355,7 +359,7 @@ typedef struct
     guint16  firstSN;
     guint16  lastSN;
 
-    enum { SN_OK, SN_Repeated, SN_MAC_Retx, SN_Retx, SN_Missing} state;
+    sequence_state state;
 } pdcp_sequence_report_in_frame;
 
 /* The sequence analysis frame report hash table instance itself   */
@@ -742,7 +746,7 @@ static void show_pdcp_config(packet_info *pinfo, tvbuff_t *tvb, proto_tree *tree
 
         /* UDP Checksum */
         ti = proto_tree_add_uint(configuration_tree, hf_pdcp_lte_rohc_udp_checksum_present, tvb, 0, 0,
-                                 p_pdcp_info->udp_checkum_present);
+                                 p_pdcp_info->udp_checksum_present);
         PROTO_ITEM_SET_GENERATED(ti);
 
         /* ROHC profile */
@@ -873,7 +877,7 @@ static gboolean dissect_pdcp_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
 
 
     /* If redissecting, use previous info struct (if available) */
-    p_pdcp_lte_info = (pdcp_lte_info *)p_get_proto_data(pinfo->fd, proto_pdcp_lte);
+    p_pdcp_lte_info = (pdcp_lte_info *)p_get_proto_data(pinfo->fd, proto_pdcp_lte, 0);
     if (p_pdcp_lte_info == NULL) {
         /* Allocate new info struct for this frame */
         p_pdcp_lte_info = se_new0(pdcp_lte_info);
@@ -885,9 +889,9 @@ static gboolean dissect_pdcp_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
 
 
     /* Read fixed fields */
-    p_pdcp_lte_info->no_header_pdu = tvb_get_guint8(tvb, offset++);
-    p_pdcp_lte_info->plane = tvb_get_guint8(tvb, offset++);
-    p_pdcp_lte_info->rohc_compression = tvb_get_guint8(tvb, offset++);
+    p_pdcp_lte_info->no_header_pdu = (gboolean)tvb_get_guint8(tvb, offset++);
+    p_pdcp_lte_info->plane = (enum pdcp_plane)tvb_get_guint8(tvb, offset++);
+    p_pdcp_lte_info->rohc_compression = (gboolean)tvb_get_guint8(tvb, offset++);
 
     /* Read optional fields */
     while (tag != PDCP_LTE_PAYLOAD_TAG) {
@@ -904,11 +908,11 @@ static gboolean dissect_pdcp_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
                 offset++;
                 break;
             case PDCP_LTE_LOG_CHAN_TYPE_TAG:
-                p_pdcp_lte_info->channelType = tvb_get_guint8(tvb, offset);
+                p_pdcp_lte_info->channelType = (LogicalChannelType)tvb_get_guint8(tvb, offset);
                 offset++;
                 break;
             case PDCP_LTE_BCCH_TRANSPORT_TYPE_TAG:
-                p_pdcp_lte_info->BCCHTransport = tvb_get_guint8(tvb, offset);
+                p_pdcp_lte_info->BCCHTransport = (BCCHTransportType)tvb_get_guint8(tvb, offset);
                 offset++;
                 break;
             case PDCP_LTE_ROHC_IP_VERSION_TAG:
@@ -924,7 +928,7 @@ static gboolean dissect_pdcp_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
                 offset++;
                 break;
             case PDCP_LTE_ROHC_MODE_TAG:
-                p_pdcp_lte_info->mode = tvb_get_guint8(tvb, offset);
+                p_pdcp_lte_info->mode = (enum rohc_mode)tvb_get_guint8(tvb, offset);
                 offset++;
                 break;
             case PDCP_LTE_ROHC_RND_TAG:
@@ -932,7 +936,7 @@ static gboolean dissect_pdcp_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
                 offset++;
                 break;
             case PDCP_LTE_ROHC_UDP_CHECKSUM_PRES_TAG:
-                p_pdcp_lte_info->udp_checkum_present = tvb_get_guint8(tvb, offset);
+                p_pdcp_lte_info->udp_checksum_present = tvb_get_guint8(tvb, offset);
                 offset++;
                 break;
             case PDCP_LTE_ROHC_PROFILE_TAG:
@@ -957,14 +961,14 @@ static gboolean dissect_pdcp_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
 
     if (!infoAlreadySet) {
         /* Store info in packet */
-        p_add_proto_data(pinfo->fd, proto_pdcp_lte, p_pdcp_lte_info);
+        p_add_proto_data(pinfo->fd, proto_pdcp_lte, 0, p_pdcp_lte_info);
     }
 
     /**************************************/
     /* OK, now dissect as PDCP LTE        */
 
     /* Create tvb that starts at actual PDCP PDU */
-    pdcp_tvb = tvb_new_subset(tvb, offset, -1, tvb_reported_length(tvb)-offset);
+    pdcp_tvb = tvb_new_subset_remaining(tvb, offset);
     dissect_pdcp_lte(pdcp_tvb, pinfo, tree);
     return TRUE;
 }
@@ -987,7 +991,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "PDCP-LTE");
 
     /* Look for attached packet info! */
-    p_pdcp_info = p_get_proto_data(pinfo->fd, proto_pdcp_lte);
+    p_pdcp_info = (struct pdcp_lte_info *)p_get_proto_data(pinfo->fd, proto_pdcp_lte, 0);
     /* Can't dissect anything without it... */
     if (p_pdcp_info == NULL) {
         return;
@@ -995,7 +999,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
 
     /* Don't want to overwrite the RLC Info column if configured not to */
     if ((global_pdcp_lte_layer_to_show == ShowRLCLayer) &&
-        (p_get_proto_data(pinfo->fd, proto_rlc_lte) != NULL)) {
+        (p_get_proto_data(pinfo->fd, proto_rlc_lte, 0) != NULL)) {
 
         col_set_writable(pinfo->cinfo, FALSE);
     }
@@ -1261,13 +1265,13 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
                 case FALSE:
                     break;
                 case SEQUENCE_ANALYSIS_RLC_ONLY:
-                    if ((p_get_proto_data(pinfo->fd, proto_rlc_lte) != NULL) &&
+                    if ((p_get_proto_data(pinfo->fd, proto_rlc_lte, 0) != NULL) &&
                         !p_pdcp_info->is_retx) {
                         do_analysis = TRUE;
                     }
                     break;
                 case SEQUENCE_ANALYSIS_PDCP_ONLY:
-                    if (p_get_proto_data(pinfo->fd, proto_rlc_lte) == NULL) {
+                    if (p_get_proto_data(pinfo->fd, proto_rlc_lte, 0) == NULL) {
                         do_analysis = TRUE;
                     }
                     break;
@@ -1280,7 +1284,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
         }
     }
     else {
-        /* Show that its a no-header PDU */
+        /* Show that it's a no-header PDU */
         write_pdu_label_and_info(root_ti, pinfo, " No-Header ");
     }
 
@@ -1372,15 +1376,15 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
     /* RoHC settings */
     p_rohc_info = ep_new(rohc_info);
 
-    p_rohc_info->rohc_compression    = p_pdcp_info->rohc_compression;
-    p_rohc_info->rohc_ip_version     = p_pdcp_info->rohc_ip_version;
-    p_rohc_info->cid_inclusion_info  = p_pdcp_info->cid_inclusion_info;
-    p_rohc_info->large_cid_present   = p_pdcp_info->large_cid_present;
-    p_rohc_info->mode                = p_pdcp_info->mode;
-    p_rohc_info->rnd                 = p_pdcp_info->rnd;
-    p_rohc_info->udp_checkum_present = p_pdcp_info->udp_checkum_present;
-    p_rohc_info->profile             = p_pdcp_info->profile;
-    p_rohc_info->last_created_item   = NULL;
+    p_rohc_info->rohc_compression     = p_pdcp_info->rohc_compression;
+    p_rohc_info->rohc_ip_version      = p_pdcp_info->rohc_ip_version;
+    p_rohc_info->cid_inclusion_info   = p_pdcp_info->cid_inclusion_info;
+    p_rohc_info->large_cid_present    = p_pdcp_info->large_cid_present;
+    p_rohc_info->mode                 = p_pdcp_info->mode;
+    p_rohc_info->rnd                  = p_pdcp_info->rnd;
+    p_rohc_info->udp_checksum_present = p_pdcp_info->udp_checksum_present;
+    p_rohc_info->profile              = p_pdcp_info->profile;
+    p_rohc_info->last_created_item    = NULL;
 
     pinfo->private_data = p_rohc_info;
 

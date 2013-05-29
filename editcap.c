@@ -1,11 +1,31 @@
 /* Edit capture files.  We can delete packets, adjust timestamps, or
  * simply convert from one format to another format.
  *
- * $Id$
- *
  * Originally written by Richard Sharpe.
  * Improved by Guy Harris.
  * Further improved by Richard Sharpe.
+ *
+ * Copyright 2013, Richard Sharpe <realrichardsharpe[AT]gmail.com>
+ *
+ * $Id$
+ *
+ * Wireshark - Network traffic analyzer
+ * By Gerald Combs <gerald@wireshark.org>
+ * Copyright 1998 Gerald Combs
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include "config.h"
@@ -32,8 +52,6 @@
 #include <unistd.h>
 #endif
 
-
-
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
@@ -45,6 +63,7 @@
 #endif
 
 #ifdef _WIN32
+#include <wsutil/file_util.h>
 #include <wsutil/unicode-utils.h>
 #include <process.h>    /* getpid */
 #ifdef HAVE_WINSOCK2_H
@@ -56,12 +75,23 @@
 # include "wsutil/strptime.h"
 #endif
 
+#include <wsutil/privileges.h>
+
+/*
+ * The symbols declared in the below are exported from libwireshark,
+ * but we don't want to link whole libwireshark to editcap.
+ * We link the object directly instead and this needs a little trick
+ * with the WS_BUILD_DLL #define.
+ */
+#define WS_BUILD_DLL
+#define RESET_SYMBOL_EXPORT /* wsutil/wsgetopt.h set export behavior above. */
 #include "epan/crypt/md5.h"
 #include "epan/plugins.h"
 #include "epan/report_err.h"
 #include "epan/filesystem.h"
-#include <wsutil/privileges.h>
 #include "epan/nstime.h"
+#undef WS_BUILD_DLL
+#define RESET_SYMBOL_EXPORT
 
 #include "svnversion.h"
 
@@ -147,9 +177,9 @@ static gchar *
 abs_time_to_str_with_sec_resolution(const struct wtap_nstime *abs_time)
 {
     struct tm *tmp;
-    gchar *buf = g_malloc(16);
+    gchar *buf = (gchar *)g_malloc(16);
 
-#ifdef _MSC_VER
+#if (defined _WIN32) && (_MSC_VER < 1500)
     /* calling localtime() on MSVC 2005 with huge values causes it to crash */
     /* XXX - find the exact value that still does work */
     /* XXX - using _USE_32BIT_TIME_T might be another way to circumvent this problem */
@@ -368,7 +398,7 @@ set_time_adjustment(char *optarg_str_p)
       frac_digits++;
     }
   }
-  time_adj.tv.tv_usec = val;
+  time_adj.tv.tv_usec = (int)val;
 }
 
 static void
@@ -443,7 +473,7 @@ set_strict_time_adj(char *optarg_str_p)
       frac_digits++;
     }
   }
-  strict_time_adj.tv.tv_usec = val;
+  strict_time_adj.tv.tv_usec = (int)val;
 }
 
 static void
@@ -513,7 +543,7 @@ set_rel_time(char *optarg_str_p)
       frac_digits++;
     }
   }
-  relative_time_window.nsecs = val;
+  relative_time_window.nsecs = (int)val;
 }
 
 static gboolean
@@ -764,7 +794,7 @@ list_capture_types(void) {
     struct string_elem *captypes;
     GSList *list = NULL;
 
-    captypes = g_malloc(sizeof(struct string_elem) * WTAP_NUM_FILE_TYPES);
+    captypes = g_new(struct string_elem,WTAP_NUM_FILE_TYPES);
     fprintf(stderr, "editcap: The available capture file types for the \"-F\" flag are:\n");
     for (i = 0; i < WTAP_NUM_FILE_TYPES; i++) {
       if (wtap_dump_can_open(i)) {
@@ -784,7 +814,7 @@ list_encap_types(void) {
     struct string_elem *encaps;
     GSList *list = NULL;
 
-    encaps = g_malloc(sizeof(struct string_elem) * WTAP_NUM_ENCAP_TYPES);
+    encaps = (struct string_elem *)g_malloc(sizeof(struct string_elem) * WTAP_NUM_ENCAP_TYPES);
     fprintf(stderr, "editcap: The available encapsulation types for the \"-T\" flag are:\n");
     for (i = 0; i < WTAP_NUM_ENCAP_TYPES; i++) {
         encaps[i].sstr = wtap_encap_short_string(i);
@@ -850,6 +880,7 @@ main(int argc, char *argv[])
 
 #ifdef _WIN32
   arg_list_utf_16to8(argc, argv);
+  create_app_running_mutex();
 #endif /* _WIN32 */
 
   /*
@@ -894,7 +925,7 @@ main(int argc, char *argv[])
       break;
 
     case 'c':
-      split_packet_count = strtol(optarg, &p, 10);
+      split_packet_count = (int)strtol(optarg, &p, 10);
       if (p == optarg || *p != '\0') {
         fprintf(stderr, "editcap: \"%s\" isn't a valid packet count\n",
             optarg);
@@ -908,7 +939,7 @@ main(int argc, char *argv[])
       break;
 
     case 'C':
-      choplen = strtol(optarg, &p, 10);
+      choplen = (int)strtol(optarg, &p, 10);
       if (p == optarg || *p != '\0') {
         fprintf(stderr, "editcap: \"%s\" isn't a valid chop length\n",
             optarg);
@@ -925,7 +956,7 @@ main(int argc, char *argv[])
     case 'D':
       dup_detect = TRUE;
       dup_detect_by_time = FALSE;
-      dup_window = strtol(optarg, &p, 10);
+      dup_window = (int)strtol(optarg, &p, 10);
       if (p == optarg || *p != '\0') {
         fprintf(stderr, "editcap: \"%s\" isn't a valid duplicate window value\n",
             optarg);
@@ -969,7 +1000,7 @@ main(int argc, char *argv[])
       break;
 
     case 's':
-      snaplen = strtol(optarg, &p, 10);
+      snaplen = (guint32)strtol(optarg, &p, 10);
       if (p == optarg || *p != '\0') {
         fprintf(stderr, "editcap: \"%s\" isn't a valid snapshot length\n",
                 optarg);

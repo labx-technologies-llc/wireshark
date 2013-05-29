@@ -25,15 +25,30 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
+isEqual(QT_MAJOR_VERSION, 4) {
+  QT += core gui
+} else {
+  QT += core widgets printsupport
+}
 
+macx {
+    TARGET = Wireshark
+} else {
+    TARGET = qtshark
+}
 
-QT += core gui
-
-TARGET = qtshark
 TEMPLATE = app
 
-# XXX - Need to autogenerate Info.plist from Info.plist.in
-# QMAKE_INFO_PLIST = ../../packaging/macosx/Info.plist
+TOP_SRCDIR = "$$PWD/../.."
+
+CONFIG(debug, debug|release) {
+    DESTDIR = "$${TOP_SRCDIR}/wireshark-qt-debug"
+}
+CONFIG(release, debug|release) {
+    DESTDIR = "$${TOP_SRCDIR}/wireshark-qt-release"
+}
+
+QMAKE_INFO_PLIST = "$$PWD/../../packaging/macosx/Info.plist"
 
 xxx {
     message( )
@@ -61,7 +76,10 @@ unix {
         }
     }
 
-
+    isEqual(QT_MAJOR_VERSION, 5) {
+        # Hack around what appears to be a bug in the 5.0.2 SDK
+        QT_CONFIG -= no-pkg-config
+    }
     CONFIG += link_pkgconfig
     PKGCONFIG += \
         glib-2.0
@@ -71,8 +89,10 @@ unix {
     }
 
     # Some versions of Ubuntu don't ship with zlib.pc
-    eval(PKGCONFIG += zlib) {
-        PKGCONFIG += zlib
+    !macx {
+        eval(PKGCONFIG += zlib) {
+            PKGCONFIG += zlib
+        }
     }
 }
 
@@ -116,8 +136,6 @@ win32 {
         error("Can't find config.pri. Have you run 'nmake -f Makefile.nmake' two directories up?")
     }
 
-    DESTDIR = ../../wireshark-qt
-
     !wireshark_manifest_info_required {
         CONFIG -= embed_manifest_dll
         CONFIG -= embed_manifest_exe
@@ -158,7 +176,6 @@ SOURCES_WS_C = \
     ../../print.c \
     ../../proto_hier_stats.c      \
     ../../ps.c    \
-    ../../recent.c \
     ../../summary.c       \
     ../../sync_pipe_write.c       \
     ../../tap-megaco-common.c     \
@@ -168,7 +185,7 @@ SOURCES_WS_C = \
     ../../u3.c \
     ../../version_info.c
 
-unix:SOURCES_WS_C += ../../capture-pcap-util-unix.c ../../capture_unix_ifnames.c
+unix:SOURCES_WS_C += ../../capture-pcap-util-unix.c
 win32:SOURCES_WS_C += \
     ../../capture_win_ifnames.c \
     ../../capture-wpcap.c \
@@ -179,15 +196,29 @@ win32:SOURCES_WS_C += \
 HEADERS_WS_C  = \
     ../../wsutil/privileges.h
 
-FORMS += main_window.ui \
-    main_welcome.ui \
-    import_text_dialog.ui \
-    file_set_dialog.ui \
-    packet_range_group_box.ui \
-    packet_format_group_box.ui \
+FORMS += \
+    capture_preferences_frame.ui \
+    column_preferences_frame.ui \
     export_object_dialog.ui \
+    file_set_dialog.ui \
+    filter_expressions_preferences_frame.ui \
+    font_color_preferences_frame.ui \
+    import_text_dialog.ui \
+    layout_preferences_frame.ui \
+    main_welcome.ui \
+    main_window.ui \
+    main_window_preferences_frame.ui \
+    module_preferences_scroll_area.ui \
+    packet_comment_dialog.ui \
+    packet_format_group_box.ui \
+    packet_range_group_box.ui \
+    preferences_dialog.ui \
     print_dialog.ui \
-    splash_overlay.ui
+    profile_dialog.ui \
+    search_frame.ui \
+    splash_overlay.ui \
+    time_shift_dialog.ui \
+
 
 win32 { ## These should be in config.pri ??
     !isEmpty(PORTAUDIO_DIR) {
@@ -211,11 +242,25 @@ win32 { ## These should be in config.pri ??
 }
 
 HEADERS += $$HEADERS_WS_C \
+    accordion_frame.h \
+    capture_preferences_frame.h \
+    column_preferences_frame.h \
     export_dissection_dialog.h \
-    packet_format_group_box.h \
     export_object_dialog.h \
+    filter_expressions_preferences_frame.h \
+    font_color_preferences_frame.h \
+    layout_preferences_frame.h \
+    main_window_preferences_frame.h \
+    module_preferences_scroll_area.h \
+    packet_comment_dialog.h \
+    packet_format_group_box.h \
+    preferences_dialog.h \
     print_dialog.h \
-    splash_overlay.h
+    profile_dialog.h \
+    search_frame.h \
+    splash_overlay.h \
+    tango_colors.h \
+
 
 win32 {
     OBJECTS_WS_C = $$SOURCES_WS_C
@@ -236,9 +281,22 @@ macx:QMAKE_LFLAGS += \
     -framework CoreFoundation \
     -framework SystemConfiguration
 
-unix:LIBS += -L../../lib -Wl,-rpath ../../lib -lwireshark -lwiretap -lwsutil -lui \
-    -lpcap
-macx:LIBS += -Wl,-macosx_version_min,10.5 -liconv
+unix {
+    exists(../../epan/.libs/libw*) {
+        message( "Assuming Autotools library paths" )
+        LIBS += \
+            -L.. \
+            -L../../epan/.libs -Wl,-rpath ../../epan/.libs \
+            -L../../wiretap/.libs -Wl,-rpath ../../wiretap/.libs \
+            -L../../wsutil/.libs -Wl,-rpath ../../wsutil/.libs
+    } else:exists(../../lib/libw*) {
+        message( "Assuming CMake library path" )
+        LIBS += -L../../lib -Wl,-rpath ../../lib
+    }
+}
+unix:LIBS += -lwireshark -lwiretap -lwsutil -lui \
+    -lpcap -lui_dirty
+macx:LIBS += -Wl,-macosx_version_min,10.6 -liconv -lz
 
 # XXX Copy this only if we're linking with Lua.
 EXTRA_BINFILES = \
@@ -247,8 +305,17 @@ EXTRA_BINFILES = \
 # http://stackoverflow.com/questions/3984104/qmake-how-to-copy-a-file-to-the-output
 unix: {
     EXTRA_BINFILES += \
-        ../../dumpcap \
-        ../../lib/*.so  \
+        ../../dumpcap
+
+    exists(../../epan/.libs/libw*) {
+        EXTRA_BINFILES += \
+            ../../epan/.libs/libwireshark.* \
+            ../../wiretap/.libs/libwiretap.* \
+            ../../wsutil/.libs/libwsutil.*
+    } else:exists(../../lib/libw*) {
+        EXTRA_BINFILES += ../../lib/lib{wireshark,wiretap,wsutil}.*
+    }
+
 }
 unix:!macx {
     for(FILE,EXTRA_BINFILES){
@@ -258,7 +325,7 @@ unix:!macx {
 # qmake 2.01a / Qt 4.7.0 doesn't set DESTDIR on OS X.
 macx {
     for(FILE,EXTRA_BINFILES){
-        QMAKE_POST_LINK += $$quote(cp $${FILE} $${TARGET}.app/Contents/MacOS$$escape_expand(\\n\\t))
+        QMAKE_POST_LINK += $$quote(cp $${FILE} $${DESTDIR}/$${TARGET}.app/Contents/MacOS$$escape_expand(\\n\\t))
     }
 }
 
@@ -270,7 +337,8 @@ win32 {
         $${guilibsdll} $${HHC_LIBS} \
         -L../../epan -llibwireshark -L../../wsutil -llibwsutil -L../../wiretap -lwiretap-$${WTAP_VERSION} \
         -L.. -llibui \
-        -L$${GLIB_DIR}/lib -lglib-2.0 -lgmodule-2.0
+        -L$${GLIB_DIR}/lib -lglib-2.0 -lgmodule-2.0 \
+        -L$${WINSPARKLE_DIR} -lWinSparkle
 
     !isEmpty(MSVCR_DLL) {
         EXTRA_BINFILES += \"$${MSVCR_DLL}\"
@@ -297,6 +365,7 @@ win32 {
         $${GNUTLS_DIR}/bin/libintl-8.dll $${SMI_DIR}/bin/libsmi-2.dll \
         $${LUA_DIR}/lua5.1.dll \
         $${GEOIP_DIR}/bin/libGeoIP-1.dll \
+        $${WINSPARKLE_DIR}/WinSparkle.dll \
         ../../colorfilters ../../dfilters ../../cfilters
 
     wireshark_use_kfw {
@@ -322,10 +391,12 @@ win32 {
 
 RESOURCES += \
     ../../image/display_filter.qrc \
+    ../../image/layout.qrc \
     ../../image/status.qrc \
     ../../image/toolbar.qrc \
+    i18n.qrc \
     welcome.qrc \
-    i18n.qrc
+
 
 TRANSLATIONS = \
         qtshark_de.ts	\
@@ -333,7 +404,7 @@ TRANSLATIONS = \
 
 ICON = ../../packaging/macosx/Resources/Wireshark.icns
 
-RC_FILE = qtshark.rc
+RC_FILE = ../../image/wireshark.rc
 
 # http://lists.trolltech.com/qt-interest/2008-01/thread00516-0.html
 # http://www.freehackers.org/thomas/2009/03/10/fixing-qmake-missing-rule-for-ts-qm/
@@ -376,7 +447,6 @@ HEADERS += \
     main_status_bar.h \
     main_welcome.h \
     main_window.h \
-    monospace_font.h \
     packet_list.h \
     packet_list_model.h \
     packet_list_record.h \
@@ -389,42 +459,56 @@ HEADERS += \
     simple_dialog_qt.h \
     sparkline_delegate.h \
     syntax_line_edit.h \
-    wireshark_application.h
+    time_shift_dialog.h \
+    wireshark_application.h \
+
 
 SOURCES += \
+    accordion_frame.cpp \
     byte_view_tab.cpp \
     byte_view_text.cpp \
     capture_file_dialog.cpp \
     capture_info_dialog.cpp \
     capture_interface_dialog.cpp \
+    capture_preferences_frame.cpp \
     color_dialog.cpp \
     color_utils.cpp \
+    column_preferences_frame.cpp \
     display_filter_combo.cpp \
     display_filter_edit.cpp \
     export_dissection_dialog.cpp \
     export_object_dialog.cpp \
     file_set_dialog.cpp \
+    filter_expressions_preferences_frame.cpp \
+    font_color_preferences_frame.cpp \
     import_text_dialog.cpp \
     interface_tree.cpp \
     label_stack.cpp \
+    layout_preferences_frame.cpp \
     main.cpp \
     main_status_bar.cpp \
     main_welcome.cpp \
     main_window.cpp \
+    main_window_preferences_frame.cpp \
     main_window_slots.cpp \
-    monospace_font.cpp \
+    module_preferences_scroll_area.cpp \
+    packet_comment_dialog.cpp \
     packet_format_group_box.cpp \
     packet_list.cpp \
     packet_list_model.cpp \
     packet_list_record.cpp \
     packet_range_group_box.cpp \
+    preferences_dialog.cpp \
     print_dialog.cpp \
+    profile_dialog.cpp \
     progress_bar.cpp \
     proto_tree.cpp \
     qt_ui_utils.cpp \
     recent_file_status.cpp \
+    search_frame.cpp \
     simple_dialog_qt.cpp \
     sparkline_delegate.cpp \
     splash_overlay.cpp \
     syntax_line_edit.cpp \
-    wireshark_application.cpp
+    time_shift_dialog.cpp \
+    wireshark_application.cpp \

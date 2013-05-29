@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-t38.h                                                               */
 /* ../../tools/asn2wrs.py -p t38 -c ./t38.cnf -s ./packet-t38-template -D . -O ../../epan/dissectors T38_2002.asn */
 
@@ -32,6 +32,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+
+#include "ws_symbol_export.h"
 
 #define MAX_T38_DATA_ITEMS 4
 #define MAX_T38_DESC 128
@@ -80,6 +82,7 @@ typedef struct _t38_conv
 } t38_conv;
 
 /* Add an T38 conversation with the given details */
+WS_DLL_PUBLIC
 void t38_add_address(packet_info *pinfo,
                      address *addr, int port,
                      int other_port,
@@ -89,11 +92,11 @@ void t38_add_address(packet_info *pinfo,
 
 /*--- Included file: packet-t38-exp.h ---*/
 #line 1 "../../asn1/t38/packet-t38-exp.h"
-WS_VAR_IMPORT const value_string t38_T30_indicator_vals[];
-WS_VAR_IMPORT const value_string t38_T30_data_vals[];
+WS_DLL_PUBLIC const value_string t38_T30_indicator_vals[];
+WS_DLL_PUBLIC const value_string t38_T30_data_vals[];
 
 /*--- End of included file: packet-t38-exp.h ---*/
-#line 82 "../../asn1/t38/packet-t38-template.h"
+#line 85 "../../asn1/t38/packet-t38-template.h"
 
 
 

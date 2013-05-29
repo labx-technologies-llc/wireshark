@@ -62,6 +62,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <locale.h>
 #include <errno.h>
 
 #ifdef HAVE_UNISTD_H
@@ -74,15 +75,29 @@
 
 #include <glib.h>
 
+#include <wsutil/privileges.h>
+
+/*
+ * The symbols declared in the below are exported from libwireshark,
+ * but we don't want to link whole libwireshark to editcap.
+ * We link the object directly instead and this needs a little trick
+ * with the WS_BUILD_DLL #define.
+ */
+#define WS_BUILD_DLL
+#define RESET_SYMBOL_EXPORT
 #include <epan/packet.h>
 #include <epan/filesystem.h>
 #include <epan/plugins.h>
 #include <epan/report_err.h>
+#undef WS_BUILD_DLL
+#define RESET_SYMBOL_EXPORT
+
 #include "wtap.h"
 #include <wsutil/privileges.h>
+#include <wsutil/str_util.h>
 
 #ifdef HAVE_LIBGCRYPT
-#include <gcrypt.h>
+#include <wsutil/wsgcrypt.h>
 #include <wsutil/file_util.h>
 #endif
 
@@ -116,6 +131,7 @@ static gboolean long_report = TRUE;         /* By default generate long report  
 static gchar table_report_header = TRUE;    /* Generate column header by default     */
 static gchar field_separator = '\t';        /* Use TAB as field separator by default */
 static gchar quote_char = '\0';             /* Do NOT quote fields by default        */
+static gboolean machine_readable = FALSE;   /* Display machine-readable numbers      */
 
 /*
  * capinfos has the ability to report on a number of
@@ -135,6 +151,7 @@ static gboolean cap_file_encap = TRUE;      /* Report encapsulation       */
 static gboolean cap_snaplen = TRUE;         /* Packet size limit (snaplen)*/
 static gboolean cap_packet_count = TRUE;    /* Report packet count        */
 static gboolean cap_file_size = TRUE;       /* Report file size           */
+static gboolean cap_comment = TRUE;         /* Display the capture comment */
 
 static gboolean cap_data_size = TRUE;       /* Report packet byte size    */
 static gboolean cap_duration = TRUE;        /* Report capture duration    */
@@ -155,10 +172,10 @@ static gboolean cap_file_hashes = TRUE;     /* Calculate file hashes */
 #ifdef USE_GOPTION
 static gboolean cap_help = FALSE;
 static gboolean table_report = FALSE;
- 
+
 static GOptionEntry general_entries[] =
 {
-/* General */
+  /* General */
   { "type", 't', 0, G_OPTION_ARG_NONE, &cap_file_type,
     "display the capture file type", NULL },
   { "Encapsulation", 'E', 0, G_OPTION_ARG_NONE, &cap_file_encap,
@@ -167,11 +184,13 @@ static GOptionEntry general_entries[] =
   { "Hash", 'H', 0, G_OPTION_ARG_NONE, &cap_file_hashes,
     "display the SHA1, RMD160, and MD5 hashes of the file", NULL },
 #endif /* HAVE_LIBGCRYPT */
- { NULL,'\0',0,G_OPTION_ARG_NONE,NULL,NULL,NULL }
+  { "capture-comment", 'k', 0, G_OPTION_ARG_NONE, &cap_comment,
+    "display the capture comment ", NULL },
+  { NULL,'\0',0,G_OPTION_ARG_NONE,NULL,NULL,NULL }
 };
 static GOptionEntry size_entries[] =
 {
-/* Size */
+  /* Size */
   { "packets", 'c', 0, G_OPTION_ARG_NONE, &cap_packet_count,
     "display the number of packets", NULL },
   { "size", 's', 0, G_OPTION_ARG_NONE, &cap_file_size,
@@ -184,7 +203,7 @@ static GOptionEntry size_entries[] =
 };
 static GOptionEntry time_entries[] =
 {
-/* Time */
+  /* Time */
   { "duration", 'u', 0, G_OPTION_ARG_NONE, &cap_duration,
     "display the capture duration (in seconds)", NULL },
   { "start", 'a', 0, G_OPTION_ARG_NONE, &cap_start_time,
@@ -200,7 +219,7 @@ static GOptionEntry time_entries[] =
 
 static GOptionEntry stats_entries[] =
 {
-/* Statistics */
+  /* Statistics */
   { "bytes", 'y', 0, G_OPTION_ARG_NONE, &cap_data_rate_byte,
     "display average data rate (in bytes/s)", NULL },
   { "bits", 'i', 0, G_OPTION_ARG_NONE, &cap_data_rate_bit,
@@ -214,17 +233,19 @@ static GOptionEntry stats_entries[] =
 
 static GOptionEntry output_format_entries[] =
 {
-/* Output format */
+  /* Output format */
   { "long", 'L', 0, G_OPTION_ARG_NONE, &long_report,
     "generate long report (default)", NULL },
   { "Table", 'T', 0, G_OPTION_ARG_NONE, &table_report,
     "generate table report", NULL },
+  { "machine-readable", 'M', 0, G_OPTION_ARG_NONE, &machine_readable,
+    "display machine-readable (unabbreviated) values in long reports", NULL },
   { NULL,'\0',0,G_OPTION_ARG_NONE,NULL,NULL,NULL }
 };
 
 static GOptionEntry table_report_entries[] =
 {
-/* Table report */
+  /* Table report */
   { "header-rec", 'R', 0, G_OPTION_ARG_NONE, &table_report_header,
     "generate header record (default)", NULL },
   { "no-table", 'r', 0, G_OPTION_ARG_NONE, &table_report_header,
@@ -236,7 +257,7 @@ static GOptionEntry misc_entries[] =
 {
   { "helpcompat", 'h', 0, G_OPTION_ARG_NONE, &cap_help,
     "display help", NULL },
- { NULL,'\0',0,G_OPTION_ARG_NONE,NULL,NULL,NULL }
+  { NULL,'\0',0,G_OPTION_ARG_NONE,NULL,NULL,NULL }
 };
 
 GOptionContext *ctx;
@@ -285,6 +306,7 @@ typedef struct _capture_info {
   gboolean      iscompressed;
   int           file_encap;
   gint64        filesize;
+  gchar         *comment;
 
   guint64       packet_bytes;
   gboolean      times_known;
@@ -319,6 +341,7 @@ enable_all_infos(void)
   cap_snaplen = TRUE;
   cap_packet_count = TRUE;
   cap_file_size = TRUE;
+  cap_comment = TRUE;
 
   cap_data_size = TRUE;
   cap_duration = TRUE;
@@ -346,6 +369,7 @@ disable_all_infos(void)
   cap_snaplen        = FALSE;
   cap_packet_count   = FALSE;
   cap_file_size      = FALSE;
+  cap_comment        = FALSE;
 
   cap_data_size      = FALSE;
   cap_duration       = FALSE;
@@ -368,17 +392,17 @@ order_string(order_t order)
 {
   switch (order) {
 
-  case IN_ORDER:
-    return "True";
+    case IN_ORDER:
+      return "True";
 
-  case NOT_IN_ORDER:
-    return "False";
+    case NOT_IN_ORDER:
+      return "False";
 
-  case ORDER_UNKNOWN:
-    return "Unknown";
+    case ORDER_UNKNOWN:
+      return "Unknown";
 
-  default:
-    return "???";  /* "cannot happen" (the next step is "Profit!") */
+    default:
+      return "???";  /* "cannot happen" (the next step is "Profit!") */
   }
 }
 
@@ -395,7 +419,7 @@ time_string(time_t timer, capture_info *cf_info, gboolean want_lf)
       g_snprintf(time_string_buf, 20, "%lu%s", (unsigned long)timer, lf);
       return time_string_buf;
     } else {
-#ifdef _MSC_VER
+#if (defined _WIN32) && (_MSC_VER < 1500)
       /* calling localtime(), and thus ctime(), on MSVC 2005 with huge values causes it to crash */
       /* XXX - find the exact value that still does work */
       /* XXX - using _USE_32BIT_TIME_T might be another way to circumvent this problem */
@@ -403,9 +427,9 @@ time_string(time_t timer, capture_info *cf_info, gboolean want_lf)
         time_string_ctime = NULL;
       } else
 #endif
-      time_string_ctime = ctime(&timer);
+        time_string_ctime = ctime(&timer);
       if (time_string_ctime == NULL) {
-      	g_snprintf(time_string_buf, 20, "Not representable%s", lf);
+        g_snprintf(time_string_buf, 20, "Not representable%s", lf);
         return time_string_buf;
       }
       if (!want_lf) {
@@ -443,6 +467,7 @@ print_stats(const gchar *filename, capture_info *cf_info)
   const gchar           *file_type_string, *file_encap_string;
   time_t                start_time_t;
   time_t                stop_time_t;
+  gchar                 *size_string;
 
   /* Build printable strings for various stats */
   file_type_string = wtap_file_type_string(cf_info->file_type);
@@ -452,8 +477,8 @@ print_stats(const gchar *filename, capture_info *cf_info)
 
   if (filename)           printf     ("File name:           %s\n", filename);
   if (cap_file_type)      printf     ("File type:           %s%s\n",
-                                      file_type_string,
-                                      cf_info->iscompressed ? " (gzip compressed)" : "");
+      file_type_string,
+      cf_info->iscompressed ? " (gzip compressed)" : "");
   if (cap_file_encap)     printf     ("File encapsulation:  %s\n", file_encap_string);
   if (cap_file_encap && (cf_info->file_encap == WTAP_ENCAP_PER_PACKET)) {
     int i;
@@ -463,44 +488,97 @@ print_stats(const gchar *filename, capture_info *cf_info)
     }
   }
   if (cap_snaplen && cf_info->snap_set)
-                          printf     ("Packet size limit:   file hdr: %u bytes\n", cf_info->snaplen);
+    printf     ("Packet size limit:   file hdr: %u bytes\n", cf_info->snaplen);
   else if(cap_snaplen && !cf_info->snap_set)
-                          printf     ("Packet size limit:   file hdr: (not set)\n");
+    printf     ("Packet size limit:   file hdr: (not set)\n");
   if (cf_info->snaplen_max_inferred > 0) {
     if (cf_info->snaplen_min_inferred == cf_info->snaplen_max_inferred)
-                          printf     ("Packet size limit:   inferred: %u bytes\n", cf_info->snaplen_min_inferred);
+      printf     ("Packet size limit:   inferred: %u bytes\n", cf_info->snaplen_min_inferred);
     else
-                          printf     ("Packet size limit:   inferred: %u bytes - %u bytes (range)\n",
-                                      cf_info->snaplen_min_inferred, cf_info->snaplen_max_inferred);
+      printf     ("Packet size limit:   inferred: %u bytes - %u bytes (range)\n",
+          cf_info->snaplen_min_inferred, cf_info->snaplen_max_inferred);
   }
-  if (cap_packet_count)   printf     ("Number of packets:   %u\n", cf_info->packet_count);
-  if (cap_file_size)      printf     ("File size:           %" G_GINT64_MODIFIER "d bytes\n", cf_info->filesize);
-  if (cap_data_size)      printf     ("Data size:           %" G_GINT64_MODIFIER "u bytes\n", cf_info->packet_bytes);
+  if (cap_packet_count) {
+    printf     ("Number of packets:   ");
+    if (machine_readable) {
+      printf ("%u\n", cf_info->packet_count);
+    } else {
+      size_string = format_size(cf_info->packet_count, format_size_unit_none);
+      printf ("%s\n", size_string);
+      g_free(size_string);
+    }
+  }
+  if (cap_file_size) {
+    printf     ("File size:           ");
+    if (machine_readable) {
+      printf     ("%" G_GINT64_MODIFIER "d bytes\n", cf_info->filesize);
+    } else {
+      size_string = format_size(cf_info->filesize, format_size_unit_bytes);
+      printf ("%s\n", size_string);
+      g_free(size_string);
+    }
+  }
+  if (cap_data_size) {
+    printf     ("Data size:           ");
+    if (machine_readable) {
+      printf     ("%" G_GINT64_MODIFIER "u bytes\n", cf_info->packet_bytes);
+    } else {
+      size_string = format_size(cf_info->packet_bytes, format_size_unit_bytes);
+      printf ("%s\n", size_string);
+      g_free(size_string);
+    }
+  }
   if (cf_info->times_known) {
-    if (cap_duration)
+    if (cap_duration) /* XXX - shorten to hh:mm:ss */
                           print_value("Capture duration:    ", 0, " seconds",   cf_info->duration);
     if (cap_start_time)
                           printf     ("Start time:          %s", time_string(start_time_t, cf_info, TRUE));
     if (cap_end_time)
                           printf     ("End time:            %s", time_string(stop_time_t, cf_info, TRUE));
-    if (cap_data_rate_byte)
-                          print_value("Data byte rate:      ", 2, " bytes/sec",   cf_info->data_rate);
-    if (cap_data_rate_bit)
-                          print_value("Data bit rate:       ", 2, " bits/sec",    cf_info->data_rate*8);
+    if (cap_data_rate_byte) {
+                          printf     ("Data byte rate:      ");
+      if (machine_readable) {
+        print_value("", 2, " bytes/sec",   cf_info->data_rate);
+      } else {
+        size_string = format_size((gint64)cf_info->data_rate, format_size_unit_bytes_s);
+        printf ("%s\n", size_string);
+        g_free(size_string);
+      }
+    }
+    if (cap_data_rate_bit) {
+                          printf     ("Data bit rate:       ");
+      if (machine_readable) {
+        print_value("", 2, " bits/sec",    cf_info->data_rate*8);
+      } else {
+        size_string = format_size((gint64)(cf_info->data_rate*8), format_size_unit_bits_s);
+        printf ("%s\n", size_string);
+        g_free(size_string);
+      }
+    }
   }
   if (cap_packet_size)    printf     ("Average packet size: %.2f bytes\n",        cf_info->packet_size);
   if (cf_info->times_known) {
-    if (cap_packet_rate) 
-                          print_value("Average packet rate: ", 2, " packets/sec", cf_info->packet_rate);
+    if (cap_packet_rate) {
+                          printf     ("Average packet rate: ");
+      if (machine_readable) {
+        print_value("", 2, " packets/sec", cf_info->packet_rate);
+      } else {
+        size_string = format_size((gint64)cf_info->packet_rate, format_size_unit_none);
+        printf ("%spackets/sec\n", size_string);
+        g_free(size_string);
+      }
+    }
   }
 #ifdef HAVE_LIBGCRYPT
   if (cap_file_hashes) {
-                          printf     ("SHA1:                %s\n", file_sha1);
-                          printf     ("RIPEMD160:           %s\n", file_rmd160);
-                          printf     ("MD5:                 %s\n", file_md5);
+    printf     ("SHA1:                %s\n", file_sha1);
+    printf     ("RIPEMD160:           %s\n", file_rmd160);
+    printf     ("MD5:                 %s\n", file_md5);
   }
 #endif /* HAVE_LIBGCRYPT */
   if (cap_order)          printf     ("Strict time order:   %s\n", order_string(cf_info->order));
+  if (cap_comment && cf_info->comment)
+    printf     ("Capture comment:     %s\n", cf_info->comment);
 }
 
 static void
@@ -548,12 +626,13 @@ print_stats_table_header(void)
   if (cap_packet_rate)    print_stats_table_header_label("Average packet rate (packets/sec)");
 #ifdef HAVE_LIBGCRYPT
   if (cap_file_hashes) {
-                          print_stats_table_header_label("SHA1");
-                          print_stats_table_header_label("RIPEMD160");
-                          print_stats_table_header_label("MD5");
+    print_stats_table_header_label("SHA1");
+    print_stats_table_header_label("RIPEMD160");
+    print_stats_table_header_label("MD5");
   }
 #endif /* HAVE_LIBGCRYPT */
   if (cap_order)          print_stats_table_header_label("Strict time order");
+  if (cap_comment)        print_stats_table_header_label("Capture comment");
 
   printf("\n");
 }
@@ -734,6 +813,14 @@ print_stats_table(const gchar *filename, capture_info *cf_info)
     putquote();
   }
 
+  if (cap_comment) {
+    putsep();
+    putquote();
+    printf("%s", cf_info->comment);
+    putquote();
+  }
+
+
   printf("\n");
 }
 
@@ -741,7 +828,7 @@ static int
 process_cap_file(wtap *wth, const char *filename)
 {
   int                   err;
-  gchar                 *err_info;
+  gchar                *err_info;
   gint64                size;
   gint64                data_offset;
 
@@ -751,15 +838,18 @@ process_cap_file(wtap *wth, const char *filename)
   guint32               snaplen_max_inferred =          0;
   const struct wtap_pkthdr *phdr;
   capture_info          cf_info;
-  gboolean		have_times = TRUE;
+  gboolean              have_times = TRUE;
   double                start_time = 0;
   double                stop_time  = 0;
   double                cur_time   = 0;
-  double		prev_time = 0;
-  gboolean		know_order = FALSE;
-  order_t		order = IN_ORDER;
+  double                prev_time = 0;
+  gboolean              know_order = FALSE;
+  order_t               order = IN_ORDER;
+  wtapng_section_t     *shb_inf;
+  gchar                *p;
 
-  cf_info.encap_counts = g_malloc0(WTAP_NUM_ENCAP_TYPES * sizeof(int));
+
+  cf_info.encap_counts = g_new0(int,WTAP_NUM_ENCAP_TYPES);
 
   /* Tally up data that we need to parse through the file to find */
   while (wtap_read(wth, &err, &err_info, &data_offset))  {
@@ -803,28 +893,28 @@ process_cap_file(wtap *wth, const char *filename)
 
     /* Per-packet encapsulation */
     if (wtap_file_encap(wth) == WTAP_ENCAP_PER_PACKET) {
-        if ((phdr->pkt_encap > 0) && (phdr->pkt_encap < WTAP_NUM_ENCAP_TYPES)) {
-            cf_info.encap_counts[phdr->pkt_encap] += 1;
-        } else {
-            fprintf(stderr, "capinfos: Unknown per-packet encapsulation: %d [frame number: %d]\n", phdr->pkt_encap, packet);
-        }
+      if ((phdr->pkt_encap > 0) && (phdr->pkt_encap < WTAP_NUM_ENCAP_TYPES)) {
+        cf_info.encap_counts[phdr->pkt_encap] += 1;
+      } else {
+        fprintf(stderr, "capinfos: Unknown per-packet encapsulation: %d [frame number: %d]\n", phdr->pkt_encap, packet);
+      }
     }
 
   } /* while */
 
   if (err != 0) {
     fprintf(stderr,
-            "capinfos: An error occurred after reading %u packets from \"%s\": %s.\n",
-            packet, filename, wtap_strerror(err));
+        "capinfos: An error occurred after reading %u packets from \"%s\": %s.\n",
+        packet, filename, wtap_strerror(err));
     switch (err) {
 
-    case WTAP_ERR_UNSUPPORTED:
-    case WTAP_ERR_UNSUPPORTED_ENCAP:
-    case WTAP_ERR_BAD_FILE:
-    case WTAP_ERR_DECOMPRESS:
-      fprintf(stderr, "(%s)\n", err_info);
-      g_free(err_info);
-      break;
+      case WTAP_ERR_UNSUPPORTED:
+      case WTAP_ERR_UNSUPPORTED_ENCAP:
+      case WTAP_ERR_BAD_FILE:
+      case WTAP_ERR_DECOMPRESS:
+        fprintf(stderr, "(%s)\n", err_info);
+        g_free(err_info);
+        break;
     }
     g_free(cf_info.encap_counts);
     return 1;
@@ -834,8 +924,8 @@ process_cap_file(wtap *wth, const char *filename)
   size = wtap_file_size(wth, &err);
   if (size == -1) {
     fprintf(stderr,
-            "capinfos: Can't get size of \"%s\": %s.\n",
-            filename, g_strerror(err));
+        "capinfos: Can't get size of \"%s\": %s.\n",
+        filename, g_strerror(err));
     g_free(cf_info.encap_counts);
     return 1;
   }
@@ -885,6 +975,24 @@ process_cap_file(wtap *wth, const char *filename)
     cf_info.packet_size = (double)bytes / packet;                  /* Avg packet size      */
   }
 
+  cf_info.comment = NULL;
+  shb_inf = wtap_file_get_shb_info(wth);
+  if (shb_inf) {
+    /* opt_comment is always 0-terminated by pcapng_read_section_header_block */
+    cf_info.comment = g_strdup(shb_inf->opt_comment);
+  }
+  g_free(shb_inf);
+  if (cf_info.comment) {
+    /* multi-line comments would conflict with the formatting that capinfos uses
+       we replace linefeeds with spaces */
+    p = cf_info.comment;
+    while (*p != '\0') {
+      if (*p=='\n')
+        *p=' ';
+      p++;
+    }
+  }
+
   if(long_report) {
     print_stats(filename, &cf_info);
   } else {
@@ -892,6 +1000,7 @@ process_cap_file(wtap *wth, const char *filename)
   }
 
   g_free(cf_info.encap_counts);
+  g_free(cf_info.comment);
 
   return 0;
 }
@@ -911,9 +1020,9 @@ usage(gboolean is_error)
 
   fprintf(output, "Capinfos %s"
 #ifdef SVNVERSION
-          " (" SVNVERSION " from " SVNPATH ")"
+      " (" SVNVERSION " from " SVNPATH ")"
 #endif
-          "\n", VERSION);
+      "\n", VERSION);
   fprintf(output, "Prints various information (infos) about capture files.\n");
   fprintf(output, "See http://www.wireshark.org for more information.\n");
   fprintf(output, "\n");
@@ -925,6 +1034,7 @@ usage(gboolean is_error)
 #ifdef HAVE_LIBGCRYPT
   fprintf(output, "  -H display the SHA1, RMD160, and MD5 hashes of the file\n");
 #endif
+  fprintf(output, "  -k display the capture comment\n");
   fprintf(output, "\n");
   fprintf(output, "Size infos:\n");
   fprintf(output, "  -c display the number of packets\n");
@@ -948,6 +1058,7 @@ usage(gboolean is_error)
   fprintf(output, "Output format:\n");
   fprintf(output, "  -L generate long report (default)\n");
   fprintf(output, "  -T generate table report\n");
+  fprintf(output, "  -M display machine-readable values in long reports\n");
   fprintf(output, "\n");
   fprintf(output, "Table report options:\n");
   fprintf(output, "  -R generate header record (default)\n");
@@ -1022,6 +1133,7 @@ main(int argc, char *argv[])
 
 #ifdef _WIN32
   arg_list_utf_16to8(argc, argv);
+  create_app_running_mutex();
 #endif /* _WIN32 */
 
   /*
@@ -1044,18 +1156,18 @@ main(int argc, char *argv[])
   /* Process the options */
 #ifdef USE_GOPTION
   ctx = g_option_context_new(" <infile> ... - print information about capture file(s)");
-  general_grp = g_option_group_new("gen", "General infos:", 
-				"Show general options", NULL, NULL);
+  general_grp = g_option_group_new("gen", "General infos:",
+      "Show general options", NULL, NULL);
   size_grp = g_option_group_new("size", "Size infos:",
-			       "Show size options", NULL, NULL);
+      "Show size options", NULL, NULL);
   time_grp = g_option_group_new("time", "Time infos:",
-			       "Show time options", NULL, NULL);
+      "Show time options", NULL, NULL);
   stats_grp = g_option_group_new("stats", "Statistics infos:",
-				 "Show statistics options", NULL, NULL);
+      "Show statistics options", NULL, NULL);
   output_grp = g_option_group_new("output", "Output format:",
-				 "Show output format options", NULL, NULL);
+      "Show output format options", NULL, NULL);
   table_report_grp = g_option_group_new("table", "Table report options:",
-				 "Show table report options", NULL, NULL);
+      "Show table report options", NULL, NULL);
   g_option_group_add_entries(general_grp, general_entries);
   g_option_group_add_entries(size_grp, size_entries);
   g_option_group_add_entries(time_grp, time_entries);
@@ -1076,8 +1188,12 @@ main(int argc, char *argv[])
      displayed is not exactly the same as the command the user used
      ran.
    */
-  argv[0] = "capinfos";
-  ;
+  argv[0] = (char *)"capinfos";
+
+  /* if we have at least one cmdline option, we disable printing all infos */
+  if (argc>=2 && report_all_infos)
+    disable_all_infos();
+
   if( !g_option_context_parse(ctx, &argc, &argv, &parse_err) ) {
     if(parse_err) g_print ("option parsing failed: %s\n", parse_err->message);
     g_print("%s", g_option_context_get_help (ctx, TRUE, NULL));
@@ -1090,150 +1206,162 @@ main(int argc, char *argv[])
   g_option_context_free(ctx);
 
 #endif /* USE_GOPTION */
-  while ((opt = getopt(argc, argv, "tEcs" FILE_HASH_OPT "dluaeyizvhxoCALTRrSNqQBmb")) !=-1) {
+  while ((opt = getopt(argc, argv, "tEcs" FILE_HASH_OPT "dluaeyizvhxokCALTMRrSNqQBmb")) !=-1) {
 
     switch (opt) {
 
-    case 't':
-      if (report_all_infos) disable_all_infos();
-      cap_file_type = TRUE;
-      break;
+      case 't':
+        if (report_all_infos) disable_all_infos();
+        cap_file_type = TRUE;
+        break;
 
-    case 'E':
-      if (report_all_infos) disable_all_infos();
-      cap_file_encap = TRUE;
-      break;
+      case 'E':
+        if (report_all_infos) disable_all_infos();
+        cap_file_encap = TRUE;
+        break;
 
-    case 'l':
-      if (report_all_infos) disable_all_infos();
-      cap_snaplen = TRUE;
-      break;
+      case 'l':
+        if (report_all_infos) disable_all_infos();
+        cap_snaplen = TRUE;
+        break;
 
-    case 'c':
-      if (report_all_infos) disable_all_infos();
-      cap_packet_count = TRUE;
-      break;
+      case 'c':
+        if (report_all_infos) disable_all_infos();
+        cap_packet_count = TRUE;
+        break;
 
-    case 's':
-      if (report_all_infos) disable_all_infos();
-      cap_file_size = TRUE;
-      break;
+      case 's':
+        if (report_all_infos) disable_all_infos();
+        cap_file_size = TRUE;
+        break;
 
-    case 'd':
-      if (report_all_infos) disable_all_infos();
-      cap_data_size = TRUE;
-      break;
+      case 'd':
+        if (report_all_infos) disable_all_infos();
+        cap_data_size = TRUE;
+        break;
 
-    case 'u':
-      if (report_all_infos) disable_all_infos();
-      cap_duration = TRUE;
-      break;
+      case 'u':
+        if (report_all_infos) disable_all_infos();
+        cap_duration = TRUE;
+        break;
 
-    case 'a':
-      if (report_all_infos) disable_all_infos();
-      cap_start_time = TRUE;
-      break;
+      case 'a':
+        if (report_all_infos) disable_all_infos();
+        cap_start_time = TRUE;
+        break;
 
-    case 'e':
-      if (report_all_infos) disable_all_infos();
-      cap_end_time = TRUE;
-      break;
+      case 'e':
+        if (report_all_infos) disable_all_infos();
+        cap_end_time = TRUE;
+        break;
 
-    case 'S':
-      time_as_secs = TRUE;
-      break;
+      case 'S':
+        time_as_secs = TRUE;
+        break;
 
-    case 'y':
-      if (report_all_infos) disable_all_infos();
-      cap_data_rate_byte = TRUE;
-      break;
+      case 'y':
+        if (report_all_infos) disable_all_infos();
+        cap_data_rate_byte = TRUE;
+        break;
 
-    case 'i':
-      if (report_all_infos) disable_all_infos();
-      cap_data_rate_bit = TRUE;
-      break;
+      case 'i':
+        if (report_all_infos) disable_all_infos();
+        cap_data_rate_bit = TRUE;
+        break;
 
-    case 'z':
-      if (report_all_infos) disable_all_infos();
-      cap_packet_size = TRUE;
-      break;
+      case 'z':
+        if (report_all_infos) disable_all_infos();
+        cap_packet_size = TRUE;
+        break;
 
-    case 'x':
-      if (report_all_infos) disable_all_infos();
-      cap_packet_rate = TRUE;
-      break;
+      case 'x':
+        if (report_all_infos) disable_all_infos();
+        cap_packet_rate = TRUE;
+        break;
 
 #ifdef HAVE_LIBGCRYPT
-    case 'H':
-      if (report_all_infos) disable_all_infos();
-      cap_file_hashes = TRUE;
-      break;
+      case 'H':
+        if (report_all_infos) disable_all_infos();
+        cap_file_hashes = TRUE;
+        break;
 #endif
 
-    case 'o':
-      if (report_all_infos) disable_all_infos();
-      cap_order = TRUE;
-      break;
+      case 'o':
+        if (report_all_infos) disable_all_infos();
+        cap_order = TRUE;
+        break;
 
-    case 'C':
-      continue_after_wtap_open_offline_failure = FALSE;
-      break;
+      case 'k':
+        if (report_all_infos) disable_all_infos();
+        cap_comment = TRUE;
+        break;
 
-    case 'A':
-      enable_all_infos();
-      break;
+      case 'C':
+        continue_after_wtap_open_offline_failure = FALSE;
+        break;
 
-    case 'L':
-      long_report = TRUE;
-      break;
+      case 'A':
+        enable_all_infos();
+        break;
 
-    case 'T':
-      long_report = FALSE;
-      break;
+      case 'L':
+        long_report = TRUE;
+        break;
 
-    case 'R':
-      table_report_header = TRUE;
-      break;
+      case 'T':
+        long_report = FALSE;
+        break;
 
-    case 'r':
-      table_report_header = FALSE;
-      break;
+      case 'M':
+        machine_readable = TRUE;
+        break;
 
-    case 'N':
-      quote_char = '\0';
-      break;
+      case 'R':
+        table_report_header = TRUE;
+        break;
 
-    case 'q':
-      quote_char = '\'';
-      break;
+      case 'r':
+        table_report_header = FALSE;
+        break;
 
-    case 'Q':
-      quote_char = '"';
-      break;
+      case 'N':
+        quote_char = '\0';
+        break;
 
-    case 'B':
-      field_separator = '\t';
-      break;
+      case 'q':
+        quote_char = '\'';
+        break;
 
-    case 'm':
-      field_separator = ',';
-      break;
+      case 'Q':
+        quote_char = '"';
+        break;
 
-    case 'b':
-      field_separator = ' ';
-      break;
+      case 'B':
+        field_separator = '\t';
+        break;
 
-    case 'h':
-      usage(FALSE);
-      exit(1);
-      break;
+      case 'm':
+        field_separator = ',';
+        break;
 
-    case '?':              /* Bad flag - print usage message */
-      usage(TRUE);
-      exit(1);
-      break;
+      case 'b':
+        field_separator = ' ';
+        break;
+
+      case 'h':
+        usage(FALSE);
+        exit(1);
+        break;
+
+      case '?':              /* Bad flag - print usage message */
+        usage(TRUE);
+        exit(1);
+        break;
     }
   }
+
+  /* Set the C-language locale to the native environment. */
+  setlocale(LC_ALL, "");
 
   if ((argc - optind) < 1) {
     usage(TRUE);
@@ -1285,15 +1413,15 @@ main(int argc, char *argv[])
 
     if (!wth) {
       fprintf(stderr, "capinfos: Can't open %s: %s\n", argv[opt],
-        wtap_strerror(err));
+          wtap_strerror(err));
       switch (err) {
 
-      case WTAP_ERR_UNSUPPORTED:
-      case WTAP_ERR_UNSUPPORTED_ENCAP:
-      case WTAP_ERR_BAD_FILE:
-        fprintf(stderr, "(%s)\n", err_info);
-        g_free(err_info);
-        break;
+        case WTAP_ERR_UNSUPPORTED:
+        case WTAP_ERR_UNSUPPORTED_ENCAP:
+        case WTAP_ERR_BAD_FILE:
+          fprintf(stderr, "(%s)\n", err_info);
+          g_free(err_info);
+          break;
       }
       overall_error_status = 1; /* remember that an error has occurred */
       if(!continue_after_wtap_open_offline_failure)
@@ -1310,5 +1438,19 @@ main(int argc, char *argv[])
         exit(status);
     }
   }
+
   return overall_error_status;
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 2
+ * tab-width: 2
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=2 tabstop=2 expandtab:
+ * :indentSize=2:tabSize=2:noTabs=true:
+ */

@@ -48,8 +48,8 @@ static int hf_btamp_controller_id = -1;
 static int hf_btamp_controller_type = -1;
 static int hf_btamp_controller_status = -1;
 static int hf_btamp_status = -1;
-static int hf_btamp_create_status = -1;
-static int hf_btamp_disc_status = -1;
+/* static int hf_btamp_create_status = -1; */
+/* static int hf_btamp_disc_status = -1; */
 static int hf_btamp_total_bw = -1;
 static int hf_btamp_max_guaran_bw = -1;
 static int hf_btamp_min_latency = -1;
@@ -127,6 +127,9 @@ static const value_string disc_status_vals[] = {
     { 0x0002, "Failed - No Physical Link exists and no Physical Link creation is in progress" },
     { 0, NULL }
 };
+
+void proto_register_btamp(void);
+void proto_reg_handoff_btamp(void);
 
 static int
 dissect_comrej(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
@@ -384,24 +387,18 @@ dissect_btamp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
     guint16     cmd_length;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "AMP");
+
     switch (pinfo->p2p_dir) {
-
-    case P2P_DIR_SENT:
-        col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
-        break;
-
-    case P2P_DIR_RECV:
-        col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
-        break;
-
-    case P2P_DIR_UNKNOWN:
-        col_clear(pinfo->cinfo, COL_INFO);
-        break;
-
-    default:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
-                     pinfo->p2p_dir);
-        break;
+        case P2P_DIR_SENT:
+            col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
     }
 
     if (tree) {
@@ -580,6 +577,7 @@ proto_register_btamp(void)
                 FT_UINT8, BASE_DEC, VALS(status_vals), 0x0,
                 NULL, HFILL }
         },
+#if 0
         { &hf_btamp_create_status,
             { "Status",           "btamp.create_status",
                 FT_UINT8, BASE_DEC, VALS(create_status_vals), 0x0,
@@ -590,6 +588,7 @@ proto_register_btamp(void)
                 FT_UINT8, BASE_DEC, VALS(disc_status_vals), 0x0,
                 NULL, HFILL }
         },
+#endif
         { &hf_btamp_pal_caps_mask,
             { "PAL Capabilities Mask",           "btamp.pal_caps_mask",
                 FT_NONE, BASE_NONE, NULL, 0x0,
@@ -637,7 +636,7 @@ proto_register_btamp(void)
     };
 
     /* Register the protocol name and description */
-    proto_btamp = proto_register_protocol("Bluetooth AMP Packet", "AMP", "btamp");
+    proto_btamp = proto_register_protocol("Bluetooth AMP Packet", "BT AMP", "btamp");
 
     new_register_dissector("btamp", dissect_btamp, proto_btamp);
 

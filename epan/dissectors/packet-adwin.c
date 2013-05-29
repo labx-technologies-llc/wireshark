@@ -30,7 +30,11 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
+/* Forward declarations */
+void proto_register_adwin(void);
+void proto_reg_handoff_adwin(void);
 
 /* This is registered to a different protocol */
 #define ADWIN_COMM_PORT 6543
@@ -571,7 +575,7 @@ adwin_request_response_handling(tvbuff_t *tvb, packet_info *pinfo,
 	}
 	if (!adwin_trans) {
 		/* create a "fake" adwin_trans structure */
-		adwin_trans = ep_new(adwin_transaction_t);
+		adwin_trans = wmem_new(wmem_packet_scope(), adwin_transaction_t);
 		adwin_trans->req_frame = 0;
 		adwin_trans->rep_frame = 0;
 		adwin_trans->req_time = pinfo->fd->abs_ts;
@@ -611,14 +615,14 @@ dissect_UDPH1_generic(tvbuff_t *tvb, packet_info *pinfo,
 	guint32 i3plus1code =  0, instructionID, seq_num;
 
 	instructionID = tvb_get_letohl(tvb, 0);
-	*info_string = ep_strdup_printf("%s: %s", packet_name,
+	*info_string = wmem_strdup_printf(wmem_packet_scope(), "%s: %s", packet_name,
 				        val_to_str_ext(instructionID, &instruction_mapping_ext, "unknown instruction: %d"));
 
 	if (instructionID == I_3PLUS1) {
 		gchar *tmp = *info_string;
 
 		i3plus1code = tvb_get_letohl(tvb, 20);
-		*info_string = ep_strdup_printf("%s: %s", tmp, val_to_str_ext(i3plus1code, &instruction_3plus1_mapping_ext, "unknown 3+1 code: %d"));
+		*info_string = wmem_strdup_printf(wmem_packet_scope(), "%s: %s", tmp, val_to_str_ext(i3plus1code, &instruction_3plus1_mapping_ext, "unknown 3+1 code: %d"));
 	}
 
 	/* Get the transaction identifier */
@@ -791,7 +795,7 @@ dissect_UDPH1_new(tvbuff_t *tvb, packet_info *pinfo,
 
 	SET_PACKET_TYPE(adwin_tree, APT_UDPH1_new);
 	dll_i = tvb_get_letohl(tvb, 52);
-	dll_version_s = ep_strdup_printf("%d.%d.%d",
+	dll_version_s = wmem_strdup_printf(wmem_packet_scope(), "%d.%d.%d",
 					dll_i / 1000000,
 					(dll_i - dll_i / 1000000 * 1000000) / 1000,
 					dll_i % 1000);
@@ -809,11 +813,11 @@ dissect_UDPR1(tvbuff_t *tvb, packet_info *pinfo,
 	guint32 seq_num, status;
 
 	status = tvb_get_letohl(tvb, 0);
-	status_string = match_strval_ext(status, &error_code_mapping_ext);
+	status_string = try_val_to_str_ext(status, &error_code_mapping_ext);
 	if (status_string) {
-		*info_string = ep_strdup_printf("UDPR1 Status: %s", status_string);
+		*info_string = wmem_strdup_printf(wmem_packet_scope(), "UDPR1 Status: %s", status_string);
 	} else {
-		*info_string = ep_strdup_printf("UDPR1 Undefined error code %d", status);
+		*info_string = wmem_strdup_printf(wmem_packet_scope(), "UDPR1 Undefined error code %d", status);
 	}
 
 	/* Get the transaction identifier */
@@ -843,11 +847,11 @@ dissect_UDPR2(tvbuff_t *tvb, packet_info *pinfo,
 	guint32 i, status, seq_num;
 
 	status = tvb_get_letohl(tvb, 0);
-	status_string = match_strval_ext(status, &error_code_mapping_ext);
+	status_string = try_val_to_str_ext(status, &error_code_mapping_ext);
 	if (status_string) {
-	        *info_string = ep_strdup_printf("UDPR2 Status: %s", status_string);
+	        *info_string = wmem_strdup_printf(wmem_packet_scope(), "UDPR2 Status: %s", status_string);
 	} else {
-		*info_string = ep_strdup_printf("UDPR2 Undefined error code %d", status);
+		*info_string = wmem_strdup_printf(wmem_packet_scope(), "UDPR2 Undefined error code %d", status);
 	}
 
 	/* Get the transaction identifier */
@@ -868,7 +872,7 @@ dissect_UDPR2(tvbuff_t *tvb, packet_info *pinfo,
 
 	for (i = 0; i < 250; i++) {
 		proto_item *item;
-		guint32 offset = 8 + i * sizeof(guint32);
+		guint32 offset = 8 + i * (int)sizeof(guint32);
 		gint32 value = tvb_get_letohl(tvb, offset);
 		void * fvalue = &value;
 		proto_tree_add_text(adwin_debug_tree, tvb, offset, 4,
@@ -907,7 +911,7 @@ dissect_UDPR3(tvbuff_t *tvb, packet_info *pinfo,
 
 	for (i = 0; i < 350; i++) {
 		proto_item *item;
-		guint32 offset = 8 + i * sizeof(guint32);
+		guint32 offset = 8 + i * (int)sizeof(guint32);
 		gint32 value = tvb_get_letohl(tvb, offset);
 		void * fvalue = &value;
 		proto_tree_add_text(adwin_debug_tree, tvb, offset, 4,
@@ -930,11 +934,11 @@ dissect_UDPR4(tvbuff_t *tvb, packet_info *pinfo,
 	guint32 data_type, i, status, seq_num;
 
 	status = tvb_get_letohl(tvb, 0);
-	status_string = match_strval_ext(status, &error_code_mapping_ext);
+	status_string = try_val_to_str_ext(status, &error_code_mapping_ext);
 	if (status_string) {
-		*info_string = ep_strdup_printf("UDPR4 Status: %s", status_string);
+		*info_string = wmem_strdup_printf(wmem_packet_scope(), "UDPR4 Status: %s", status_string);
 	} else {
-		*info_string = ep_strdup_printf("UDPR4 Undefined error code %d", status);
+		*info_string = wmem_strdup_printf(wmem_packet_scope(), "UDPR4 Undefined error code %d", status);
 	}
 
 	/* Get the transaction identifier */
@@ -959,7 +963,7 @@ dissect_UDPR4(tvbuff_t *tvb, packet_info *pinfo,
 
 	for (i = 0; i < 350; i++) {
 		proto_item *item;
-		guint32 offset = 8 + i * sizeof(guint32);
+		guint32 offset = 8 + i * (int)sizeof(guint32);
 		gint32 value = tvb_get_letohl(tvb, offset);
 		void * fvalue = &value;
 		switch (data_type) {
@@ -1018,7 +1022,7 @@ dissect_GDSHP(tvbuff_t *tvb, packet_info *pinfo,
 
 	for (i = 0; i < 336; i++) {
 		proto_item *item;
-		guint32 offset = 12 + i * sizeof(guint32);
+		guint32 offset = 12 + i * (int)sizeof(guint32);
 		gint32 value = tvb_get_letohl(tvb, offset);
 		void * fvalue = &value;
 		proto_tree_add_text(adwin_debug_tree, tvb, offset, 4,
@@ -1134,28 +1138,28 @@ dissect_adwin(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 	case UDPH2_LENGTH: /* to the best of my knowledge, this struct
 			    * has never been used publically! */
 		/* dissect_UDPH2(tvb, pinfo, adwin_tree, adwin_debug_tree); */
-		info_string = ep_strdup("UDPH2 - UNUSED");
+		info_string = wmem_strdup(wmem_packet_scope(), "UDPH2 - UNUSED");
 		break;
 	case UDPR2_LENGTH:
 		dissect_UDPR2(tvb, pinfo, adwin_tree, adwin_debug_tree, &info_string);
 		break;
 	case UDPR3_LENGTH:
 		dissect_UDPR3(tvb, pinfo, adwin_tree, adwin_debug_tree);
-		info_string = ep_strdup("UDPR3");
+		info_string = wmem_strdup(wmem_packet_scope(), "UDPR3");
 		break;
 	case UDPR4_LENGTH:
 		dissect_UDPR4(tvb, pinfo, adwin_tree, adwin_debug_tree, &info_string);
 		break;
 	case GetDataSHPacket_LENGTH:
 		dissect_GDSHP(tvb, pinfo, adwin_tree, adwin_debug_tree);
-		info_string = ep_strdup("GDSHP");
+		info_string = wmem_strdup(wmem_packet_scope(), "GDSHP");
 		break;
 	case GetDataSHRequest_LENGTH:
 		dissect_GDSHR(tvb, pinfo, adwin_tree, adwin_debug_tree);
-		info_string = ep_strdup("GDSHR");
+		info_string = wmem_strdup(wmem_packet_scope(), "GDSHR");
 		break;
 	default:
-		info_string = ep_strdup_printf("Unknown ADwin packet, length: %d", length);
+		info_string = wmem_strdup_printf(wmem_packet_scope(), "Unknown ADwin packet, length: %d", length);
 		break;
 	}
 
@@ -1163,8 +1167,6 @@ dissect_adwin(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 
 	return (tvb_reported_length(tvb));
 }
-
-void proto_reg_handoff_adwin(void);
 
 void
 proto_register_adwin(void)

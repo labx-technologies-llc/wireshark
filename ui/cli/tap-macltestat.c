@@ -160,7 +160,7 @@ mac_lte_stat_reset(void *phs)
 
 
 /* Allocate a mac_lte_ep_t struct to store info for new UE */
-static mac_lte_ep_t* alloc_mac_lte_ep(struct mac_lte_tap_info *si, packet_info *pinfo _U_)
+static mac_lte_ep_t* alloc_mac_lte_ep(const struct mac_lte_tap_info *si, packet_info *pinfo _U_)
 {
     mac_lte_ep_t* ep;
 
@@ -168,7 +168,7 @@ static mac_lte_ep_t* alloc_mac_lte_ep(struct mac_lte_tap_info *si, packet_info *
         return NULL;
     }
 
-    if (!(ep = g_malloc(sizeof(mac_lte_ep_t)))) {
+    if (!(ep = g_new(mac_lte_ep_t,1))) {
         return NULL;
     }
 
@@ -226,7 +226,7 @@ mac_lte_stat_packet(void *phs, packet_info *pinfo, epan_dissect_t *edt _U_,
     mac_lte_ep_t *tmp = NULL, *te = NULL;
 
     /* Cast tap info struct */
-    struct mac_lte_tap_info *si = (struct mac_lte_tap_info *)phi;
+    const struct mac_lte_tap_info *si = (const struct mac_lte_tap_info *)phi;
 
     if (!hs) {
         return 0;
@@ -412,12 +412,12 @@ static float calculate_bw(nstime_t *start_time, nstime_t *stop_time, guint32 byt
         /* Only really meaningful if have a few frames spread over time...
            For now at least avoid dividing by something very close to 0.0 */
         if (elapsed_ms < 2.0) {
-           return 0.0;
+           return 0.0f;
         }
         return ((bytes * 8) / elapsed_ms) / 1000;
     }
     else {
-        return 0.0;
+        return 0.0f;
     }
 }
 
@@ -518,7 +518,7 @@ static void mac_lte_stat_init(const char *optarg, void *userdata _U_)
     }
 
     /* Create struct */
-    hs = g_malloc0(sizeof(mac_lte_stat_t));
+    hs = g_new0(mac_lte_stat_t,1);
     hs->ep_list = NULL;
 
     error_string = register_tap_listener("mac-lte", hs,

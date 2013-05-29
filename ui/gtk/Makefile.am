@@ -132,15 +132,54 @@ pipe_icon.h:
 	echo >> $@
 	gdk-pixbuf-csource --raw --name=pipe_pb_data $(top_srcdir)/image/toolbar/pipe_16.png >> $@
 
+TOOLBAR_COMMON_ICONS = \
+	capture_interfaces \
+	capture_options_alt1 \
+	capture_restart \
+	capture_start \
+	capture_stop \
+	gnome_emblem_web \
+	toolbar_wireshark_file
+
 toolbar_icons.h:
 	echo "/* This file was automatically generated. DO NOT EDIT. */" > $@
 	echo >> $@
-	for icon16 in wireshark_file ; do \
-		gdk-pixbuf-csource --raw --name=toolbar_$${icon16}_16_pb_data $(top_srcdir)/image/toolbar/toolbar_$${icon16}_16.png >> $@ ;\
+	for icon16 in $(TOOLBAR_COMMON_ICONS) ; do \
+		gdk-pixbuf-csource --raw --name=$${icon16}_16_pb_data $(top_srcdir)/image/toolbar/$${icon16}_16.png >> $@ ;\
 	done
-	for icon24 in wireshark_file ; do \
-		gdk-pixbuf-csource --raw --name=toolbar_$${icon24}_24_pb_data $(top_srcdir)/image/toolbar/toolbar_$${icon24}_24.png >> $@ ;\
+	for icon24 in $(TOOLBAR_COMMON_ICONS) ; do \
+		gdk-pixbuf-csource --raw --name=$${icon24}_24_pb_data $(top_srcdir)/image/toolbar/$${icon24}_24.png >> $@ ;\
 	done
+
+layouts.h:
+	echo "/* This file was automatically generated. DO NOT EDIT. */" > $@
+	echo >> $@
+	for layout_num in 1 2 3 4 5 6 ; do \
+		gdk-pixbuf-csource --raw --name=layout_$${layout_num}_pb_data $(top_srcdir)/image/layout_$${layout_num}.png >> $@ ;\
+	done
+
+wsicon.h:
+	echo "/* This file was automatically generated. DO NOT EDIT. */" > $@
+	echo >> $@
+	for layout_num in 16 24 32 48 64 ; do \
+		gdk-pixbuf-csource --raw --name=wsicon_$${layout_num}_pb_data $(top_srcdir)/image/wsicon$${layout_num}.png >> $@ ;\
+	done
+
+wsiconcap.h:
+	echo "/* This file was automatically generated. DO NOT EDIT. */" > $@
+	echo >> $@
+	for layout_num in 16 24 32 48 64 ; do \
+		gdk-pixbuf-csource --raw --name=wsiconcap_$${layout_num}_pb_data $(top_srcdir)/image/wsiconcap$${layout_num}.png >> $@ ;\
+	done
+
+wssplash.h:
+	echo "/* This file was automatically generated. DO NOT EDIT. */" > $@
+	echo >> $@
+	gdk-pixbuf-csource --raw --name=wssplash_pb_data $(top_srcdir)/image/wssplash_dev.png >> $@
+
+clean-pixbufs:
+	rm expert_indicators.h capture_comment_icons.h network_icons.h remote_icons.h pipe_icon.h \
+		toolbar_icons.h layouts.h wsicon.h wsiconcap.h wssplash.h
 
 EXTRA_DIST = \
 	$(GENERATOR_FILES)		\

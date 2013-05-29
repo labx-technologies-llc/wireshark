@@ -139,7 +139,7 @@ dissect_usb_ms_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
 
     is_request=(pinfo->srcport==NO_ENDPOINT);
 
-    usb_conv_info=pinfo->usb_conv_info;
+    usb_conv_info=(usb_conv_info_t *)pinfo->usb_conv_info;
     usb_trans_info=usb_conv_info->usb_trans_info;
 
 
@@ -190,11 +190,11 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
     itl_nexus_t *itl;
     itlq_nexus_t *itlq;
 
-    usb_conv_info=pinfo->usb_conv_info;
+    usb_conv_info=(usb_conv_info_t *)pinfo->usb_conv_info;
     /* verify that we do have a usb_ms_conv_info */
-    usb_ms_conv_info=usb_conv_info->class_data;
+    usb_ms_conv_info=(usb_ms_conv_info_t *)usb_conv_info->class_data;
     if(!usb_ms_conv_info){
-        usb_ms_conv_info=se_alloc(sizeof(usb_ms_conv_info_t));
+        usb_ms_conv_info=se_new(usb_ms_conv_info_t);
         usb_ms_conv_info->itl=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "USB ITL");
         usb_ms_conv_info->itlq=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "USB ITLQ");
         usb_conv_info->class_data=usb_ms_conv_info;
@@ -253,7 +253,7 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
         /* make sure we have a ITL structure for this LUN */
         itl=(itl_nexus_t *)se_tree_lookup32(usb_ms_conv_info->itl, lun);
         if(!itl){
-            itl=se_alloc(sizeof(itl_nexus_t));
+            itl=se_new(itl_nexus_t);
             itl->cmdset=0xff;
             itl->conversation=NULL;
             se_tree_insert32(usb_ms_conv_info->itl, lun, itl);
@@ -262,7 +262,7 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
         /* make sure we have an ITLQ structure for this LUN/transaction */
         itlq=(itlq_nexus_t *)se_tree_lookup32(usb_ms_conv_info->itlq, pinfo->fd->num);
         if(!itlq){
-            itlq=se_alloc(sizeof(itlq_nexus_t));
+            itlq=se_new(itlq_nexus_t);
             itlq->lun=lun;
             itlq->scsi_opcode=0xffff;
             itlq->task_flags=0;
@@ -361,6 +361,23 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 
 }
 
+static gboolean
+dissect_usb_ms_bulk_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
+{
+    const gchar usbc[] = {0x55, 0x53, 0x42, 0x43};
+    const gchar usbs[] = {0x55, 0x53, 0x42, 0x53};
+    if (tvb_reported_length(tvb) < 4)
+        return FALSE;
+
+    if (tvb_memeql(tvb, 0, usbc, sizeof(usbc)) == 0 ||
+        tvb_memeql(tvb, 0, usbs, sizeof(usbs)) == 0) {
+        dissect_usb_ms_bulk(tvb, pinfo, tree);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 void
 proto_register_usb_ms(void)
 {
@@ -446,4 +463,6 @@ proto_reg_handoff_usb_ms(void)
 
     usb_ms_control_handle = new_create_dissector_handle(dissect_usb_ms_control, proto_usb_ms);
     dissector_add_uint("usb.control", IF_CLASS_MASS_STORAGE, usb_ms_control_handle);
+
+    heur_dissector_add("usb.bulk", dissect_usb_ms_bulk_heur, proto_usb_ms);
 }

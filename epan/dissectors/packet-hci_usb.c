@@ -29,6 +29,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-usb.h"
 #include "packet-bluetooth-hci.h"
@@ -57,8 +58,7 @@ static emem_tree_t *localhost_name          = NULL;
 static emem_tree_t *localhost_bdaddr        = NULL;
 static emem_tree_t *fragment_info_table     = NULL;
 
-static GHashTable *fragment_table     = NULL;
-static GHashTable *reassembled_table  = NULL;
+static reassembly_table hci_usb_reassembly_table;
 
 typedef struct _fragment_info_t {
     gint remaining_length;
@@ -88,6 +88,8 @@ static const fragment_items hci_usb_msg_frag_items = {
     "Message fragments"
 };
 
+void proto_register_hci_usb(void);
+void proto_reg_handoff_hci_usb(void);
 
 static int
 dissect_hci_usb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
@@ -138,7 +140,7 @@ dissect_hci_usb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
 
     session_id = usb_data->bus_id << 16 | usb_data->device_address << 8 | ((pinfo->p2p_dir == P2P_DIR_RECV) ? 1 : 0 ) << 7 | usb_data->endpoint;
 
-    hci_data = ep_alloc(sizeof(hci_data_t));
+    hci_data = (hci_data_t *) wmem_new(wmem_packet_scope(), hci_data_t);
     hci_data->interface_id = HCI_INTERFACE_USB;
     hci_data->adapter_id = usb_data->bus_id << 8 | usb_data->device_address;
     hci_data->chandle_to_bdaddr_table = chandle_to_bdaddr_table;
@@ -146,14 +148,15 @@ dissect_hci_usb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
     hci_data->localhost_bdaddr = localhost_bdaddr;
     hci_data->localhost_name = localhost_name;
     pinfo->private_data = hci_data;
+    pinfo->ptype = PT_BLUETOOTH;
 
     next_tvb = tvb_new_subset_remaining(tvb, offset);
     if (!pinfo->fd->flags.visited && usb_data->endpoint <= 0x02) {
         fragment_info_t  *fragment_info;
 
-        fragment_info = se_tree_lookup32(fragment_info_table, session_id);
+        fragment_info = (fragment_info_t *) se_tree_lookup32(fragment_info_table, session_id);
         if (fragment_info == NULL) {
-            fragment_info = se_alloc(sizeof(fragment_info_t));
+            fragment_info = (fragment_info_t *) wmem_new(wmem_file_scope(), fragment_info_t);
             fragment_info->fragment_id = 0;
             fragment_info->remaining_length = 0;
 
@@ -172,14 +175,16 @@ dissect_hci_usb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
 
         fragment_info->remaining_length -= tvb_ensure_length_remaining(tvb, offset);
 
-        fragment_add_seq_check(tvb, offset, pinfo, session_id, fragment_table, reassembled_table, fragment_info->fragment_id, tvb_length_remaining(tvb, offset), (fragment_info->remaining_length == 0) ? FALSE : TRUE);
+        fragment_add_seq_check(&hci_usb_reassembly_table,
+                               tvb, offset, pinfo, session_id, NULL,
+                               fragment_info->fragment_id, tvb_length_remaining(tvb, offset), (fragment_info->remaining_length == 0) ? FALSE : TRUE);
         if (fragment_info->remaining_length > 0)
             fragment_info->fragment_id += 1;
         else
             fragment_info->fragment_id = 0;
     }
 
-    reassembled = fragment_get_reassembled_id(pinfo, session_id, reassembled_table);
+    reassembled = fragment_get_reassembled_id(&hci_usb_reassembly_table, pinfo, session_id);
     if (reassembled && pinfo->fd->num < reassembled->reassembled_in) {
         pitem = proto_tree_add_text(ttree, tvb, offset, -1, "Fragment");
         PROTO_ITEM_SET_GENERATED(pitem);
@@ -211,7 +216,7 @@ dissect_hci_usb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
     if (usb_data->endpoint == 0x03) {
         call_dissector(find_dissector("bthci_sco"), next_tvb, pinfo, tree);
     } else if (usb_data->endpoint > 0x03) {
-        proto_tree_add_item(ttree, hf_bthci_usb_data, tvb, offset, -1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(ttree, hf_bthci_usb_data, tvb, offset, -1, ENC_NA);
     }
 
     offset += tvb_length_remaining(tvb, offset);
@@ -291,8 +296,8 @@ proto_register_hci_usb(void)
         &ett_hci_usb_msg_fragments,
     };
 
-    fragment_table_init(&fragment_table);
-    reassembled_table_init(&reassembled_table);
+    reassembly_table_init(&hci_usb_reassembly_table,
+                          &addresses_reassembly_table_functions);
     fragment_info_table = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "hci_usb fragment_info");
 
     chandle_to_bdaddr_table = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "hci_usb adapter/chandle to bdaddr");
@@ -330,3 +335,16 @@ proto_reg_handoff_hci_usb(void)
 
     dissector_add_handle("usb.device", hci_usb_handle);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

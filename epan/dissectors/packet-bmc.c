@@ -34,6 +34,8 @@
 #include "packet-cell_broadcast.h"
 #include "packet-gsm_map.h"
 
+void proto_register_bmc(void);
+
 static int dissect_bmc_cbs_message     (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 static int dissect_bmc_schedule_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 static int dissect_bmc_cbs41_message   (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
@@ -42,8 +44,8 @@ static int proto_bmc = -1;
 static int hf_bmc_message_type = -1;
 static int hf_bmc_message_id = -1;
 static int hf_bmc_serial_number = -1;
-static int hf_bmc_data_coding_scheme = -1;
-static int hf_bmc_cb_data = -1;
+/* static int hf_bmc_data_coding_scheme = -1; */
+/* static int hf_bmc_cb_data = -1; */
 static int hf_bmc_offset_to_begin_ctch_bs_index = -1;
 static int hf_bmc_length_of_cbs_schedule_period = -1;
 static int hf_bmc_new_message_bitmap = -1;
@@ -101,7 +103,7 @@ dissect_bmc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 
     /* Needs bit-reversing. Create a new buffer, copy the message to it and bit-reverse */
     len = tvb_length(tvb);
-    reversing_buffer = ep_tvb_memdup(tvb, offset, len);
+    reversing_buffer = (guint8 *)ep_tvb_memdup(tvb, offset, len);
     p_rev = reversing_buffer;
     /* Entire message is bit reversed */
     for (i=0; i<len; i++, p_rev++)
@@ -270,6 +272,7 @@ proto_register_bmc(void)
             FT_UINT16, BASE_HEX, NULL, 0,
             NULL, HFILL }
         },
+#if 0
         { &hf_bmc_data_coding_scheme,
             { "Data Coding Scheme", "bmc.data_coding_scheme",
             FT_UINT8, BASE_HEX, NULL, 0,
@@ -280,6 +283,7 @@ proto_register_bmc(void)
             FT_BYTES, BASE_NONE, NULL, 0,
             NULL, HFILL }
         },
+#endif
         { &hf_bmc_offset_to_begin_ctch_bs_index,
             { "Offset to Begin CTCH Block Set Index", "bmc.offset_to_begin_ctch_bs_index",
             FT_UINT8, BASE_DEC, NULL, 0,

@@ -62,18 +62,18 @@ dlg_button_new(GtkWidget *hbox, GtkWidget *button_hbox, const gchar *stock_id)
 void
 dlg_button_focus_nth(GtkWidget *hbox, gint focus_item) {
     GtkWidget *button_hbox, *button;
-    GList *children;
-    gint cur_item = 0;
+    GList     *children;
+    gint       cur_item = 0;
 
     if (!hbox)
         return;
 
-    button_hbox = g_object_get_data(G_OBJECT(hbox), BUTTON_HBOX_KEY);
+    button_hbox = (GtkWidget *)g_object_get_data(G_OBJECT(hbox), BUTTON_HBOX_KEY);
     children = gtk_container_get_children(GTK_CONTAINER(button_hbox));
 
     while (children) {
         if (cur_item == focus_item) {
-            button = children->data;
+            button = (GtkWidget *)children->data;
             gtk_widget_grab_focus(button);
             gtk_widget_grab_default(button);
             break;
@@ -98,44 +98,44 @@ dlg_button_focus_nth(GtkWidget *hbox, gint focus_item) {
 GtkWidget *
 dlg_button_row_new(const gchar *stock_id_first, ...)
 {
-    gint        buttons = 0;
-    va_list     stock_id_list;
+    gint         buttons  = 0;
+    va_list      stock_id_list;
     const gchar *stock_id = stock_id_first;
     GtkWidget   *hbox;
     GtkWidget   *button_hbox;
     GtkWidget   *help_hbox;
     GtkWidget   *button;
 
-    const gchar *apply        = NULL;
-    const gchar *cancel       = NULL;
-    const gchar *cap_start    = NULL;
-    const gchar *cap_stop     = NULL;
-    const gchar *cap_options  = NULL;
+    const gchar *apply         = NULL;
+    const gchar *cancel        = NULL;
+    const gchar *cap_start     = NULL;
+    const gchar *cap_stop      = NULL;
+    const gchar *cap_options   = NULL;
 #ifdef _WIN32
-    const gchar *cap_details  = NULL;
+    const gchar *cap_details   = NULL;
 #endif
-    const gchar *clear        = NULL;
-    const gchar *closex       = NULL;
-    const gchar *copy         = NULL;
-    const gchar *create_stat  = NULL;
-    const gchar *delete       = NULL;
-    const gchar *dont_save    = NULL;
-    const gchar *filter_stream= NULL;
-    const gchar *find         = NULL;
-    const gchar *help         = NULL;
-    const gchar *jump         = NULL;
-    const gchar *no           = NULL;
-    const gchar *ok           = NULL;
-    const gchar *print        = NULL;
-    const gchar *save         = NULL;
-    const gchar *save_as      = NULL;
-    const gchar *save_all     = NULL;
-    const gchar *stop         = NULL;
-    const gchar *yes          = NULL;
-    const gchar *refresh      = NULL;
-    const gchar *add          = NULL;
+    const gchar *clear         = NULL;
+    const gchar *closex        = NULL;
+    const gchar *copy          = NULL;
+    const gchar *create_stat   = NULL;
+    const gchar *delete_id     = NULL;
+    const gchar *dont_save     = NULL;
+    const gchar *filter_stream = NULL;
+    const gchar *find          = NULL;
+    const gchar *help          = NULL;
+    const gchar *jump          = NULL;
+    const gchar *no            = NULL;
+    const gchar *ok            = NULL;
+    const gchar *print         = NULL;
+    const gchar *save          = NULL;
+    const gchar *save_as       = NULL;
+    const gchar *save_all      = NULL;
+    const gchar *stop          = NULL;
+    const gchar *yes           = NULL;
+    const gchar *refresh       = NULL;
+    const gchar *add           = NULL;
 #ifdef HAVE_GEOIP
-    const gchar *map          = NULL;
+    const gchar *map           = NULL;
 #endif /* HAVE_GEOIP */
     const gchar *follow_stream = NULL;
     const gchar *graph_a_b     = NULL;
@@ -207,7 +207,7 @@ dlg_button_row_new(const gchar *stock_id_first, ...)
         } else if (strcmp(stock_id, WIRESHARK_STOCK_FILTER_OUT_STREAM) == 0) {
             filter_stream = stock_id;
         } else if (strcmp(stock_id, GTK_STOCK_DELETE) == 0) {
-            delete = stock_id;
+            delete_id = stock_id;
         } else if (strcmp(stock_id, GTK_STOCK_COPY) == 0) {
             copy = stock_id;
         } else if (strcmp(stock_id, WIRESHARK_STOCK_GRAPH_A_B) == 0) {
@@ -223,7 +223,7 @@ dlg_button_row_new(const gchar *stock_id_first, ...)
     }
     va_end(stock_id_list);
 
-    hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
+    hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, DLG_BUTTON_SPACING, FALSE);
     gtk_widget_show(hbox);
 
     button_hbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
@@ -357,9 +357,9 @@ dlg_button_row_new(const gchar *stock_id_first, ...)
             dlg_button_new(hbox, button_hbox, cap_stop);
             return hbox;
         }
-        if (delete && cancel) {
+        if (delete_id && cancel) {
             dlg_button_new(hbox, button_hbox, cancel);
-            dlg_button_new(hbox, button_hbox, delete);
+            dlg_button_new(hbox, button_hbox, delete_id);
             return hbox;
         }
     }
@@ -389,10 +389,10 @@ dlg_button_row_new(const gchar *stock_id_first, ...)
             return hbox;
         }
         if (save && dont_save && cancel) {
-        	dlg_button_new(hbox, button_hbox, dont_save);
-        	dlg_button_new(hbox, button_hbox, cancel);
-        	dlg_button_new(hbox, button_hbox, save);
-        	return hbox;
+            dlg_button_new(hbox, button_hbox, dont_save);
+            dlg_button_new(hbox, button_hbox, cancel);
+            dlg_button_new(hbox, button_hbox, save);
+            return hbox;
         }
     }
     if (buttons == 4) {
@@ -414,33 +414,33 @@ dlg_button_row_new(const gchar *stock_id_first, ...)
 #endif
 
     /* beware: sequence of buttons is important! */
-    if (ok      != NULL) dlg_button_new(hbox, button_hbox, ok);
-    if (delete  != NULL) dlg_button_new(hbox, button_hbox, delete);
-    if (jump    != NULL) dlg_button_new(hbox, button_hbox, jump);
-    if (find    != NULL) dlg_button_new(hbox, button_hbox, find);
-    if (print   != NULL) dlg_button_new(hbox, button_hbox, print);
-    if (create_stat != NULL) dlg_button_new(hbox, button_hbox, create_stat);
-    if (apply   != NULL) dlg_button_new(hbox, button_hbox, apply);
-    if (yes     != NULL) dlg_button_new(hbox, button_hbox, yes);
-    if (no      != NULL) dlg_button_new(hbox, button_hbox, no);
-    if (save    != NULL) dlg_button_new(hbox, button_hbox, save);
-    if (save_as    != NULL) dlg_button_new(hbox, button_hbox, save_as);
-    if (save_all    != NULL) dlg_button_new(hbox, button_hbox, save_all);
-    if (dont_save   != NULL) dlg_button_new(hbox, button_hbox, dont_save);
-    if (cap_start   != NULL) dlg_button_new(hbox, button_hbox, cap_start);
-    if (cap_stop    != NULL) dlg_button_new(hbox, button_hbox, cap_stop);
-    if (cap_options != NULL) dlg_button_new(hbox, button_hbox, cap_options);
+    if (ok            != NULL) dlg_button_new(hbox, button_hbox, ok);
+    if (delete_id     != NULL) dlg_button_new(hbox, button_hbox, delete_id);
+    if (jump          != NULL) dlg_button_new(hbox, button_hbox, jump);
+    if (find          != NULL) dlg_button_new(hbox, button_hbox, find);
+    if (print         != NULL) dlg_button_new(hbox, button_hbox, print);
+    if (create_stat   != NULL) dlg_button_new(hbox, button_hbox, create_stat);
+    if (apply         != NULL) dlg_button_new(hbox, button_hbox, apply);
+    if (yes           != NULL) dlg_button_new(hbox, button_hbox, yes);
+    if (no            != NULL) dlg_button_new(hbox, button_hbox, no);
+    if (save          != NULL) dlg_button_new(hbox, button_hbox, save);
+    if (save_as       != NULL) dlg_button_new(hbox, button_hbox, save_as);
+    if (save_all      != NULL) dlg_button_new(hbox, button_hbox, save_all);
+    if (dont_save     != NULL) dlg_button_new(hbox, button_hbox, dont_save);
+    if (cap_start     != NULL) dlg_button_new(hbox, button_hbox, cap_start);
+    if (cap_stop      != NULL) dlg_button_new(hbox, button_hbox, cap_stop);
+    if (cap_options   != NULL) dlg_button_new(hbox, button_hbox, cap_options);
 #ifdef _WIN32
-    if (cap_details != NULL) dlg_button_new(hbox, button_hbox, cap_details);
+    if (cap_details   != NULL) dlg_button_new(hbox, button_hbox, cap_details);
 #endif
-    if (stop    != NULL) dlg_button_new(hbox, button_hbox, stop);
-    if (clear   != NULL) dlg_button_new(hbox, button_hbox, clear);
-    if (filter_stream!= NULL) dlg_button_new(hbox, button_hbox, filter_stream);
+    if (stop          != NULL) dlg_button_new(hbox, button_hbox, stop);
+    if (clear         != NULL) dlg_button_new(hbox, button_hbox, clear);
+    if (filter_stream != NULL) dlg_button_new(hbox, button_hbox, filter_stream);
     if (follow_stream != NULL) dlg_button_new(hbox, button_hbox, follow_stream);
-    if (graph_a_b != NULL) dlg_button_new(hbox, button_hbox, graph_a_b);
-    if (graph_b_a != NULL) dlg_button_new(hbox, button_hbox, graph_b_a);
-    if (closex   != NULL) dlg_button_new(hbox, button_hbox, closex);
-    if (cancel  != NULL) dlg_button_new(hbox, button_hbox, cancel);
+    if (graph_a_b     != NULL) dlg_button_new(hbox, button_hbox, graph_a_b);
+    if (graph_b_a     != NULL) dlg_button_new(hbox, button_hbox, graph_b_a);
+    if (closex        != NULL) dlg_button_new(hbox, button_hbox, closex);
+    if (cancel        != NULL) dlg_button_new(hbox, button_hbox, cancel);
 
     return hbox;
 }
@@ -455,23 +455,14 @@ dlg_window_new(const gchar *title)
     win = window_new(GTK_WINDOW_TOPLEVEL, title);
 
     /*
-     * XXX - if we're running in the capture child process, we can't easily
-     * make this window transient for the main process's window.  We just
-     * punt here.
-     *
-     * Perhaps the child process should only capture packets, write them to
-     * a file, and somehow notify the parent process and let *it* do all
-     * the GUI work.  If we can do that efficiently (so that we don't drop
-     * more packets), perhaps we can also do so even when we're *not* doing
-     * an "Update list of packets in real time" capture.  That'd let the
-     * child process run set-UID on platforms where you need that in order
-     * to capture, and might also simplify the job of having the GUI main
-     * loop wait both for user input and packet arrival.
-     */
-    /*
      * On Windows, making the dialogs transient to top_level behaves strangely.
      * It is not possible any more to bring the top level window to front easily.
      * So we don't do this on Windows.
+     *
+     * XXX: Note well: This means that *on Windows* any code which creates a
+     *      window using dlg_window_new() and then calls
+     *      gtk_widget_destroy_with_parent() will *not* get the desired effect
+     *      since the dialog window actually has has no parent.
      */
 #ifndef _WIN32
     if (top_level) {
@@ -483,7 +474,7 @@ dlg_window_new(const gchar *title)
 }
 
 /* Create a configuration dialog box window that belongs to Wireshark's
- * main window and add the name of the current profile name to it's title bar
+ * main window and add the name of the current profile name to its title bar
  */
 GtkWidget *
 dlg_conf_window_new(const gchar *title)
@@ -506,15 +497,15 @@ dlg_conf_window_new(const gchar *title)
     return win;
 }
 
-/* Set the "activate" signal for a widget to call a routine to
-   activate the "OK" button for a dialog box.
+/*  Set the "activate" signal for a widget to call a routine to
+    activate the "OK" button for a dialog box.
 
-   XXX - there should be a way to specify that a GtkEntry widget
-   shouldn't itself handle the Return key, but should let it be
-   passed on to the parent, so that you don't have to do this
-   by hand for every GtkEntry widget in a dialog box, but, alas,
-   there isn't.  (Does this problem exist for other widgets?
-   I.e., are there any others that seize the Return key? */
+    XXX - there should be a way to specify that a GtkEntry widget
+    shouldn't itself handle the Return key, but should let it be
+    passed on to the parent, so that you don't have to do this
+    by hand for every GtkEntry widget in a dialog box, but, alas,
+    there isn't.  (Does this problem exist for other widgets?
+    I.e., are there any others that seize the Return key? */
 void
 dlg_set_activate(GtkWidget *widget, GtkWidget *ok_button)
 {

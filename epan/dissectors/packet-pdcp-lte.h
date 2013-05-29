@@ -82,7 +82,7 @@ typedef struct pdcp_lte_info
     gboolean           large_cid_present;
     enum rohc_mode     mode;
     gboolean           rnd;
-    gboolean           udp_checkum_present;
+    gboolean           udp_checksum_present;
     unsigned short     profile;
 
     guint8             is_retx;
@@ -120,7 +120,7 @@ typedef struct pdcp_lte_info
 
 /* Conditional field. This field is mandatory in case of User Plane PDCP PDU.
    The format is to have the tag, followed by the value (there is no length field,
-   its implicit from the tag). The allowed values are defined above. */
+   it's implicit from the tag). The allowed values are defined above. */
 
 #define PDCP_LTE_SEQNUM_LENGTH_TAG          0x02
 /* 1 byte */
@@ -129,7 +129,7 @@ typedef struct pdcp_lte_info
    to show you display/filter/plot/add-custom-columns on these fields, so should
    be added if available.
    The format is to have the tag, followed by the value (there is no length field,
-   its implicit from the tag) */
+   it's implicit from the tag) */
 
 #define PDCP_LTE_DIRECTION_TAG              0x03
 /* 1 byte */

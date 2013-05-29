@@ -33,6 +33,9 @@
 #include <string.h>
 
 /* function declarations */
+void proto_register_dplay(void);
+void proto_reg_handoff_dplay(void);
+
 static void dissect_dplay(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 static gint dissect_type1a_message(proto_tree *tree, tvbuff_t *tvb, gint offset);
 
@@ -425,7 +428,7 @@ static gint display_unicode_string(proto_tree *tree, gint hf_index, tvbuff_t *tv
      * Allocate a buffer for the string; "len" is the length in
      * bytes, not the length in characters.
      */
-    str = ep_alloc(len/2);
+    str = (char *)ep_alloc(len/2);
 
     /*
      * XXX - this assumes the string is just ISO 8859-1; we need
@@ -1070,9 +1073,6 @@ static void dissect_dplay(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 break;
             case 0x0002:
                 dissect_type02_message(dplay_data, tvb, offset);
-                break;
-            case 0x0004:
-                /* We should not get here. */
                 break;
             case 0x0005:
                 dissect_type05_message(dplay_data, tvb, offset);

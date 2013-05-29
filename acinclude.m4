@@ -785,10 +785,10 @@ AC_DEFUN([AC_WIRESHARK_LIBLUA_CHECK],[
 		LIBS="$LIBS -L$lua_dir/lib -llua -lm"
 		wireshark_save_LDFLAGS="$LDFLAGS"
 		LDFLAGS="$LDFLAGS -L$lua_dir/lib"
-		
+
 		#
 		# Determine Lua version by reading the LUA_VERSION_NUM definition
-		# from lua.h under the given Lua directory. The value is 501 for 
+		# from lua.h under the given Lua directory. The value is 501 for
 		# Lua 5.1, 502 for Lua 5.2, etc.
 		#
 		AC_MSG_CHECKING(Lua version)
@@ -797,8 +797,15 @@ AC_DEFUN([AC_WIRESHARK_LIBLUA_CHECK],[
 	else
 		#
 		# The user specified no directory in which liblua resides,
-		# so just add "-llua -lliblua" to the used libs.
+		# we try to find out the lua version by looking at pathnames
+		# and we just add "-llua -lliblua" to the used libs.
 		#
+		AC_MSG_CHECKING(Lua version)
+		for i in 5.0 5.1 5.2
+		do
+			[[ -d "/usr/include/lua$i" ]] && lua_ver=$i 
+		done
+		AC_MSG_RESULT(Lua ${lua_ver})
 		wireshark_save_CPPFLAGS="$CPPFLAGS"
 		wireshark_save_LDFLAGS="$LDFLAGS"
 		wireshark_save_LIBS="$LIBS"
@@ -1641,7 +1648,10 @@ if test "x$ac_supports_gcc_flags" = "xyes" ; then
 		      # whether it fails with this option and -Werror,
 		      # and, if so, don't include it.
 		      #
-		      if test "x$3" != "x" ; then
+		      # We test arg 4 here because arg 3 is a program which
+		      # could contain quotes (breaking the comparison).
+		      #
+		      if test "x$4" != "x" ; then
                         CFLAGS="$CFLAGS -Werror"
                         AC_MSG_CHECKING(whether $GCC_OPTION $4)
                         AC_COMPILE_IFELSE([
@@ -1654,6 +1664,11 @@ if test "x$ac_supports_gcc_flags" = "xyes" ; then
                             # the saved value plus just the new option.
                             #
                             CFLAGS="$CFLAGS_saved $GCC_OPTION"
+                            #
+                            # Add it to the flags we use when building
+                            # build tools.
+                            #
+                            CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD $GCC_OPTION"
                             if test "$2" != C ; then
                               #
                               # Add it to the C++ flags as well.
@@ -1672,6 +1687,11 @@ if test "x$ac_supports_gcc_flags" = "xyes" ; then
                         # the saved value plus just the new option.
                         #
                         CFLAGS="$CFLAGS_saved $GCC_OPTION"
+                        #
+                        # Add it to the flags we use when building
+                        # build tools.
+                        #
+                        CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD $GCC_OPTION"
                         if test "$2" != C ; then
                           #
                           # Add it to the C++ flags as well.
@@ -1705,7 +1725,10 @@ if test "x$ac_supports_gcc_flags" = "xyes" ; then
 		      # whether it fails with this option and -Werror,
 		      # and, if so, don't include it.
 		      #
-		      if test "x$3" != "x" ; then
+		      # We test arg 4 here because arg 3 is a program which
+		      # could contain quotes (breaking the comparison).
+		      #
+		      if test "x$4" != "x" ; then
                         CXXFLAGS="$CXXFLAGS -Werror"
                         AC_MSG_CHECKING(whether $GCC_OPTION $4)
                         AC_COMPILE_IFELSE([

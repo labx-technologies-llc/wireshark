@@ -23,13 +23,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <stdlib.h>
-
 #include <glib.h>
 
+#include "wmem_core.h"
 #include "wmem_scopes.h"
-#include "wmem_allocator_glib.h"
-#include "wmem_allocator_block.h"
 
 /* One of the supposed benefits of wmem over the old emem was going to be that
  * the scoping of the various memory pools would be obvious, since they would
@@ -67,7 +64,7 @@ wmem_packet_scope(void)
     g_assert(packet_scope);
     g_assert(in_packet_scope);
 
-    return epan_scope;
+    return packet_scope;
 }
 
 void
@@ -98,7 +95,7 @@ wmem_file_scope(void)
     g_assert(file_scope);
     g_assert(in_file_scope);
 
-    return epan_scope;
+    return file_scope;
 }
 
 void
@@ -129,6 +126,10 @@ wmem_leave_file_scope(void)
 
     wmem_free_all(file_scope);
     in_file_scope = FALSE;
+
+    /* this seems like a good time to do garbage collection */
+    wmem_gc(file_scope);
+    wmem_gc(packet_scope);
 }
 
 /* Epan Scope */
@@ -153,15 +154,9 @@ wmem_init_scopes(void)
     g_assert(in_packet_scope == FALSE);
     g_assert(in_file_scope   == FALSE);
 
-    if (getenv("WIRESHARK_DEBUG_WMEM_PACKET_NO_CHUNKS")) {
-        packet_scope = wmem_create_glib_allocator();
-    }
-    else {
-        packet_scope = wmem_create_block_allocator();
-    }
-
-    file_scope   = wmem_create_glib_allocator();
-    epan_scope   = wmem_create_glib_allocator();
+    packet_scope = wmem_allocator_new(WMEM_ALLOCATOR_BLOCK);
+    file_scope   = wmem_allocator_new(WMEM_ALLOCATOR_BLOCK);
+    epan_scope   = wmem_allocator_new(WMEM_ALLOCATOR_SIMPLE);
 }
 
 void

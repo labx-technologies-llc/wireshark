@@ -67,7 +67,7 @@ DOCUMENT SECTION
   <!ENTITY DocumentCopyrightHolder1 "Ulf Lamping ">
   <!ENTITY DocumentCopyrightHolder2 "Richard Sharpe ">
   <!ENTITY DocumentCopyrightHolder3 "Ed Warnicke ">
-  <!ENTITY DocumentCopyrightYear "2004-2012">
+  <!ENTITY DocumentCopyrightYear "2004-2013">
 
   <!ENTITY DocumentEdition "Third ">
   <!ENTITY DocumentVersion "V3.0.2">
@@ -75,12 +75,18 @@ DOCUMENT SECTION
 
   <!ENTITY % SvnVersionFile SYSTEM "svn_version.xml">
   %SvnVersionFile;
-  <!ENTITY DocumentLegalNotice "<para>Permission is granted to copy, distribute and/or modify this document under the terms of the GNU General Public License, Version 2 or any later version published by the Free Software Foundation.</para><para>All logos and trademarks in this document are property of their respective owner.</para>">
+  <!ENTITY DocumentLegalNotice "<para>Permission is granted to copy, distribute
+    and/or modify this document under the terms of the GNU General Public
+    License, Version 2 or any later version published by the Free Software
+    Foundation.
+    </para>
+    <para>All logos and trademarks in this document are property of their
+    respective owner.</para>">
 
 <!--
 Wireshark Info
 -->
-  <!ENTITY WiresharkCurrentVersion "1.9">
+  <!ENTITY WiresharkCurrentVersion "1.11">
   <!ENTITY WiresharkWebSite "http://www.wireshark.org">
   <!ENTITY WiresharkUsersGuidePage "&WiresharkWebSite;/docs/">
   <!ENTITY WiresharkDownloadPage "&WiresharkWebSite;/download.html">
@@ -97,6 +103,7 @@ Wireshark Info
   <!ENTITY WiresharkWikiPreferencesPage "&WiresharkWikiPage;/Preferences">
   <!ENTITY WiresharkWikiPcapNgPage "&WiresharkWikiPage;/Development/PcapNg">
   <!ENTITY WiresharkQASite "http://ask.wireshark.org">
+  <!ENTITY WiresharkListsPage "&WiresharkWebSite;/lists/">
 
   <!ENTITY WiresharkDevMailList "wireshark-dev[AT]wireshark.org">
   <!ENTITY WiresharkUsersMailList "wireshark-users[AT]wireshark.org">

@@ -45,7 +45,7 @@ public slots:
 
 private slots:
     void checkFilter(const QString &text);
-    void showDisplayFilterDialog();
+    void bookmarkClicked();
 
 private:
     bool plain_;
@@ -60,8 +60,7 @@ signals:
     void popFilterSyntaxStatus();
     void pushFilterSyntaxWarning(QString&);
     void filterPackets(QString& new_filter, bool force);
-
-public slots:
+    void addBookmark(QString filter);
 
 };
 

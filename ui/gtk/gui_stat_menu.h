@@ -33,6 +33,9 @@ extern "C" {
  * Add a new menu item for a stat.
  */
 
+const char *
+stat_group_name(register_stat_group_t group);
+
 /**
  * XXX TODO: Rewrite me
  * NOTE comments refere to old menus.c implementation.
@@ -63,7 +66,7 @@ extern "C" {
  *
  * @param callback_data data for callback function
  */
-void register_lua_menu_bar_menu_items(
+void register_menu_bar_menu_items(
     const char   *gui_path,
     const char   *name,
     const gchar  *stock_id,
@@ -144,28 +147,16 @@ void gsm_a_stat_gtk_dtap_ss_cb(GtkAction *action, gpointer user_data);
 void gsm_a_stat_gtk_dtap_tp_cb(GtkAction *action, gpointer user_data);
 void gsm_a_stat_gtk_sacch_rr_cb(GtkAction *action, gpointer user_data);
 void mac_lte_stat_cb(GtkAction *action, gpointer user_data);
+void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata);
 void rlc_lte_stat_cb(GtkAction *action, gpointer user_data);
+void gtk_rlc_lte_stat_init(const char *opt_arg, void *userdata);
 void sipstat_cb(GtkAction *action, gpointer user_data);
 void wsp_stat_cb(GtkAction *action, gpointer user_data);
 
 void gsm_map_stat_gtk_cb(GtkAction *action, gpointer user_data);
 void gsm_map_stat_gtk_sum_cb(GtkAction *action, gpointer user_data);
 
-void afp_srt_stat_cb(GtkAction *action, gpointer user_data);
-void camel_srt_cb(GtkAction *action, gpointer user_data);
 void gtk_dcerpcstat_cb(GtkAction *action, gpointer user_data);
-void diameter_srt_cb(GtkAction *action, gpointer user_data);
-void fc_srt_cb(GtkAction *action, gpointer user_data);
-void gtp_srt_cb(GtkAction *action, gpointer user_data);
-void h225_srt_cb(GtkAction *action, gpointer user_data);
-void ldap_srt_cb(GtkAction *action, gpointer user_data);
-void megaco_srt_cb(GtkAction *action, gpointer user_data);
-void mgcp_srt_cb(GtkAction *action, gpointer user_data);
-void ncp_srt_cb(GtkAction *action, gpointer user_data);
-void radius_srt_cb(GtkAction *action, gpointer user_data);
-void scsi_srt_cb(GtkAction *action, gpointer user_data);
-void smb2_srt_cb(GtkAction *action, gpointer user_data);
-void smb_srt_cb(GtkAction *action, gpointer user_data);
 void rlc_lte_graph_cb(GtkAction *action, gpointer user_data);
 
 void rlc_lte_graph_known_channel_launch(guint16 ueid, guint8 rlcMode,

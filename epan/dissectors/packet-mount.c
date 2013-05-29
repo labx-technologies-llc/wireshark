@@ -159,23 +159,23 @@ static int
 dissect_mount_dirpath_call(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		proto_tree *tree)
 {
-	char *mountpoint=NULL;
+	const char *mountpoint=NULL;
 
 	if((!pinfo->fd->flags.visited) && nfs_file_name_snooping){
-		rpc_call_info_value *civ=pinfo->private_data;
+		rpc_call_info_value *civ=(rpc_call_info_value *)pinfo->private_data;
 
 		if(civ->request && (civ->proc==1)){
 			const gchar *host;
 			unsigned char *name;
-			int len;
+			guint32 len;
 			unsigned char *ptr;
 
-			host=ip_to_str(pinfo->dst.data);
+			host=ip_to_str((guint8 *)pinfo->dst.data);
 			len=tvb_get_ntohl(tvb, offset);
                         if (len >= ITEM_LABEL_LENGTH)
                                 THROW(ReportedBoundsError);
 
-			name=g_malloc(strlen(host)+1+len+1+200);
+			name=(unsigned char *)g_malloc(strlen(host)+1+len+1+200);
 			ptr=name;
 			memcpy(ptr, host, strlen(host));
 			ptr+=strlen(host);
@@ -217,8 +217,8 @@ dissect_mountlist(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree 
 	proto_item* lock_item = NULL;
 	proto_tree* lock_tree = NULL;
 	int old_offset = offset;
-	char* hostname;
-	char* directory;
+	const char* hostname;
+	const char* directory;
 
 	if (tree) {
 		lock_item = proto_tree_add_item(tree, hf_mount_mountlist, tvb,
@@ -294,7 +294,7 @@ dissect_exportlist(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tr
 	int groups_offset;
 	proto_item* groups_item = NULL;
 	proto_item* groups_tree = NULL;
-	char* directory;
+	const char* directory;
 
 	group_name_list[0]=0;
 	group_names_len=0;
@@ -556,7 +556,7 @@ dissect_mount3_mnt_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tr
 
 	switch (status) {
 		case 0:
-			offset = dissect_nfs_fh3(tvb,offset,pinfo,tree,"fhandle",NULL);
+			offset = dissect_nfs3_fh(tvb,offset,pinfo,tree,"fhandle",NULL);
 
 			auth_flavors = tvb_get_ntohl(tvb, offset);
 			proto_tree_add_uint(tree,hf_mount_flavors, tvb,
@@ -583,7 +583,7 @@ dissect_sgi_exportlist(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_
 	proto_item* exportlist_item = NULL;
 	proto_tree* exportlist_tree = NULL;
 	int old_offset = offset;
-	char* directory, *options;
+	const char* directory, *options;
 
 	if (tree) {
 		exportlist_item = proto_tree_add_item(tree, hf_mount_exportlist,

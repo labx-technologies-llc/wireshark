@@ -101,7 +101,7 @@ static int hf_aux_data_desc = -1;
 static int hf_detail_level = -1;
 static int hf_recv_buf_len = -1;
 static int hf_send_buf_len = -1;
-static int hf_continuation_from = -1;
+/* static int hf_continuation_from = -1; */
 static int hf_status = -1;
 static int hf_convert = -1;
 static int hf_ecount = -1;
@@ -465,12 +465,12 @@ static int
 add_detail_level(tvbuff_t *tvb, int offset, int count _U_, packet_info *pinfo,
     proto_tree *tree, int convert _U_, int hf_index)
 {
-	struct smb_info *smb_info = pinfo->private_data;
+	struct smb_info *smb_info = (struct smb_info *)pinfo->private_data;
 	smb_transact_info_t *trp = NULL;
 	guint16 level;
 
 	if (smb_info->sip->extra_info_type == SMB_EI_TRI)
-		trp = smb_info->sip->extra_info;
+		trp = (smb_transact_info_t *)smb_info->sip->extra_info;
 
 	level = tvb_get_letohs(tvb, offset);
 	if (!pinfo->fd->flags.visited)
@@ -2507,7 +2507,7 @@ dissect_response_data(tvbuff_t *tvb, packet_info *pinfo, int convert,
 	guint i, j;
 	guint16 aux_count;
 
-	trp = smb_info->sip->extra_info;
+	trp = (smb_transact_info_t *)smb_info->sip->extra_info;
 
 	/*
 	 * Find the item table for the matching request's detail level.
@@ -2643,7 +2643,7 @@ static gboolean
 dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
 		    packet_info *pinfo, proto_tree *parent_tree)
 {
-	smb_info_t *smb_info = pinfo->private_data;
+	smb_info_t *smb_info = (smb_info_t *)pinfo->private_data;
 	smb_transact_info_t *trp = NULL;
 	int offset = 0/*, start_offset*/;
 	guint16 cmd;
@@ -2662,7 +2662,7 @@ dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
 	proto_tree *data_tree;
 
 	if (smb_info->sip->extra_info_type == SMB_EI_TRI)
-		trp = smb_info->sip->extra_info;
+		trp = (smb_transact_info_t *)smb_info->sip->extra_info;
 
 	if (!proto_is_protocol_enabled(find_protocol_by_id(proto_smb_lanman)))
 		return FALSE;
@@ -2948,9 +2948,11 @@ proto_register_pipe_lanman(void)
 			{ "Send Buffer Length", "lanman.send_buf_len", FT_UINT16, BASE_DEC,
 			NULL, 0, "LANMAN Send Buffer Length", HFILL }},
 
+#if 0
 		{ &hf_continuation_from,
 			{ "Continuation from message in frame", "lanman.continuation_from", FT_UINT32, BASE_DEC,
 			NULL, 0, "This is a LANMAN continuation from the message in the frame in question", HFILL }},
+#endif
 
 		{ &hf_status,
 			{ "Status", "lanman.status", FT_UINT16, BASE_DEC,
@@ -3262,14 +3264,20 @@ proto_register_pipe_lanman(void)
 
 static heur_dissector_list_t smb_transact_heur_subdissector_list;
 
-static GHashTable *dcerpc_fragment_table = NULL;
-static GHashTable *dcerpc_reassembled_table = NULL;
+static reassembly_table dcerpc_reassembly_table;
 
 static void
 smb_dcerpc_reassembly_init(void)
 {
-	fragment_table_init(&dcerpc_fragment_table);
-	reassembled_table_init(&dcerpc_reassembled_table);
+	/*
+	 * XXX - addresses_ports_reassembly_table_functions?
+	 * Probably correct for SMB-over-NBT and SMB-over-TCP,
+	 * as stuff from two different connections should
+	 * probably not be combined, but what about other
+	 * transports for SMB, e.g. NBF or Netware?
+	 */
+	reassembly_table_init(&dcerpc_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 gboolean
@@ -3280,7 +3288,7 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 	gboolean result=0;
 	gboolean save_fragmented;
 	guint reported_len;
-	guint32 hash_key;
+
 	fragment_data *fd_head;
 	tvbuff_t *new_tvb;
     proto_item *frag_tree_item;
@@ -3313,28 +3321,6 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 
 	/* below this line, we know we are doing reassembly */
 
-	/*
-	 * We have to keep track of reassemblies by FID, because
-	 * we could have more than one pipe operation in a frame
-	 * with NetBIOS-over-TCP.
-	 *
-	 * We also have to keep track of them by direction, as
-	 * we might have reassemblies in progress in both directions.
-	 *
-	 * We do that by combining the FID and the direction and
-	 * using that as the reassembly ID.
-	 *
-	 * The direction is indicated by the SMB request/reply flag - data
-	 * from client to server is carried in requests, data from server
-	 * to client is carried in replies.
-	 *
-	 * We know that the FID is only 16 bits long, so we put the
-	 * direction in bit 17.
-	 */
-	hash_key = fid;
-	if (smb_priv->request)
-		hash_key |= 0x10000;
-
 	/* this is a new packet, see if we are already reassembling this
 	   pdu and if not, check if the dissector wants us
 	   to reassemble it
@@ -3348,7 +3334,7 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 		 * in this direction, by searching for its reassembly
 		 * structure.
 		 */
-		fd_head=fragment_get(pinfo, fid, dcerpc_fragment_table);
+		fd_head=fragment_get(&dcerpc_reassembly_table, pinfo, fid, NULL);
 		if(!fd_head){
 			/* No reassembly, so this is a new pdu. check if the
 			   dissector wants us to reassemble it or if we
@@ -3370,12 +3356,11 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 			   more data ?
 			*/
 			if(pinfo->desegment_len){
-				fragment_add_check(d_tvb, 0, pinfo, fid,
-					dcerpc_fragment_table,
-					dcerpc_reassembled_table,
+				fragment_add_check(&dcerpc_reassembly_table,
+					d_tvb, 0, pinfo, fid, NULL,
 					0, reported_len, TRUE);
-				fragment_set_tot_len(pinfo, fid,
-					dcerpc_fragment_table,
+				fragment_set_tot_len(&dcerpc_reassembly_table,
+					pinfo, fid, NULL,
 					pinfo->desegment_len+reported_len);
 			}
 			goto clean_up_and_exit;
@@ -3392,8 +3377,8 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 		while(fd_head->next){
 			fd_head=fd_head->next;
 		}
-		fd_head=fragment_add_check(d_tvb, 0, pinfo, fid,
-			dcerpc_fragment_table, dcerpc_reassembled_table,
+		fd_head=fragment_add_check(&dcerpc_reassembly_table,
+			d_tvb, 0, pinfo, fid, NULL,
 			fd_head->offset+fd_head->len,
 			reported_len, TRUE);
 
@@ -3426,8 +3411,8 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 	 * up so that we don't have to distinguish between the first
 	 * pass and subsequent passes?
 	 */
-	fd_head=fragment_add_check(d_tvb, 0, pinfo, fid, dcerpc_fragment_table,
-	    dcerpc_reassembled_table, 0, 0, TRUE);
+	fd_head=fragment_add_check(&dcerpc_reassembly_table,
+	    d_tvb, 0, pinfo, fid, NULL, 0, 0, TRUE);
 	if(!fd_head){
 		/* we didnt find it, try any of the heuristic dissectors
 		   and bail out
@@ -3549,7 +3534,7 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 		return FALSE;
 	pinfo->current_proto = "SMB Pipe";
 
-	smb_info = pinfo->private_data;
+	smb_info = (smb_info_t *)pinfo->private_data;
 
 	/*
 	 * Set the columns.
@@ -3561,7 +3546,7 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 	}
 
 	if (smb_info->sip != NULL && smb_info->sip->extra_info_type == SMB_EI_TRI)
-		tri = smb_info->sip->extra_info;
+		tri = (smb_transact_info_t *)smb_info->sip->extra_info;
 	else
 		tri = NULL;
 

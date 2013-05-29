@@ -161,8 +161,8 @@ static int hf_pgm_spm_pathafi = -1;
 static int hf_pgm_spm_res = -1;
 static int hf_pgm_spm_path = -1;
 static int hf_pgm_spm_path6 = -1;
-static int hf_pgm_data_sqn = -1;
-static int hf_pgm_data_trail = -1;
+/* static int hf_pgm_data_sqn = -1; */
+/* static int hf_pgm_data_trail = -1; */
 static int hf_pgm_nak_sqn = -1;
 static int hf_pgm_nak_srcafi = -1;
 static int hf_pgm_nak_srcres = -1;
@@ -257,7 +257,7 @@ optsstr(guint8 opts)
 	if (opts == 0)
 		return("");
 
-	msg=ep_alloc(MAX_STR_LEN);
+	msg=(char *)ep_alloc(MAX_STR_LEN);
 	if (opts & PGM_OPT){
 		returned_length = g_snprintf(&msg[idx], MAX_STR_LEN-idx, "Present");
 		idx += MIN(returned_length, MAX_STR_LEN-idx);
@@ -289,7 +289,7 @@ paritystr(guint8 parity)
 	if (parity == 0)
 		return("");
 
-	msg=ep_alloc(MAX_STR_LEN);
+	msg=(char *)ep_alloc(MAX_STR_LEN);
 	if (parity & PGM_OPT_PARITY_PRM_PRO){
 		returned_length = g_snprintf(&msg[idx], MAX_STR_LEN-idx, "Pro-active");
 		idx += MIN(returned_length, MAX_STR_LEN-idx);
@@ -505,8 +505,8 @@ dissect_pgmopts(ptvcursor_t* cursor, const char *pktname)
 			tvb_memcpy(tvb, (guint8 *)naklist, ptvcursor_current_offset(cursor), optdata_len);
 			firsttime = TRUE;
 			soffset = 0;
-			naks = (optdata_len/sizeof(guint32));
-			nakbuf = ep_alloc(8192);
+			naks = (int)(optdata_len/sizeof(guint32));
+			nakbuf = (unsigned char *)ep_alloc(8192);
 			j = 0;
 			/*
 			 * Print out 8 per line
@@ -1158,12 +1158,16 @@ proto_register_pgm(void)
     { &hf_pgm_spm_path6,
       { "Path NLA", "pgm.spm.path", FT_IPv6, BASE_NONE,
 	  NULL, 0x0, NULL, HFILL }},
+#if 0
     { &hf_pgm_data_sqn,
       { "Data Packet Sequence Number", "pgm.data.sqn", FT_UINT32, BASE_HEX,
 	  NULL, 0x0, NULL, HFILL }},
+#endif
+#if 0
     { &hf_pgm_data_trail,
       { "Trailing Edge Sequence Number", "pgm.data.trail", FT_UINT32, BASE_HEX,
 	  NULL, 0x0, NULL, HFILL }},
+#endif
     { &hf_pgm_nak_sqn,
       { "Requested Sequence Number", "pgm.nak.sqn", FT_UINT32, BASE_HEX,
 	  NULL, 0x0, NULL, HFILL }},

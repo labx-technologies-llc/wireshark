@@ -79,7 +79,8 @@ WSLUA_CONSTRUCTOR ByteArray_new(lua_State* L) { /* Creates a ByteArray Object */
     WSLUA_RETURN(1); /* The new ByteArray object. */
 }
 
-static int ByteArray_gc(lua_State* L) {
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
+static int ByteArray__gc(lua_State* L) {
     ByteArray ba = checkByteArray(L,1);
 
     if (!ba) return 0;
@@ -150,7 +151,7 @@ WSLUA_METHOD ByteArray_set_size(lua_State* L) {
     if (ba->len >= (guint)siz) { /* truncate */
         g_byte_array_set_size(ba,siz);
     } else { /* fill */
-        padding = g_malloc0(sizeof(guint8)*(siz - ba->len));
+        padding = (guint8 *)g_malloc0(sizeof(guint8)*(siz - ba->len));
         g_byte_array_append(ba,padding,siz - ba->len);
         g_free(padding);
     }
@@ -300,7 +301,6 @@ static const luaL_Reg ByteArray_methods[] = {
 
 static const luaL_Reg ByteArray_meta[] = {
     {"__tostring", ByteArray_tostring},
-    {"__gc",       ByteArray_gc},
     {"__concat", ByteArray__concat},
     {"__call",ByteArray_subset},
     { NULL, NULL }
@@ -316,14 +316,14 @@ int ByteArray_register(lua_State* L) {
  * Tvb & TvbRange
  *
  * a Tvb represents a tvbuff_t in Lua.
- * a TvbRange represents a range in a tvb (tvb,offset,length) it's main purpose is to do bounds checking,
- *            it helps too simplifing argument passing to Tree. In wireshark terms this is worthless nothing
- *            not already done by the TVB itself. In lua's terms is necessary to avoid abusing TRY{}CATCH(){}
+ * a TvbRange represents a range in a tvb (tvb,offset,length) its main purpose is to do bounds checking,
+ *            It helps, too, simplifying argument passing to Tree. In wireshark terms this is worthless nothing
+ *            not already done by the TVB itself. In lua's terms it's necessary to avoid abusing TRY{}CATCH(){}
  *            via preemptive bounds checking.
  *
- * These lua objects refers to structures in wireshak that are freed independently from Lua's garbage collector.
- * To avoid using a pointer from Lua to Wireshark's that is already freed, we maintain a list of the pointers with
- * a marker that track's it's expiry.
+ * These lua objects refer to structures in wireshark that are freed independently from Lua's garbage collector.
+ * To avoid using pointers from Lua to Wireshark structures that are already freed, we maintain a list of the
+ * pointers each with a marker that tracks its expiry.
  *
  * All pointers are marked as expired when the dissection of the current frame is finished or when the garbage
  * collector tries to free the object referring to the pointer, whichever comes first.
@@ -387,7 +387,7 @@ void clear_outstanding_TvbRange(void) {
 
 
 Tvb* push_Tvb(lua_State* L, tvbuff_t* ws_tvb) {
-    Tvb tvb = g_malloc(sizeof(struct _wslua_tvb));
+    Tvb tvb = (Tvb)g_malloc(sizeof(struct _wslua_tvb));
     tvb->ws_tvb = ws_tvb;
     tvb->expired = FALSE;
     tvb->need_free = FALSE;
@@ -415,9 +415,9 @@ WSLUA_CONSTRUCTOR ByteArray_tvb (lua_State *L) {
         return 0;
     }
 
-    data = g_memdup(ba->data, ba->len);
+    data = (guint8 *)g_memdup(ba->data, ba->len);
 
-    tvb = g_malloc(sizeof(struct _wslua_tvb));
+    tvb = (Tvb)g_malloc(sizeof(struct _wslua_tvb));
     tvb->ws_tvb = tvb_new_real_data(data, ba->len,ba->len);
     tvb->expired = FALSE;
     tvb->need_free = TRUE;
@@ -442,7 +442,7 @@ WSLUA_CONSTRUCTOR TvbRange_tvb (lua_State *L) {
     }
 
     if (tvb_offset_exists(tvbr->tvb->ws_tvb,  tvbr->offset + tvbr->len -1 )) {
-        tvb = g_malloc(sizeof(struct _wslua_tvb));
+        tvb = (Tvb)g_malloc(sizeof(struct _wslua_tvb));
         tvb->expired = FALSE;
         tvb->need_free = FALSE;
         tvb->ws_tvb = tvb_new_subset(tvbr->tvb->ws_tvb,tvbr->offset,tvbr->len, tvbr->len);
@@ -472,6 +472,7 @@ WSLUA_METAMETHOD Tvb__tostring(lua_State* L) {
     WSLUA_RETURN(1); /* The string. */
 }
 
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
 static int Tvb__gc(lua_State* L) {
     Tvb tvb = checkTvb(L,1);
 
@@ -561,8 +562,9 @@ WSLUA_METAMETHOD wslua__concat(lua_State* L) {
 
 WSLUA_CLASS_DEFINE(TvbRange,FAIL_ON_NULL("expired tvbrange"),NOP);
 /*
-  A TvbRange represents an usable range of a Tvb and is used to extract data from the Tvb that generated it
-  TvbRanges are created by calling a tvb (e.g. tvb(offset,length)). If the TvbRange span is outside the Tvb's range the creation will cause a runtime error.
+  A TvbRange represents a usable range of a Tvb and is used to extract data from the Tvb that generated it
+  TvbRanges are created by calling a tvb (e.g. tvb(offset,length)). If the TvbRange span is outside the
+  Tvb's range the creation will cause a runtime error.
  */
 
 static TvbRange new_TvbRange(lua_State* L, tvbuff_t* ws_tvb, int offset, int len) {
@@ -585,8 +587,8 @@ static TvbRange new_TvbRange(lua_State* L, tvbuff_t* ws_tvb, int offset, int len
         return NULL;
     }
 
-    tvbr = g_malloc(sizeof(struct _wslua_tvbrange));
-    tvbr->tvb = g_malloc(sizeof(struct _wslua_tvb));
+    tvbr = (TvbRange)g_malloc(sizeof(struct _wslua_tvbrange));
+    tvbr->tvb = (Tvb)g_malloc(sizeof(struct _wslua_tvb));
     tvbr->tvb->ws_tvb = ws_tvb;
     tvbr->tvb->expired = FALSE;
     tvbr->tvb->need_free = FALSE;
@@ -599,7 +601,7 @@ static TvbRange new_TvbRange(lua_State* L, tvbuff_t* ws_tvb, int offset, int len
 
 WSLUA_METHOD Tvb_range(lua_State* L) {
 	/* Creates a tvbr from this Tvb. This is used also as the Tvb:__call() metamethod. */
-#define WSLUA_OPTARG_Tvb_range_OFFSET 2 /* The offset (in octets) from the begining of the Tvb. Defaults to 0. */
+#define WSLUA_OPTARG_Tvb_range_OFFSET 2 /* The offset (in octets) from the beginning of the Tvb. Defaults to 0. */
 #define WSLUA_OPTARG_Tvb_range_LENGTH 3 /* The length (in octets) of the range. Defaults to until the end of the Tvb. */
 
     Tvb tvb = checkTvb(L,1);
@@ -633,7 +635,6 @@ static const luaL_Reg Tvb_methods[] = {
 static const luaL_Reg Tvb_meta[] = {
     {"__call", Tvb_range},
     {"__tostring", Tvb__tostring},
-    {"__gc", Tvb__gc},
     { NULL, NULL }
 };
 
@@ -734,7 +735,7 @@ WSLUA_METHOD TvbRange_uint64(lua_State* L) {
         case 6:
         case 7:
         case 8: {
-            UInt64 num = g_malloc(sizeof(guint64));
+            UInt64 num = (UInt64)g_malloc(sizeof(guint64));
             *num = tvb_get_ntoh64(tvbr->tvb->ws_tvb,tvbr->offset);
             pushUInt64(L,num);
             WSLUA_RETURN(1);
@@ -766,7 +767,7 @@ WSLUA_METHOD TvbRange_le_uint64(lua_State* L) {
         case 6:
         case 7:
         case 8: {
-            UInt64 num = g_malloc(sizeof(guint64));
+            UInt64 num = (UInt64)g_malloc(sizeof(guint64));
             *num = tvb_get_letoh64(tvbr->tvb->ws_tvb,tvbr->offset);
             pushUInt64(L,num);
             WSLUA_RETURN(1);
@@ -861,7 +862,7 @@ WSLUA_METHOD TvbRange_int64(lua_State* L) {
         case 6:
         case 7:
         case 8: {
-            Int64 num = g_malloc(sizeof(gint64));
+            Int64 num = (Int64)g_malloc(sizeof(gint64));
             *num = (gint64)tvb_get_ntoh64(tvbr->tvb->ws_tvb,tvbr->offset);
             pushInt64(L,num);
             WSLUA_RETURN(1);
@@ -893,7 +894,7 @@ WSLUA_METHOD TvbRange_le_int64(lua_State* L) {
         case 6:
         case 7:
         case 8: {
-            Int64 num = g_malloc(sizeof(gint64));
+            Int64 num = (Int64)g_malloc(sizeof(gint64));
             *num = (gint64)tvb_get_letoh64(tvbr->tvb->ws_tvb,tvbr->offset);
             pushInt64(L,num);
             WSLUA_RETURN(1);
@@ -965,9 +966,9 @@ WSLUA_METHOD TvbRange_ipv4(lua_State* L) {
     if (tvbr->len != 4)
         WSLUA_ERROR(TvbRange_ipv4,"The range must be 4 octets long");
 
-    addr = g_malloc(sizeof(address));
+    addr = (address *)g_malloc(sizeof(address));
 
-    ip_addr = g_malloc(sizeof(guint32));
+    ip_addr = (guint32 *)g_malloc(sizeof(guint32));
     *ip_addr = tvb_get_ipv4(tvbr->tvb->ws_tvb,tvbr->offset);
 
     SET_ADDRESS(addr, AT_IPv4, 4, ip_addr);
@@ -991,9 +992,9 @@ WSLUA_METHOD TvbRange_le_ipv4(lua_State* L) {
     if (tvbr->len != 4)
         WSLUA_ERROR(TvbRange_ipv4,"The range must be 4 octets long");
 
-    addr = g_malloc(sizeof(address));
+    addr = (address *)g_malloc(sizeof(address));
 
-    ip_addr = g_malloc(sizeof(guint32));
+    ip_addr = (guint32 *)g_malloc(sizeof(guint32));
     *ip_addr = tvb_get_ipv4(tvbr->tvb->ws_tvb,tvbr->offset);
     *((guint32 *)ip_addr) = GUINT32_SWAP_LE_BE(*((guint32 *)ip_addr));
 
@@ -1020,7 +1021,7 @@ WSLUA_METHOD TvbRange_ether(lua_State* L) {
 
     addr = g_new(address,1);
 
-    buff = tvb_memdup(tvbr->tvb->ws_tvb,tvbr->offset,tvbr->len);
+    buff = (guint8 *)tvb_memdup(tvbr->tvb->ws_tvb,tvbr->offset,tvbr->len);
 
     SET_ADDRESS(addr, AT_ETHER, 6, buff);
     pushAddress(L,addr);
@@ -1106,6 +1107,7 @@ WSLUA_METHOD TvbRange_string(lua_State* L) {
 static int TvbRange_ustring_any(lua_State* L, gboolean little_endian) {
 	/* Obtain a UTF-16 encoded string from a TvbRange */
     TvbRange tvbr = checkTvbRange(L,1);
+    gchar * str;
 
     if ( !(tvbr && tvbr->tvb)) return 0;
     if (tvbr->tvb->expired) {
@@ -1113,7 +1115,8 @@ static int TvbRange_ustring_any(lua_State* L, gboolean little_endian) {
         return 0;
     }
 
-    lua_pushlstring(L, (gchar*)tvb_get_ephemeral_unicode_string(tvbr->tvb->ws_tvb,tvbr->offset,tvbr->len,(little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN)), tvbr->len );
+    str = (gchar*)tvb_get_ephemeral_unicode_string(tvbr->tvb->ws_tvb,tvbr->offset,tvbr->len,(little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN));
+    lua_pushlstring(L, str, strlen(str));
 
     return 1; /* The string */
 }
@@ -1182,7 +1185,7 @@ WSLUA_METHOD TvbRange_bytes(lua_State* L) {
     }
 
     ba = g_byte_array_new();
-    g_byte_array_append(ba,ep_tvb_memdup(tvbr->tvb->ws_tvb,tvbr->offset,tvbr->len),tvbr->len);
+    g_byte_array_append(ba,(const guint8 *)ep_tvb_memdup(tvbr->tvb->ws_tvb,tvbr->offset,tvbr->len),tvbr->len);
 
     pushByteArray(L,ba);
 
@@ -1191,7 +1194,7 @@ WSLUA_METHOD TvbRange_bytes(lua_State* L) {
 
 WSLUA_METHOD TvbRange_bitfield(lua_State* L) {
 	/* Get a bitfield from a TvbRange. */
-#define WSLUA_OPTARG_TvbRange_bitfield_POSITION 2 /* The bit offset from the begining of the TvbRange. Defaults to 0. */
+#define WSLUA_OPTARG_TvbRange_bitfield_POSITION 2 /* The bit offset from the beginning of the TvbRange. Defaults to 0. */
 #define WSLUA_OPTARG_TvbRange_bitfield_LENGTH 3 /* The length (in bits) of the field. Defaults to 1. */
 
     TvbRange tvbr = checkTvbRange(L,1);
@@ -1219,7 +1222,7 @@ WSLUA_METHOD TvbRange_bitfield(lua_State* L) {
         lua_pushnumber(L,tvb_get_bits32(tvbr->tvb->ws_tvb,tvbr->offset*8 + pos, len, FALSE));
         return 1;
     } else if (len <= 64) {
-        UInt64 num = g_malloc(sizeof(guint64));
+        UInt64 num = (UInt64)g_malloc(sizeof(guint64));
         *num = tvb_get_bits64(tvbr->tvb->ws_tvb,tvbr->offset*8 + pos, len, FALSE);
         pushUInt64(L,num);
         WSLUA_RETURN(1); /* The bitfield value */
@@ -1231,13 +1234,13 @@ WSLUA_METHOD TvbRange_bitfield(lua_State* L) {
 
 WSLUA_METHOD TvbRange_range(lua_State* L) {
 	/* Creates a sub-TvbRange from this TvbRange. This is used also as the TvbRange:__call() metamethod. */
-#define WSLUA_OPTARG_TvbRange_range_OFFSET 2 /* The offset (in octets) from the begining of the TvbRange. Defaults to 0. */
+#define WSLUA_OPTARG_TvbRange_range_OFFSET 2 /* The offset (in octets) from the beginning of the TvbRange. Defaults to 0. */
 #define WSLUA_OPTARG_TvbRange_range_LENGTH 3 /* The length (in octets) of the range. Defaults to until the end of the TvbRange. */
 
     TvbRange tvbr = checkTvbRange(L,1);
     int offset = luaL_optint(L,WSLUA_OPTARG_TvbRange_range_OFFSET,0);
     int len;
-    
+
     if (!(tvbr && tvbr->tvb)) return 0;
 
     len = luaL_optint(L,WSLUA_OPTARG_TvbRange_range_LENGTH,tvbr->len-offset);
@@ -1260,6 +1263,37 @@ WSLUA_METHOD TvbRange_range(lua_State* L) {
     return 0;
 }
 
+static int TvbRange_uncompress(lua_State* L) {
+	/* Obtain a uncompressed TvbRange from a TvbRange */
+#define WSLUA_ARG_TvbRange_tvb_NAME 2 /* The name to be given to the new data-source. */
+    TvbRange tvbr = checkTvbRange(L,1);
+    const gchar* name = luaL_optstring(L,WSLUA_ARG_ByteArray_tvb_NAME,"Uncompressed");
+    tvbuff_t *uncompr_tvb;
+
+    if (!(tvbr && tvbr->tvb)) return 0;
+    
+    if (tvbr->tvb->expired) {
+        luaL_error(L,"expired tvb");
+        return 0;
+    }
+
+#ifdef HAVE_LIBZ
+    uncompr_tvb = tvb_child_uncompress(tvbr->tvb->ws_tvb, tvbr->tvb->ws_tvb, tvbr->offset, tvbr->len);
+    if (uncompr_tvb) {
+       add_new_data_source (lua_pinfo, uncompr_tvb, name);
+       if ((tvbr = new_TvbRange(L,uncompr_tvb,0,tvb_length(uncompr_tvb)))) {
+          PUSH_TVBRANGE(L,tvbr);
+          WSLUA_RETURN(1); /* The TvbRange */
+       }
+    }
+#else
+    luaL_error(L,"Missing support for ZLIB");
+#endif
+
+    return 0;
+}
+
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
 static int TvbRange__gc(lua_State* L) {
     TvbRange tvbr = checkTvbRange(L,1);
 
@@ -1340,6 +1374,7 @@ static const luaL_Reg TvbRange_methods[] = {
     {"ustring", TvbRange_ustring},
     {"le_ustringz", TvbRange_le_ustringz},
     {"ustringz", TvbRange_ustringz},
+    {"uncompress", TvbRange_uncompress},
     { NULL, NULL }
 };
 
@@ -1347,7 +1382,6 @@ static const luaL_Reg TvbRange_meta[] = {
     {"__tostring", TvbRange__tostring},
     {"__concat", wslua__concat},
     {"__call", TvbRange_range},
-    {"__gc", TvbRange__gc},
     { NULL, NULL }
 };
 
@@ -1374,6 +1408,7 @@ WSLUA_METAMETHOD Int64__tostring(lua_State* L) {
     return 1;
 }
 
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
 static int Int64__gc(lua_State* L) {
     Int64 num = checkInt64(L,1);
 
@@ -1391,7 +1426,6 @@ static const luaL_Reg Int64_methods[] = {
 static const luaL_Reg Int64_meta[] = {
     {"__tostring", Int64__tostring},
     {"__concat", wslua__concat},
-    {"__gc", Int64__gc},
     { NULL, NULL }
 };
 
@@ -1410,6 +1444,7 @@ WSLUA_METAMETHOD UInt64__tostring(lua_State* L) {
     return 1;
 }
 
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_CLASS/META */
 static int UInt64__gc(lua_State* L) {
     UInt64 num = checkUInt64(L,1);
 
@@ -1427,7 +1462,6 @@ static const luaL_Reg UInt64_methods[] = {
 static const luaL_Reg UInt64_meta[] = {
     {"__tostring", UInt64__tostring},
     {"__concat", wslua__concat},
-    {"__gc", UInt64__gc},
     { NULL, NULL }
 };
 

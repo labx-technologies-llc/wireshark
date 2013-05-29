@@ -47,6 +47,7 @@ set(WIRESHARK_GTK_SRC
 	edit_packet_comment_dlg.c
 	expert_comp_table.c
 	export_object_dlg.c
+	export_pdu_dlg.c
 	export_sslkeys.c
 	filter_autocomplete.c
 	file_dlg.c
@@ -94,7 +95,7 @@ set(WIRESHARK_GTK_SRC
 	prefs_filter_expressions.c
 	prefs_gui.c
 	prefs_layout.c
-	prefs_stream.c
+	prefs_font_color.c
 	print_dlg.c
 	profile_dlg.c
 	progress_dlg.c
@@ -218,7 +219,9 @@ if (WERROR)
 	)
 endif()
 
-if (NOT ENABLE_GTK3)
+if (ENABLE_GTK3)
+	add_definitions(${GTK3_DEFINITIONS})
+else()
 	add_definitions(
 		# We are only allowed to include gtk/gtk.h, no other files. When
 		# violating this with gtk3 the compiler will complain anyway.

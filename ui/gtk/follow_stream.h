@@ -74,14 +74,13 @@ typedef struct {
 	GtkWidget	*hexdump_bt;
 	GtkWidget	*carray_bt;
 	GtkWidget	*raw_bt;
-	GtkWidget	*follow_save_as_w;
 	GtkWidget	*find_dlg_w;
 	gboolean        is_ipv6;
 	char		*filter_out_filter;
 	GtkWidget	*filter_te;
 	GtkWidget	*streamwindow;
         GList           *payload;
-        guint           bytes_written[2];
+        guint           bytes_written[2]; /* Index with FROM_CLIENT or FROM_SERVER for readability. */
         guint           client_port;
         address         client_ip;
 } follow_info_t;
@@ -94,7 +93,7 @@ extern GList *follow_infos;
 
 void follow_load_text(follow_info_t *follow_info);
 void follow_filter_out_stream(GtkWidget * w, gpointer parent_w);
-void follow_stream(gchar *title, follow_info_t *follow_info,
+void follow_stream(const gchar *title, follow_info_t *follow_info,
 		   gchar *both_directions_string,
 		   gchar *server_to_client_string,
 		   gchar *client_to_server_string);

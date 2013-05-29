@@ -325,7 +325,7 @@ Ideally, it would be best to maintain an expanding list of SA keys. Perhaps we c
 that they apply to.  Then, whenever we need to decrypt a packet, we can determine which key to use based on whether
 it is broadcast or unicast and within what packet number range it falls.
 
-Either that, or store two versions of encrypted packets - the orginal packet and it's successfully
+Either that, or store two versions of encrypted packets - the orginal packet and its successfully
 decrypted version.  Then Wireshark wouldn't have to decrypt packets on the fly if they were already successfully decrypted.
 
 */
@@ -429,7 +429,7 @@ AirPDcapDecryptWPABroadcastKey(const EAPOL_RSN_KEY *pEAPKey, guint8  *decryption
     sa->validKey = TRUE;
     sa->wpa.key_ver = key_version;
 
-    /* Since this is a GTK and it's size is only 32 bytes (vs. the 64 byte size of a PTK), we fake it and put it in at a 32-byte offset so the  */
+    /* Since this is a GTK and its size is only 32 bytes (vs. the 64 byte size of a PTK), we fake it and put it in at a 32-byte offset so the  */
     /* AirPDcapRsnaMng() function will extract the right piece of the GTK for decryption. (The first 16 bytes of the GTK are used for decryption.) */
     memset(sa->wpa.ptk, 0, sizeof(sa->wpa.ptk));
     memcpy(sa->wpa.ptk+32, szEncryptedKey, key_len);
@@ -1204,7 +1204,7 @@ AirPDcapRsna4WHandshake(
     PAIRPDCAP_KEY_ITEM key,
     INT offset)
 {
-    AIRPDCAP_KEY_ITEM *tmp_key, pkt_key;
+    AIRPDCAP_KEY_ITEM *tmp_key, *tmp_pkt_key, pkt_key;
     AIRPDCAP_SEC_ASSOCIATION *tmp_sa;
     INT key_index;
     INT ret_value=1;
@@ -1313,12 +1313,14 @@ AirPDcapRsna4WHandshake(
                              pkt_key.UserPwd.SsidLen = ctx->pkt_ssid_len;
                             AirPDcapRsnaPwd2Psk(pkt_key.UserPwd.Passphrase, pkt_key.UserPwd.Ssid,
                                 pkt_key.UserPwd.SsidLen, pkt_key.KeyData.Wpa.Psk);
-                            tmp_key = &pkt_key;
+                            tmp_pkt_key = &pkt_key;
+                        } else {
+                            tmp_pkt_key = tmp_key;
                         }
 
                         /* derive the PTK from the BSSID, STA MAC, PMK, SNonce, ANonce */
                         AirPDcapRsnaPrfX(sa,                            /* authenticator nonce, bssid, station mac */
-                                         tmp_key->KeyData.Wpa.Pmk,      /* PMK */
+                                         tmp_pkt_key->KeyData.Wpa.Pmk,      /* PMK */
                                          data+offset+12,                /* supplicant nonce */
                                          512,
                                          sa->wpa.ptk);
@@ -1987,18 +1989,17 @@ get_key_string(decryption_key_t* dk)
 
     switch(dk->type) {
         case AIRPDCAP_KEY_TYPE_WEP:
-            output_string = g_strdup_printf("%s:%s",STRING_KEY_TYPE_WEP,dk->key->str);
+            output_string = g_strdup(dk->key->str);
             break;
         case AIRPDCAP_KEY_TYPE_WPA_PWD:
             if(dk->ssid == NULL)
-                output_string = g_strdup_printf("%s:%s",STRING_KEY_TYPE_WPA_PWD,dk->key->str);
+                output_string = g_strdup(dk->key->str);
             else
-                output_string = g_strdup_printf("%s:%s:%s",
-                    STRING_KEY_TYPE_WPA_PWD, dk->key->str,
-                    format_uri(dk->ssid, ":"));
+                output_string = g_strdup_printf("%s:%s",
+                    dk->key->str, format_uri(dk->ssid, ":"));
             break;
         case AIRPDCAP_KEY_TYPE_WPA_PMK:
-            output_string = g_strdup_printf("%s:%s",STRING_KEY_TYPE_WPA_PSK,dk->key->str);
+            output_string = g_strdup(dk->key->str);
             break;
         default:
             return NULL;

@@ -106,9 +106,6 @@
 #define VJ_OK           0
 #define VJ_ERROR       -1
 
-/* Define for 0 */
-#define ZERO            0
-
 /* VJ Mem Chunk defines */
 #define VJ_DATA_SIZE  128 /* Max IP hdr(64)+Max TCP hdr(64) */
 
@@ -301,11 +298,11 @@ dissect_vjuc(tvbuff_t *tvb, packet_info *pinfo, proto_tree * tree)
    * Copy packet data to a buffer, and replace the connection index with
    * the protocol type (which is always TCP), to give the actual IP header.
    */
-  buffer = tvb_memdup(tvb, 0, isize);
+  buffer = (guint8 *)tvb_memdup(tvb, 0, isize);
   buffer[IP_FIELD_PROTOCOL] = IP_PROTO_TCP;
 
   /* Check IP checksum */
-  if(ip_csum(buffer, ihl) != ZERO) {
+  if(ip_csum(buffer, ihl) != 0) {
     /*
      * Checksum invalid - don't update state, and don't decompress
      * any subsequent compressed packets in this direction.
@@ -436,7 +433,7 @@ dissect_vjc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static void
 vj_init(void)
 {
-  gint i           = ZERO;
+  gint i           = 0;
 
   for(i = 0; i < RX_TX_STATE_COUNT; i++) {
     rx_tx_state[i] = slhc_init();
@@ -448,7 +445,7 @@ vj_init(void)
 static slcompress *
 slhc_init(void)
 {
-  slcompress *comp = se_alloc0(sizeof(slcompress));
+  slcompress *comp = se_new0(slcompress);
   int         i;
 
   /*
@@ -479,7 +476,7 @@ vjc_tvb_setup(tvbuff_t *src_tvb,
   DISSECTOR_ASSERT(src_tvb);
 
   /* Get decompressed header stored in fd protocol area */
-  hdr_buf = p_get_proto_data(pinfo->fd, proto_vj);
+  hdr_buf = (vj_header_t *)p_get_proto_data(pinfo->fd, proto_vj, 0);
   if(hdr_buf == NULL) {
     col_set_str(pinfo->cinfo, COL_INFO, "VJ compressed TCP (previous data bad or missing)");
     return VJ_ERROR;
@@ -495,7 +492,7 @@ vjc_tvb_setup(tvbuff_t *src_tvb,
   hdr_len  = lo_nibble(data_ptr[0]) * 4;
   hdr_len += hi_nibble(data_ptr[hdr_len + 12]) * 4;
   buf_len  = tvb_length(src_tvb) + hdr_len - offset;
-  pbuf     = g_malloc(buf_len);
+  pbuf     = (guint8 *)g_malloc(buf_len);
   memcpy(pbuf, data_ptr, hdr_len);
   tvb_memcpy(src_tvb, pbuf + hdr_len, offset, buf_len - hdr_len);
   memcpy(&tot_len, data_ptr + 2, 2);
@@ -516,7 +513,7 @@ static gint
 vjc_process(tvbuff_t *src_tvb, packet_info *pinfo, proto_tree *tree,
             slcompress *comp)
 {
-  int            offset     = ZERO;
+  int            offset     = 0;
   int            i;
   gint           changes;
   proto_item    *ti;
@@ -526,7 +523,7 @@ vjc_process(tvbuff_t *src_tvb, packet_info *pinfo, proto_tree *tree,
   iphdr_type    *ip         = NULL;
   tcphdr_type   *thp        = NULL;
   guint16        tcp_cksum;
-  gint           hdrlen     = ZERO;
+  gint           hdrlen     = 0;
   guint16        word;
   int            delta;
   gint           len;
@@ -699,7 +696,7 @@ vjc_process(tvbuff_t *src_tvb, packet_info *pinfo, proto_tree *tree,
 
   /* Compute IP packet length and the buffer length needed */
   len = tvb_reported_length_remaining(src_tvb, offset);
-  if(len < ZERO) {
+  if(len < 0) {
     /*
      * This shouldn't happen, as we *were* able to fetch stuff right before
      * offset.
@@ -725,11 +722,11 @@ vjc_process(tvbuff_t *src_tvb, packet_info *pinfo, proto_tree *tree,
     len += hdrlen;
     ip->tot_len = g_htons(len);
     /* Compute IP check sum */
-    ip->cksum = ZERO;
+    ip->cksum = 0;
     ip->cksum = ip_csum((guint8 *)ip, lo_nibble(ip->ihl_version) * 4);
 
     /* Store the reconstructed header in frame data area */
-    buf_hdr = se_alloc(sizeof (vj_header_t));
+    buf_hdr = se_new(vj_header_t);
     buf_hdr->offset = offset;  /* Offset in tvbuff is also stored */
     data_ptr = buf_hdr->data;
     memcpy(data_ptr, ip, IP_HDR_LEN);
@@ -742,7 +739,7 @@ vjc_process(tvbuff_t *src_tvb, packet_info *pinfo, proto_tree *tree,
     data_ptr += TCP_HDR_LEN;
     if(TCP_OFFSET(thp) > 5)
       memcpy(data_ptr, cs->cs_tcpopt, (TCP_OFFSET(thp) - 5) * 4);
-    p_add_proto_data(pinfo->fd, proto_vj, buf_hdr);
+    p_add_proto_data(pinfo->fd, proto_vj, 0, buf_hdr);
   }
 
   return VJ_OK;
@@ -761,7 +758,7 @@ get_unsigned_delta(tvbuff_t *tvb, int *offsetp, int hf, proto_tree *tree)
 
   len = 1;
   del = tvb_get_guint8(tvb, offset++);
-  if(del == ZERO){
+  if(del == 0){
     del = tvb_get_ntohs(tvb, offset);
     offset += 2;
     len += 2;
@@ -785,7 +782,7 @@ get_signed_delta(tvbuff_t *tvb, int *offsetp, int hf, proto_tree *tree)
 
   len = 1;
   del = tvb_get_guint8(tvb, offset++);
-  if(del == ZERO){
+  if(del == 0){
     del = tvb_get_ntohs(tvb, offset);
     offset += 2;
     len += 2;

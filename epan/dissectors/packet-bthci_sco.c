@@ -41,6 +41,8 @@ static int hf_bthci_sco_data = -1;
 /* Initialize the subtree pointers */
 static gint ett_bthci_sco = -1;
 
+void proto_register_bthci_sco(void);
+void proto_reg_handoff_bthci_sco(void);
 
 /* Code to actually dissect the packets */
 static void
@@ -50,12 +52,25 @@ dissect_bthci_sco(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
     proto_tree *bthci_sco_tree;
     int         offset = 0;
 
+    switch (pinfo->p2p_dir) {
+        case P2P_DIR_SENT:
+            col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
+    }
+
     ti = proto_tree_add_item(tree, proto_bthci_sco, tvb, offset, -1, ENC_NA);
     bthci_sco_tree = proto_item_add_subtree(ti, ett_bthci_sco);
 
 
     proto_tree_add_item(bthci_sco_tree, hf_bthci_sco_chandle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset+=2;
+    offset += 2;
 
     proto_tree_add_item(bthci_sco_tree, hf_bthci_sco_length, tvb, offset, 1, ENC_LITTLE_ENDIAN);
     offset++;
@@ -87,7 +102,7 @@ proto_register_bthci_sco(void)
 
     /* Setup protocol subtree array */
     static gint *ett[] = {
-      &ett_bthci_sco,
+      &ett_bthci_sco
     };
 
     /* Register the protocol name and description */

@@ -948,11 +948,11 @@ dissect_om2k_attrs(tvbuff_t *tvb, gint offset, proto_tree *tree)
 static guint
 dissect_om2k_mo(tvbuff_t *tvb, gint offset, packet_info *pinfo, proto_tree *tree)
 {
-	guint8      class = tvb_get_guint8(tvb, offset);
+	guint8      mo_class = tvb_get_guint8(tvb, offset);
 	guint8      inst  = tvb_get_guint8(tvb, offset+3);
 
 	col_append_fstr(pinfo->cinfo, COL_INFO, ", (%-4s %u)",
-				val_to_str(class, om2k_mo_class_short_vals,
+				val_to_str(mo_class, om2k_mo_class_short_vals,
 					   "0x%02x"), inst);
 	if (tree) {
 		proto_item *ti;
@@ -972,7 +972,7 @@ dissect_om2k_mo(tvbuff_t *tvb, gint offset, packet_info *pinfo, proto_tree *tree
 		proto_tree_add_item(mo_tree, hf_om2k_mo_instance, tvb, offset+3,
 				    1, ENC_BIG_ENDIAN);
 		proto_item_append_text(ti, ", Class: %s, Sub: %02x/%02x, Instance: %u",
-				       val_to_str(class, om2k_mo_class_vals, "0x%02x"),
+				       val_to_str(mo_class, om2k_mo_class_vals, "0x%02x"),
 				       sub1, sub2, inst);
 	}
 	return 4;
@@ -1174,7 +1174,7 @@ proto_register_abis_om2000(void)
 		    NULL, HFILL }
 		},
 		{ &hf_om2k_cbi,
-		  { "CBCH Indicator", "gsm_abis_om2000.ny1",
+		  { "CBCH Indicator", "gsm_abis_om2000.cbi",
 		    FT_BOOLEAN, 1, NULL, 0,          /* XXX: bitmask needed? 'FT_BOOLEAN, 8, NULL, 0x01,' ? */
 		    NULL, HFILL }
 		},

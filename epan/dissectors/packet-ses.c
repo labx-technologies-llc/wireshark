@@ -34,10 +34,10 @@
 #include <epan/asn1.h>
 #include <epan/conversation.h>
 #include <epan/reassemble.h>
+#include <epan/show_exception.h>
 
 #include "packet-ber.h"
 #include "packet-ses.h"
-#include "packet-frame.h"
 
 /* #include <epan/prefs.h> */
 #include <epan/emem.h>
@@ -48,8 +48,8 @@ static int proto_ses          = -1;
 static int hf_ses_type        = -1;
 static int hf_ses_type_0      = -1;
 static int hf_ses_length      = -1;
-static int hf_ses_version     = -1;
-static int hf_ses_reserved    = -1;
+/* static int hf_ses_version     = -1; */
+/* static int hf_ses_reserved    = -1; */
 
 static int hf_ses_segment_data = -1;
 static int hf_ses_segments = -1;
@@ -182,8 +182,7 @@ static int proto_clses          = -1;
 
 static dissector_handle_t pres_handle = NULL;
 
-static GHashTable *ses_fragment_table = NULL;
-static GHashTable *ses_reassembled_table = NULL;
+static reassembly_table ses_reassembly_table;
 
 static const fragment_items ses_frag_items = {
   /* Segment subtrees */
@@ -1090,12 +1089,12 @@ dissect_spdu(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree,
 			has_user_information = TRUE;
 			break;
 		case SES_MAJOR_SYNC_POINT:
-			pres_ctx_id = p_get_proto_data (pinfo->fd, proto_ses);
+			pres_ctx_id = (guint32 *)p_get_proto_data (pinfo->fd, proto_ses, 0);
 			if (ses_rtse_reassemble != 0 && !pres_ctx_id) {
 				/* First time visited - save pres_ctx_id */
-				pres_ctx_id = se_alloc (sizeof (guint32));
+				pres_ctx_id = se_new(guint32);
 				*pres_ctx_id = ses_pres_ctx_id;
-				p_add_proto_data (pinfo->fd, proto_ses, pres_ctx_id);
+				p_add_proto_data (pinfo->fd, proto_ses, 0, pres_ctx_id);
 			}
 			if (pres_ctx_id) {
 				session.pres_ctx_id = *pres_ctx_id;
@@ -1148,9 +1147,10 @@ dissect_spdu(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree,
 		ti = proto_tree_add_item (ses_tree, hf_ses_segment_data, tvb, offset,
 					  fragment_len, ENC_NA);
 		proto_item_append_text (ti, " (%d byte%s)", fragment_len, plurality (fragment_len, "", "s"));
-		frag_msg = fragment_add_seq_next (tvb, offset, pinfo,
-						  ses_id, ses_fragment_table,
-						  ses_reassembled_table, fragment_len,
+		frag_msg = fragment_add_seq_next (&ses_reassembly_table,
+						  tvb, offset,
+						  pinfo, ses_id, NULL,
+						  fragment_len,
 						  (enclosure_item_flags & END_SPDU) ? FALSE : TRUE);
 		next_tvb = process_reassembled_data (tvb, offset, pinfo, "Reassembled SES",
 						     frag_msg, &ses_frag_items, NULL,
@@ -1221,8 +1221,8 @@ dissect_ses(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 static void ses_reassemble_init (void)
 {
-	fragment_table_init (&ses_fragment_table);
-	reassembled_table_init (&ses_reassembled_table);
+	reassembly_table_init (&ses_reassembly_table,
+		&addresses_reassembly_table_functions);
 }
 
 void
@@ -1267,6 +1267,7 @@ proto_register_ses(void)
 			}
 		},
 
+#if 0
 		{
 			&hf_ses_version,
 			{
@@ -1279,6 +1280,8 @@ proto_register_ses(void)
 				NULL, HFILL
 			}
 		},
+#endif
+#if 0
 		{
 			&hf_ses_reserved,
 			{
@@ -1291,6 +1294,7 @@ proto_register_ses(void)
 				NULL, HFILL
 			}
 		},
+#endif
 		{
 			&hf_called_ss_user_reference,
 			{
@@ -1958,7 +1962,7 @@ dissect_ses_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, voi
 	/*   get SPDU type */
 	type = tvb_get_guint8(tvb, offset);
 	/* check SPDU type */
-	if (match_strval(type, ses_vals) == NULL)
+	if (try_val_to_str(type, ses_vals) == NULL)
 	{
 		return FALSE;  /* no, it isn't a session PDU */
 	}
@@ -1969,7 +1973,7 @@ dissect_ses_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, voi
 		/*   get SPDU type */
 		type = tvb_get_guint8(tvb, offset+2);
 		/* check SPDU type */
-		if (match_strval(type, ses_vals) == NULL)
+		if (try_val_to_str(type, ses_vals) == NULL)
 		{
 			return FALSE;  /* no, it isn't a session PDU */
 		}
@@ -1981,7 +1985,7 @@ dissect_ses_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, voi
 	 * so if the parameter type is unknown, it's probably SIMATIC */
 	if(type == 0x32 && tvb_length(tvb) >= 3) {
 		type = tvb_get_guint8(tvb, offset+2);
-		if (match_strval(type, param_vals) == NULL) {
+		if (try_val_to_str(type, param_vals) == NULL) {
 			return FALSE; /* it's probably a SIMATIC protocol */
 		}
 	}
@@ -2000,7 +2004,7 @@ dissect_ses_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, voi
 	if (tvb_length(tvb) > 1+(guint) len) {
 	  type = tvb_get_guint8(tvb, offset + len + 1);
 	  /* check SPDU type */
-	  if (match_strval(type, ses_vals) == NULL) {
+	  if (try_val_to_str(type, ses_vals) == NULL) {
 	    return FALSE;  /* no, it isn't a session PDU */
 	  }
 	}

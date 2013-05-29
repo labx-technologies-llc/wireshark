@@ -181,7 +181,7 @@ rtsp_stats_tree_init(stats_tree* st)
 static int
 rtsp_stats_tree_packet(stats_tree* st, packet_info* pinfo _U_, epan_dissect_t* edt _U_, const void* p)
 {
-    const rtsp_info_value_t *v = p;
+    const rtsp_info_value_t *v = (const rtsp_info_value_t *)p;
     guint         i = v->response_code;
     int           resp_grp;
     const gchar  *resp_str;
@@ -392,7 +392,7 @@ dissect_rtspinterleaved(tvbuff_t *tvb, int offset, packet_info *pinfo,
         pinfo->srcport, pinfo->destport, 0);
 
     if (conv &&
-        (data = conversation_get_proto_data(conv, proto_rtsp)) &&
+        (data = (rtsp_conversation_data_t *)conversation_get_proto_data(conv, proto_rtsp)) &&
         /* Add the following condition if it is not always true.
         rf_chan < RTSP_MAX_INTERLEAVED &&
         */
@@ -460,7 +460,7 @@ is_rtsp_request_or_reply(const guchar *line, size_t linelen, rtsp_type_t *type)
             if (tokenlen >= 3) {
                 memcpy(response_chars, next_token, 3);
                 response_chars[3] = '\0';
-                rtsp_stat_info->response_code = strtoul(response_chars, NULL, 10);
+                rtsp_stat_info->response_code = (guint)strtoul(response_chars, NULL, 10);
             }
         }
         return TRUE;
@@ -590,12 +590,12 @@ rtsp_create_conversation(packet_info *pinfo, const guchar *line_begin,
         conv = find_or_create_conversation(pinfo);
 
         /* Look for previous data */
-        data = conversation_get_proto_data(conv, proto_rtsp);
+        data = (rtsp_conversation_data_t *)conversation_get_proto_data(conv, proto_rtsp);
 
         /* Create new data if necessary */
         if (!data)
         {
-            data = se_alloc0(sizeof(rtsp_conversation_data_t));
+            data = se_new0(rtsp_conversation_data_t);
             conversation_add_proto_data(conv, proto_rtsp, data);
         }
 
@@ -678,7 +678,7 @@ rtsp_get_content_length(const guchar *line_begin, size_t line_len)
     up = p;
     if (up == tmp || (*up != '\0' && !isspace(*up)))
         return -1;  /* not a valid number */
-    return content_length;
+    return (int)content_length;
 }
 
 static const char rtsp_Session[] = "Session:";
@@ -718,7 +718,7 @@ dissect_rtspmessage(tvbuff_t *tvb, int offset, packet_info *pinfo,
     gchar        *session_id  = NULL;
     voip_packet_info_t *stat_info = NULL;
 
-    rtsp_stat_info = ep_alloc(sizeof(rtsp_info_value_t));
+    rtsp_stat_info = ep_new(rtsp_info_value_t);
     rtsp_stat_info->framenum = pinfo->fd->num;
     rtsp_stat_info->response_code = 0;
     rtsp_stat_info->request_method = NULL;
@@ -1060,7 +1060,7 @@ dissect_rtspmessage(tvbuff_t *tvb, int offset, packet_info *pinfo,
                                       tvb_format_text(tvb, value_offset,
                                                       value_len));
 
-                offset = offset + STRLEN_CONST(rtsp_content_type);
+                offset = offset + (int)STRLEN_CONST(rtsp_content_type);
                 /* Skip wsp */
                 offset = tvb_skip_wsp(tvb, offset, value_len);
                 semi_colon_offset = tvb_find_guint8(tvb, value_offset, value_len, ';');
@@ -1146,7 +1146,7 @@ dissect_rtspmessage(tvbuff_t *tvb, int offset, packet_info *pinfo,
     }
 
     if (session_id) {
-        stat_info = ep_alloc0(sizeof(voip_packet_info_t));
+        stat_info = ep_new0(voip_packet_info_t);
         stat_info->protocol_name = ep_strdup("RTSP");
         stat_info->call_id = session_id;
         stat_info->frame_label = frame_label;

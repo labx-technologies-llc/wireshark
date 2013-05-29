@@ -29,12 +29,25 @@
 
 #include <epan/packet.h>
 #include <epan/expert.h>
+#include <epan/prefs.h>
+
 
 /*
  * The information used comes from:
  * RFC6455: The WebSocket Protocol
  * http://www.iana.org/assignments/websocket (last updated 2012-04-12)
  */
+
+void proto_reg_handoff_websocket(void);
+
+dissector_handle_t text_lines_handle;
+dissector_handle_t json_handle;
+
+#define WEBSOCKET_NONE 0
+#define WEBSOCKET_TEXT 1
+#define WEBSOCKET_JSON 2
+
+static gint  pref_text_type             = WEBSOCKET_NONE;
 
 /* Initialize the protocol and registered fields */
 static int proto_websocket = -1;
@@ -71,6 +84,8 @@ static int hf_ws_payload_unknown = -1;
 static gint ett_ws = -1;
 static gint ett_ws_pl = -1;
 static gint ett_ws_mask = -1;
+
+static expert_field ei_ws_payload_unknown = EI_INIT;
 
 #define WS_CONTINUE 0x0
 #define WS_TEXT     0x1
@@ -117,16 +132,16 @@ static heur_dissector_list_t heur_subdissector_list;
 
 #define MAX_UNMASKED_LEN (1024 * 64)
 tvbuff_t *
-tvb_unmasked(tvbuff_t *tvb, const int offset, int payload_length, const guint8 *masking_key)
+tvb_unmasked(tvbuff_t *tvb, const guint offset, guint payload_length, const guint8 *masking_key)
 {
 
   gchar *data_unmask;
   tvbuff_t *tvb_unmask = NULL;
-  int i;
+  guint i;
   const guint8 *data_mask;
-  int unmasked_length = payload_length > MAX_UNMASKED_LEN ? MAX_UNMASKED_LEN : payload_length;
+  guint unmasked_length = payload_length > MAX_UNMASKED_LEN ? MAX_UNMASKED_LEN : payload_length;
 
-  data_unmask = g_malloc(unmasked_length);
+  data_unmask = (gchar *)g_malloc(unmasked_length);
   data_mask = tvb_get_ptr(tvb, offset, unmasked_length);
   /* Unmasked(XOR) Data... */
   for(i=0; i < unmasked_length; i++){
@@ -139,9 +154,9 @@ tvb_unmasked(tvbuff_t *tvb, const int offset, int payload_length, const guint8 *
 }
 
 static int
-dissect_websocket_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_tree *ws_tree, guint8 opcode, int payload_length, guint8 mask, const guint8* masking_key)
+dissect_websocket_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_tree *ws_tree, guint8 opcode, guint payload_length, guint8 mask, const guint8* masking_key)
 {
-  int offset = 0;
+  guint offset = 0;
   proto_item *ti_unmask, *ti;
   dissector_handle_t handle;
   proto_tree *pl_tree, *mask_tree = NULL;
@@ -153,7 +168,7 @@ dissect_websocket_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, p
   if(mask){
     payload_tvb = tvb_unmasked(tvb, offset, payload_length, masking_key);
     tvb_set_child_real_data_tvbuff(tvb, payload_tvb);
-    add_new_data_source(pinfo, payload_tvb, payload_length > (int) tvb_length(payload_tvb) ? "Unmasked Data (truncated)" : "Unmasked Data");
+    add_new_data_source(pinfo, payload_tvb, payload_length > tvb_length(payload_tvb) ? "Unmasked Data (truncated)" : "Unmasked Data");
     ti = proto_tree_add_item(ws_tree, hf_ws_payload_unmask, payload_tvb, offset, payload_length, ENC_NA);
     mask_tree = proto_item_add_subtree(ti, ett_ws_mask);
   }else{
@@ -187,8 +202,26 @@ dissect_websocket_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, p
       ti_unmask = proto_tree_add_item(mask_tree, hf_ws_payload_text, payload_tvb, offset, payload_length, ENC_UTF_8|ENC_NA);
       PROTO_ITEM_SET_HIDDEN(ti_unmask);
     }else{
-      proto_tree_add_item(pl_tree, hf_ws_payload_text, tvb, offset, payload_length, ENC_UTF_8|ENC_NA);
+      const gchar  *saved_match_string = pinfo->match_string;
+      void *save_private_data = pinfo->private_data;
 
+      pinfo->match_string = NULL;
+      pinfo->private_data = NULL;
+      switch(pref_text_type){
+      case WEBSOCKET_TEXT:
+          call_dissector(text_lines_handle, payload_tvb, pinfo, pl_tree);
+          break;
+      case WEBSOCKET_JSON:
+          call_dissector(json_handle, payload_tvb, pinfo, pl_tree);
+          break;
+      case WEBSOCKET_NONE:
+          /* falltrough */
+      default:
+          proto_tree_add_item(pl_tree, hf_ws_payload_text, tvb, offset, payload_length, ENC_UTF_8|ENC_NA);
+          break;
+      }
+      pinfo->match_string = saved_match_string;
+      pinfo->private_data = save_private_data;
     }
     offset += payload_length;
     break;
@@ -258,7 +291,7 @@ dissect_websocket_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, p
 
     default: /* Unknown */
       ti = proto_tree_add_item(pl_tree, hf_ws_payload_unknown, tvb, offset, payload_length, ENC_NA);
-      expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_NOTE, "Dissector for Websocket Opcode (%d)"
+      expert_add_info_format_text(pinfo, ti, &ei_ws_payload_unknown, "Dissector for Websocket Opcode (%d)"
         " code not implemented, Contact Wireshark developers"
         " if you want this supported", opcode);
     break;
@@ -272,8 +305,8 @@ dissect_websocket(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
 {
   proto_item *ti, *ti_len;
   guint8 fin, opcode, mask;
-  int length, short_length, payload_length, recurse_length;
-  int payload_offset, mask_offset, recurse_offset;
+  guint length, short_length, payload_length, recurse_length;
+  guint payload_offset, mask_offset, recurse_offset;
   proto_tree *ws_tree = NULL;
   const guint8 *masking_key = NULL;
   tvbuff_t *tvb_payload = NULL;
@@ -298,8 +331,8 @@ dissect_websocket(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
       pinfo->desegment_len = 2+8;
       return 0;
     }
-	/* warning C4244: '=' : conversion from 'guint64' to 'int ', possible loss of data */
-    payload_length = (int)tvb_get_ntoh64(tvb, 2);
+	/* warning C4244: '=' : conversion from 'guint64' to 'guint ', possible loss of data */
+    payload_length = (guint)tvb_get_ntoh64(tvb, 2);
     mask_offset = 2+8;
   }
   else{
@@ -310,6 +343,13 @@ dissect_websocket(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
   /* Mask */
   mask = (tvb_get_guint8(tvb, 1) & MASK_WS_MASK) >> 4;
   payload_offset = mask_offset + (mask ? 4 : 0);
+
+  if (payload_offset + payload_length < payload_length) {
+    /* Integer overflow, which means the packet contains a ridiculous
+     * payload length. Just take what we've got available.
+     * See bug https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=8448 */
+    payload_length = tvb_reported_length_remaining(tvb, payload_offset);
+  }
 
   if(length < payload_offset + payload_length){
     /* XXXX Warning desegment_len is 32 bits */
@@ -410,7 +450,7 @@ proto_register_websocket(void)
       "The length (16 bits) of the Payload data", HFILL }
     },
     { &hf_ws_payload_length_ext_64,
-      { "Extended Payload length (16 bits)", "websocket.payload_length_ext_64",
+      { "Extended Payload length (64 bits)", "websocket.payload_length_ext_64",
       FT_UINT64, BASE_DEC, NULL, 0x0,
       "The length (64 bits) of the Payload data", HFILL }
     },
@@ -533,6 +573,20 @@ proto_register_websocket(void)
     &ett_ws_mask
   };
 
+  static ei_register_info ei[] = {
+     { &ei_ws_payload_unknown, { "websocket.payload.unknown.expert", PI_UNDECODED, PI_NOTE, "Dissector for Websocket Opcode", EXPFILL }},
+  };
+
+  static const enum_val_t text_types[] = {
+      {"None",            "No subdissection", WEBSOCKET_NONE},
+      {"Line based text", "Line based text",  WEBSOCKET_TEXT},
+      {"As JSON",         "As json",          WEBSOCKET_JSON},
+      {NULL, NULL, -1}
+  };
+
+  module_t *websocket_module;
+  expert_module_t* expert_websocket;
+
   proto_websocket = proto_register_protocol("WebSocket",
       "WebSocket", "websocket");
   
@@ -548,11 +602,27 @@ proto_register_websocket(void)
 
   proto_register_field_array(proto_websocket, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_websocket = expert_register_protocol(proto_websocket);
+  expert_register_field_array(expert_websocket, ei, array_length(ei));
 
   new_register_dissector("websocket", dissect_websocket, proto_websocket);
+
+  websocket_module = prefs_register_protocol(proto_websocket, proto_reg_handoff_websocket);
+
+  prefs_register_enum_preference(websocket_module, "text_type",
+        "Dissect websocket text as",
+        "Select dissector for websocket text",
+        &pref_text_type, text_types, WEBSOCKET_NONE);
+
+
 }
 
-
+void
+proto_reg_handoff_websocket(void)
+{
+	text_lines_handle = find_dissector("data-text-lines");
+	json_handle = find_dissector("json");
+}
 /*
  * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
  *

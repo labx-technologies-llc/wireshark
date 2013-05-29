@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-h248.h                                                              */
 /* ../../tools/asn2wrs.py -b -p h248 -c ./h248.cnf -s ./packet-h248-template -D . -O ../../epan/dissectors h248v3.asn h248v1support.asn */
 
@@ -36,6 +36,7 @@
 #ifndef PACKET_H248_H
 
 #include <epan/gcp.h>
+#include "ws_symbol_export.h"
 /*#include "packet-h248-exp.h"*/
 
 typedef struct _h248_curr_info_t h248_curr_info_t;
@@ -44,7 +45,7 @@ typedef void (*h248_pkg_param_dissector_t)(proto_tree* tree, tvbuff_t* tvb, pack
 
 extern void h248_param_bytes_item(proto_tree*, tvbuff_t*, packet_info* , int, h248_curr_info_t*,void* ignored);
 extern void h248_param_uint_item(proto_tree*, tvbuff_t*, packet_info* , int, h248_curr_info_t*,void* ignored);
-extern void h248_param_ber_integer(proto_tree*, tvbuff_t*, packet_info* , int, h248_curr_info_t*,void* ignored);
+WS_DLL_PUBLIC void h248_param_ber_integer(proto_tree*, tvbuff_t*, packet_info* , int, h248_curr_info_t*,void* ignored);
 extern void h248_param_ber_octetstring(proto_tree*, tvbuff_t*, packet_info* , int, h248_curr_info_t*,void* ignored);
 extern void h248_param_ber_boolean(proto_tree*, tvbuff_t*, packet_info* , int, h248_curr_info_t*,void* ignored);
 extern void external_dissector(proto_tree*, tvbuff_t*, packet_info* , int, h248_curr_info_t*,void* dissector_handle);
@@ -120,6 +121,7 @@ struct _h248_curr_info_t {
 	const h248_pkg_param_t* par;
 };
 
+WS_DLL_PUBLIC
 void h248_register_package(const h248_package_t* pkg, pkg_reg_action reg_action);
 
 #endif  /* PACKET_H248_H */

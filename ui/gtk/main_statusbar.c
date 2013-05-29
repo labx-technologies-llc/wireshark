@@ -40,6 +40,7 @@
 #include "../file.h"
 #ifdef HAVE_LIBPCAP
 #include "../capture_opts.h"
+#include "../capture_session.h"
 #include "../capture_ui_utils.h"
 #include "../capture.h"
 #endif
@@ -558,7 +559,7 @@ expert_comp_dlg_event_cb(GtkWidget *w _U_, GdkEventButton *event _U_, gpointer u
 static gboolean
 edit_capture_comment_dlg_event_cb(GtkWidget *w _U_, GdkEventButton *event _U_, gpointer user_data _U_)
 {
-    edit_capture_dlg_launch();
+    edit_capture_comment_dlg_launch();
     return TRUE;
 }
 
@@ -675,6 +676,8 @@ status_capture_comment_new(void)
 static void
 status_capture_comment_hide(void)
 {
+    edit_capture_comment_dlg_hide();
+
     /* reset capture coment info indicator */
     gtk_widget_hide(capture_comment);
     gtk_widget_hide(capture_comment_none);
@@ -707,7 +710,7 @@ statusbar_set_filename(const char *file_name, gint64 file_length, nstime_t *file
     status_expert_update();
 
     /* statusbar */
-    size_str = format_size(file_length, format_size_unit_bytes|format_size_prefix_si);
+    size_str = format_size(file_length, (format_size_flags_e)(format_size_unit_bytes|format_size_prefix_si));
 
     statusbar_push_file_msg(" File: \"%s\" %s %02lu:%02lu:%02lu",
                             (file_name) ? file_name : "", size_str,
@@ -769,7 +772,7 @@ statusbar_cf_file_read_finished_cb(capture_file *cf)
 
 #ifdef HAVE_LIBPCAP
 static void
-statusbar_capture_prepared_cb(capture_options *capture_opts _U_)
+statusbar_capture_prepared_cb(capture_session *cap_session _U_)
 {
     static const gchar msg[] = " Waiting for capture input data ...";
     statusbar_push_file_msg(msg);
@@ -806,8 +809,9 @@ statusbar_get_interface_names(capture_options *capture_opts)
 }
 
 static void
-statusbar_capture_update_started_cb(capture_options *capture_opts)
+statusbar_capture_update_started_cb(capture_session *cap_session)
 {
+    capture_options *capture_opts = cap_session->capture_opts;
     GString *interface_names;
 
     statusbar_pop_file_msg();
@@ -823,10 +827,11 @@ statusbar_capture_update_started_cb(capture_options *capture_opts)
 }
 
 static void
-statusbar_capture_update_continue_cb(capture_options *capture_opts)
+statusbar_capture_update_continue_cb(capture_session *cap_session)
 {
     GString *interface_names;
-    capture_file *cf = capture_opts->cf;
+    capture_options *capture_opts = cap_session->capture_opts;
+    capture_file *cf = (capture_file *)cap_session->cf;
 
     status_expert_update();
 
@@ -853,9 +858,9 @@ statusbar_capture_update_continue_cb(capture_options *capture_opts)
 }
 
 static void
-statusbar_capture_update_finished_cb(capture_options *capture_opts)
+statusbar_capture_update_finished_cb(capture_session *cap_session)
 {
-    capture_file *cf = capture_opts->cf;
+    capture_file *cf = (capture_file *)cap_session->cf;
 
     /* Pop the "<live capture in progress>" message off the status bar. */
     statusbar_pop_file_msg();
@@ -864,8 +869,9 @@ statusbar_capture_update_finished_cb(capture_options *capture_opts)
 }
 
 static void
-statusbar_capture_fixed_started_cb(capture_options *capture_opts)
+statusbar_capture_fixed_started_cb(capture_session *cap_session)
 {
+    capture_options *capture_opts = cap_session->capture_opts;
     GString *interface_names;
 
     statusbar_pop_file_msg();
@@ -880,9 +886,9 @@ statusbar_capture_fixed_started_cb(capture_options *capture_opts)
 }
 
 static void
-statusbar_capture_fixed_continue_cb(capture_options *capture_opts)
+statusbar_capture_fixed_continue_cb(capture_session *cap_session)
 {
-    capture_file *cf = capture_opts->cf;
+    capture_file *cf = (capture_file *)cap_session->cf;
     gchar *capture_msg;
 
 
@@ -894,10 +900,10 @@ statusbar_capture_fixed_continue_cb(capture_options *capture_opts)
 
 
 static void
-statusbar_capture_fixed_finished_cb(capture_options *capture_opts _U_)
+statusbar_capture_fixed_finished_cb(capture_session *cap_session _U_)
 {
 #if 0
-    capture_file *cf = capture_opts->cf;
+    capture_file *cf = (capture_file *)cap_session->cf;
 #endif
 
     /* Pop the "<live capture in progress>" message off the status bar. */
@@ -909,10 +915,10 @@ statusbar_capture_fixed_finished_cb(capture_options *capture_opts _U_)
 }
 
 static void
-statusbar_capture_failed_cb(capture_options *capture_opts _U_)
+statusbar_capture_failed_cb(capture_session *cap_session _U_)
 {
 #if 0
-    capture_file *cf = capture_opts->cf;
+    capture_file *cf = (capture_file *)cap_session->cf;
 #endif
 
     /* Pop the "<live capture in progress>" message off the status bar. */
@@ -996,28 +1002,28 @@ statusbar_cf_callback(gint event, gpointer data, gpointer user_data _U_)
     case(cf_cb_file_opened):
         break;
     case(cf_cb_file_closing):
-        statusbar_cf_file_closing_cb(data);
+        statusbar_cf_file_closing_cb((capture_file *)data);
         break;
     case(cf_cb_file_closed):
-        statusbar_cf_file_closed_cb(data);
+        statusbar_cf_file_closed_cb((capture_file *)data);
         break;
     case(cf_cb_file_read_started):
-        statusbar_cf_file_read_started_cb(data, "Loading");
+        statusbar_cf_file_read_started_cb((capture_file *)data, "Loading");
         break;
     case(cf_cb_file_read_finished):
-        statusbar_cf_file_read_finished_cb(data);
+        statusbar_cf_file_read_finished_cb((capture_file *)data);
         break;
     case(cf_cb_file_reload_started):
-        statusbar_cf_file_read_started_cb(data, "Reloading");
+        statusbar_cf_file_read_started_cb((capture_file *)data, "Reloading");
         break;
     case(cf_cb_file_reload_finished):
-        statusbar_cf_file_read_finished_cb(data);
+        statusbar_cf_file_read_finished_cb((capture_file *)data);
         break;
     case(cf_cb_file_rescan_started):
-        statusbar_cf_file_read_started_cb(data, "Rescanning");
+        statusbar_cf_file_read_started_cb((capture_file *)data, "Rescanning");
         break;
     case(cf_cb_file_rescan_finished):
-        statusbar_cf_file_read_finished_cb(data);
+        statusbar_cf_file_read_finished_cb((capture_file *)data);
         break;
     case(cf_cb_file_fast_save_finished):
         break;
@@ -1026,10 +1032,10 @@ statusbar_cf_callback(gint event, gpointer data, gpointer user_data _U_)
     case(cf_cb_packet_unselected):
         break;
     case(cf_cb_field_unselected):
-        statusbar_cf_field_unselected_cb(data);
+        statusbar_cf_field_unselected_cb((capture_file *)data);
         break;
     case(cf_cb_file_save_started):
-        statusbar_cf_file_save_started_cb(data);
+        statusbar_cf_file_save_started_cb((gchar *)data);
         break;
     case(cf_cb_file_save_finished):
         statusbar_cf_file_save_finished_cb(data);
@@ -1041,7 +1047,7 @@ statusbar_cf_callback(gint event, gpointer data, gpointer user_data _U_)
         statusbar_cf_file_save_stopped_cb(data);
         break;
     case(cf_cb_file_export_specified_packets_started):
-        statusbar_cf_file_export_specified_packets_started_cb(data);
+        statusbar_cf_file_export_specified_packets_started_cb((gchar *)data);
         break;
     case(cf_cb_file_export_specified_packets_finished):
         statusbar_cf_file_export_specified_packets_finished_cb(data);
@@ -1060,37 +1066,37 @@ statusbar_cf_callback(gint event, gpointer data, gpointer user_data _U_)
 
 #ifdef HAVE_LIBPCAP
 void
-statusbar_capture_callback(gint event, capture_options *capture_opts,
+statusbar_capture_callback(gint event, capture_session *cap_session,
                            gpointer user_data _U_)
 {
     switch(event) {
     case(capture_cb_capture_prepared):
-        statusbar_capture_prepared_cb(capture_opts);
+        statusbar_capture_prepared_cb(cap_session);
         break;
     case(capture_cb_capture_update_started):
-        statusbar_capture_update_started_cb(capture_opts);
+        statusbar_capture_update_started_cb(cap_session);
         break;
     case(capture_cb_capture_update_continue):
-        statusbar_capture_update_continue_cb(capture_opts);
+        statusbar_capture_update_continue_cb(cap_session);
         break;
     case(capture_cb_capture_update_finished):
-        statusbar_capture_update_finished_cb(capture_opts);
+        statusbar_capture_update_finished_cb(cap_session);
         break;
     case(capture_cb_capture_fixed_started):
-        statusbar_capture_fixed_started_cb(capture_opts);
+        statusbar_capture_fixed_started_cb(cap_session);
         break;
     case(capture_cb_capture_fixed_continue):
-        statusbar_capture_fixed_continue_cb(capture_opts);
+        statusbar_capture_fixed_continue_cb(cap_session);
         break;
     case(capture_cb_capture_fixed_finished):
-        statusbar_capture_fixed_finished_cb(capture_opts);
+        statusbar_capture_fixed_finished_cb(cap_session);
         break;
     case(capture_cb_capture_stopping):
         /* Beware: this state won't be called, if the capture child
-         * closes the capturing on it's own! */
+         * closes the capturing on its own! */
         break;
     case(capture_cb_capture_failed):
-        statusbar_capture_failed_cb(capture_opts);
+        statusbar_capture_failed_cb(cap_session);
         break;
     default:
         g_warning("statusbar_capture_callback: event %u unknown", event);

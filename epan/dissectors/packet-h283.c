@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-h283.c                                                              */
 /* ../../tools/asn2wrs.py -p h283 -c ./h283.cnf -s ./packet-h283-template -D . -O ../../epan/dissectors LCT-PROTOCOL.asn */
 
@@ -277,7 +277,7 @@ dissect_h283_LCTRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
                                  &msg_type);
 
 #line 61 "../../asn1/h283/h283.cnf"
-  p = match_strval(msg_type, VALS(h283_LCTRequest_vals));
+  p = try_val_to_str(msg_type, VALS(h283_LCTRequest_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "LCTRequest/%s", p);
     info_is_set = TRUE;
@@ -328,7 +328,7 @@ dissect_h283_LCTResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
                                  &msg_type);
 
 #line 74 "../../asn1/h283/h283.cnf"
-  p = match_strval(msg_type, VALS(h283_LCTResponse_vals));
+  p = try_val_to_str(msg_type, VALS(h283_LCTResponse_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "LCTResponse/%s", p);
     info_is_set = TRUE;
@@ -359,7 +359,7 @@ dissect_h283_LCTIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
                                  &msg_type);
 
 #line 87 "../../asn1/h283/h283.cnf"
-  p = match_strval(msg_type, VALS(h283_LCTIndication_vals));
+  p = try_val_to_str(msg_type, VALS(h283_LCTIndication_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "LCTIndication/%s", p);
     info_is_set = TRUE;
@@ -423,7 +423,7 @@ dissect_h283_LCTMessage(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
                                  &msg_type);
 
 #line 48 "../../asn1/h283/h283.cnf"
-  p = match_strval(msg_type, VALS(h283_LCTMessage_vals));
+  p = try_val_to_str(msg_type, VALS(h283_LCTMessage_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "LCTMessage/%s", p);
     info_is_set = TRUE;
@@ -475,7 +475,7 @@ dissect_h283_T_dataType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
                                  &data_type);
 
 #line 35 "../../asn1/h283/h283.cnf"
-  p = match_strval(data_type, VALS(h283_T_dataType_vals));
+  p = try_val_to_str(data_type, VALS(h283_T_dataType_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "RDCData/%s", p);
     info_is_set = TRUE;
@@ -523,7 +523,7 @@ dissect_h283_T_pduType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
                                  &pdu_type);
 
 #line 22 "../../asn1/h283/h283.cnf"
-  p = match_strval(pdu_type, VALS(h283_T_pduType_vals));
+  p = try_val_to_str(pdu_type, VALS(h283_T_pduType_vals));
   if (!info_is_set && p ) {
     col_set_str(actx->pinfo->cinfo, COL_INFO, p);
     info_is_set = TRUE;
@@ -591,7 +591,7 @@ void proto_register_h283(void) {
 /*--- Included file: packet-h283-hfarr.c ---*/
 #line 1 "../../asn1/h283/packet-h283-hfarr.c"
     { &hf_h283_LCTPDU_PDU,
-      { "LCTPDU", "h283.LCTPDU",
+      { "LCTPDU", "h283.LCTPDU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_t35CountryCode,
@@ -611,7 +611,7 @@ void proto_register_h283(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_h283_h221NonStandard,
-      { "h221NonStandard", "h283.h221NonStandard",
+      { "h221NonStandard", "h283.h221NonStandard_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_nonStandardIdentifier,
@@ -623,11 +623,11 @@ void proto_register_h283(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_h283_srcAddr,
-      { "srcAddr", "h283.srcAddr",
+      { "srcAddr", "h283.srcAddr_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTAddress", HFILL }},
     { &hf_h283_dstAddr,
-      { "dstAddr", "h283.dstAddr",
+      { "dstAddr", "h283.dstAddr_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTAddress", HFILL }},
     { &hf_h283_timestamp,
@@ -643,11 +643,11 @@ void proto_register_h283(void) {
         FT_UINT32, BASE_DEC, VALS(h283_T_pduType_vals), 0,
         NULL, HFILL }},
     { &hf_h283_ack,
-      { "ack", "h283.ack",
+      { "ack", "h283.ack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_rdcData,
-      { "rdcData", "h283.rdcData",
+      { "rdcData", "h283.rdcData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_nonStandardParameters,
@@ -655,7 +655,7 @@ void proto_register_h283(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_NonStandardParameter", HFILL }},
     { &hf_h283_nonStandardParameters_item,
-      { "NonStandardParameter", "h283.NonStandardParameter",
+      { "NonStandardParameter", "h283.NonStandardParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_mAddress,
@@ -695,19 +695,19 @@ void proto_register_h283(void) {
         FT_UINT32, BASE_DEC, VALS(h283_LCTIndication_vals), 0,
         NULL, HFILL }},
     { &hf_h283_nonStandardMessage,
-      { "nonStandardMessage", "h283.nonStandardMessage",
+      { "nonStandardMessage", "h283.nonStandardMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_announceReq,
-      { "announceReq", "h283.announceReq",
+      { "announceReq", "h283.announceReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_deviceListReq,
-      { "deviceListReq", "h283.deviceListReq",
+      { "deviceListReq", "h283.deviceListReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_announceResp,
-      { "announceResp", "h283.announceResp",
+      { "announceResp", "h283.announceResp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_deviceListResp,
@@ -715,7 +715,7 @@ void proto_register_h283(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_deviceChange,
-      { "deviceChange", "h283.deviceChange",
+      { "deviceChange", "h283.deviceChange_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 

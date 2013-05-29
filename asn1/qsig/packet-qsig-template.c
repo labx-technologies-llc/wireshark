@@ -49,6 +49,9 @@
 #define	QSIG_IE_TRANSIT_COUNTER 0x31
 #define	QSIG_IE_PARTY_CATEGORY  0x32
 
+void proto_register_qsig(void);
+void proto_reg_handoff_qsig(void);
+
 static const value_string qsig_str_ie_type_cs4[] = {
   { QSIG_IE_TRANSIT_COUNTER , "Transit counter" },
   { 0, NULL}
@@ -344,7 +347,7 @@ static const qsig_err_t qsig_err_tab[] = {
 static const qsig_op_t *get_op(gint32 opcode) {
   int i;
 
-  /* search from the end to get the last occurence if the operation is redefined in some newer specification */
+  /* search from the end to get the last occurrence if the operation is redefined in some newer specification */
   for (i = array_length(qsig_op_tab) - 1; i >= 0; i--)
     if (qsig_op_tab[i].opcode == opcode)
       return &qsig_op_tab[i];
@@ -360,7 +363,7 @@ static gint32 get_service(gint32 opcode) {
 static const qsig_err_t *get_err(gint32 errcode) {
   int i;
 
-  /* search from the end to get the last occurence if the operation is redefined in some newer specification */
+  /* search from the end to get the last occurrence if the operation is redefined in some newer specification */
   for (i = array_length(qsig_err_tab) - 1; i >= 0; i--)
     if (qsig_err_tab[i].errcode == errcode)
       return &qsig_err_tab[i];
@@ -387,7 +390,7 @@ dissect_qsig_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
     opcode = rctx->d.code_local;
     op_ptr = get_op(opcode);
   } else if (rctx->d.code == 1) {  /* global */
-    op_ptr = g_hash_table_lookup(qsig_oid2op_hashtable, rctx->d.code_global);
+    op_ptr = (qsig_op_t *)g_hash_table_lookup(qsig_oid2op_hashtable, rctx->d.code_global);
     if (op_ptr) opcode = op_ptr->opcode;
   } else {
     return offset;
@@ -400,7 +403,7 @@ dissect_qsig_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
   qsig_tree = proto_item_add_subtree(ti, ett_qsig);
 
   proto_tree_add_uint(qsig_tree, hf_qsig_operation, tvb, 0, 0, opcode);
-  p = match_strval(opcode, VALS(qsig_str_operation));
+  p = try_val_to_str(opcode, VALS(qsig_str_operation));
   if (p) {
     proto_item_append_text(ti, ": %s", p);
     proto_item_append_text(rctx->d.code_item, " - %s", p);
@@ -409,7 +412,7 @@ dissect_qsig_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
   }
 
   ti_tmp = proto_tree_add_uint(qsig_tree, hf_qsig_service, tvb, 0, 0, service);
-  p = match_strval(service, VALS(qsig_str_service_name));
+  p = try_val_to_str(service, VALS(qsig_str_service_name));
   if (p) proto_item_append_text(ti_tmp, " - %s", p);
 
   if (op_ptr->arg_pdu)
@@ -451,7 +454,7 @@ dissect_qsig_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
   qsig_tree = proto_item_add_subtree(ti, ett_qsig);
 
   proto_tree_add_uint(qsig_tree, hf_qsig_operation, tvb, 0, 0, opcode);
-  p = match_strval(opcode, VALS(qsig_str_operation));
+  p = try_val_to_str(opcode, VALS(qsig_str_operation));
   if (p) {
     proto_item_append_text(ti, ": %s", p);
     proto_item_append_text(rctx->d.code_item, " - %s", p);
@@ -460,7 +463,7 @@ dissect_qsig_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
   }
 
   ti_tmp = proto_tree_add_uint(qsig_tree, hf_qsig_service, tvb, 0, 0, service);
-  p = match_strval(service, VALS(qsig_str_service_name));
+  p = try_val_to_str(service, VALS(qsig_str_service_name));
   if (p) proto_item_append_text(ti_tmp, " - %s", p);
 
   if (op_ptr->res_pdu)
@@ -501,7 +504,7 @@ dissect_qsig_err(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
   qsig_tree = proto_item_add_subtree(ti, ett_qsig);
 
   proto_tree_add_uint(qsig_tree, hf_qsig_error, tvb, 0, 0, errcode);
-  p = match_strval(errcode, VALS(qsig_str_error));
+  p = try_val_to_str(errcode, VALS(qsig_str_error));
   if (p) {
     proto_item_append_text(ti, ": %s", p);
     proto_item_append_text(rctx->d.code_item, " - %s", p);
@@ -603,7 +606,7 @@ static void qsig_init_tables(void) {
   for (i=0; i<array_length(qsig_op_tab); i++) {
     opcode = qsig_op_tab[i].opcode;
     oid = g_strdup_printf("1.3.12.9.%d", opcode);
-    key = g_malloc(sizeof(gint));
+    key = (gint *)g_malloc(sizeof(gint));
     *key = opcode;
     g_hash_table_insert(qsig_opcode2oid_hashtable, key, oid);
     g_hash_table_insert(qsig_oid2op_hashtable, g_strdup(oid), (gpointer)&qsig_op_tab[i]);
@@ -692,7 +695,7 @@ void proto_reg_handoff_qsig(void) {
     dissector_add_uint("q932.ros.local.arg", qsig_op_tab[i].opcode, qsig_arg_handle);
     dissector_add_uint("q932.ros.local.res", qsig_op_tab[i].opcode, qsig_res_handle);
     key = qsig_op_tab[i].opcode;
-    oid = g_hash_table_lookup(qsig_opcode2oid_hashtable, &key);
+    oid = (const gchar *)g_hash_table_lookup(qsig_opcode2oid_hashtable, &key);
     if (oid) {
       dissector_add_string("q932.ros.global.arg", oid, qsig_arg_handle);
       dissector_add_string("q932.ros.global.res", oid, qsig_res_handle);

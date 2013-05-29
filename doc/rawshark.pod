@@ -47,15 +47,21 @@ file on disk.
         uint8_t data[caplen]; /* Packet data */
     };
 
-If B<-p> is supplied B<rawshark> expects the following format. This matches the
-pcap_pkthdr struct and packet data used in libpcap. Note that the time stamp
-value will match the previous format on some systems but not others.
+If B<-p> is supplied B<rawshark> expects the following format.  This
+matches the I<struct pcap_pkthdr> structure and packet data used in
+libpcap.  This structure's format is platform-dependent; the size of the
+I<tv_sec> field in the I<struct timeval> structure could be 32 bits or
+64 bits.  For B<rawshark> to work, the layout of the structure in the
+input must match the layout of the structure in B<rawshark>.  Note that
+this format will probably be the same as the previous format if
+B<rawshark> is a 32-bit program, but will not necessarily be the same if
+B<rawshark> is a 64-bit program.
 
     struct rawshark_rec_s {
         struct timeval ts;    /* Time stamp */
         uint32_t caplen;      /* Length of the packet buffer */
         uint32_t len;         /* "On the wire" length of the packet */
-        uint8_t *data;        /* Packet data */
+        uint8_t data[caplen]; /* Packet data */
     };
 
 In either case, the endianness (byte ordering) of each integer must match the
@@ -426,6 +432,14 @@ per-file memory is initialized to 0xBADDCAFE when the memory is allocated
 and is reset to 0xDEADBEEF when the memory is freed.  This functionality is
 useful mainly to developers looking for bugs in the way memory is handled.
 
+=item WIRESHARK_DEBUG_WMEM_OVERRIDE
+
+Setting this environment variable forces the wmem framework to use the
+specified allocator backend for *all* allocations, regardless of which
+backend is normally specified by the code. This is mainly useful to developers
+when testing or debugging. See I<README.wmem> in the source distribution for
+details.
+
 =item WIRESHARK_RUN_FROM_BUILD_DIRECTORY
 
 This environment variable causes the plugins and other data files to be loaded
@@ -496,7 +510,7 @@ debugging out-of-memory conditions.
 =head1 SEE ALSO
 
 wireshark-filter(4), wireshark(1), tshark(1), editcap(1), pcap(3), dumpcap(1),
-text2pcap(1), pcap-filter(7) or tcpdump(8) if it doesn't exist.
+text2pcap(1), pcap-filter(7) or tcpdump(8)
 
 =head1 NOTES
 

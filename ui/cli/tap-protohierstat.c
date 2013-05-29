@@ -51,7 +51,7 @@ static phs_t *
 new_phs_t(phs_t *parent)
 {
 	phs_t *rs;
-	rs=g_malloc(sizeof(phs_t));
+	rs=g_new(phs_t,1);
 	rs->sibling=NULL;
 	rs->child=NULL;
 	rs->parent=parent;
@@ -67,7 +67,7 @@ new_phs_t(phs_t *parent)
 static int
 protohierstat_packet(void *prs, packet_info *pinfo, epan_dissect_t *edt, const void *dummy _U_)
 {
-	phs_t *rs=prs;
+	phs_t *rs=(phs_t *)prs;
 	phs_t *tmprs;
 	proto_node *node;
 	field_info *fi;
@@ -154,7 +154,7 @@ phs_draw(phs_t *rs, int indentation)
 static void
 protohierstat_draw(void *prs)
 {
-	phs_t *rs=prs;
+	phs_t *rs=(phs_t *)prs;
 
 	printf("\n");
 	printf("===================================================================\n");

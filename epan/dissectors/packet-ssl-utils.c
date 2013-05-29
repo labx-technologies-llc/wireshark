@@ -39,8 +39,6 @@
 #include <epan/ipv6-utils.h>
 #include <wsutil/file_util.h>
 
-#include <svnversion.h>
-
 /*
  * Lookup tables
  */
@@ -814,8 +812,126 @@ static const value_string ssl_31_ciphersuite[] = {
     { 0xC039, "TLS_ECDHE_PSK_WITH_NULL_SHA" },
     { 0xC03A, "TLS_ECDHE_PSK_WITH_NULL_SHA256" },
     { 0xC03B, "TLS_ECDHE_PSK_WITH_NULL_SHA384" },
+
+    /* RFC 6209 */
+    { 0xC03C, "TLS_RSA_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC03D, "TLS_RSA_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC03E, "TLS_DH_DSS_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC03F, "TLS_DH_DSS_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC040, "TLS_DH_RSA_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC041, "TLS_DH_RSA_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC042, "TLS_DHE_DSS_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC043, "TLS_DHE_DSS_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC044, "TLS_DHE_RSA_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC045, "TLS_DHE_RSA_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC046, "TLS_DH_anon_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC047, "TLS_DH_anon_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC048, "TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC049, "TLS_ECDHE_ECDSA_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC04A, "TLS_ECDH_ECDSA_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC04B, "TLS_ECDH_ECDSA_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC04C, "TLS_ECDHE_RSA_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC04D, "TLS_ECDHE_RSA_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC04E, "TLS_ECDH_RSA_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC04F, "TLS_ECDH_RSA_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC050, "TLS_RSA_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC051, "TLS_RSA_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC052, "TLS_DHE_RSA_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC053, "TLS_DHE_RSA_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC054, "TLS_DH_RSA_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC055, "TLS_DH_RSA_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC056, "TLS_DHE_DSS_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC057, "TLS_DHE_DSS_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC058, "TLS_DH_DSS_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC059, "TLS_DH_DSS_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC05A, "TLS_DH_anon_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC05B, "TLS_DH_anon_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC05C, "TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC05D, "TLS_ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC05E, "TLS_ECDH_ECDSA_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC05F, "TLS_ECDH_ECDSA_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC060, "TLS_ECDHE_RSA_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC061, "TLS_ECDHE_RSA_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC062, "TLS_ECDH_RSA_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC063, "TLS_ECDH_RSA_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC064, "TLS_PSK_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC065, "TLS_PSK_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC066, "TLS_DHE_PSK_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC067, "TLS_DHE_PSK_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC068, "TLS_RSA_PSK_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC069, "TLS_RSA_PSK_WITH_ARIA_256_CBC_SHA384" },
+    { 0xC06A, "TLS_PSK_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC06B, "TLS_PSK_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC06C, "TLS_DHE_PSK_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC06D, "TLS_DHE_PSK_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC06E, "TLS_RSA_PSK_WITH_ARIA_128_GCM_SHA256" },
+    { 0xC06F, "TLS_RSA_PSK_WITH_ARIA_256_GCM_SHA384" },
+    { 0xC070, "TLS_ECDHE_PSK_WITH_ARIA_128_CBC_SHA256" },
+    { 0xC071, "TLS_ECDHE_PSK_WITH_ARIA_256_CBC_SHA384" },
+
+    /* RFC 6367 */
+    { 0xC072, "TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256" },
+    { 0xC073, "TLS_ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384" },
+    { 0xC074, "TLS_ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256" },
+    { 0xC075, "TLS_ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384" },
+    { 0xC076, "TLS_ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256" },
+    { 0xC077, "TLS_ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384" },
+    { 0xC078, "TLS_ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256" },
+    { 0xC079, "TLS_ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384" },
+    { 0xC07A, "TLS_RSA_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC07B, "TLS_RSA_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC07C, "TLS_DHE_RSA_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC07D, "TLS_DHE_RSA_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC07E, "TLS_DH_RSA_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC07F, "TLS_DH_RSA_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC080, "TLS_DHE_DSS_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC081, "TLS_DHE_DSS_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC082, "TLS_DH_DSS_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC083, "TLS_DH_DSS_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC084, "TLS_DH_anon_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC085, "TLS_DH_anon_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC086, "TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC087, "TLS_ECDHE_ECDSA_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC088, "TLS_ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC089, "TLS_ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC08A, "TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC08B, "TLS_ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC08C, "TLS_ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC08D, "TLS_ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC08E, "TLS_PSK_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC08F, "TLS_PSK_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC090, "TLS_DHE_PSK_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC091, "TLS_DHE_PSK_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC092, "TLS_RSA_PSK_WITH_CAMELLIA_128_GCM_SHA256" },
+    { 0xC093, "TLS_RSA_PSK_WITH_CAMELLIA_256_GCM_SHA384" },
+    { 0xC094, "TLS_PSK_WITH_CAMELLIA_128_CBC_SHA256" },
+    { 0xC095, "TLS_PSK_WITH_CAMELLIA_256_CBC_SHA384" },
+    { 0xC096, "TLS_DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256" },
+    { 0xC097, "TLS_DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384" },
+    { 0xC098, "TLS_RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256" },
+    { 0xC099, "TLS_RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384" },
+    { 0xC09A, "TLS_ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256" },
+    { 0xC09B, "TLS_ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384" },
+
+    /* RFC 6655 */
+    { 0xC09C, "TLS_RSA_WITH_AES_128_CCM" },
+    { 0xC09D, "TLS_RSA_WITH_AES_256_CCM" },
+    { 0xC09E, "TLS_DHE_RSA_WITH_AES_128_CCM" },
+    { 0xC09F, "TLS_DHE_RSA_WITH_AES_256_CCM" },
+    { 0xC0A0, "TLS_RSA_WITH_AES_128_CCM_8" },
+    { 0xC0A1, "TLS_RSA_WITH_AES_256_CCM_8" },
+    { 0xC0A2, "TLS_DHE_RSA_WITH_AES_128_CCM_8" },
+    { 0xC0A3, "TLS_DHE_RSA_WITH_AES_256_CCM_8" },
+    { 0xC0A4, "TLS_PSK_WITH_AES_128_CCM" },
+    { 0xC0A5, "TLS_PSK_WITH_AES_256_CCM" },
+    { 0xC0A6, "TLS_DHE_PSK_WITH_AES_128_CCM" },
+    { 0xC0A7, "TLS_DHE_PSK_WITH_AES_256_CCM" },
+    { 0xC0A8, "TLS_PSK_WITH_AES_128_CCM_8" },
+    { 0xC0A9, "TLS_PSK_WITH_AES_256_CCM_8" },
+    { 0xC0AA, "TLS_PSK_DHE_WITH_AES_128_CCM_8" },
+    { 0xC0AB, "TLS_PSK_DHE_WITH_AES_256_CCM_8" },
 /*
-0xC0,0x3C-FF Unassigned
+0xC0,0xAB-FF Unassigned
 0xC1-FD,* Unassigned
 0xFE,0x00-FD Unassigned
 0xFE,0xFE-FF Reserved to avoid conflicts with widely deployed implementations [Pasi_Eronen]
@@ -987,7 +1103,6 @@ gint ssl_get_keyex_alg(gint cipher)
     case 0x0008:
     case 0x0009:
     case 0x000a:
-    case 0x002e:
     case 0x002f:
     case 0x0035:
     case 0x003b:
@@ -999,19 +1114,9 @@ gint ssl_get_keyex_alg(gint cipher)
     case 0x0062:
     case 0x0064:
     case 0x0084:
-    case 0x0092:
-    case 0x0093:
-    case 0x0094:
-    case 0x0095:
     case 0x0096:
     case 0x009c:
     case 0x009d:
-    case 0x00ac:
-    case 0x00ad:
-    case 0x00b6:
-    case 0x00b7:
-    case 0x00b8:
-    case 0x00b9:
     case 0x00ba:
     case 0x00c0:
     case 0xfefe:
@@ -1157,6 +1262,52 @@ gint ssl_get_keyex_alg(gint cipher)
     case 0xc03a:
     case 0xc03b:
         return KEX_ECDH;
+    case 0x002C:
+    case 0x008A:
+    case 0x008B:
+    case 0x008C:
+    case 0x008D:
+    case 0x00A8:
+    case 0x00A9:
+    case 0x00AE:
+    case 0x00AF:
+    case 0x00B0:
+    case 0x00B1:
+    case 0xC064:
+    case 0xC065:
+    case 0xC06A:
+    case 0xC06B:
+    case 0xC08E:
+    case 0xC08F:
+    case 0xC094:
+    case 0xC095:
+    case 0xC0A4:
+    case 0xC0A5:
+    case 0xC0A8:
+    case 0xC0A9:
+    case 0xC0AA:
+    case 0xC0AB:
+        return KEX_PSK;
+    case 0x002E:
+    case 0x0092:
+    case 0x0093:
+    case 0x0094:
+    case 0x0095:
+    case 0x00AC:
+    case 0x00AD:
+    case 0x00B6:
+    case 0x00B7:
+    case 0x00B8:
+    case 0x00B9:
+    case 0xC068:
+    case 0xC069:
+    case 0xC06E:
+    case 0xC06F:
+    case 0xC092:
+    case 0xC093:
+    case 0xC098:
+    case 0xC099:
+        return KEX_RSA_PSK;
     default:
         break;
     }
@@ -1170,7 +1321,7 @@ gint ssl_get_keyex_alg(gint cipher)
 static gint
 ssl_data_alloc(StringInfo* str, size_t len)
 {
-    str->data = g_malloc(len);
+    str->data = (guchar *)g_malloc(len);
     /* the allocator can return a null pointer for a size equal to 0,
      * and that must be allowed */
     if (len > 0 && !str->data)
@@ -1419,7 +1570,7 @@ ssl_private_key_to_str(SSL_PRIVATE_KEY* pk)
     if (!pk) return str;
 #ifndef SSL_FAST
     n = gcry_sexp_sprint(pk, GCRYSEXP_FMT_ADVANCED, NULL, 0);
-    buf = ep_alloc(n);
+    buf = (gchar *)ep_alloc(n);
     /*n = gcry_sexp_sprint(pk, GCRYSEXP_FMT_ADVANCED, buf, n);*/
     str = buf;
 #else /* SSL_FAST */
@@ -1564,7 +1715,7 @@ out:
 static gint
 ssl_data_realloc(StringInfo* str, guint len)
 {
-    str->data = g_realloc(str->data, len);
+    str->data = (guchar *)g_realloc(str->data, len);
     if (!str->data)
         return -1;
     str->data_len = len;
@@ -1910,14 +2061,13 @@ ssl3_prf(StringInfo* secret, const gchar* usage,
     return(0);
 }
 
-static gint prf(SslDecryptSession* ssl,StringInfo* secret,gchar* usage,StringInfo* rnd1,StringInfo* rnd2,StringInfo* out)
+static gint prf(SslDecryptSession* ssl,StringInfo* secret,const gchar* usage,StringInfo* rnd1,StringInfo* rnd2,StringInfo* out)
 {
     gint ret;
     if (ssl->version_netorder==SSLV3_VERSION){
         ret = ssl3_prf(secret,usage,rnd1,rnd2,out);
     }else if (ssl->version_netorder==TLSV1_VERSION || ssl->version_netorder==TLSV1DOT1_VERSION ||
-            ssl->version_netorder==DTLSV1DOT0_VERSION || ssl->version_netorder==DTLSV1DOT2_VERSION ||
-            ssl->version_netorder==DTLSV1DOT0_VERSION_NOT){
+            ssl->version_netorder==DTLSV1DOT0_VERSION || ssl->version_netorder==DTLSV1DOT0_VERSION_NOT){
         ret = tls_prf(secret,usage,rnd1,rnd2,out);
     }else{
         if (ssl->cipher_suite.dig == DIG_SHA384){
@@ -1934,7 +2084,7 @@ ssl_create_flow(void)
 {
   SslFlow *flow;
 
-  flow = se_alloc(sizeof(SslFlow));
+  flow = (SslFlow *)se_alloc(sizeof(SslFlow));
   flow->byte_seq = 0;
   flow->flags = 0;
   flow->multisegment_pdus = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "ssl_multisegment_pdus");
@@ -1963,7 +2113,7 @@ ssl_create_decompressor(gint compression)
 
     if (compression == 0) return NULL;
     ssl_debug_printf("ssl_create_decompressor: compression method %d\n", compression);
-    decomp = se_alloc(sizeof(SslDecompress));
+    decomp = (SslDecompress *)se_alloc(sizeof(SslDecompress));
     decomp->compression = compression;
     switch (decomp->compression) {
 #ifdef HAVE_LIBZ
@@ -1996,7 +2146,7 @@ ssl_create_decoder(SslCipherSuite *cipher_suite, gint compression,
     SslDecoder *dec;
     gint        ciph;
 
-    dec = se_alloc0(sizeof(SslDecoder));
+    dec = (SslDecoder *)se_alloc0(sizeof(SslDecoder));
     /* Find the SSLeay cipher */
     if(cipher_suite->enc!=ENC_NULL) {
         ssl_debug_printf("ssl_create_decoder CIPHER: %s\n", ciphers[cipher_suite->enc-0x30]);
@@ -2079,7 +2229,7 @@ ssl_generate_keyring_material(SslDecryptSession*ssl_session)
         needed+=ssl_session->cipher_suite.block*2;
 
     key_block.data_len = needed;
-    key_block.data = g_malloc(needed);
+    key_block.data = (guchar *)g_malloc(needed);
     ssl_debug_printf("ssl_generate_keyring_material sess key generation\n");
     if (prf(ssl_session,&ssl_session->master_secret,"key expansion",
             &ssl_session->server_random,&ssl_session->client_random,
@@ -2101,7 +2251,7 @@ ssl_generate_keyring_material(SslDecryptSession*ssl_session)
         s_iv=ptr; /*ptr+=ssl_session->cipher_suite.block;*/
     }
 
-    if(ssl_session->cipher_suite.export){
+    if(ssl_session->cipher_suite.export_cipher){
         StringInfo iv_c,iv_s;
         StringInfo key_c,key_s;
         StringInfo k;
@@ -2745,10 +2895,11 @@ ssl_load_key(FILE* fp)
      */
     gnutls_x509_privkey_t priv_key;
     gnutls_datum_t        key;
-    gint                  size, ret;
+    long                  size;
+    gint                  ret;
     guint                 bytes;
 
-    Ssl_private_key_t *private_key = g_malloc0(sizeof(Ssl_private_key_t));
+    Ssl_private_key_t *private_key = (Ssl_private_key_t *)g_malloc0(sizeof(Ssl_private_key_t));
 
     /* init private key data*/
     gnutls_x509_privkey_init(&priv_key);
@@ -2769,8 +2920,8 @@ ssl_load_key(FILE* fp)
         g_free(private_key);
         return NULL;
     }
-    key.data = g_malloc(size);
-    key.size = size;
+    key.data = (unsigned char *)g_malloc(size);
+    key.size = (int)size;
     bytes = (guint) fread(key.data, 1, key.size, fp);
     if (bytes < key.size) {
         ssl_debug_printf("ssl_load_key: can't read from file %d bytes, got %d\n",
@@ -2820,8 +2971,15 @@ BAGTYPE(gnutls_pkcs12_bag_type_t x) {
     }
 }
 
-Ssl_private_key_t *
-ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd) {
+/**
+ * Load a RSA private key from a PKCS#12 file.
+ * @param fp the file that contains the key data.
+ * @param cert_passwd password to decrypt the PKCS#12 file.
+ * @param[out] err error message upon failure; NULL upon success.
+ * @return a pointer to the loaded key on success; NULL upon failure.
+ */
+static Ssl_private_key_t *
+ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd, const char** err) {
 
     int                       i, j, ret;
     int                       rest;
@@ -2838,10 +2996,11 @@ ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd) {
     gnutls_x509_crt_t     ssl_cert = NULL;
     gnutls_x509_privkey_t ssl_pkey = NULL;
 
-    Ssl_private_key_t *private_key = g_malloc0(sizeof(Ssl_private_key_t));
+    Ssl_private_key_t *private_key = (Ssl_private_key_t *)g_malloc0(sizeof(Ssl_private_key_t));
+    *err = NULL;
 
     rest = 4096;
-    data.data = g_malloc(rest);
+    data.data = (unsigned char *)g_malloc(rest);
     data.size = rest;
     p = data.data;
     while ((len = fread(p, 1, rest, fp)) > 0) {
@@ -2849,7 +3008,7 @@ ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd) {
         rest -= (int) len;
         if (!rest) {
             rest = 1024;
-            data.data = g_realloc(data.data, data.size + rest);
+            data.data = (unsigned char *)g_realloc(data.data, data.size + rest);
             p = data.data + data.size;
             data.size += rest;
         }
@@ -2857,21 +3016,38 @@ ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd) {
     data.size -= rest;
     ssl_debug_printf("%d bytes read\n", data.size);
     if (!feof(fp)) {
-        ssl_debug_printf( "Error during certificate reading.\n");
+        *err = "Error during certificate reading.";
+        ssl_debug_printf("%s\n", *err);
         g_free(private_key);
+        g_free(data.data);
         return 0;
     }
 
     ret = gnutls_pkcs12_init(&ssl_p12);
     if (ret < 0) {
-        ssl_debug_printf("gnutls_pkcs12_init(&st_p12) - %s", gnutls_strerror(ret));
+        *err = se_strdup_printf("gnutls_pkcs12_init(&st_p12) - %s", gnutls_strerror(ret));
+        ssl_debug_printf("%s\n", *err);
         g_free(private_key);
+        g_free(data.data);
         return 0;
     }
+
+    /* load PKCS#12 in DER or PEM format */
     ret = gnutls_pkcs12_import(ssl_p12, &data, GNUTLS_X509_FMT_DER, 0);
+    if (ret < 0) {
+        *err = se_strdup_printf("could not load PKCS#12 in DER format: %s", gnutls_strerror(ret));
+        ssl_debug_printf("%s\n", *err);
+
+        ret = gnutls_pkcs12_import(ssl_p12, &data, GNUTLS_X509_FMT_PEM, 0);
+        if (ret < 0) {
+            *err = se_strdup_printf("could not load PKCS#12 in PEM format: %s", gnutls_strerror(ret));
+            ssl_debug_printf("%s\n", *err);
+        } else {
+            *err = NULL;
+        }
+    }
     g_free(data.data);
     if (ret < 0) {
-        ssl_debug_printf("gnutls_pkcs12_import(ssl_p12, &data, GNUTLS_X509_FMT_DER, 0) - %s\n", gnutls_strerror(ret));
         g_free(private_key);
         return 0;
     }
@@ -2911,14 +3087,16 @@ ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd) {
 
                     ret = gnutls_x509_crt_init(&ssl_cert);
                     if (ret < 0) {
-                        ssl_debug_printf( "gnutls_x509_crt_init(&ssl_cert) - %s\n", gnutls_strerror(ret));
+                        *err = se_strdup_printf("gnutls_x509_crt_init(&ssl_cert) - %s", gnutls_strerror(ret));
+                        ssl_debug_printf("%s\n", *err);
                         g_free(private_key);
                         return 0;
                     }
 
                     ret = gnutls_x509_crt_import(ssl_cert, &data, GNUTLS_X509_FMT_DER);
                     if (ret < 0) {
-                        ssl_debug_printf( "gnutls_x509_crt_import(ssl_cert, &data, GNUTLS_X509_FMT_DER) - %s\n", gnutls_strerror(ret));
+                        *err = se_strdup_printf("gnutls_x509_crt_import(ssl_cert, &data, GNUTLS_X509_FMT_DER) - %s", gnutls_strerror(ret));
+                        ssl_debug_printf("%s\n", *err);
                         g_free(private_key);
                         return 0;
                     }
@@ -2943,20 +3121,23 @@ ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd) {
 
                     ret = gnutls_x509_privkey_init(&ssl_pkey);
                     if (ret < 0) {
-                        ssl_debug_printf( "gnutls_x509_privkey_init(&ssl_pkey) - %s\n", gnutls_strerror(ret));
+                        *err = se_strdup_printf("gnutls_x509_privkey_init(&ssl_pkey) - %s", gnutls_strerror(ret));
+                        ssl_debug_printf("%s\n", *err);
                         g_free(private_key);
                         return 0;
                     }
                     ret = gnutls_x509_privkey_import_pkcs8(ssl_pkey, &data, GNUTLS_X509_FMT_DER, cert_passwd,
                                                            (bag_type==GNUTLS_BAG_PKCS8_KEY) ? GNUTLS_PKCS_PLAIN : 0);
                     if (ret < 0) {
-                        ssl_debug_printf( "Can not decrypt private key - %s\n", gnutls_strerror(ret));
+                        *err = se_strdup_printf("Can not decrypt private key - %s", gnutls_strerror(ret));
+                        ssl_debug_printf("%s\n", *err);
                         g_free(private_key);
                         return 0;
                     }
 
                     if (gnutls_x509_privkey_get_pk_algorithm(ssl_pkey) != GNUTLS_PK_RSA) {
-                        ssl_debug_printf("ssl_load_pkcs12: private key public key algorithm isn't RSA\n");
+                        *err = "ssl_load_pkcs12: private key public key algorithm isn't RSA";
+                        ssl_debug_printf("%s\n", *err);
                         g_free(private_key);
                         return 0;
                     }
@@ -2964,6 +3145,8 @@ ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd) {
                     private_key->x509_pkey = ssl_pkey;
                     private_key->sexp_pkey = ssl_privkey_to_sexp(ssl_pkey);
                     if ( !private_key->sexp_pkey ) {
+                        *err = "ssl_load_pkcs12: could not create sexp_pkey";
+                        ssl_debug_printf("%s\n", *err);
                         g_free(private_key);
                         return NULL;
                     }
@@ -3005,7 +3188,7 @@ ssl_find_private_key(SslDecryptSession *ssl_session, GHashTable *key_hash, GTree
     Ssl_private_key_t * private_key;
 
     if (!ssl_session) {
-	return 0;
+        return 0;
     }
 
     /* we need to know which side of the conversation is speaking */
@@ -3026,13 +3209,13 @@ ssl_find_private_key(SslDecryptSession *ssl_session, GHashTable *key_hash, GTree
 
 
     ssl_session->private_key = 0;
-    private_key = g_hash_table_lookup(key_hash, &dummy);
+    private_key = (Ssl_private_key_t *)g_hash_table_lookup(key_hash, &dummy);
 
     if (!private_key) {
         ssl_debug_printf("ssl_find_private_key can't find private key for this server! Try it again with universal port 0\n");
 
         dummy.port = 0;
-        private_key = g_hash_table_lookup(key_hash, &dummy);
+        private_key = (Ssl_private_key_t *)g_hash_table_lookup(key_hash, &dummy);
     }
 
     if (!private_key) {
@@ -3043,7 +3226,7 @@ ssl_find_private_key(SslDecryptSession *ssl_session, GHashTable *key_hash, GTree
         dummy.addr.data = ip_addr_any;
 
         dummy.port = port;
-        private_key = g_hash_table_lookup(key_hash, &dummy);
+        private_key = (Ssl_private_key_t *)g_hash_table_lookup(key_hash, &dummy);
     }
 
     if (!private_key) {
@@ -3076,7 +3259,8 @@ ssl_load_key(FILE* fp)
 }
 
 Ssl_private_key_t *
-ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd _U_) {
+ssl_load_pkcs12(FILE* fp, const gchar *cert_passwd _U_, const char** err) {
+    *err = NULL;
     ssl_debug_printf("ssl_load_pkcs12: impossible without gnutls. fp %p\n",fp);
     return NULL;
 }
@@ -3262,7 +3446,7 @@ ssl_association_add(GTree* associations, dissector_handle_t handle, guint port, 
 {
 
     SslAssociation* assoc;
-    assoc = g_malloc(sizeof(SslAssociation));
+    assoc = (SslAssociation *)g_malloc(sizeof(SslAssociation));
 
     assoc->tcp = tcp;
     assoc->ssl_port = port;
@@ -3311,7 +3495,7 @@ ssl_association_remove(GTree* associations, SslAssociation *assoc)
 gint
 ssl_association_cmp(gconstpointer a, gconstpointer b)
 {
-    const SslAssociation *assoc_a=a, *assoc_b=b;
+    const SslAssociation *assoc_a=(SslAssociation *)a, *assoc_b=(SslAssociation *)b;
     if (assoc_a->tcp != assoc_b->tcp) return (assoc_a->tcp)?1:-1;
     return assoc_a->ssl_port - assoc_b->ssl_port;
 }
@@ -3324,7 +3508,7 @@ ssl_association_find(GTree * associations, guint port, gboolean tcp)
 
     assoc_tmp.tcp = tcp;
     assoc_tmp.ssl_port = port;
-    ret = g_tree_lookup(associations, &assoc_tmp);
+    ret = (SslAssociation *)g_tree_lookup(associations, &assoc_tmp);
 
     ssl_debug_printf("association_find: %s port %d found %p\n", (tcp)?"TCP":"UDP", port, (void *)ret);
     return ret;
@@ -3360,17 +3544,17 @@ ssl_add_record_info(gint proto, packet_info *pinfo, guchar* data, gint data_len,
     SslRecordInfo* rec;
     SslPacketInfo* pi;
 
-    pi = p_get_proto_data(pinfo->fd, proto);
+    pi = (SslPacketInfo *)p_get_proto_data(pinfo->fd, proto, 0);
     if (!pi)
     {
-        pi = se_alloc0(sizeof(SslPacketInfo));
-        p_add_proto_data(pinfo->fd, proto, pi);
+        pi = (SslPacketInfo *)se_alloc0(sizeof(SslPacketInfo));
+        p_add_proto_data(pinfo->fd, proto, 0, pi);
     }
 
-    real_data = se_alloc(data_len);
+    real_data = (guchar *)se_alloc(data_len);
     memcpy(real_data, data, data_len);
 
-    rec = se_alloc(sizeof(SslRecordInfo));
+    rec = (SslRecordInfo *)se_alloc(sizeof(SslRecordInfo));
     rec->id = record_id;
     rec->real_data = real_data;
     rec->data_len = data_len;
@@ -3386,7 +3570,7 @@ ssl_get_record_info(tvbuff_t *parent_tvb, int proto, packet_info *pinfo, gint re
 {
     SslRecordInfo* rec;
     SslPacketInfo* pi;
-    pi = p_get_proto_data(pinfo->fd, proto);
+    pi = (SslPacketInfo *)p_get_proto_data(pinfo->fd, proto, 0);
 
     if (!pi)
         return NULL;
@@ -3405,14 +3589,14 @@ ssl_add_data_info(gint proto, packet_info *pinfo, guchar* data, gint data_len, g
     SslDataInfo   *rec, **prec;
     SslPacketInfo *pi;
 
-    pi = p_get_proto_data(pinfo->fd, proto);
+    pi = (SslPacketInfo *)p_get_proto_data(pinfo->fd, proto, 0);
     if (!pi)
     {
-        pi = se_alloc0(sizeof(SslPacketInfo));
-        p_add_proto_data(pinfo->fd, proto,pi);
+        pi = (SslPacketInfo *)se_alloc0(sizeof(SslPacketInfo));
+        p_add_proto_data(pinfo->fd, proto, 0, pi);
     }
 
-    rec = se_alloc(sizeof(SslDataInfo)+data_len);
+    rec = (SslDataInfo *)se_alloc(sizeof(SslDataInfo)+data_len);
     rec->key = key;
     rec->plain_data.data = (guchar*)(rec + 1);
     memcpy(rec->plain_data.data, data, data_len);
@@ -3440,7 +3624,7 @@ ssl_get_data_info(int proto, packet_info *pinfo, gint key)
 {
     SslDataInfo*   rec;
     SslPacketInfo* pi;
-    pi = p_get_proto_data(pinfo->fd, proto);
+    pi = (SslPacketInfo *)p_get_proto_data(pinfo->fd, proto, 0);
 
     if (!pi) return NULL;
 
@@ -3513,7 +3697,11 @@ ssl_parse_key_list(const ssldecrypt_assoc_t * uats, GHashTable *key_hash, GTree*
         if ((gint)strlen(uats->password) == 0) {
             private_key = ssl_load_key(fp);
         } else {
-            private_key = ssl_load_pkcs12(fp, uats->password);
+            const char *err = NULL;
+            private_key = ssl_load_pkcs12(fp, uats->password, &err);
+            if (err) {
+                fprintf(stderr, "%s\n", err);
+            }
         }
 
         if (!private_key) {
@@ -3522,7 +3710,7 @@ ssl_parse_key_list(const ssldecrypt_assoc_t * uats, GHashTable *key_hash, GTree*
             return;
         }
 
-        service = g_malloc(sizeof(SslService) + addr_len);
+        service = (SslService *)g_malloc(sizeof(SslService) + addr_len);
         service->addr.type = addr_type[at];
         service->addr.len = addr_len;
         service->addr.data = ((guchar*)service) + sizeof(SslService);
@@ -3541,7 +3729,7 @@ ssl_parse_key_list(const ssldecrypt_assoc_t * uats, GHashTable *key_hash, GTree*
         ssl_debug_printf("ssl_init private key file %s successfully loaded.\n", uats->keyfile);
 
         /* if item exists, remove first */
-        tmp_private_key = g_hash_table_lookup(key_hash, service);
+        tmp_private_key = (Ssl_private_key_t *)g_hash_table_lookup(key_hash, service);
         if (tmp_private_key) {
             g_hash_table_remove(key_hash, service);
             ssl_free_key(tmp_private_key);
@@ -3562,8 +3750,8 @@ ssl_save_session(SslDecryptSession* ssl, GHashTable *session_hash)
     /* allocate stringinfo chunks for session id and master secret data*/
     StringInfo* session_id;
     StringInfo* master_secret;
-    session_id = se_alloc0(sizeof(StringInfo) + ssl->session_id.data_len);
-    master_secret = se_alloc0(48 + sizeof(StringInfo));
+    session_id = (StringInfo *)se_alloc0(sizeof(StringInfo) + ssl->session_id.data_len);
+    master_secret = (StringInfo *)se_alloc0(48 + sizeof(StringInfo));
 
     master_secret->data = ((guchar*)master_secret+sizeof(StringInfo));
 
@@ -3583,7 +3771,7 @@ gboolean
 ssl_restore_session(SslDecryptSession* ssl, GHashTable *session_hash)
 {
     StringInfo* ms;
-    ms = g_hash_table_lookup(session_hash, &ssl->session_id);
+    ms = (StringInfo *)g_hash_table_lookup(session_hash, &ssl->session_id);
 
     if (!ms) {
         ssl_debug_printf("ssl_restore_session can't find stored session\n");
@@ -3627,7 +3815,7 @@ static gboolean from_hex(StringInfo* out, const char* in, gsize hex_len) {
         return FALSE;
 
     out->data_len = (guint)hex_len/2;
-    out->data = se_alloc(out->data_len);
+    out->data = (guchar *)se_alloc(out->data_len);
     for (i = 0; i < out->data_len; i++) {
         guint8 a = from_hex_char(in[i*2]);
         guint8 b = from_hex_char(in[i*2 + 1]);
@@ -3882,11 +4070,7 @@ ssl_set_debug(const gchar* name)
     if (!use_stderr && ssl_debug_file)
         debug_file_must_be_closed = 1;
 
-    ssl_debug_printf("Wireshark SSL debug log " VERSION
-#ifdef SVNVERSION
-		     " (" SVNVERSION " from " SVNPATH ")"
-#endif
-		     "\n\n");
+    ssl_debug_printf("Wireshark SSL debug log \n\n");
 }
 
 void
@@ -3917,13 +4101,19 @@ ssl_print_data(const gchar* name, const guchar* data, size_t len)
         return;
     fprintf(ssl_debug_file,"%s[%d]:\n",name, (int) len);
     for (i=0; i<len; i+=16) {
+        fprintf(ssl_debug_file,"| ");
         for (j=i, k=0; k<16 && j<len; ++j, ++k)
             fprintf(ssl_debug_file,"%.2x ",data[j]);
         for (; k<16; ++k)
             fprintf(ssl_debug_file,"   ");
-        fprintf(ssl_debug_file,"|");
-        for (j=i, k=0; k<16 && j<len; ++j, ++k)
-            fprintf(ssl_debug_file,"%c",isprint(data[j]) ? data[j] : '.');
+        fputc('|', ssl_debug_file);
+        for (j=i, k=0; k<16 && j<len; ++j, ++k) {
+            guchar c = data[j];
+            if (!isprint(c) || (c=='\t')) c = '.';
+            fputc(c, ssl_debug_file);
+        }
+        for (; k<16; ++k)
+            fputc(' ', ssl_debug_file);
         fprintf(ssl_debug_file,"|\n");
     }
 }
@@ -3938,7 +4128,7 @@ ssl_print_string(const gchar* name, const StringInfo* data)
 /* checks for SSL and DTLS UAT key list fields */
 
 gboolean
-ssldecrypt_uat_fld_ip_chk_cb(void* r _U_, const char* p, unsigned len _U_, const void* u1 _U_, const void* u2 _U_, const char** err)
+ssldecrypt_uat_fld_ip_chk_cb(void* r _U_, const char* p, guint len _U_, const void* u1 _U_, const void* u2 _U_, const char** err)
 {
     if (!p || strlen(p) == 0u) {
         *err = ep_strdup_printf("No IP address given.");
@@ -3950,7 +4140,7 @@ ssldecrypt_uat_fld_ip_chk_cb(void* r _U_, const char* p, unsigned len _U_, const
 }
 
 gboolean
-ssldecrypt_uat_fld_port_chk_cb(void* r _U_, const char* p, unsigned len _U_, const void* u1 _U_, const void* u2 _U_, const char** err)
+ssldecrypt_uat_fld_port_chk_cb(void* r _U_, const char* p, guint len _U_, const void* u1 _U_, const void* u2 _U_, const char** err)
 {
     if (!p || strlen(p) == 0u) {
         *err = ep_strdup_printf("No Port given.");
@@ -3959,7 +4149,7 @@ ssldecrypt_uat_fld_port_chk_cb(void* r _U_, const char* p, unsigned len _U_, con
 
     if (strcmp(p, "start_tls") != 0){
         const gint i = atoi(p);
-        if (i <= 0 || i > 65535) {
+        if (i < 0 || i > 65535) {
             *err = ep_strdup_printf("Invalid port given.");
             return FALSE;
         }
@@ -3970,7 +4160,7 @@ ssldecrypt_uat_fld_port_chk_cb(void* r _U_, const char* p, unsigned len _U_, con
 }
 
 gboolean
-ssldecrypt_uat_fld_protocol_chk_cb(void* r _U_, const char* p, unsigned len _U_, const void* u1 _U_, const void* u2 _U_, const char** err)
+ssldecrypt_uat_fld_protocol_chk_cb(void* r _U_, const char* p, guint len _U_, const void* u1 _U_, const void* u2 _U_, const char** err)
 {
     if (!p || strlen(p) == 0u) {
         *err = ep_strdup_printf("No protocol given.");
@@ -3987,7 +4177,7 @@ ssldecrypt_uat_fld_protocol_chk_cb(void* r _U_, const char* p, unsigned len _U_,
 }
 
 gboolean
-ssldecrypt_uat_fld_fileopen_chk_cb(void* r _U_, const char* p, unsigned len _U_, const void* u1 _U_, const void* u2 _U_, const char** err)
+ssldecrypt_uat_fld_fileopen_chk_cb(void* r _U_, const char* p, guint len _U_, const void* u1 _U_, const void* u2 _U_, const char** err)
 {
     ws_statb64 st;
 
@@ -4006,17 +4196,18 @@ ssldecrypt_uat_fld_fileopen_chk_cb(void* r _U_, const char* p, unsigned len _U_,
 }
 
 gboolean
-ssldecrypt_uat_fld_password_chk_cb(void* r _U_, const char* p, unsigned len _U_, const void* u1 _U_, const void* u2 _U_, const char ** err)
+ssldecrypt_uat_fld_password_chk_cb(void* r _U_, const char* p, guint len _U_, const void* u1 _U_, const void* u2 _U_, const char ** err)
 {
-    ssldecrypt_assoc_t*  f  = r;
+    ssldecrypt_assoc_t*  f  = (ssldecrypt_assoc_t *)r;
     FILE                *fp = NULL;
 
     if (p && (strlen(p) > 0u)) {
         fp = ws_fopen(f->keyfile, "rb");
         if (fp) {
-            if (!ssl_load_pkcs12(fp, p)) {
+            const char *msg = NULL;
+            if (!ssl_load_pkcs12(fp, p, &msg)) {
                 fclose(fp);
-                *err = ep_strdup_printf("Invalid. Password is necessary only if you use PKCS#12 key file.");
+                *err = ep_strdup_printf("Could not load PKCS#12 key file: %s", msg);
                 return FALSE;
             }
             fclose(fp);

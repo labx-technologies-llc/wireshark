@@ -20,7 +20,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include "config.h"
@@ -49,14 +49,14 @@
 
 #include "ui/gtk/old-gtk-compat.h"
 
-#define AXIS_HORIZONTAL		0
-#define AXIS_VERTICAL		1
+#define AXIS_HORIZONTAL         0
+#define AXIS_VERTICAL           1
 
 #define WINDOW_TITLE_LENGTH 256
 
-#define MOUSE_BUTTON_LEFT	1
-#define MOUSE_BUTTON_MIDDLE	2
-#define MOUSE_BUTTON_RIGHT	3
+#define MOUSE_BUTTON_LEFT       1
+#define MOUSE_BUTTON_MIDDLE     2
+#define MOUSE_BUTTON_RIGHT      3
 
 #define MAX_PIXELS_PER_SN       90
 #define MAX_PIXELS_PER_SECOND   50000
@@ -73,6 +73,7 @@ struct segment {
 
     gboolean        isControlPDU;
     guint16         SN;
+    guint16         isResegmented;
     guint16         ACKNo;
     #define MAX_NACKs 128
     guint16         noOfNACKs;
@@ -93,10 +94,14 @@ struct irect {
     int x, y, width, height;
 };
 
+struct zoomfactor {
+    double x, y;
+};
+
 typedef enum {
-    ELMT_NONE=0,
-    ELMT_LINE=1,
-    ELMT_ELLIPSE=2
+    ELMT_NONE    = 0,
+    ELMT_LINE    = 1,
+    ELMT_ELLIPSE = 2
 } ElementType;
 
 struct line_params {
@@ -113,7 +118,7 @@ struct ellipse_params {
 
 struct element {
     ElementType type;
-    GdkColor *elment_color_p;
+    GdkRGBA *elment_color_p;
     struct segment *parent;
     union {
         struct line_params line;
@@ -127,7 +132,7 @@ struct element_list {
 };
 
 struct axis {
-    struct graph *g;			/* which graph we belong to */
+    struct graph *g;           /* which graph we belong to */
     GtkWidget *drawing_area;
     /* Double-buffering to avoid flicker */
 #if GTK_CHECK_VERSION(2,22,0)
@@ -137,38 +142,39 @@ struct axis {
 #endif
     /* Which of the 2 buffers we are currently showing */
     int displayed;
-#define AXIS_ORIENTATION	1 << 0
+#define AXIS_ORIENTATION    1 << 0
     int flags;
     /* dim and orig (relative to origin of window) of axis' pixmap */
     struct irect p;
     /* dim and orig (relative to origin of axis' pixmap) of scale itself */
     struct irect s;
     gdouble min, max;
-    gdouble major, minor;		/* major and minor ticks */
+    gdouble major, minor;    /* major and minor ticks */
     const char **label;
 };
 
-#define HAXIS_INIT_HEIGHT	70
-#define VAXIS_INIT_WIDTH	100
-#define TITLEBAR_HEIGHT		50
-#define RMARGIN_WIDTH	30
+#define HAXIS_INIT_HEIGHT   70
+#define VAXIS_INIT_WIDTH   100
+#define TITLEBAR_HEIGHT     50
+#define RMARGIN_WIDTH       30
 
 struct style_rlc_lte {
-    GdkColor seq_color;
-    GdkColor ack_color[2];
+    GdkRGBA seq_color;
+    GdkRGBA seq_resegmented_color;
+    GdkRGBA ack_color[2];
     int flags;
 };
 
 /* style flags */
-#define TIME_ORIGIN			0x10
+#define TIME_ORIGIN             0x10
 /* show time from beginning of capture as opposed to time from beginning
  * of the connection */
-#define TIME_ORIGIN_CAP		0x10
-#define TIME_ORIGIN_CONN	0x00
+#define TIME_ORIGIN_CAP         0x10
+#define TIME_ORIGIN_CONN        0x00
 
 struct cross {
     int x, y;
-    int draw;			/* indicates whether we should draw cross at all */
+    int draw;           /* indicates whether we should draw cross at all */
     int erase_needed;   /* indicates whether currently drawn at recorded position */
 };
 
@@ -197,9 +203,9 @@ struct grab {
 struct graph {
 #define GRAPH_DESTROYED             (1 << 0)
     int flags;
-    GtkWidget *toplevel;	/* keypress handler needs this */
+    GtkWidget *toplevel;        /* keypress handler needs this */
     GtkWidget *drawing_area;
-    PangoFontDescription *font;	/* font used for annotations etc. */
+    PangoFontDescription *font; /* font used for annotations etc. */
 
     /* Double-buffering */
 #if GTK_CHECK_VERSION(2,22,0)
@@ -209,7 +215,7 @@ struct graph {
     GdkPixmap *title_pixmap;
     GdkPixmap *pixmap[2];
 #endif
-    int displayed;			/* which of both pixmaps is on screen right now */
+    int displayed;              /* which of both pixmaps is on screen right now */
 
     /* Next 4 attribs describe the graph in natural units, before any scaling.
      * For example, if we want to display graph of TCP conversation that
@@ -230,6 +236,7 @@ struct graph {
      * pixels, we have to scale the graph down by factor of 0.002109. This
      * number would be zoom.y. Obviously, both directions have separate zooms.*/
     struct zooms zoom;
+    gboolean     zoomrect_erase_needed;
     struct cross cross;
     struct axis *x_axis, *y_axis;
 
@@ -244,24 +251,21 @@ struct graph {
     guint8          direction;
 
     /* Lists of elements to draw */
-    struct element_list *elists;		/* element lists */
+    struct element_list *elists;    /* element lists */
 
     /* Colours, etc to be used in drawing */
     struct style_rlc_lte style;
 };
 
-#if !GTK_CHECK_VERSION(3,0,0)
-static GdkGC *xor_gc = NULL;
-#endif
-static int refnum=0;
+static int refnum = 0;
 
 #define debug(section) if (debugging & section)
 /* print function entry points */
-#define DBS_FENTRY			(1 << 0)
-#define DBS_AXES_TICKS		(1 << 1)
-#define DBS_AXES_DRAWING	(1 << 2)
-#define DBS_GRAPH_DRAWING	(1 << 3)
-#define DBS_TPUT_ELMTS		(1 << 4)
+#define DBS_FENTRY              (1 << 0)
+#define DBS_AXES_TICKS          (1 << 1)
+#define DBS_AXES_DRAWING        (1 << 2)
+#define DBS_GRAPH_DRAWING       (1 << 3)
+#define DBS_TPUT_ELMTS          (1 << 4)
 /*static int debugging = DBS_FENTRY;*/
 /*static int debugging = DBS_AXES_TICKS;*/
 /*static int debugging = DBS_AXES_DRAWING;*/
@@ -284,8 +288,8 @@ static struct graph *graph_new(void);
 static void graph_destroy(struct graph * );
 static void graph_initialize_values(struct graph * );
 static void graph_init_sequence(struct graph * );
-static void draw_element_line(struct graph * , struct element * ,  cairo_t * , GdkColor *new_color);
-static void draw_element_ellipse(struct graph * , struct element * , cairo_t *cr);
+static void draw_element_line(struct graph * , struct element * ,  cairo_t * , GdkRGBA *new_color);
+static void draw_element_ellipse(struct graph * , struct element * , cairo_t *cr , GdkRGBA *new_color);
 static void graph_display(struct graph * );
 static void graph_pixmaps_create(struct graph * );
 static void graph_pixmaps_switch(struct graph * );
@@ -318,6 +322,8 @@ static int get_label_dim(struct axis * , int , double );
 static void toggle_crosshairs(struct graph *);
 static void cross_draw(struct graph * , int x, int y);
 static void cross_erase(struct graph * );
+static void zoomrect_draw(struct graph * , int , int );
+static void zoomrect_erase(struct graph * );
 static gboolean motion_notify_event(GtkWidget * , GdkEventMotion * , gpointer );
 
 static void toggle_time_origin(struct graph * );
@@ -337,23 +343,24 @@ static void graph_read_config(struct graph *);
 static void rlc_lte_make_elmtlist(struct graph *);
 
 #if defined(_WIN32) && !defined(__MINGW32__)
-static int rint(double );	/* compiler template for Windows */
+static int rint(double );     /* compiler template for Windows */
 #endif
 
-/*
- * Uncomment the following define to revert WIN32 to
- * use original mouse button controls
- */
+/* This should arguably be part of the graph, but in practice you can
+   only click on one graph at a time, so this is probably OK */
+static struct irect zoomrect;
+
 
 /* XXX - what about OS X? */
 static char helptext[] =
     "Here's what you can do:\n"
     "\n"
     "   Left Mouse Button             selects segment under cursor in Wireshark's packet list\n"
+    "                                 can also drag to zoom in on a rectangular region\n"
     "   Middle Mouse Button           zooms in (towards area under cursor)\n"
     "   Right Mouse Button            moves the graph (if zoomed in)\n"
     "\n"
-	"   <Space bar>	toggles crosshairs on/off\n"
+    "   <Space bar>      toggles crosshairs on/off\n"
     "\n"
     "   'i' or '+'       zoom in (towards area under mouse pointer)\n"
     "   'o' or '-'       zoom out\n"
@@ -465,9 +472,6 @@ static void create_drawing_area(struct graph *g)
 {
 #if GTK_CHECK_VERSION(3,0,0)
     GtkStyleContext *context;
-#else
-    GdkColormap *colormap;
-    GdkColor color;
 #endif
     char *display_name;
     char window_title[WINDOW_TITLE_LENGTH];
@@ -500,6 +504,7 @@ static void create_drawing_area(struct graph *g)
 #else
     g_signal_connect(g->drawing_area, "expose_event", G_CALLBACK(expose_event), g);
 #endif
+
     g_signal_connect(g->drawing_area, "button_press_event",
                      G_CALLBACK(button_press_event), g);
     g_signal_connect(g->drawing_area, "button_release_event",
@@ -538,26 +543,6 @@ static void create_drawing_area(struct graph *g)
 #else
     g->font = gtk_widget_get_style(g->drawing_area)->font_desc;
 
-    colormap = gtk_widget_get_colormap(GTK_WIDGET(g->drawing_area));
-    if (!xor_gc) {
-        xor_gc = gdk_gc_new(gtk_widget_get_window(g->drawing_area));
-        gdk_gc_set_function(xor_gc, GDK_XOR);
-        if (!gdk_color_parse("gray15", &color)) {
-            /*
-             * XXX - do more than just warn.
-             */
-            simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-                "Could not parse color gray15.");
-        }
-        if (!gdk_colormap_alloc_color(colormap, &color, FALSE, TRUE)) {
-            /*
-             * XXX - do more than just warn.
-             */
-            simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-                "Could not allocate color gray15.");
-        }
-        gdk_gc_set_foreground(xor_gc, &color);
-    }
 #endif
 
     g_signal_connect(g->drawing_area, "configure_event", G_CALLBACK(configure_event), g);
@@ -600,7 +585,7 @@ static void callback_create_help(GtkWidget *widget _U_, gpointer data _U_)
     gtk_box_pack_start(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
     gtk_widget_show(bbox);
 
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(toplevel, close_bt, window_cancel_button_cb);
 
     g_signal_connect(toplevel, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -612,14 +597,14 @@ static void callback_create_help(GtkWidget *widget _U_, gpointer data _U_)
 static void get_mouse_position(GtkWidget *widget, int *pointer_x, int *pointer_y, GdkModifierType *mask)
 {
 #if GTK_CHECK_VERSION(3,0,0)
-	gdk_window_get_device_position (gtk_widget_get_window(widget),
-	                                gdk_device_manager_get_client_pointer(
-	                                  gdk_display_get_device_manager(
-	                                    gtk_widget_get_display(GTK_WIDGET(widget)))),
-	                                pointer_x, pointer_y, mask);
+    gdk_window_get_device_position (gtk_widget_get_window(widget),
+                                    gdk_device_manager_get_client_pointer(
+                                        gdk_display_get_device_manager(
+                                            gtk_widget_get_display(GTK_WIDGET(widget)))),
+                                    pointer_x, pointer_y, mask);
 
 #else
-	gdk_window_get_pointer (gtk_widget_get_window(widget), pointer_x, pointer_y, mask);
+    gdk_window_get_pointer (gtk_widget_get_window(widget), pointer_x, pointer_y, mask);
 #endif
 }
 
@@ -659,14 +644,15 @@ static void graph_initialize_values(struct graph *g)
     g->geom.height = g->wp.height = 550;
     g->geom.x = g->wp.x = VAXIS_INIT_WIDTH;
     g->geom.y = g->wp.y = TITLEBAR_HEIGHT;
-    g->flags = 0;
+    g->flags  = 0;
     g->zoom.x = g->zoom.y = 1.0;
 
     /* Zooming in step - set same for both dimensions */
     g->zoom.step_x = g->zoom.step_y = 1.15;
     g->zoom.flags = 0;
 
-    g->cross.draw = g->cross.erase_needed = 0;
+    g->cross.draw = g->cross.erase_needed = FALSE;
+    g->zoomrect_erase_needed = FALSE;
     g->grab.grabbed = 0;
 }
 
@@ -740,7 +726,7 @@ static void graph_destroy(struct graph *g)
 
 
 typedef struct rlc_scan_t {
-    struct graph *g;
+    struct graph   *g;
     struct segment *last;
 } rlc_scan_t;
 
@@ -748,16 +734,16 @@ typedef struct rlc_scan_t {
 static int
 tapall_rlc_lte_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
-    rlc_scan_t *ts=(rlc_scan_t *)pct;
-    struct graph *g = ts->g;
-    rlc_lte_tap_info *rlchdr=(rlc_lte_tap_info*)vip;
+    rlc_scan_t   *ts = (rlc_scan_t *)pct;
+    struct graph *g  = ts->g;
+    const rlc_lte_tap_info *rlchdr = (const rlc_lte_tap_info*)vip;
 
     /* See if this one matches current channel */
     if (compare_headers(g->ueid,       g->channelType,       g->channelId,       g->rlcMode,       g->direction,
                         rlchdr->ueid,  rlchdr->channelType,  rlchdr->channelId,  rlchdr->rlcMode,  rlchdr->direction,
                         rlchdr->isControlPDU)) {
 
-        struct segment *segment = g_malloc(sizeof(struct segment));
+        struct segment *segment = (struct segment *)g_malloc(sizeof(struct segment));
 
         /* It matches.  Add to end of segment list */
         segment->next = NULL;
@@ -775,9 +761,12 @@ tapall_rlc_lte_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, co
         segment->isControlPDU = rlchdr->isControlPDU;
 
         if (!rlchdr->isControlPDU) {
+            /* Data */
             segment->SN = rlchdr->sequenceNumber;
+            segment->isResegmented = rlchdr->isResegmented;
         }
         else {
+            /* Status PDU */
             gint n;
             segment->ACKNo = rlchdr->ACKNo;
             segment->noOfNACKs = rlchdr->noOfNACKs;
@@ -807,8 +796,8 @@ tapall_rlc_lte_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, co
 static void graph_segment_list_get(struct graph *g, gboolean channel_known)
 {
     struct segment current;
-    GString *error_string;
-    rlc_scan_t ts;
+    GString    *error_string;
+    rlc_scan_t  ts;
 
     debug(DBS_FENTRY) puts("graph_segment_list_get()");
 
@@ -851,10 +840,10 @@ typedef struct _th_t {
 static int
 tap_lte_rlc_packet(void *pct, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *vip)
 {
-    int n;
-    gboolean is_unique = TRUE;
-    th_t *th = pct;
-    rlc_lte_tap_info *header = (rlc_lte_tap_info*)vip;
+    int       n;
+    gboolean  is_unique = TRUE;
+    th_t     *th        = (th_t *)pct;
+    const rlc_lte_tap_info *header = (const rlc_lte_tap_info*)vip;
 
     /* Check new header details against any/all stored ones */
     for (n=0; n < th->num_hdrs; n++) {
@@ -871,9 +860,9 @@ tap_lte_rlc_packet(void *pct, packet_info *pinfo _U_, epan_dissect_t *edt _U_, c
     /* Add address if unique and have space for it */
     if (is_unique && (th->num_hdrs < MAX_SUPPORTED_CHANNELS)) {
         /* Copy the tap stuct in as next header */
-		/* Need to take a deep copy of the tap struct, it may not be valid
-		   to read after this function returns? */
-        th->rlchdrs[th->num_hdrs] = g_malloc(sizeof(rlc_lte_tap_info));
+        /* Need to take a deep copy of the tap struct, it may not be valid
+           to read after this function returns? */
+        th->rlchdrs[th->num_hdrs] = g_new(rlc_lte_tap_info,1);
         *(th->rlchdrs[th->num_hdrs]) = *header;
 
         /* Store in direction of data though... */
@@ -893,11 +882,11 @@ tap_lte_rlc_packet(void *pct, packet_info *pinfo _U_, epan_dissect_t *edt _U_, c
  */
 static rlc_lte_tap_info *select_rlc_lte_session(capture_file *cf, struct segment *hdrs)
 {
-    frame_data *fdata;
-    epan_dissect_t edt;
-    dfilter_t *sfcode;
-    GString *error_string;
-    th_t th = {0, {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL}};
+    frame_data     *fdata;
+    epan_dissect_t  edt;
+    dfilter_t      *sfcode;
+    GString        *error_string;
+    th_t            th = {0, {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL}};
 
     if (cf->state == FILE_CLOSED) {
         return NULL;
@@ -913,7 +902,7 @@ static rlc_lte_tap_info *select_rlc_lte_session(capture_file *cf, struct segment
 
     /* dissect the current frame */
     if (!cf_read_frame(cf, fdata)) {
-        return NULL;	/* error reading the frame */
+        return NULL;  /* error reading the frame */
     }
 
     error_string = register_tap_listener("rlc-lte", &th, NULL, 0, NULL, tap_lte_rlc_packet, NULL);
@@ -930,7 +919,7 @@ static rlc_lte_tap_info *select_rlc_lte_session(capture_file *cf, struct segment
     epan_dissect_cleanup(&edt);
     remove_tap_listener(&th);
 
-    if (th.num_hdrs==0){
+    if (th.num_hdrs == 0){
         /* This "shouldn't happen", as our menu items shouldn't
          * even be enabled if the selected packet isn't an RLC PDU
          * as rlc_lte_graph_selected_packet_enabled() is used
@@ -973,7 +962,7 @@ static int compare_headers(guint16 ueid1, guint16 channelType1, guint16 channelI
 {
     /* Same direction, data - OK. */
     if (!frameIsControl) {
-        return (direction1 == direction2) && 
+        return (direction1 == direction2) &&
                (ueid1 == ueid2) &&
                (channelType1 == channelType2) &&
                (channelId1 == channelId2) &&
@@ -1027,7 +1016,7 @@ static void graph_element_lists_free(struct graph *g)
         next_list = list->next;
         g_free(list);
     }
-    g->elists = NULL;	/* just to make debugging easier */
+    g->elists = NULL;  /* just to make debugging easier */
 }
 
 static void graph_title_pixmap_create(struct graph *g)
@@ -1054,9 +1043,9 @@ static void graph_title_pixmap_create(struct graph *g)
 
 static void graph_title_pixmap_draw(struct graph *g)
 {
-    gint w, h;
+    gint         w, h;
     PangoLayout *layout;
-    cairo_t *cr;
+    cairo_t     *cr;
 
 #if GTK_CHECK_VERSION(2,22,0)
     cr = cairo_create(g->title_surface);
@@ -1165,13 +1154,12 @@ static void graph_pixmap_draw(struct graph *g)
 {
     struct element_list *list;
     struct element *e;
-    int not_disp;
-    cairo_t *cr;
-
-    cairo_t *cr_elements;
-    GdkColor *current_color = NULL;
-    GdkColor *color_to_set = NULL;
-    gboolean line_stroked = TRUE;
+    int       not_disp;
+    cairo_t  *cr;
+    cairo_t  *cr_elements;
+    GdkRGBA  *current_color = NULL;
+    GdkRGBA  *color_to_set  = NULL;
+    gboolean  line_stroked  = TRUE;
 
     debug(DBS_FENTRY) puts("graph_display()");
     not_disp = 1 ^ g->displayed;
@@ -1195,7 +1183,7 @@ static void graph_pixmap_draw(struct graph *g)
 #endif
 
     /* N.B. This makes drawing circles take half the time of the default setting.
-       Changing from the default fill rule didn't make any noticable difference
+       Changing from the default fill rule didn't make any noticeable difference
        though */
     cairo_set_tolerance(cr_elements, 1.0);
 
@@ -1205,20 +1193,20 @@ static void graph_pixmap_draw(struct graph *g)
     /* Draw all elements */
     for (list=g->elists; list; list=list->next) {
         for (e=list->elements; e->type != ELMT_NONE; e++) {
+
+            /* Work out if we need to change colour */
+            if (current_color == e->elment_color_p) {
+                /* No change needed */
+                color_to_set = NULL;
+            }
+            else {
+                /* Changing colour */
+                current_color = color_to_set = e->elment_color_p;
+                cairo_stroke(cr_elements);
+            }
+
             switch (e->type) {
                 case ELMT_LINE:
-
-                    /* Work out if we need to change colour */
-                    if (current_color == e->elment_color_p) {
-                        /* No change needed */
-                        color_to_set = NULL;
-                    }
-                    else {
-                        /* Changing colour */
-                        current_color = color_to_set = e->elment_color_p;
-                        cairo_stroke(cr_elements);
-                    }
-
                     /* Draw the line */
                     draw_element_line(g, e, cr_elements, color_to_set);
                     line_stroked = FALSE;
@@ -1229,10 +1217,9 @@ static void graph_pixmap_draw(struct graph *g)
                         cairo_stroke(cr_elements);
                         line_stroked = TRUE;
                     }
-
-                    draw_element_ellipse(g, e, cr_elements);
+                    /* Draw the ellipse */
+                    draw_element_ellipse(g, e, cr_elements, color_to_set);
                     break;
-
 
                 default:
                     /* No other element types supported at the moment */
@@ -1250,7 +1237,7 @@ static void graph_pixmap_draw(struct graph *g)
 }
 
 static void draw_element_line(struct graph *g, struct element *e, cairo_t *cr,
-                              GdkColor *new_color)
+                              GdkRGBA *new_color)
 {
     int xx1, xx2, yy1, yy2;
 
@@ -1261,8 +1248,7 @@ static void draw_element_line(struct graph *g, struct element *e, cairo_t *cr,
 
     /* Set our new colour (if changed) */
     if (new_color != NULL) {
-        /* First draw any previous lines with old colour */
-        gdk_cairo_set_source_color(cr, new_color);
+        gdk_cairo_set_source_rgba(cr, new_color);
     }
 
     /* Map point into graph area, and round to nearest int */
@@ -1272,8 +1258,8 @@ static void draw_element_line(struct graph *g, struct element *e, cairo_t *cr,
     yy2 = (int)rint((g->geom.height-1-e->p.line.dim.y2) + g->geom.y-g->wp.y);
 
     /* If line completely out of the area, we won't show it  */
-    if ((xx1<0 && xx2<0) || (xx1>=g->wp.width  && xx2>=g->wp.width) ||
-        (yy1<0 && yy2<0) || (yy1>=g->wp.height && yy2>=g->wp.height)) {
+    if (((xx1 < 0) && (xx2 < 0)) || ((xx1 >= g->wp.width)  && (xx2 >= g->wp.width)) ||
+        ((yy1 < 0) && (yy2 < 0)) || ((yy1 >= g->wp.height) && (yy2 >= g->wp.height))) {
         debug(DBS_GRAPH_DRAWING) printf(" refusing: (%d,%d)->(%d,%d)\n", xx1, yy1, xx2, yy2);
         return;
     }
@@ -1288,7 +1274,8 @@ static void draw_element_line(struct graph *g, struct element *e, cairo_t *cr,
     cairo_line_to(cr, xx2+0.5, yy2+0.5);
 }
 
-static void draw_element_ellipse(struct graph *g, struct element *e, cairo_t *cr)
+static void draw_element_ellipse(struct graph *g, struct element *e, cairo_t *cr,
+                                 GdkRGBA *new_color)
 {
     gdouble w = e->p.ellipse.dim.width;
     gdouble h = e->p.ellipse.dim.height;
@@ -1297,8 +1284,12 @@ static void draw_element_ellipse(struct graph *g, struct element *e, cairo_t *cr
 
     debug(DBS_GRAPH_DRAWING) printf ("ellipse: (x, y) -> (w, h): (%f, %f) -> (%f, %f)\n", x, y, w, h);
 
+    /* Set our new colour (if changed) */
+    if (new_color != NULL) {
+        gdk_cairo_set_source_rgba(cr, new_color);
+    }
+
     cairo_save(cr);
-    cairo_set_source_rgb(cr, 0, 0, 0);
     cairo_translate(cr, x + w/2.0, y + h/2.0);
     cairo_scale(cr, w/2.0, h/2.0);
     cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, 2*G_PI);
@@ -1378,12 +1369,12 @@ static void axis_display(struct axis *axis)
 static void v_axis_pixmap_draw(struct axis *axis)
 {
     struct graph *g = axis->g;
-    int i;
-    double major_tick;
-    int not_disp, offset, imin, imax;
-    double bottom, top, fl, corr;
-    PangoLayout *layout;
-    cairo_t *cr;
+    int           i;
+    double        major_tick;
+    int           not_disp, offset, imin, imax;
+    double        bottom, top, fl, corr;
+    PangoLayout  *layout;
+    cairo_t      *cr;
 
     debug(DBS_FENTRY) puts("v_axis_pixmap_draw()");
 
@@ -1429,7 +1420,7 @@ static void v_axis_pixmap_draw(struct axis *axis)
 
         debug(DBS_AXES_DRAWING) printf("%f @ %d\n",
                                                i*axis->major + fl, y);
-        if (y < 0 || y > axis->p.height)
+        if ((y < 0) || (y > axis->p.height))
             continue;
 
         cairo_move_to(cr, axis->p.width - 15, y+0.5);
@@ -1452,7 +1443,7 @@ static void v_axis_pixmap_draw(struct axis *axis)
             int y = (int) (g->geom.height-1 - (int )rint(i*minor_tick) -
                             offset + corr + axis->s.y);
 
-            if (y > 0 && y < axis->p.height) {
+            if ((y > 0) && (y < axis->p.height)) {
                 cairo_set_line_width(cr, 1.0);
                 cairo_move_to(cr, axis->s.width - 8, y+0.5);
                 cairo_line_to(cr, axis->s.width - 1, y+0.5);
@@ -1478,12 +1469,12 @@ static void v_axis_pixmap_draw(struct axis *axis)
 static void h_axis_pixmap_draw(struct axis *axis)
 {
     struct graph *g = axis->g;
-    int i;
-    double major_tick, minor_tick;
-    int not_disp, rdigits, offset, imin, imax;
-    double left, right, j, fl, corr;
-    PangoLayout *layout;
-    cairo_t *cr;
+    int           i;
+    double        major_tick, minor_tick;
+    int           not_disp, rdigits, offset, imin, imax;
+    double        left, right, j, fl, corr;
+    PangoLayout  *layout;
+    cairo_t      *cr;
 
     debug(DBS_FENTRY) puts("h_axis_pixmap_draw()");
     left = (g->wp.x-g->geom.x) / (double)g->geom.width * g->bounds.width;
@@ -1494,9 +1485,9 @@ static void h_axis_pixmap_draw(struct axis *axis)
 
     /* Work out how many decimal places should be shown */
     j = axis->major - floor(axis->major);
-    for (rdigits=0; rdigits<=6; rdigits++) {
+    for (rdigits=0; rdigits <= 6; rdigits++) {
         j *= 10;
-        if (j<=0.000001)
+        if (j <= 0.000001)
             break;
         j = j - floor(j);
     }
@@ -1533,7 +1524,7 @@ static void h_axis_pixmap_draw(struct axis *axis)
         int x = (int) (rint(i * major_tick) - offset - corr);
 
         /* printf("%f @ %d\n", i*axis->major + fl, x); */
-        if (x < 0 || x > axis->s.width)
+        if ((x < 0) || (x > axis->s.width))
             continue;
         cairo_move_to(cr, x+0.5, 0);
         cairo_line_to(cr, x+0.5, 15);
@@ -1552,7 +1543,7 @@ static void h_axis_pixmap_draw(struct axis *axis)
         imax = (int) ((offset + corr + g->wp.width) / minor_tick);
         for (i=imin; i <= imax; i++) {
             int x = (int) (rint(i * minor_tick) - offset - corr);
-            if (x > 0 && x < axis->s.width){
+            if ((x > 0) && (x < axis->s.width)){
                 cairo_move_to(cr, x+0.5, 0);
                 cairo_line_to(cr, x+0.5, 8);
             }
@@ -1594,10 +1585,10 @@ static void axis_pixmap_display(struct axis *axis)
 
 static void axis_compute_ticks(struct axis *axis, double x0, double xmax, int dir)
 {
-    int i, j, ii, jj, ms;
-    double zoom, x, steps[3]={ 0.1, 0.5 };
-    int dim, check_needed, diminished;
-    double majthresh[2]={2.0, 3.0};
+    int    i, j, ii, jj, ms;
+    double zoom, x, steps[3] = { 0.1, 0.5 };
+    int    dim, check_needed, diminished;
+    double majthresh[2]      = {2.0, 3.0};
 
     debug((DBS_FENTRY | DBS_AXES_TICKS)) puts("axis_compute_ticks()");
     debug(DBS_AXES_TICKS)
@@ -1605,7 +1596,7 @@ static void axis_compute_ticks(struct axis *axis, double x0, double xmax, int di
 
     zoom = axis_zoom_get(axis, dir);
     x = xmax-x0;
-    for (i=-9; i<=12; i++) {
+    for (i=-9; i <= 12; i++) {
         if (x / pow(10, i) < 1)
             break;
     }
@@ -1635,7 +1626,7 @@ static void axis_compute_ticks(struct axis *axis, double x0, double xmax, int di
     axis_ticks_down(&ii, &jj);
 
     if ((dir == AXIS_VERTICAL) && (axis->major <= 1)) {
-        /* Ddon't subdivide whole sequence numbers */
+        /* Don't subdivide whole sequence numbers */
         axis->minor = 0;
     }
     else {
@@ -1650,7 +1641,7 @@ static void axis_compute_ticks(struct axis *axis, double x0, double xmax, int di
     }
 
     check_needed = TRUE;
-    diminished = FALSE;
+    diminished   = FALSE;
     while (check_needed) {
         check_needed = FALSE;
         dim = get_label_dim(axis, dir, xmax);
@@ -1663,22 +1654,22 @@ static void axis_compute_ticks(struct axis *axis, double x0, double xmax, int di
          * dimension apart, we need to use bigger ones */
         if (axis->major*zoom / dim < majthresh[dir]) {
             axis_ticks_up(&ii, &jj);
-            axis->minor = axis->major;
+            axis->minor  = axis->major;
             axis_ticks_up(&i, &j);
-            axis->major = steps[j] * pow(10, i);
+            axis->major  = steps[j] * pow(10, i);
             check_needed = TRUE;
             debug(DBS_AXES_TICKS) printf("axis->major enlarged to %.1f\n",
                                         axis->major);
         }
         /* if minor ticks are bigger than majthresh[dir] times label dimension,
          * we could  promote them to majors as well */
-        if (axis->minor*zoom / dim > majthresh[dir] && !diminished) {
+        if ((axis->minor*zoom / dim > majthresh[dir]) && !diminished) {
             axis_ticks_down(&i, &j);
-            axis->major = axis->minor;
+            axis->major  = axis->minor;
             axis_ticks_down(&ii, &jj);
-            axis->minor = steps[jj] * pow(10, ii);
+            axis->minor  = steps[jj] * pow(10, ii);
             check_needed = TRUE;
-            diminished = TRUE;
+            diminished   = TRUE;
 
             debug(DBS_AXES_TICKS) printf("axis->minor diminished to %.1f\n",
                                         axis->minor);
@@ -1700,32 +1691,32 @@ static void axis_ticks_up(int *i, int *j)
     (*j)++;
     if (*j>1) {
         (*i)++;
-        *j=0;
+        *j = 0;
     }
 }
 
 static void axis_ticks_down(int *i, int *j)
 {
     (*j)--;
-    if (*j<0) {
+    if (*j < 0) {
         (*i)--;
-        *j=1;
+        *j = 1;
     }
 }
 
 static int get_label_dim(struct axis *axis, int dir, double label)
 {
     double y;
-    char str[32];
-    int rdigits, dim;
+    char   str[32];
+    int    rdigits, dim;
     PangoLayout *layout;
 
     /* First, let's compute how many digits to the right of radix
      * we need to print */
     y = axis->major - floor(axis->major);
-    for (rdigits=0; rdigits<=6; rdigits++) {
+    for (rdigits=0; rdigits <= 6; rdigits++) {
         y *= 10;
-        if (y<=0.000001)
+        if (y <= 0.000001)
             break;
         y = y - floor(y);
     }
@@ -1769,7 +1760,7 @@ static void graph_select_segment(struct graph *g, int x, int y)
     debug(DBS_FENTRY) puts("graph_select_segment()");
 
     x -= g->geom.x;
-    y = g->geom.height-1 - (y - g->geom.y);
+    y  = g->geom.height-1 - (y - g->geom.y);
 
     set_busy_cursor(gtk_widget_get_window(g->drawing_area));
 
@@ -1823,8 +1814,8 @@ static int line_detect_collision(struct element *e, int x, int y)
      */
 
     /* N.B. won't match with diagonal lines... */
-    if ((xx1==x && xx2==x && yy1<=y && y<=yy2)|   /* lies along vertical line */
-        (yy1==y && yy2==y && xx1<=x && x<=xx2)) { /* lies along horizontal line */
+    if (((xx1 == x) && (xx2 == x) && (yy1 <= y) && (y <= yy2) )|   /* lies along vertical line */
+        ((yy1 == y) && (yy2 == y) && (xx1 <= x) && (x <= xx2))) { /* lies along horizontal line */
         return TRUE;
     }
     else {
@@ -1843,7 +1834,7 @@ static int ellipse_detect_collision(struct element *e, int x, int y)
     /*
     printf ("ellipse: (%d,%d)->(%d,%d), clicked: (%d,%d)\n", xx1, yy1, xx2, yy2, x, y);
      */
-    if (xx1<=x && x<=xx2 && yy1<=y && y<=yy2) {
+    if ((xx1 <= x) && (x <= xx2) && (yy1 <= y) && (y <= yy2)) {
         return TRUE;
     }
     else {
@@ -1853,34 +1844,34 @@ static int ellipse_detect_collision(struct element *e, int x, int y)
 
 
 
-static gboolean configure_event(GtkWidget *widget _U_, GdkEventConfigure *event, gpointer user_data)	 
+static gboolean configure_event(GtkWidget *widget _U_, GdkEventConfigure *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+    struct graph *g = (struct graph *)user_data;
     struct zoom new_zoom;
     int cur_g_width, cur_g_height;
     int cur_wp_width, cur_wp_height;
 
     debug(DBS_FENTRY) puts("configure_event()");
 
-    cur_wp_width = g->wp.width;
+    cur_wp_width  = g->wp.width;
     cur_wp_height = g->wp.height;
-    g->wp.width = event->width - g->y_axis->p.width - RMARGIN_WIDTH;
-    g->wp.height = event->height - g->x_axis->p.height - g->wp.y;
-    g->x_axis->s.width = g->wp.width;
-    g->x_axis->p.width = g->wp.width + RMARGIN_WIDTH;
+    g->wp.width   = event->width - g->y_axis->p.width - RMARGIN_WIDTH;
+    g->wp.height  = event->height - g->x_axis->p.height - g->wp.y;
+    g->x_axis->s.width  = g->wp.width;
+    g->x_axis->p.width  = g->wp.width + RMARGIN_WIDTH;
     g->y_axis->p.height = g->wp.height + g->wp.y;
     g->y_axis->s.height = g->wp.height;
-    g->x_axis->p.y = g->y_axis->p.height;
-    new_zoom.x = (double)g->wp.width / cur_wp_width;
-    new_zoom.y = (double)g->wp.height / cur_wp_height;
-    cur_g_width = g->geom.width;
-    cur_g_height = g->geom.height;
-    g->geom.width = (int)rint(g->geom.width * new_zoom.x);
+    g->x_axis->p.y      = g->y_axis->p.height;
+    new_zoom.x     = (double)g->wp.width / cur_wp_width;
+    new_zoom.y     = (double)g->wp.height / cur_wp_height;
+    cur_g_width    = g->geom.width;
+    cur_g_height   = g->geom.height;
+    g->geom.width  = (int)rint(g->geom.width * new_zoom.x);
     g->geom.height = (int)rint(g->geom.height * new_zoom.y);
     g->zoom.x = (double)(g->geom.width - 1) / g->bounds.width;
     g->zoom.y = (double)(g->geom.height -1) / g->bounds.height;
 
-    g->geom.x = (int)(g->wp.x - (double)g->geom.width/cur_g_width * (g->wp.x - g->geom.x));	 
+    g->geom.x = (int)(g->wp.x - (double)g->geom.width/cur_g_width * (g->wp.x - g->geom.x));
     g->geom.y = (int)(g->wp.y - (double)g->geom.height/cur_g_height * (g->wp.y - g->geom.y));
 #if 0
     printf("configure: graph: (%d,%d), (%d,%d); viewport: (%d,%d), (%d,%d); "
@@ -1911,7 +1902,7 @@ static gboolean configure_event(GtkWidget *widget _U_, GdkEventConfigure *event,
 static gboolean
 draw_event(GtkWidget *widget _U_, cairo_t *cr, gpointer user_data)
 {
-    struct graph *g = user_data;
+    struct graph *g = (struct graph *)user_data;
 
     debug(DBS_FENTRY) puts("draw_event()");
 
@@ -1935,7 +1926,7 @@ draw_event(GtkWidget *widget _U_, cairo_t *cr, gpointer user_data)
 #else
 static gboolean expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+    struct graph *g = (struct graph *)user_data;
     cairo_t *cr;
 
     debug(DBS_FENTRY) puts("expose_event()");
@@ -1967,6 +1958,148 @@ static gboolean expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer 
     return TRUE;
 }
 #endif
+
+
+static void
+perform_zoom(struct graph *g, struct zoomfactor *zf,
+             int origin_x, int origin_y)
+{
+    int cur_width = g->geom.width, cur_height = g->geom.height;
+
+    /* Multiply by x and y factors */
+    g->geom.width  = (int )rint(g->geom.width  * zf->x);
+    g->geom.height = (int )rint(g->geom.height * zf->y);
+
+    /* If already fully-zoomed out, don't waste time re-drawing */
+    if ((g->geom.width <= g->wp.width) &&
+        (g->geom.height <= g->wp.height)) {
+        return;
+    }
+
+    /* Don't go out of bounds */
+    if (g->geom.width < g->wp.width) {
+        g->geom.width = g->wp.width;
+    }
+    if (g->geom.height < g->wp.height) {
+        g->geom.height = g->wp.height;
+    }
+
+    /* Divide to work out new zoom */
+    g->zoom.x = (g->geom.width - 1) / g->bounds.width;
+    g->zoom.y = (g->geom.height- 1) / g->bounds.height;
+
+    /* Move origin to keep mouse position at centre of view */
+    g->geom.x -= (int)rint((g->geom.width - cur_width) *
+                           ((origin_x - g->geom.x)/(double )cur_width));
+    g->geom.y -= (int)rint((g->geom.height - cur_height) *
+                           ((origin_y - g->geom.y)/(double )cur_height));
+
+    /* Again, don't go out of bounds */
+    if (g->geom.x > g->wp.x)
+        g->geom.x = g->wp.x;
+    if (g->geom.y > g->wp.y)
+        g->geom.y = g->wp.y;
+    if (g->wp.x + g->wp.width > g->geom.x + g->geom.width)
+        g->geom.x = g->wp.width + g->wp.x - g->geom.width;
+    if (g->wp.y + g->wp.height > g->geom.y + g->geom.height)
+        g->geom.y = g->wp.height + g->wp.y - g->geom.height;
+}
+
+static void
+do_zoom_rectangle(struct graph *g, struct irect lcl_zoomrect)
+{
+    int cur_width = g->wp.width, cur_height = g->wp.height;
+    /* Make copy of geom1 before working out zoom */
+    struct irect geom1 = g->geom;
+    struct zoomfactor factor;
+
+    /* Left hand too much to the right */
+    if (lcl_zoomrect.x > g->wp.x + g->wp.width)
+        return;
+    /* Right hand not far enough */
+    if (lcl_zoomrect.x + lcl_zoomrect.width < g->wp.x)
+        return;
+    /* Left hand too much to the left */
+    if (lcl_zoomrect.x < g->wp.x) {
+        int dx = g->wp.x - lcl_zoomrect.x;
+        lcl_zoomrect.x += dx;
+        lcl_zoomrect.width -= dx;
+    }
+    /* Right hand too much to the right */
+    if (lcl_zoomrect.x + lcl_zoomrect.width > g->wp.x + g->wp.width) {
+        int dx = lcl_zoomrect.width + lcl_zoomrect.x - g->wp.x - g->wp.width;
+        lcl_zoomrect.width -= dx;
+    }
+
+    /* Top too low */
+    if (lcl_zoomrect.y > g->wp.y + g->wp.height)
+        return;
+    /* Bottom too high */
+    if (lcl_zoomrect.y + lcl_zoomrect.height < g->wp.y)
+        return;
+    /* Top too high */
+    if (lcl_zoomrect.y < g->wp.y) {
+        int dy = g->wp.y - lcl_zoomrect.y;
+        lcl_zoomrect.y += dy;
+        lcl_zoomrect.height -= dy;
+    }
+    /* Bottom too low */
+    if (lcl_zoomrect.y + lcl_zoomrect.height > g->wp.y + g->wp.height) {
+        int dy = lcl_zoomrect.height + lcl_zoomrect.y - g->wp.y - g->wp.height;
+        lcl_zoomrect.height -= dy;
+    }
+
+/*
+    printf("before:\n"
+           "\tgeom: (%d, %d)+(%d x %d)\n"
+*/
+
+    factor.x = (double)cur_width / lcl_zoomrect.width;
+    factor.y = (double)cur_height / lcl_zoomrect.height;
+
+/*
+    printf("Zoomfactor: %f x %f\n", factor.x, factor.y);
+*/
+    /* Work out new geom settings and zoom factor */
+    perform_zoom(g, &factor,
+                 lcl_zoomrect.x, lcl_zoomrect.y);
+
+/*
+    printf("middle:\n"
+           "\tgeom: (%d, %d)+(%d x %d)\n"
+           "\twp: (%d, %d)+(%d x %d)\n"
+           "\tzoomrect: (%d, %d)+(%d x %d)\n",
+           g->geom.x, g->geom.y,
+           g->geom.width, g->geom.height,
+           g->wp.x, g->wp.y, g->wp.width, g->wp.height,
+           lcl_zoomrect.x, lcl_zoomrect.y, lcl_zoomrect.width, lcl_zoomrect.height);
+*/
+
+    /* Final geom settings are in terms of old geom, zoomreect and zoom factor */
+    g->geom.x = (int)(geom1.x * (1 + factor.x) -
+                      lcl_zoomrect.x * factor.x - (geom1.x - g->wp.x));
+    g->geom.y = (int)(geom1.y * (1 + factor.y) -
+                      lcl_zoomrect.y * factor.y - (geom1.y - g->wp.y));
+
+/*
+    printf("after:\n"
+           "\tgeom: (%d, %d)+(%d x %d)\n"
+           "\twp: (%d, %d)+(%d x %d)\n"
+           "\tzoomrect: (%d, %d)+(%d x %d)\n",
+           g->geom.x, g->geom.y,
+           g->geom.width, g->geom.height,
+           g->wp.x, g->wp.y, g->wp.width, g->wp.height,
+           lcl_zoomrect.x, lcl_zoomrect.y, lcl_zoomrect.width, lcl_zoomrect.height);
+*/
+
+    /* Redraw */
+    graph_element_lists_make(g);
+    g->cross.erase_needed = FALSE;
+    graph_display(g);
+    axis_display(g->y_axis);
+    axis_display(g->x_axis);
+}
+
 
 /* Zoom because of keyboard or mouse press */
 static void do_zoom_common(struct graph *g, GdkEventButton *event,
@@ -2115,10 +2248,10 @@ static void do_key_motion(struct graph *g)
     if (g->geom.y > g->wp.y) {
         g->geom.y = g->wp.y;
     }
-    if (g->wp.x + g->wp.width > g->geom.x + g->geom.width) {
+    if ((g->wp.x + g->wp.width) > (g->geom.x + g->geom.width)) {
         g->geom.x = g->wp.width + g->wp.x - g->geom.width;
     }
-    if (g->wp.y + g->wp.height > g->geom.y + g->geom.height) {
+    if ((g->wp.y + g->wp.height) > (g->geom.y + g->geom.height)) {
         g->geom.y = g->wp.height + g->wp.y - g->geom.height;
     }
 
@@ -2160,7 +2293,7 @@ static void do_key_motion_right(struct graph *g, int step)
 
 static gboolean button_press_event(GtkWidget *widget _U_, GdkEventButton *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+    struct graph *g = (struct graph *)user_data;
 
     debug(DBS_FENTRY) puts("button_press_event()");
 
@@ -2172,7 +2305,12 @@ static gboolean button_press_event(GtkWidget *widget _U_, GdkEventButton *event,
     } else if (event->button == MOUSE_BUTTON_MIDDLE) {
         do_zoom_mouse(g, event);
     } else if (event->button == MOUSE_BUTTON_LEFT) {
+        /* See if we're on an element that links to a frame */
         graph_select_segment(g, (int)event->x, (int)event->y);
+
+        /* Set origin of rect, even if outside graph area */
+        zoomrect.x = (int)event->x;
+        zoomrect.y = (int)event->y;
     }
 
     unset_busy_cursor(gtk_widget_get_window(g->drawing_area));
@@ -2181,11 +2319,35 @@ static gboolean button_press_event(GtkWidget *widget _U_, GdkEventButton *event,
 
 static gboolean button_release_event(GtkWidget *widget _U_, GdkEventButton *event _U_, gpointer user_data)
 {
-    struct graph *g = user_data;
+    struct graph *g = (struct graph *)user_data;
 
     /* Turn off grab if right button released */
     if (event->button == MOUSE_BUTTON_RIGHT) {
         g->grab.grabbed = FALSE;
+    }
+    else if (event->button == MOUSE_BUTTON_LEFT) {
+        int xx1 = zoomrect.x;
+        int xx2 = (int)event->x;
+        int yy1 = zoomrect.y;
+        int yy2 = (int)event->y;
+        zoomrect.x      = MIN(xx1, xx2);
+        zoomrect.width  = abs(xx1 - xx2);
+        zoomrect.y      = MIN(yy1, yy2);
+        zoomrect.height = abs(yy1 - yy2);
+
+        /* Finish selecting a region to zoom in on.
+           Take care not to choose a too-small area (by accident?) */
+        if ((zoomrect.width > 3) && (zoomrect.height > 3)) {
+            int oldflags = g->zoom.flags;
+
+            debug(DBS_GRAPH_DRAWING) printf("Zoom in from (%d, %d) - (%d, %d)\n",
+                                            zoomrect.x, zoomrect.y,
+                                            zoomrect.width, zoomrect.height);
+
+            g->zoom.flags &= ~ZOOM_OUT;
+            do_zoom_rectangle(g, zoomrect);
+            g->zoom.flags = oldflags;
+        }
     }
 
     return TRUE;
@@ -2193,7 +2355,7 @@ static gboolean button_release_event(GtkWidget *widget _U_, GdkEventButton *even
 
 static gboolean motion_notify_event(GtkWidget *widget _U_, GdkEventMotion *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+    struct graph *g = (struct graph *)user_data;
     int x, y;
     GdkModifierType state;
 
@@ -2205,7 +2367,7 @@ static gboolean motion_notify_event(GtkWidget *widget _U_, GdkEventMotion *event
     else {
         x = (int) event->x;
         y = (int) event->y;
-        state = event->state;
+        state = (GdkModifierType)event->state;
     }
 
     if (state & GDK_BUTTON3_MASK) {
@@ -2234,8 +2396,18 @@ static gboolean motion_notify_event(GtkWidget *widget _U_, GdkEventMotion *event
             }
         }
     }
+    else if (state & GDK_BUTTON1_MASK) {
+
+        /* Draw bounded box for zoomrect being chosen! */
+        if (g->zoomrect_erase_needed) {
+            zoomrect_erase(g);
+        }
+        zoomrect_draw(g, x, y);
+    }
+
+    /* No button currently pressed */
     else {
-        /* Update the cross if its being shown */
+       /* Update the cross if it's being shown */
         if (g->cross.erase_needed)
             cross_erase(g);
         if (g->cross.draw) {
@@ -2248,7 +2420,7 @@ static gboolean motion_notify_event(GtkWidget *widget _U_, GdkEventMotion *event
 
 static gboolean key_press_event(GtkWidget *widget _U_, GdkEventKey *event, gpointer user_data)
 {
-    struct graph *g = user_data;
+    struct graph *g = (struct graph *)user_data;
     int step;
 
     debug(DBS_FENTRY) puts("key_press_event()");
@@ -2362,11 +2534,11 @@ static void cross_draw(struct graph *g, int x, int y)
     }
 
     /* Draw the cross */
-    if (x >  g->wp.x && x < g->wp.x+g->wp.width &&
-        y >  g->wp.y && y < g->wp.y+g->wp.height) {
+    if ((x >  g->wp.x) && (x < g->wp.x+g->wp.width) &&
+        (y >  g->wp.y) && (y < g->wp.y+g->wp.height)) {
 
         cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(g->drawing_area));
-        gdk_cairo_set_source_color(cr, &g->style.seq_color);
+        gdk_cairo_set_source_rgba(cr, &g->style.seq_color);
         cairo_set_line_width(cr, 1.0);
 
         /* Horizonal line */
@@ -2391,14 +2563,41 @@ static void cross_erase(struct graph *g)
     int x = g->cross.x;
     int y = g->cross.y;
 
-    if (x >  g->wp.x && x < g->wp.x+g->wp.width &&
-        y >= g->wp.y && y < g->wp.y+g->wp.height) {
+    if ((x >  g->wp.x) && (x < g->wp.x+g->wp.width) &&
+        (y >= g->wp.y) && (y < g->wp.y+g->wp.height)) {
 
         /* Just redraw what is in the pixmap buffer */
         graph_pixmap_display(g);
     }
 
     g->cross.erase_needed = FALSE;
+}
+
+static void zoomrect_draw(struct graph *g, int x, int y)
+{
+    if ((zoomrect.x > g->wp.x) && (zoomrect.x < g->wp.x + g->wp.width) &&
+        (zoomrect.y > g->wp.y) && (zoomrect.y < g->wp.y + g->wp.height) &&
+        (x >  g->wp.x + 0.5) && (x < g->wp.x+g->wp.width) &&
+        (y >  g->wp.y)       && (y < g->wp.y+g->wp.height)) {
+
+        cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(g->drawing_area));
+        gdk_cairo_set_source_rgba(cr, &g->style.seq_color);
+        cairo_set_line_width(cr, 1.0);
+
+        /* Do outline of rect */
+        cairo_rectangle(cr, zoomrect.x, zoomrect.y, x-zoomrect.x, y-zoomrect.y);
+        cairo_stroke(cr);
+        cairo_destroy(cr);
+    }
+
+    g->zoomrect_erase_needed = TRUE;
+}
+
+static void zoomrect_erase(struct graph *g)
+{
+    /* Just redraw what is in the pixmap buffer */
+    graph_pixmap_display(g);
+    g->zoomrect_erase_needed = FALSE;
 }
 
 
@@ -2420,7 +2619,7 @@ static void toggle_time_origin(struct graph *g)
 
 static void restore_initial_graph_view(struct graph *g)
 {
-    g->geom.width = g->wp.width;
+    g->geom.width  = g->wp.width;
     g->geom.height = g->wp.height;
     g->geom.x = g->wp.x;
     g->geom.y = g->wp.y;
@@ -2438,8 +2637,8 @@ static void restore_initial_graph_view(struct graph *g)
 static void get_data_control_counts(struct graph *g, int *data, int *acks, int *nacks)
 {
     struct segment *tmp;
-    *data = 0;
-    *acks = 0;
+    *data  = 0;
+    *acks  = 0;
     *nacks = 0;
 
     for (tmp=g->segments; tmp; tmp=tmp->next) {
@@ -2462,19 +2661,19 @@ static void graph_get_bounds(struct graph *g)
 {
     struct segment *tmp;
     double   tim;
-    gboolean data_frame_seen=FALSE;
-    double   data_tim_low=0;
-    double   data_tim_high=0;
+    gboolean data_frame_seen = FALSE;
+    double   data_tim_low = 0;
+    double   data_tim_high = 0;
     guint32  data_seq_cur;
-    guint32  data_seq_low=0;
-    guint32  data_seq_high=0;
-    gboolean ack_frame_seen=FALSE;
+    guint32  data_seq_low = 0;
+    guint32  data_seq_high = 0;
+    gboolean ack_frame_seen = FALSE;
 
-    double   ack_tim_low=0;
-    double   ack_tim_high=0;
-	guint32  ack_seq_cur;
-    guint32  ack_seq_low=0;
-    guint32  ack_seq_high=0;
+    double   ack_tim_low = 0;
+    double   ack_tim_high = 0;
+    guint32  ack_seq_cur;
+    guint32  ack_seq_low = 0;
+    guint32  ack_seq_high = 0;
 
     /* Go through all segments to determine "bounds" */
     for (tmp=g->segments; tmp; tmp=tmp->next) {
@@ -2537,10 +2736,10 @@ static void graph_get_bounds(struct graph *g)
         }
     }
 
-    g->bounds.x0     =  ((data_tim_low <= ack_tim_low   && data_frame_seen) || (!ack_frame_seen)) ? data_tim_low  : ack_tim_low;
-    g->bounds.width  = (((data_tim_high >= ack_tim_high && data_frame_seen) || (!ack_frame_seen)) ? data_tim_high : ack_tim_high) - g->bounds.x0;
+    g->bounds.x0     =  (((data_tim_low <= ack_tim_low) && data_frame_seen) || (!ack_frame_seen)) ? data_tim_low  : ack_tim_low;
+    g->bounds.width  = ((((data_tim_high >= ack_tim_high) && data_frame_seen) || (!ack_frame_seen)) ? data_tim_high : ack_tim_high) - g->bounds.x0;
     g->bounds.y0     =  0;   /* We always want the overal bounds to go back down to SN=0 */
-    g->bounds.height = (((data_seq_high >= ack_seq_high && data_frame_seen) || (!ack_frame_seen)) ? data_seq_high : ack_seq_high);
+    g->bounds.height = (((data_seq_high >= ack_seq_high) && data_frame_seen) || (!ack_frame_seen)) ? data_seq_high : ack_seq_high;
 
     g->zoom.x = (g->geom.width - 1) / g->bounds.width;
     g->zoom.y = (g->geom.height -1) / g->bounds.height;
@@ -2548,23 +2747,29 @@ static void graph_get_bounds(struct graph *g)
 
 static void graph_read_config(struct graph *g)
 {
-    /* Black */
-    g->style.seq_color.pixel=0;
-    g->style.seq_color.red=0;
-    g->style.seq_color.green=0;
-    g->style.seq_color.blue=0;
+    /* Black for PDUs */
+    g->style.seq_color.red   = (double)0 / 65535.0;
+    g->style.seq_color.green = (double)0 / 65535.0;
+    g->style.seq_color.blue  = (double)0 / 65535.0;
+    g->style.seq_color.alpha = 1.0;
+
+    /* Grey for resegmentations */
+    g->style.seq_resegmented_color.red =   (double)0x7777 / 65535.0;
+    g->style.seq_resegmented_color.green = (double)0x7777 / 65535.0;
+    g->style.seq_resegmented_color.blue =  (double)0x7777 / 65535.0;
+    g->style.seq_resegmented_color.alpha = 1.0;
 
     /* Blueish */
-    g->style.ack_color[0].pixel=0;
-    g->style.ack_color[0].red=0x2222;
-    g->style.ack_color[0].green=0x2222;
-    g->style.ack_color[0].blue=0xaaaa;
+    g->style.ack_color[0].red   = (double)0x2222 / 65535.0;
+    g->style.ack_color[0].green = (double)0x2222 / 65535.0;
+    g->style.ack_color[0].blue  = (double)0xaaaa / 65535.0;
+    g->style.ack_color[0].alpha = 1.0;
 
     /* Reddish */
-    g->style.ack_color[1].pixel=0;
-    g->style.ack_color[1].red=0xaaaa;
-    g->style.ack_color[1].green=0x2222;
-    g->style.ack_color[1].blue=0x2222;
+    g->style.ack_color[1].red   = (double)0xaaaa / 65535.0;
+    g->style.ack_color[1].green = (double)0x2222 / 65535.0;
+    g->style.ack_color[1].blue  = (double)0x2222 / 65535.0;
+    g->style.ack_color[1].alpha = 1.0;
 
     /* Time origin should be shown as time in capture by default */
     g->style.flags = TIME_ORIGIN_CAP;
@@ -2581,16 +2786,16 @@ static void graph_read_config(struct graph *g)
 static void rlc_lte_make_elmtlist(struct graph *g)
 {
     struct segment *tmp;
-    struct element *elements0, *e0;		/* list of elmts showing control */
-    struct element *elements1, *e1;		/* list of elmts showing data */
+    struct element *elements0, *e0;             /* list of elmts showing control */
+    struct element *elements1, *e1;             /* list of elmts showing data */
     struct segment *last_status_segment = NULL;
-    double xx0, yy0;
+    double   xx0, yy0;
     gboolean ack_seen = FALSE;
-    guint32 seq_base;
-    guint32 seq_cur;
-    int n, data, acks, nacks;
+    guint32  seq_base;
+    guint32  seq_cur;
+    int      n, data, acks, nacks;
 
-    double previous_status_x=0.0, previous_status_y=0.0;
+    double previous_status_x = 0.0, previous_status_y = 0.0;
 
     debug(DBS_FENTRY) puts("rlc_lte_make_elmtlist()");
 
@@ -2644,7 +2849,13 @@ static void rlc_lte_make_elmtlist(struct graph *g)
             /* Circle for data point */
             e0->type = ELMT_ELLIPSE;
             e0->parent = tmp;
-            e0->elment_color_p = &g->style.seq_color;
+            if (!tmp->isResegmented) {
+                e0->elment_color_p = &g->style.seq_color;
+            }
+            else {
+                e0->elment_color_p = &g->style.seq_resegmented_color;
+            }
+
             e0->p.ellipse.dim.width = DATA_BLOB_SIZE;
             e0->p.ellipse.dim.height = DATA_BLOB_SIZE;
             e0->p.ellipse.dim.x = x;
@@ -2673,7 +2884,7 @@ static void rlc_lte_make_elmtlist(struct graph *g)
                     e1->p.line.dim.x2 = x;
                     e1->p.line.dim.y2 = previous_status_y;
                     e1++;
-    
+
                     /* Now draw up to current ACK */
                     e1->type = ELMT_LINE;
                     e1->parent = tmp;
@@ -2694,7 +2905,7 @@ static void rlc_lte_make_elmtlist(struct graph *g)
                     e1->p.line.dim.x2 = previous_status_x;
                     e1->p.line.dim.y2 = y;
                     e1++;
-    
+
                     /* Now draw up to current ACK */
                     e1->type = ELMT_LINE;
                     e1->parent = tmp;

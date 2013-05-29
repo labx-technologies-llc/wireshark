@@ -30,6 +30,7 @@ set(WIRETAP_FILES
 	ber.c
 	btsnoop.c
 	buffer.c
+	camins.c
 	catapult_dct2000.c
 	commview.c
 	cosine.c
@@ -106,7 +107,37 @@ set(wiretap_LIBS
 add_library(wiretap ${LINK_MODE_LIB}
 	${WIRETAP_FILES}
 )
+
+set(FULL_SO_VERSION "0.0.0")
+
+set_target_properties(wiretap PROPERTIES COMPILE_DEFINITIONS "WS_BUILD_DLL")
 set_target_properties(wiretap PROPERTIES LINK_FLAGS "${WS_LINK_FLAGS}")
+set_target_properties(wiretap PROPERTIES VERSION ${FULL_SO_VERSION} SOVERSION 0)
+
+# discover and substitute list of include directories for ABI compatibility
+# checks
+get_directory_property(INCLUDE_DIRS INCLUDE_DIRECTORIES)
+list(REMOVE_DUPLICATES INCLUDE_DIRS)
+string(REGEX REPLACE ";" "\n" INCLUDE_DIRS "${INCLUDE_DIRS}")
+configure_file(../abi-descriptor.template abi-descriptor.xml)
+
+# ABI compliance checker can be obtained from
+# http://ispras.linux-foundation.org/index.php/ABI_compliance_checker
+# Checked using version 1.21.12
+file(GLOB HEADERS *.h)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/abi-check-headers)
+
+file(COPY ${HEADERS} ../ws_symbol_export.h DESTINATION abi-check-headers)
+
+add_custom_command(OUTPUT libwiretap.abi.tar.gz
+	COMMAND cp ../config.h abi-check-headers/
+	COMMAND abi-compliance-checker -l libwiretap -v1 ${FULL_SO_VERSION}
+		-relpath ${CMAKE_CURRENT_BINARY_DIR} -dump-abi abi-descriptor.xml
+		|| cat logs/libwiretap/[0-9]*/log.txt
+	COMMAND cp abi_dumps/libwiretap/libwiretap_* libwiretap.abi.tar.gz
+	COMMAND rm -rf abi-check-headers/* abi_dumps
+	DEPENDS ${HEADERS} wiretap)
+add_custom_target(dumpabi-libwiretap DEPENDS libwiretap.abi.tar.gz)
 
 target_link_libraries(wiretap ${wiretap_LIBS})
 

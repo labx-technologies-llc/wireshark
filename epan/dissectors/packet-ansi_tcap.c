@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ansi_tcap.c                                                         */
 /* ../../tools/asn2wrs.py -b -p ansi_tcap -c ./ansi_tcap.cnf -s ./packet-ansi_tcap-template -D . -O ../../epan/dissectors TCAP-Remote-Operations-Information-Objects.asn TCAPPackage.asn */
 
@@ -52,6 +52,8 @@
 #define PSNAME "ANSI_TCAP"
 #define PFNAME "ansi_tcap"
 
+void proto_register_ansi_tcap(void);
+void proto_reg_handoff_ansi_tcap(void);
 
 /* Preferences defaults */
 gint ansi_tcap_response_matching_type = 0;
@@ -124,7 +126,7 @@ static int hf_ansi_tcap_paramSequence = -1;       /* T_paramSequence */
 static int hf_ansi_tcap_paramSet = -1;            /* T_paramSet */
 
 /*--- End of included file: packet-ansi_tcap-hf.c ---*/
-#line 64 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
+#line 66 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_tcap = -1;
@@ -170,7 +172,7 @@ static gint ett_ansi_tcap_T_paramSequence = -1;
 static gint ett_ansi_tcap_T_paramSet = -1;
 
 /*--- End of included file: packet-ansi_tcap-ett.c ---*/
-#line 83 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
+#line 85 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
 
 #define MAX_SSN 254
 
@@ -327,7 +329,7 @@ find_saved_invokedata(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb _U
   }
 
   /* The hash string needs to contain src and dest to distiguish differnt flows */
-  buf = ep_alloc(MAX_TID_STR_LEN);
+  buf = (char *)ep_alloc(MAX_TID_STR_LEN);
   buf[0] = '\0';
   /* Reverse order to invoke */
   g_snprintf(buf, MAX_TID_STR_LEN, "%s%s%s",
@@ -1392,7 +1394,7 @@ dissect_ansi_tcap_PackageType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 
 /*--- End of included file: packet-ansi_tcap-fn.c ---*/
-#line 350 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
+#line 352 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
 
 
 
@@ -1549,31 +1551,31 @@ proto_register_ansi_tcap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_ansi_tcap_unidirectional,
-      { "unidirectional", "ansi_tcap.unidirectional",
+      { "unidirectional", "ansi_tcap.unidirectional_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_queryWithPerm,
-      { "queryWithPerm", "ansi_tcap.queryWithPerm",
+      { "queryWithPerm", "ansi_tcap.queryWithPerm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_queryWithoutPerm,
-      { "queryWithoutPerm", "ansi_tcap.queryWithoutPerm",
+      { "queryWithoutPerm", "ansi_tcap.queryWithoutPerm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_response,
-      { "response", "ansi_tcap.response",
+      { "response", "ansi_tcap.response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_conversationWithPerm,
-      { "conversationWithPerm", "ansi_tcap.conversationWithPerm",
+      { "conversationWithPerm", "ansi_tcap.conversationWithPerm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_conversationWithoutPerm,
-      { "conversationWithoutPerm", "ansi_tcap.conversationWithoutPerm",
+      { "conversationWithoutPerm", "ansi_tcap.conversationWithoutPerm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_abort,
-      { "abort", "ansi_tcap.abort",
+      { "abort", "ansi_tcap.abort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_identifier,
@@ -1581,7 +1583,7 @@ proto_register_ansi_tcap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "TransactionID", HFILL }},
     { &hf_ansi_tcap_dialoguePortion,
-      { "dialoguePortion", "ansi_tcap.dialoguePortion",
+      { "dialoguePortion", "ansi_tcap.dialoguePortion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_componentPortion,
@@ -1589,7 +1591,7 @@ proto_register_ansi_tcap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "ComponentSequence", HFILL }},
     { &hf_ansi_tcap_dialogPortion,
-      { "dialogPortion", "ansi_tcap.dialogPortion",
+      { "dialogPortion", "ansi_tcap.dialogPortion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DialoguePortion", HFILL }},
     { &hf_ansi_tcap_causeInformation,
@@ -1601,7 +1603,7 @@ proto_register_ansi_tcap(void)
         FT_INT32, BASE_DEC, VALS(ansi_tcap_P_Abort_cause_U_vals), 0,
         "P_Abort_cause", HFILL }},
     { &hf_ansi_tcap_userInformation,
-      { "userInformation", "ansi_tcap.userInformation",
+      { "userInformation", "ansi_tcap.userInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UserAbortInformation", HFILL }},
     { &hf_ansi_tcap_version,
@@ -1637,11 +1639,11 @@ proto_register_ansi_tcap(void)
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_ansi_tcap_confidentiality,
-      { "confidentiality", "ansi_tcap.confidentiality",
+      { "confidentiality", "ansi_tcap.confidentiality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap__untag_item,
-      { "_untag item", "ansi_tcap._untag_item",
+      { "_untag item", "ansi_tcap._untag_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_ansi_tcap_confidentialityId,
@@ -1661,27 +1663,27 @@ proto_register_ansi_tcap(void)
         FT_UINT32, BASE_DEC, VALS(ansi_tcap_ComponentPDU_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_invokeLast,
-      { "invokeLast", "ansi_tcap.invokeLast",
+      { "invokeLast", "ansi_tcap.invokeLast_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Invoke", HFILL }},
     { &hf_ansi_tcap_returnResultLast,
-      { "returnResultLast", "ansi_tcap.returnResultLast",
+      { "returnResultLast", "ansi_tcap.returnResultLast_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReturnResult", HFILL }},
     { &hf_ansi_tcap_returnError,
-      { "returnError", "ansi_tcap.returnError",
+      { "returnError", "ansi_tcap.returnError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_reject,
-      { "reject", "ansi_tcap.reject",
+      { "reject", "ansi_tcap.reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_invokeNotLast,
-      { "invokeNotLast", "ansi_tcap.invokeNotLast",
+      { "invokeNotLast", "ansi_tcap.invokeNotLast_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Invoke", HFILL }},
     { &hf_ansi_tcap_returnResultNotLast,
-      { "returnResultNotLast", "ansi_tcap.returnResultNotLast",
+      { "returnResultNotLast", "ansi_tcap.returnResultNotLast_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReturnResult", HFILL }},
     { &hf_ansi_tcap_componentIDs,
@@ -1693,7 +1695,7 @@ proto_register_ansi_tcap(void)
         FT_UINT32, BASE_DEC, VALS(ansi_tcap_OperationCode_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_parameter,
-      { "parameter", "ansi_tcap.parameter",
+      { "parameter", "ansi_tcap.parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_componentID,
@@ -1701,7 +1703,7 @@ proto_register_ansi_tcap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_parameter_01,
-      { "parameter", "ansi_tcap.parameter",
+      { "parameter", "ansi_tcap.parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_parameter_01", HFILL }},
     { &hf_ansi_tcap_componentID_01,
@@ -1713,7 +1715,7 @@ proto_register_ansi_tcap(void)
         FT_UINT32, BASE_DEC, VALS(ansi_tcap_ErrorCode_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_parameter_02,
-      { "parameter", "ansi_tcap.parameter",
+      { "parameter", "ansi_tcap.parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_parameter_02", HFILL }},
     { &hf_ansi_tcap_componentID_02,
@@ -1729,16 +1731,16 @@ proto_register_ansi_tcap(void)
         FT_UINT32, BASE_DEC, VALS(ansi_tcap_T_parameter_03_vals), 0,
         "T_parameter_03", HFILL }},
     { &hf_ansi_tcap_paramSequence,
-      { "paramSequence", "ansi_tcap.paramSequence",
+      { "paramSequence", "ansi_tcap.paramSequence_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_tcap_paramSet,
-      { "paramSet", "ansi_tcap.paramSet",
+      { "paramSet", "ansi_tcap.paramSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 
 /*--- End of included file: packet-ansi_tcap-hfarr.c ---*/
-#line 487 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
+#line 489 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
     };
 
 /* Setup protocol subtree array */
@@ -1776,7 +1778,7 @@ proto_register_ansi_tcap(void)
     &ett_ansi_tcap_T_paramSet,
 
 /*--- End of included file: packet-ansi_tcap-ettarr.c ---*/
-#line 498 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
+#line 500 "../../asn1/ansi_tcap/packet-ansi_tcap-template.c"
     };
 
     static const enum_val_t ansi_tcap_response_matching_type_values[] = {

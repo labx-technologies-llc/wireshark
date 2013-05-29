@@ -56,6 +56,7 @@ static const value_string dmx_sc_vals[] = {
 	{ 0, NULL },
 };
 
+void proto_register_dmx(void);
 void proto_reg_handoff_dmx(void);
 
 static int proto_dmx = -1;
@@ -74,7 +75,7 @@ static void
 dissect_dmx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	tvbuff_t *next_tvb;
-	unsigned  offset = 0;
+	guint     offset = 0;
 	guint8    start_code;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "DMX");

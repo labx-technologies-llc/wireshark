@@ -43,6 +43,7 @@
 #include <epan/expert.h>
 #include "packet-dtn.h"
 
+void proto_register_bundle(void);
 void proto_reg_handoff_bundle(void);
 static int dissect_primary_header(packet_info *pinfo, proto_tree *primary_tree, tvbuff_t *tvb);
 static int dissect_admin_record(proto_tree *primary_tree, tvbuff_t *tvb, int offset, int payload_length);
@@ -60,8 +61,7 @@ static int add_dtn_time_to_tree(proto_tree *tree, tvbuff_t *tvb, int offset, con
 static int add_sdnv_time_to_tree(proto_tree *tree, tvbuff_t *tvb, int offset, const char *field_id);
 
 /* For Reassembling TCP Convergence Layer segments */
-static GHashTable *msg_fragment_table = NULL;
-static GHashTable *msg_reassembled_table = NULL;
+static reassembly_table msg_reassembly_table;
 
 static char magic[] = {'d', 't', 'n', '!'};
 
@@ -117,9 +117,9 @@ static int hf_bundle_procflags_application_ack = -1;
 
 /* Additions for Version 5 */
 static int hf_bundle_control_flags = -1;
-static int hf_bundle_procflags_general = -1;
-static int hf_bundle_procflags_cos = -1;
-static int hf_bundle_procflags_status = -1;
+/* static int hf_bundle_procflags_general = -1; */
+/* static int hf_bundle_procflags_cos = -1; */
+/* static int hf_bundle_procflags_status = -1; */
 
 /* Primary Header COS Flag Variables */
 static int hf_bundle_cosflags = -1;
@@ -135,7 +135,7 @@ static int hf_bundle_srrflags_report_deletion = -1;
 static int hf_bundle_srrflags_report_ack = -1;
 
 /* Primary Header Length Fields*/
-static int hf_bundle_primary_header_len = -1;
+/* static int hf_bundle_primary_header_len = -1; */
 static int hf_bundle_dest_scheme_offset = -1;
 static int hf_bundle_dest_ssp_offset = -1;
 static int hf_bundle_source_scheme_offset = -1;
@@ -195,6 +195,7 @@ static int hf_bundle_admin_forwarded = -1;
 static int hf_bundle_admin_delivered = -1;
 static int hf_bundle_admin_deleted = -1;
 static int hf_bundle_admin_acked = -1;
+#if 0
 static int hf_bundle_admin_receipt_time = -1;
 static int hf_bundle_admin_accept_time = -1;
 static int hf_bundle_admin_forward_time = -1;
@@ -203,6 +204,7 @@ static int hf_bundle_admin_delete_time = -1;
 static int hf_bundle_admin_ack_time = -1;
 static int hf_bundle_admin_timestamp_copy = -1;
 static int hf_bundle_admin_signal_time = -1;
+#endif
 static int hf_bundle_status_report_reason_code = -1;
 static int hf_bundle_custody_trf_succ_flg = -1;
 static int hf_bundle_custody_signal_reason = -1;
@@ -229,6 +231,8 @@ static gint ett_contact_hdr_flags = -1;
 static gint ett_admin_record = -1;
 static gint ett_admin_rec_status = -1;
 static gint ett_metadata_hdr = -1;
+
+static expert_field ei_bundle_control_flags_length = EI_INIT;
 
 static guint bundle_tcp_port = 4556;
 static guint bundle_udp_port = 4556;
@@ -379,10 +383,10 @@ dissect_tcp_bundle(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * Convergence layer header.
              */
 
-            frag_msg = fragment_add_seq_next(tvb, frame_offset + convergence_hdr_size,
-                                           pinfo, 0, msg_fragment_table,
-                                           msg_reassembled_table, segment_length,
-                                           more_frags);
+            frag_msg = fragment_add_seq_next(&msg_reassembly_table,
+                                             tvb, frame_offset + convergence_hdr_size,
+                                             pinfo, 0, NULL,
+                                             segment_length, more_frags);
             if(frag_msg && !more_frags) {
                 proto_item *ti;
 
@@ -729,7 +733,6 @@ static int
 dissect_version_4_primary_header(packet_info *pinfo, proto_tree *primary_tree, tvbuff_t *tvb)
 {
     guint8        cosflags;
-    const guint8 *dict_ptr;
     int           bundle_header_length;
     int           bundle_header_dict_length;
     int           offset;     /*Total offset into frame (frame_offset + convergence layer size)*/
@@ -1030,13 +1033,15 @@ dissect_version_4_primary_header(packet_info *pinfo, proto_tree *primary_tree, t
          * Add Source/Destination to INFO Field
          */
 
-        /* Note: If we get this far, the offsets (and the strings) are at least within the TVB */
-        dict_ptr = tvb_get_ptr(tvb, offset, bundle_header_dict_length);
         col_add_fstr(pinfo->cinfo, COL_INFO, "%s:%s > %s:%s",
-                     dict_ptr + source_scheme_offset, dict_ptr + source_ssp_offset,
-                     dict_ptr + dest_scheme_offset, dict_ptr + dest_ssp_offset);
+                     tvb_get_ephemeral_stringz(tvb, offset + source_scheme_offset, NULL),
+                     tvb_get_ephemeral_stringz(tvb, offset + source_ssp_offset, NULL),
+                     tvb_get_ephemeral_stringz(tvb, offset + dest_scheme_offset, NULL),
+                     tvb_get_ephemeral_stringz(tvb, offset + dest_ssp_offset, NULL));
+
         /* remember custodian, for use in checking cteb validity */
-        bundle_custodian = ep_strdup_printf("%s:%s", dict_ptr + cust_scheme_offset, dict_ptr + cust_ssp_offset);
+        bundle_custodian = ep_strdup_printf("%s:%s", tvb_get_ephemeral_stringz(tvb, offset + cust_scheme_offset, NULL),
+                                            tvb_get_ephemeral_stringz(tvb, offset + cust_ssp_offset, NULL));
     }
     offset += bundle_header_dict_length;        /*Skip over dictionary*/
 
@@ -1076,7 +1081,6 @@ dissect_version_5_and_6_primary_header(packet_info *pinfo,
 {
     guint64 bundle_processing_control_flags;
     guint8 cosflags;
-    const guint8 *dict_ptr;
     int bundle_header_length;
     int bundle_header_dict_length;
     int offset;         /*Total offset into frame (frame_offset + convergence layer size)*/
@@ -1115,7 +1119,7 @@ dissect_version_5_and_6_primary_header(packet_info *pinfo,
     pri_hdr_procflags = (guint8) (bundle_processing_control_flags & 0x7f);
 
     if (sdnv_length < 1 || sdnv_length > 8) {
-        expert_add_info_format(pinfo, primary_tree, PI_UNDECODED, PI_WARN,
+        expert_add_info_format_text(pinfo, primary_tree, &ei_bundle_control_flags_length,
                                "Wrong bundle control flag length: %d", sdnv_length);
         return 0;
     }
@@ -1520,12 +1524,15 @@ dissect_version_5_and_6_primary_header(packet_info *pinfo,
          */
 
         /* Note: If we get this far, the offsets (and the strings) are at least within the TVB */
-        dict_ptr = tvb_get_ptr(tvb, offset, bundle_header_dict_length);
         col_add_fstr(pinfo->cinfo, COL_INFO, "%s:%s > %s:%s",
-                     dict_ptr + source_scheme_offset, dict_ptr + source_ssp_offset,
-                     dict_ptr + dest_scheme_offset, dict_ptr + dest_ssp_offset);
+                     tvb_get_ephemeral_stringz(tvb, offset + source_scheme_offset, NULL),
+		     tvb_get_ephemeral_stringz(tvb, offset + source_ssp_offset, NULL),
+                     tvb_get_ephemeral_stringz(tvb, offset + dest_scheme_offset, NULL),
+		     tvb_get_ephemeral_stringz(tvb, offset + dest_ssp_offset, NULL));
         /* remember custodian, for use in checking cteb validity */
-        bundle_custodian = ep_strdup_printf("%s:%s", dict_ptr + cust_scheme_offset, dict_ptr + cust_ssp_offset);
+        bundle_custodian = ep_strdup_printf("%s:%s",
+                                            tvb_get_ephemeral_stringz(tvb, offset + cust_scheme_offset, NULL),
+                                            tvb_get_ephemeral_stringz(tvb, offset + cust_ssp_offset, NULL));
     }
     offset += bundle_header_dict_length;        /*Skip over dictionary*/
 
@@ -2426,8 +2433,8 @@ add_sdnv_time_to_tree(proto_tree *tree, tvbuff_t *tvb, int offset, const char *f
 
 static void
 bundle_defragment_init(void) {
-    fragment_table_init(&msg_fragment_table);
-    reassembled_table_init(&msg_reassembled_table);
+    reassembly_table_init(&msg_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 void
@@ -2569,18 +2576,24 @@ proto_register_bundle(void)
          {"Bundle Processing Control Flags", "bundle.primary.proc.flag",
           FT_UINT64, BASE_HEX, NULL, 0x0, NULL, HFILL}
         },
+#if 0
         {&hf_bundle_procflags_general,
          {"General Flags", "bundle.primary.proc.gen",
           FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL}
         },
+#endif
+#if 0
         {&hf_bundle_procflags_cos,
          {"Cloass of Service Flags", "bundle.primary.proc.cos",
           FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL}
         },
+#endif
+#if 0
         {&hf_bundle_procflags_status,
          {"Status Report Flags", "bundle.primary.proc.status",
           FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL}
         },
+#endif
         {&hf_bundle_cosflags,
          {"Primary Header COS Flags", "bundle.primary.cos.flags",
           FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL}
@@ -2617,10 +2630,12 @@ proto_register_bundle(void)
          {"Request Report of Application Ack", "bundle.primary.srr.ack",
           FT_BOOLEAN, 8, NULL, BUNDLE_SRRFLAGS_ACK_MASK, NULL, HFILL}
         },
+#if 0
         {&hf_bundle_primary_header_len,
          {"Bundle Header Length", "bundle.primary.len",
           FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL}
         },
+#endif
         {&hf_bundle_dest_scheme_offset,
          {"Destination Scheme Offset", "bundle.primary.destschemeoff",
           FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL}
@@ -2741,6 +2756,7 @@ proto_register_bundle(void)
          {"Acknowledged by Application", "bundle.admin.status.ack",
           FT_BOOLEAN, 8, NULL, ADMIN_STATUS_FLAGS_ACKNOWLEDGED, NULL, HFILL}
         },
+#if 0
         {&hf_bundle_admin_receipt_time,
          {"Time of Receipt", "bundle.admin.status.receipttime",
           FT_UINT64, BASE_HEX, NULL, 0x0, NULL, HFILL}
@@ -2773,6 +2789,7 @@ proto_register_bundle(void)
          {"Time of Signal", "bundle.admin.signal.time",
           FT_UINT64, BASE_HEX, NULL, 0x0, NULL, HFILL}
         },
+#endif
         {&hf_block_control_flags,
          {"Block Processing Control Flags", "bundle.block.control.flags",
           FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL}
@@ -2867,7 +2884,12 @@ proto_register_bundle(void)
         &ett_metadata_hdr
     };
 
+    static ei_register_info ei[] = {
+        { &ei_bundle_control_flags_length, { "bundle.block.control.flags.length", PI_UNDECODED, PI_WARN, "Wrong bundle control flag length", EXPFILL }},
+    };
+
     module_t *bundle_module;
+    expert_module_t* expert_bundle;
 
     proto_bundle = proto_register_protocol (
         "Bundle Protocol",
@@ -2896,6 +2918,8 @@ proto_register_bundle(void)
 
     proto_register_field_array(proto_bundle, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_bundle = expert_register_protocol(proto_bundle);
+    expert_register_field_array(expert_bundle, ei, array_length(ei));
     register_init_routine(bundle_defragment_init);
 }
 

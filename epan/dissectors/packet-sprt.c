@@ -498,6 +498,8 @@ static gint ett_init_msg_all_fields =   -1;
 static gint ett_jminfo_msg_cat_data =   -1;
 static gint ett_connect_msg_adt =       -1;
 
+static expert_field ei_sprt_sequence_number_0 = EI_INIT;
+
 /* value strings & range strings */
 static const value_string sprt_transport_channel_characteristics[] = {
     { 0, "Unreliable, unsequenced" },
@@ -807,14 +809,14 @@ void sprt_add_address(packet_info *pinfo,
     /*
      * Check if the conversation has data associated with it.
      */
-    p_conv_data = conversation_get_proto_data(p_conv, proto_sprt);
+    p_conv_data = (struct _sprt_conversation_info *)conversation_get_proto_data(p_conv, proto_sprt);
 
     /*
      * If not, add a new data item.
      */
     if (!p_conv_data) {
         /* Create conversation data */
-        p_conv_data = se_alloc(sizeof(struct _sprt_conversation_info));
+        p_conv_data = se_new(struct _sprt_conversation_info);
         p_conv_data->stream_started = FALSE;
         p_conv_data->seqnum[0] = 0;
         p_conv_data->seqnum[1] = 0;
@@ -1337,7 +1339,7 @@ dissect_sprt_data(tvbuff_t *tvb,
         col_append_fstr(pinfo->cinfo, COL_INFO, ", No Payload");
     }
 
-    return tvb_length(tvb);
+    return offset;
 }
 
 static int
@@ -1437,7 +1439,7 @@ dissect_sprt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
     proto_tree_add_item(sprt_tree, hf_sprt_transport_channel_id, tvb, offset, 2, ENC_BIG_ENDIAN);
     ti = proto_tree_add_item(sprt_tree, hf_sprt_sequence_number, tvb, offset, 2, ENC_BIG_ENDIAN);
     if (tc == 0 && seqnum != 0)
-        expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Should be 0 for transport channel 0");
+        expert_add_info(pinfo, ti, &ei_sprt_sequence_number_0);
 
     p_conv_data->seqnum[tc] = seqnum; /* keep track of seqnum values */
     offset+=2;
@@ -1518,6 +1520,7 @@ void
 proto_register_sprt(void)
 {
     module_t *sprt_module;
+    expert_module_t* expert_sprt;
 
     static hf_register_info hf[] =
     {
@@ -3393,12 +3396,18 @@ proto_register_sprt(void)
         &ett_connect_msg_adt
     };
 
+    static ei_register_info ei[] = {
+        { &ei_sprt_sequence_number_0, { "sprt.sequence_number_0", PI_PROTOCOL, PI_WARN, "Should be 0 for transport channel 0", EXPFILL }},
+    };
+
     /* register protocol name & description */
     proto_sprt = proto_register_protocol("Simple Packet Relay Transport", "SPRT", "sprt");
 
     /* required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_sprt, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_sprt = expert_register_protocol(proto_sprt);
+    expert_register_field_array(expert_sprt, ei, array_length(ei));
 
     /* register the dissector */
     new_register_dissector("sprt", dissect_sprt, proto_sprt);

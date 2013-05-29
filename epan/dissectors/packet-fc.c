@@ -83,7 +83,7 @@ static int hf_fc_fctl_transfer_seq_initiative = -1;
 static int hf_fc_fctl_rexmitted_seq = -1;
 static int hf_fc_fctl_rel_offset = -1;
 static int hf_fc_fctl_abts_ack = -1;
-static int hf_fc_fctl_abts_not_ack = -1;
+/* static int hf_fc_fctl_abts_not_ack = -1; */
 static int hf_fc_fctl_last_data_frame = -1;
 static int hf_fc_fctl_ack_0_1 = -1;
 static int hf_fc_seqid = -1;
@@ -138,6 +138,8 @@ static gint ett_fctl = -1;
 static gint ett_fcbls = -1;
 static gint ett_fc_vft = -1;
 
+static expert_field ei_fccrc = EI_INIT;
+
 static dissector_table_t fcftype_dissector_table;
 static dissector_handle_t data_handle, fc_handle;
 
@@ -151,7 +153,7 @@ typedef struct _fc_conv_data_t {
 /* Reassembly stuff */
 static gboolean fc_reassemble = TRUE;
 static guint32  fc_max_frame_size = 1024;
-static GHashTable *fc_fragment_table = NULL;
+static reassembly_table fc_reassembly_table;
 
 typedef struct _fcseq_conv_key {
     guint32 conv_idx;
@@ -169,8 +171,8 @@ static GHashTable *fcseq_req_hash = NULL;
 static gint
 fcseq_equal(gconstpointer v, gconstpointer w)
 {
-    const fcseq_conv_key_t *v1 = v;
-    const fcseq_conv_key_t *v2 = w;
+    const fcseq_conv_key_t *v1 = (const fcseq_conv_key_t *)v;
+    const fcseq_conv_key_t *v2 = (const fcseq_conv_key_t *)w;
 
     return (v1->conv_idx == v2->conv_idx);
 }
@@ -178,7 +180,7 @@ fcseq_equal(gconstpointer v, gconstpointer w)
 static guint
 fcseq_hash (gconstpointer v)
 {
-    const fcseq_conv_key_t *key = v;
+    const fcseq_conv_key_t *key = (const fcseq_conv_key_t *)v;
     guint val;
 
     val = key->conv_idx;
@@ -189,7 +191,8 @@ fcseq_hash (gconstpointer v)
 static void
 fc_exchange_init_protocol(void)
 {
-    fragment_table_init(&fc_fragment_table);
+    reassembly_table_init(&fc_reassembly_table,
+                          &addresses_reassembly_table_functions);
 
     if (fcseq_req_hash)
         g_hash_table_destroy(fcseq_req_hash);
@@ -286,12 +289,14 @@ static const value_string fc_iu_val[] = {
 #define    EOFDT_POS   0xBCB59595
 #define    EOFA_NEG    0xBC95F5F5
 #define    EOFA_POS    0xBCB5F5F5
+#define    EOFN_NEG    0xBC95D5D5
+#define    EOFN_POS    0xBCB5D5D5
 #define    EOFNI_NEG   0xBC8AD5D5
 #define    EOFNI_POS   0xBCAAD5D5
 #define    EOFDTI_NEG  0xBC8A9595
 #define    EOFDTI_POS  0xBCAA9595
-#define    EOFRI_NEG   0xBC959999
-#define    EOFRI_POS   0xBCB59999
+#define    EOFRT_NEG   0xBC959999
+#define    EOFRT_POS   0xBCB59999
 #define    EOFRTI_NEG  0xBC8A9999
 #define    EOFRTI_POS  0xBCAA9999
 
@@ -311,20 +316,22 @@ static const value_string fc_sof_vals[] = {
 };
 
 static const value_string fc_eof_vals[] = {
-    {EOFT_NEG,  "EOFt- - EOF Terminate" },
-    {EOFT_POS,  "EOFT+ - EOF Terminate" },
+    {EOFT_NEG,   "EOFt- - EOF Terminate" },
+    {EOFT_POS,   "EOFt+ - EOF Terminate" },
     {EOFDT_NEG,  "EOFdt- - EOF Disconnect-Terminate-Class 1 (Obsolete)" },
     {EOFDT_POS,  "EOFdt+ - EOF Disconnect-Terminate-Class 1 (Obsolete)" },
-    {EOFA_NEG,  "EOFa- - EOF Abort" },
-    {EOFA_POS,  "EOFa+ - EOF Abort" },
-    {EOFNI_NEG,  "EOFn- - EOF Normal" },
-    {EOFNI_POS,  "EOFn+ - EOF Normal" },
-    {EOFDTI_NEG,  "EOFni- - EOF Normal Invalid" },
-    {EOFDTI_POS,  "EOFni+ - EOF Normal Invalid" },
-    {EOFRI_NEG,  "EOFdti- - EOF Disconnect-Terminate-Invalid Class 1 (Obsolete)" },
-    {EOFRI_POS,  "EOFdti+ - EOF Disconnect-Terminate-Invalid Class 1 (Obsolete)" },
-    {EOFRTI_NEG,  "EOFrti- - EOF Remove-Terminate Invalid Class 4 (Obsolete)" },
-    {EOFRTI_POS,  "EOFrti+ - EOF Remove-Terminate Invalid Class 4 (Obsolete)" },
+    {EOFA_NEG,   "EOFa- - EOF Abort" },
+    {EOFA_POS,   "EOFa+ - EOF Abort" },
+    {EOFN_NEG,   "EOFn- - EOF Normal" },
+    {EOFN_POS,   "EOFn+ - EOF Normal" },
+    {EOFNI_NEG,  "EOFni- - EOF Normal Invalid" },
+    {EOFNI_POS,  "EOFni+ - EOF Normal Invalid" },
+    {EOFDTI_NEG, "EOFdti- - EOF Disconnect-Terminate-Invalid Class 1 (Obsolete)" },
+    {EOFDTI_POS, "EOFdti+ - EOF Disconnect-Terminate-Invalid Class 1 (Obsolete)" },
+    {EOFRT_NEG,  "EOFrt- - EOF Remove-Terminate Class 4 (Obsolete)" },
+    {EOFRT_POS,  "EOFrt+ - EOF Remove-Terminate Class 4 (Obsolete)" },
+    {EOFRTI_NEG, "EOFrti- - EOF Remove-Terminate Invalid Class 4 (Obsolete)" },
+    {EOFRTI_POS, "EOFrti+ - EOF Remove-Terminate Invalid Class 4 (Obsolete)" },
     {0, NULL}
 };
 
@@ -653,7 +660,6 @@ dissect_fc_fctl(packet_info *pinfo _U_, proto_tree *parent_tree, tvbuff_t *tvb, 
         if (flags & (~( FC_FCTL_REL_OFFSET )))
             proto_item_append_text(item, ",");
     }
-    flags&=(~( FC_FCTL_REL_OFFSET ));
 
 }
 
@@ -761,9 +767,9 @@ dissect_fc_helper (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean
     /* set up a conversation and conversation data */
     /* TODO treat the fc address  s_id==00.00.00 as a wildcard matching anything */
     conversation=find_or_create_conversation(pinfo);
-    fc_conv_data=conversation_get_proto_data(conversation, proto_fc);
+    fc_conv_data=(fc_conv_data_t *)conversation_get_proto_data(conversation, proto_fc);
     if(!fc_conv_data){
-        fc_conv_data=se_alloc(sizeof(fc_conv_data_t));
+        fc_conv_data=se_new(fc_conv_data_t);
         fc_conv_data->exchanges=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "FC Exchanges");
         conversation_add_proto_data(conversation, proto_fc, fc_conv_data);
     }
@@ -774,7 +780,7 @@ dissect_fc_helper (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean
      */
     fc_ex=(itlq_nexus_t *)se_tree_lookup32(fc_conv_data->exchanges, fchdr.oxid);
     if(!fc_ex){
-        fc_ex=se_alloc(sizeof(itlq_nexus_t));
+        fc_ex=se_new(itlq_nexus_t);
         fc_ex->first_exchange_frame=0;
         fc_ex->last_exchange_frame=0;
         fc_ex->lun=0xffff;
@@ -959,18 +965,18 @@ dissect_fc_helper (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean
 
     /* XXX - use "fc_wka_vals[]" on this? */
     proto_tree_add_string (fc_tree, hf_fc_did, tvb, offset+1, 3,
-                           fc_to_str (fchdr.d_id.data));
+                           fc_to_str ((const guint8 *)fchdr.d_id.data));
     hidden_item = proto_tree_add_string (fc_tree, hf_fc_id, tvb, offset+1, 3,
-                                         fc_to_str (fchdr.d_id.data));
+                                         fc_to_str ((const guint8 *)fchdr.d_id.data));
     PROTO_ITEM_SET_HIDDEN(hidden_item);
 
     proto_tree_add_uint (fc_tree, hf_fc_csctl, tvb, offset+4, 1, fchdr.cs_ctl);
 
     /* XXX - use "fc_wka_vals[]" on this? */
     proto_tree_add_string (fc_tree, hf_fc_sid, tvb, offset+5, 3,
-                           fc_to_str (fchdr.s_id.data));
+                           fc_to_str ((const guint8 *)fchdr.s_id.data));
     hidden_item = proto_tree_add_string (fc_tree, hf_fc_id, tvb, offset+5, 3,
-                                         fc_to_str (fchdr.s_id.data));
+                                         fc_to_str ((const guint8 *)fchdr.s_id.data));
     PROTO_ITEM_SET_HIDDEN(hidden_item);
 
     if (ftype == FC_FTYPE_LINKCTL) {
@@ -1129,10 +1135,10 @@ dissect_fc_helper (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean
                 cdata->seq_cnt = fchdr.seqcnt;
             }
             else {
-                req_key = se_alloc (sizeof(fcseq_conv_key_t));
+                req_key = se_new(fcseq_conv_key_t);
                 req_key->conv_idx = conversation->index;
 
-                cdata = se_alloc (sizeof(fcseq_conv_data_t));
+                cdata = se_new(fcseq_conv_data_t);
                 cdata->seq_cnt = fchdr.seqcnt;
 
                 g_hash_table_insert (fcseq_req_hash, req_key, cdata);
@@ -1159,8 +1165,9 @@ dissect_fc_helper (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean
              frag_id = ((pinfo->oxid << 16) ^ seq_id) | is_exchg_resp ;
 
              /* We assume that all frames are of the same max size */
-             fcfrag_head = fragment_add (tvb, FC_HEADER_SIZE, pinfo, frag_id,
-                                         fc_fragment_table,
+             fcfrag_head = fragment_add (&fc_reassembly_table,
+                                         tvb, FC_HEADER_SIZE,
+                                         pinfo, frag_id, NULL,
                                          real_seqcnt * fc_max_frame_size,
                                          frag_size,
                                          !is_lastframe_inseq);
@@ -1296,7 +1303,7 @@ dissect_fcsof(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
                                        "[error: should be %8.8x]",
                                        crc, crc_computed);
 
-        expert_add_info_format(pinfo, it, PI_CHECKSUM, PI_ERROR,
+        expert_add_info_format_text(pinfo, it, &ei_fccrc,
                                    "Bad FC CRC %8.8x %8.x",
                                    crc, crc_computed);
     }
@@ -1448,9 +1455,11 @@ proto_register_fc(void)
         { &hf_fc_fctl_abts_ack,
           {"AA", "fc.fctl.abts_ack", FT_UINT24, BASE_HEX, VALS(abts_ack_vals),
            FC_FCTL_ABTS_MASK, "ABTS ACK values", HFILL}},
+#if 0
         { &hf_fc_fctl_abts_not_ack,
           {"AnA", "fc.fctl.abts_not_ack", FT_UINT24, BASE_HEX, VALS(abts_not_ack_vals),
            FC_FCTL_ABTS_MASK, "ABTS not ACK vals", HFILL}},
+#endif
         { &hf_fc_exchange_first_frame,
           { "Exchange First In", "fc.exchange_first_frame", FT_FRAMENUM, BASE_NONE, NULL,
            0, "The first frame of this exchange is in this frame", HFILL }},
@@ -1494,7 +1503,12 @@ proto_register_fc(void)
         &ett_fctl
     };
 
+    static ei_register_info ei[] = {
+        { &ei_fccrc, { "fc.crc.bad", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+    };
+
     module_t *fc_module;
+    expert_module_t* expert_fc;
 
     /* FC SOF */
 
@@ -1525,6 +1539,8 @@ proto_register_fc(void)
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_fc, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_fc = expert_register_protocol(proto_fc);
+    expert_register_field_array(expert_fc, ei, array_length(ei));
 
     /* subdissectors called through this table will find the fchdr structure
      * through pinfo->private_data

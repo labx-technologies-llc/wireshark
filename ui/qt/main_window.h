@@ -36,6 +36,7 @@
 
 #ifdef HAVE_LIBPCAP
 #include "capture_opts.h"
+#include "capture_session.h"
 #endif
 
 #include <QMainWindow>
@@ -124,6 +125,8 @@ private:
     bool testCaptureFileClose(bool from_quit = false, QString& before_what = *new QString());
     void captureStop();
 
+    void setTitlebarForCaptureFile();
+    void setTitlebarForCaptureInProgress();
     void setMenusForCaptureFile(bool force_disable = false);
     void setMenusForCaptureInProgress(bool capture_in_progress = false);
     void setMenusForCaptureStopping();
@@ -143,13 +146,13 @@ public slots:
     void filterPackets(QString& new_filter = *new QString(), bool force = false);
 
 #ifdef HAVE_LIBPCAP
-    void captureCapturePrepared(capture_options *capture_opts);
-    void captureCaptureUpdateStarted(capture_options *capture_opts);
-    void captureCaptureUpdateFinished(capture_options *capture_opts);
-    void captureCaptureFixedStarted(capture_options *capture_opts);
-    void captureCaptureFixedFinished(capture_options *capture_opts);
-    void captureCaptureStopping(capture_options *capture_opts);
-    void captureCaptureFailed(capture_options *capture_opts);
+    void captureCapturePrepared(capture_session *cap_session);
+    void captureCaptureUpdateStarted(capture_session *cap_session);
+    void captureCaptureUpdateFinished(capture_session *cap_session);
+    void captureCaptureFixedStarted(capture_session *cap_session);
+    void captureCaptureFixedFinished(capture_session *cap_session);
+    void captureCaptureStopping(capture_session *cap_session);
+    void captureCaptureFailed(capture_session *cap_session);
 #endif
 
     void captureFileOpened(const capture_file *cf);
@@ -157,6 +160,9 @@ public slots:
     void captureFileReadFinished(const capture_file *cf);
     void captureFileClosing(const capture_file *cf);
     void captureFileClosed(const capture_file *cf);
+
+    void configurationProfileChanged(const gchar *profile_name);
+    void filterExpressionsChanged();
 
 private slots:
     // in main_window_slots.cpp
@@ -168,12 +174,22 @@ private slots:
 
     void updateRecentFiles();
     void recentActionTriggered();
+    void setMenusForSelectedPacket();
     void setMenusForSelectedTreeRow(field_info *fi = NULL);
     void interfaceSelectionChanged();
+    void redissectPackets();
+    void recreatePacketList();
 
+    void setFeaturesEnabled(bool enabled = true);
+
+    void addDisplayFilterButton(QString df_text);
+    void displayFilterButtonClicked();
+
+    // We should probably move these to main_window_actions.cpp similar to
+    // gtk/main_menubar.c
     void on_actionFileOpen_triggered();
     void on_actionFileMerge_triggered();
-    void on_actionFileImport_triggered();
+    void on_actionFileImportFromHexDump_triggered();
     void on_actionFileClose_triggered();
     void on_actionFileSave_triggered();
     void on_actionFileSaveAs_triggered();
@@ -200,6 +216,25 @@ private slots:
     void on_actionEditCopyFieldName_triggered();
     void on_actionEditCopyValue_triggered();
     void on_actionEditCopyAsFilter_triggered();
+    void on_actionEditFindPacket_triggered();
+    void on_actionEditFindNext_triggered();
+    void on_actionEditFindPrevious_triggered();
+    void on_actionEditMarkPacket_triggered();
+    void on_actionEditMarkAllDisplayed_triggered();
+    void on_actionEditUnmarkAllDisplayed_triggered();
+    void on_actionEditNextMark_triggered();
+    void on_actionEditPreviousMark_triggered();
+    void on_actionEditIgnorePacket_triggered();
+    void on_actionEditIgnoreAllDisplayed_triggered();
+    void on_actionEditUnignoreAllDisplayed_triggered();
+    void on_actionEditSetTimeReference_triggered();
+    void on_actionEditUnsetAllTimeReferences_triggered();
+    void on_actionEditNextTimeReference_triggered();
+    void on_actionEditPreviousTimeReference_triggered();
+    void on_actionEditTimeShift_triggered();
+    void on_actionEditPacketComment_triggered();
+    void on_actionEditConfigurationProfiles_triggered();
+    void on_actionEditPreferences_triggered();
 
     void on_actionGoGoToPacket_triggered();
     void resetPreviousFocus();
@@ -233,6 +268,11 @@ private slots:
     void on_actionHelpDownloads_triggered();
     void on_actionHelpWiki_triggered();
     void on_actionHelpSampleCaptures_triggered();
+
+#ifdef HAVE_SOFTWARE_UPDATE
+    void on_actionHelpCheckForUpdates_triggered();
+#endif
+
     void on_goToCancel_clicked();
     void on_goToGo_clicked();
     void on_goToLineEdit_returnPressed();

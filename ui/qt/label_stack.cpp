@@ -22,6 +22,8 @@
  */
 
 #include "label_stack.h"
+#include <QMouseEvent>
+#include <QContextMenuEvent>
 
 #include "tango_colors.h"
 
@@ -34,7 +36,7 @@ const int num_flashes_ = 3;
 LabelStack::LabelStack(QWidget *parent) :
     QLabel(parent)
 {
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     setAttribute(Qt::WA_MacSmallSize, true);
 #endif
     temporary_ctx_ = -1;
@@ -68,8 +70,8 @@ void LabelStack::fillLabel() {
                     "  color: #%1;"
                     "  background-color: #%2;"
                     )
-                .arg(tango_aluminium_6, 6, 16, QChar('0'))
-                .arg(tango_butter_2, 6, 16, QChar('0'));
+                .arg(ws_css_warn_text, 6, 16, QChar('0'))
+                .arg(ws_css_warn_background, 6, 16, QChar('0'));
     }
 
     style_sheet += "}";
@@ -79,17 +81,46 @@ void LabelStack::fillLabel() {
 
 void LabelStack::pushText(QString &text, int ctx) {
     StackItem *si = new StackItem;
-    si->text = text;
-    si->ctx = ctx;
-    labels_.prepend(si);
 
     if (ctx == temporary_ctx_) {
+        temporary_timer_.stop();
+        popText(temporary_ctx_);
+
         temporary_epoch_.start();
         temporary_timer_.start(temporary_flash_timeout_);
         emit toggleTemporaryFlash(true);
     }
 
+    si->text = text;
+    si->ctx = ctx;
+    labels_.prepend(si);
     fillLabel();
+}
+
+void LabelStack::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton)
+        emit mousePressedAt(QPoint(event->globalPos()), Qt::LeftButton);
+}
+
+void LabelStack::mouseReleaseEvent(QMouseEvent *event)
+{
+    Q_UNUSED(event);
+}
+
+void LabelStack::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    Q_UNUSED(event);
+}
+
+void LabelStack::mouseMoveEvent(QMouseEvent *event)
+{
+    Q_UNUSED(event);
+}
+
+void LabelStack::contextMenuEvent(QContextMenuEvent *event)
+{
+    emit mousePressedAt(QPoint(event->globalPos()), Qt::RightButton);
 }
 
 void LabelStack::popText(int ctx) {

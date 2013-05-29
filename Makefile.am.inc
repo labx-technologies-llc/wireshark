@@ -23,13 +23,29 @@
 
 AUTOMAKE_OPTIONS = -Wno-portability
 
+AM_V_AWK = $(am__v_AWK_@AM_V@)
+am__v_AWK_ = $(am__v_AWK_@AM_DEFAULT_V@)
+am__v_AWK_0 = @echo "  AWK     " $@;
+
+AM_V_LEMON = $(am__v_LEMON_@AM_V@)
+am__v_LEMON_ = $(am__v_LEMON_@AM_DEFAULT_V@)
+am__v_LEMON_0 = @echo "  LEMON   " $@;
+
+AM_V_RUNLEX = $(am__v_RUNLEX_@AM_V@)
+am__v_RUNLEX_ = $(am__v_RUNLEX_@AM_DEFAULT_V@)
+am__v_RUNLEX_0 = @echo "  RUNLEX  " $@;
+
+AM_V_SED = $(am__v_SED_@AM_V@)
+am__v_SED_ = $(am__v_SED_@AM_DEFAULT_V@)
+am__v_SED_0 = @echo "  SED     " $@;
+
 .l.c:
-	$(RUNLEX) "$(LEX)" -o$@ $<
+	$(AM_V_RUNLEX)$(RUNLEX) "$(LEX)" -o$@ $<
 
 .def.sym:
-	$(AWK) '/^EXPORTS$$/ {next;}; ${def_sym_filter_symbols} /^[^;]/ { print $$1;}' < $< > $@
+	$(AM_V_AWK)$(AWK) '/^EXPORTS$$/ {next;}; ${def_sym_filter_symbols} /^[^;]/ { print $$1;}' < $< > $@
 
 # abi-compliance-checker descriptor
 INCLUDE_DIRS = $(subst -I,NEWLINE,$(filter -I%, $(CFLAGS) -I$(abs_top_srcdir) -I$(abs_srcdir)))
 abi-descriptor.xml: ../abi-descriptor.template
-	sed "s|INCLUDE_DIRS|$(INCLUDE_DIRS)|g;s/NEWLINE/\n    /g" $< > $@
+	$(AM_V_SED)sed "s|@INCLUDE_DIRS@|$(INCLUDE_DIRS)|g;s/NEWLINE/\n    /g;s|@LIBRARY_OUTPUT_PATH@|{RELPATH}/.libs|" $< > $@

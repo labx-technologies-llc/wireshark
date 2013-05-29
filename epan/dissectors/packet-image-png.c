@@ -96,30 +96,21 @@ static const value_string interlace_method_vals[] = {
 static void
 dissect_png_ihdr(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
-	int offset=0;
 
-	proto_tree_add_item(tree, hf_png_ihdr_width, tvb, offset, 4, ENC_BIG_ENDIAN);
-	offset+=4;
+	proto_tree_add_item(tree, hf_png_ihdr_width, tvb, 0, 4, ENC_BIG_ENDIAN);
 
-	proto_tree_add_item(tree, hf_png_ihdr_height, tvb, offset, 4, ENC_BIG_ENDIAN);
-	offset+=4;
+	proto_tree_add_item(tree, hf_png_ihdr_height, tvb, 4, 4, ENC_BIG_ENDIAN);
 
-	proto_tree_add_item(tree, hf_png_ihdr_bitdepth, tvb, offset, 1, ENC_BIG_ENDIAN);
-	offset+=1;
+	proto_tree_add_item(tree, hf_png_ihdr_bitdepth, tvb, 8, 1, ENC_BIG_ENDIAN);
 
-	proto_tree_add_item(tree, hf_png_ihdr_colour_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-	offset+=1;
+	proto_tree_add_item(tree, hf_png_ihdr_colour_type, tvb, 9, 1, ENC_BIG_ENDIAN);
 
-	proto_tree_add_item(tree, hf_png_ihdr_compression_method, tvb, offset, 1, ENC_BIG_ENDIAN);
-	offset+=1;
+	proto_tree_add_item(tree, hf_png_ihdr_compression_method, tvb, 10, 1, ENC_BIG_ENDIAN);
 
-	proto_tree_add_item(tree, hf_png_ihdr_filter_method, tvb, offset, 1, ENC_BIG_ENDIAN);
-	offset+=1;
+	proto_tree_add_item(tree, hf_png_ihdr_filter_method, tvb, 11, 1, ENC_BIG_ENDIAN);
 
-	proto_tree_add_item(tree, hf_png_ihdr_interlace_method, tvb, offset, 1, ENC_BIG_ENDIAN);
-	offset+=1;
+	proto_tree_add_item(tree, hf_png_ihdr_interlace_method, tvb, 12, 1, ENC_BIG_ENDIAN);
 
-	return;
 }
 
 static void
@@ -241,7 +232,7 @@ dissect_png(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *da
 	proto_tree_add_item(tree, hf_png_signature, tvb, offset, 8, ENC_NA);
 	offset+=8;
 
-	while(tvb_reported_length_remaining(tvb, offset)){
+	while(tvb_reported_length_remaining(tvb, offset) > 0){
 		proto_tree *chunk_tree=NULL;
 		proto_item *it=NULL;
 		guint32 len, type;
@@ -435,4 +426,5 @@ proto_reg_handoff_png(void)
 	dissector_handle_t png_handle = new_create_dissector_handle(dissect_png, proto_png);
 	dissector_add_string("media_type", "image/png", png_handle);
 	heur_dissector_add("http", dissect_png_heur, proto_png);
+	heur_dissector_add("wtap_file", dissect_png_heur, proto_png);
 }

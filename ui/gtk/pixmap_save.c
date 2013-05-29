@@ -50,15 +50,15 @@ pixmap_save_cb(GtkWidget *w, gpointer pixmap_ptr _U_)
 {
 	GtkWidget *save_as_w;
 #if GTK_CHECK_VERSION(2,22,0)
-	surface_info_t *surface_info = g_object_get_data(G_OBJECT(w), "surface-info");
+	surface_info_t *surface_info = (surface_info_t *)g_object_get_data(G_OBJECT(w), "surface-info");
 #else
-	GdkPixmap *pixmap = g_object_get_data(G_OBJECT(w), "pixmap");
+	GdkPixmap *pixmap = (GdkPixmap *)g_object_get_data(G_OBJECT(w), "pixmap");
 #endif
 	GdkPixbuf *pixbuf;
 	GdkPixbufFormat *pixbuf_format;
 	GtkWidget *main_vb, *save_as_type_hb, *type_lb, *type_cm;
 	GSList *file_formats,*ffp;
-	GdkWindow *parent;
+	GtkWidget *parent;
 
 	gchar *format_name;
 	guint format_index = 0;
@@ -84,9 +84,10 @@ pixmap_save_cb(GtkWidget *w, gpointer pixmap_ptr _U_)
 		return;
 	}
 
+	parent = gtk_widget_get_toplevel(w);
 	save_as_w = file_selection_new("Wireshark: Save Graph As ...",
+				       GTK_WINDOW(parent),
 				       FILE_SELECTION_SAVE);
-	gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(save_as_w), TRUE);
 
 	/* Container for each row of widgets */
 	main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
@@ -108,10 +109,10 @@ pixmap_save_cb(GtkWidget *w, gpointer pixmap_ptr _U_)
 	file_formats = gdk_pixbuf_get_formats();
 	ffp = file_formats;
 	while(ffp) {
-		pixbuf_format = ffp->data;
+		pixbuf_format = (GdkPixbufFormat *)ffp->data;
 		if (gdk_pixbuf_format_is_writable(pixbuf_format)) {
 			format_name = gdk_pixbuf_format_get_name(pixbuf_format);
-			 gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(type_cm),
+			gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(type_cm),
 						  format_name);
 			if (!(g_ascii_strcasecmp(format_name, "png")))
 				default_index = format_index;
@@ -126,8 +127,6 @@ pixmap_save_cb(GtkWidget *w, gpointer pixmap_ptr _U_)
 
 	gtk_widget_show(save_as_w);
 	window_present(save_as_w);
-	parent = gtk_widget_get_parent_window(w);
-	gdk_window_set_transient_for(gtk_widget_get_window(save_as_w), parent);
 
 	/*
 	 * Loop until the user either selects a file or gives up.

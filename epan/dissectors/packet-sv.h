@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-sv.h                                                                */
 /* ../../tools/asn2wrs.py -b -p sv -c ./sv.cnf -s ./packet-sv-template -D . -O ../../epan/dissectors sv.asn */
 
@@ -46,6 +46,7 @@ typedef struct _sv_frame_data {
 	guint8 smpSynch;
 	guint8 num_phsMeas;
 	sv_phs_meas phsMeas[IEC61850_SV_MAX_PHSMEAS_ENTRIES];
+	guint16 smpMod;
 } sv_frame_data;
 
 #endif /*__PACKET_SV_H__*/

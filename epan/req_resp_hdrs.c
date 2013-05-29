@@ -44,9 +44,9 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 	gint		next_offset;
 	gint		next_offset_sav;
 	gint		length_remaining, reported_length_remaining;
-	int			linelen;
+	int		linelen;
 	gchar		*header_val;
-	long int	content_length;
+	int		content_length;
 	gboolean	content_length_found = FALSE;
 	gboolean	content_type_found = FALSE;
 	gboolean	chunked_encoding = FALSE;
@@ -148,12 +148,26 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 			 * have already been handled above.
 			 */
 			if (desegment_body) {
+				/* Optimization to avoid fetching the whole (potentially very long)
+				 * line and doing expensive string comparisons if the first
+				 * character doesn't match. Shaves about 20% off the load time of
+				 * one of my sample files that's HTTP-alike. */
+				guchar first_byte = tvb_get_guint8(tvb, next_offset_sav);
+				if (! (first_byte == 'c' || first_byte == 'C' ||
+				       first_byte == 't' || first_byte == 'T')) {
+					continue;
+				}
+
 				/*
 				 * Check if we've found Content-Length.
 				 */
 				line = tvb_get_ephemeral_string(tvb, next_offset_sav, linelen);
 				if (g_ascii_strncasecmp(line, "Content-Length:", 15) == 0) {
-					if (sscanf(line+15,"%li", &content_length) == 1)
+					/* XXX - what if it doesn't fit in an int?
+					   (Do not "fix" that by making this
+					   a "long"; make it a gint64 or a
+					   guint64.) */
+					if (sscanf(line+15,"%i", &content_length) == 1)
 						content_length_found = TRUE;
 				} else if (g_ascii_strncasecmp(line, "Content-Type:", 13) == 0) {
 					content_type_found = TRUE;
@@ -401,3 +415,16 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 	 */
 	return TRUE;
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

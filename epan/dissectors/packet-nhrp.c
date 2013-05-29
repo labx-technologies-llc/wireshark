@@ -82,9 +82,8 @@ static int hf_nhrp_flag_U2 = -1;
 static int hf_nhrp_flag_S = -1;
 static int hf_nhrp_flag_NAT = -1;
 static int hf_nhrp_src_nbma_addr = -1;
-#if 0
-static int hf_nhrp_src_nbma_saddr = -1;     /* TBD: Not used */
-#endif
+
+/* static int hf_nhrp_src_nbma_saddr = -1; */     /* TBD: Not used */
 static int hf_nhrp_src_prot_addr = -1;
 static int hf_nhrp_dst_prot_addr = -1;
 static int hf_nhrp_request_id = -1;
@@ -103,21 +102,15 @@ static int hf_nhrp_cli_saddr_tl_len = -1;
 static int hf_nhrp_cli_prot_len = -1;
 static int hf_nhrp_pref = -1;
 static int hf_nhrp_client_nbma_addr = -1;
-#if 0
-static int hf_nhrp_client_nbma_saddr = -1;  /* TBD: Not used */
-#endif
+/* static int hf_nhrp_client_nbma_saddr = -1; */ /* TBD: Not used */
 static int hf_nhrp_client_prot_addr = -1;
 static int hf_nhrp_ext_C = -1;
 static int hf_nhrp_ext_type = -1;
 static int hf_nhrp_ext_len = -1;
-#if 0
-static int hf_nhrp_ext_value = -1;          /* TBD: Not used */
-#endif
+/* static int hf_nhrp_ext_value = -1; */          /* TBD: Not used */
 static int hf_nhrp_error_code = -1;
 static int hf_nhrp_error_offset = -1;
-#if 0
-static int hf_nhrp_error_packet = -1;       /* TBD: Not used */
-#endif
+/* static int hf_nhrp_error_packet = -1; */       /* TBD: Not used */
 
 static int hf_nhrp_auth_ext_reserved = -1;
 static int hf_nhrp_auth_ext_spi = -1;
@@ -1155,12 +1148,12 @@ proto_register_nhrp(void)
             "D bit", HFILL }
         },
         { &hf_nhrp_flag_U1,
-          { "Uniqueness Bit", "nhrp.flag.u1",
+          { "Uniqueness Bit", "nhrp.flag.u",
             FT_BOOLEAN, 16, NULL, 0x1000,
             "U bit", HFILL }
         },
         { &hf_nhrp_flag_U2,
-          { "Uniqueness Bit", "nhrp.flag.u1",
+          { "Uniqueness Bit", "nhrp.flag.u",
             FT_BOOLEAN, 16, NULL, 0x8000,
             "U bit", HFILL }
         },

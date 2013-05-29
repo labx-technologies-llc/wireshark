@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-sabp.c                                                              */
 /* ../../tools/asn2wrs.py -p sabp -c ./sabp.cnf -s ./packet-sabp-template -D . -O ../../epan/dissectors SABP-CommonDataTypes.asn SABP-Constants.asn SABP-Containers.asn SABP-IEs.asn SABP-PDU-Contents.asn SABP-PDU-Descriptions.asn */
 
@@ -100,10 +100,16 @@ typedef enum _ProtocolIE_ID_enum {
 /*--- End of included file: packet-sabp-val.h ---*/
 #line 48 "../../asn1/sabp/packet-sabp-template.c"
 
+void proto_register_sabp(void);
+void proto_reg_handoff_sabp(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_sabp = -1;
 
 static int hf_sabp_no_of_pages = -1;
+static int hf_sabp_cb_inf_len = -1;
+static int hf_sabp_cb_msg_inf_page = -1;
+static int hf_sabp_cbs_page_content = -1;
 
 /*--- Included file: packet-sabp-hf.c ---*/
 #line 1 "../../asn1/sabp/packet-sabp-hf.c"
@@ -188,7 +194,7 @@ static int hf_sabp_successfulOutcome_value = -1;  /* SuccessfulOutcome_value */
 static int hf_sabp_unsuccessfulOutcome_value = -1;  /* UnsuccessfulOutcome_value */
 
 /*--- End of included file: packet-sabp-hf.c ---*/
-#line 54 "../../asn1/sabp/packet-sabp-template.c"
+#line 60 "../../asn1/sabp/packet-sabp-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_sabp = -1;
@@ -197,6 +203,8 @@ static int ett_sabp_cbs_data_coding = -1;
 static int ett_sabp_bcast_msg = -1;
 static int ett_sabp_cbs_serial_number = -1;
 static int ett_sabp_cbs_new_serial_number = -1;
+static int ett_sabp_cbs_page = -1;
+static int ett_sabp_cbs_page_content = -1;
 
 
 /*--- Included file: packet-sabp-ett.c ---*/
@@ -242,7 +250,7 @@ static gint ett_sabp_SuccessfulOutcome = -1;
 static gint ett_sabp_UnsuccessfulOutcome = -1;
 
 /*--- End of included file: packet-sabp-ett.c ---*/
-#line 64 "../../asn1/sabp/packet-sabp-template.c"
+#line 72 "../../asn1/sabp/packet-sabp-template.c"
 
 /* Global variables */
 static guint32 ProcedureCode;
@@ -265,6 +273,7 @@ static int dissect_ProtocolExtensionFieldExtensionValue(tvbuff_t *tvb, packet_in
 static int dissect_InitiatingMessageValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *);
 static int dissect_SuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *);
 static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *);
+static void dissect_sabp_cb_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 
 
 /*--- Included file: packet-sabp-fn.c ---*/
@@ -307,7 +316,7 @@ dissect_sabp_ProcedureCode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &ProcedureCode, FALSE);
 
-#line 59 "../../asn1/sabp/sabp.cnf"
+#line 58 "../../asn1/sabp/sabp.cnf"
        col_add_fstr(actx->pinfo->cinfo, COL_INFO, "%s ",
                    val_to_str_ext(ProcedureCode, &sabp_ProcedureCode_vals_ext,
                               "unknown message"));
@@ -360,7 +369,7 @@ dissect_sabp_ProtocolIE_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 65535U, &ProtocolIE_ID, FALSE);
 
-#line 46 "../../asn1/sabp/sabp.cnf"
+#line 45 "../../asn1/sabp/sabp.cnf"
   if (tree) {
     proto_item_append_text(proto_item_get_parent_nth(actx->created_item, 2), ": %s", val_to_str_ext(ProtocolIE_ID, &sabp_ProtocolIE_ID_vals_ext, "unknown (%d)"));
   }
@@ -478,7 +487,7 @@ dissect_sabp_Available_Bandwidth(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 
 static int
 dissect_sabp_Broadcast_Message_Content(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 212 "../../asn1/sabp/sabp.cnf"
+#line 211 "../../asn1/sabp/sabp.cnf"
  tvbuff_t *parameter_tvb=NULL;
 
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
@@ -486,7 +495,7 @@ dissect_sabp_Broadcast_Message_Content(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 
 	if (!parameter_tvb)
 		return offset;
-        dissect_umts_cell_broadcast_message(parameter_tvb, actx->pinfo, proto_tree_get_root(tree));
+    dissect_sabp_cb_data(parameter_tvb, actx->pinfo, tree);
 
 
   return offset;
@@ -662,7 +671,7 @@ dissect_sabp_MessageStructure(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 
 static int
 dissect_sabp_Data_Coding_Scheme(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 173 "../../asn1/sabp/sabp.cnf"
+#line 172 "../../asn1/sabp/sabp.cnf"
  tvbuff_t *parameter_tvb=NULL;
  proto_tree *subtree;
 
@@ -684,7 +693,7 @@ dissect_sabp_Data_Coding_Scheme(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 
 static int
 dissect_sabp_T_pLMNidentity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 161 "../../asn1/sabp/sabp.cnf"
+#line 160 "../../asn1/sabp/sabp.cnf"
   tvbuff_t *parameter_tvb=NULL;
  proto_tree *subtree;
 
@@ -761,7 +770,7 @@ dissect_sabp_Failure_List(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 
 static int
 dissect_sabp_Message_Identifier(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 184 "../../asn1/sabp/sabp.cnf"
+#line 183 "../../asn1/sabp/sabp.cnf"
  tvbuff_t *parameter_tvb=NULL;
 
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
@@ -780,7 +789,7 @@ dissect_sabp_Message_Identifier(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 
 static int
 dissect_sabp_Serial_Number(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 192 "../../asn1/sabp/sabp.cnf"
+#line 191 "../../asn1/sabp/sabp.cnf"
  tvbuff_t *parameter_tvb=NULL;
  proto_tree *subtree;
 
@@ -801,7 +810,7 @@ dissect_sabp_Serial_Number(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 
 static int
 dissect_sabp_New_Serial_Number(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 202 "../../asn1/sabp/sabp.cnf"
+#line 201 "../../asn1/sabp/sabp.cnf"
  tvbuff_t *parameter_tvb=NULL;
  proto_tree *subtree;
 
@@ -1721,7 +1730,7 @@ static int dissect_SABP_PDU_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto
 
 
 /*--- End of included file: packet-sabp-fn.c ---*/
-#line 88 "../../asn1/sabp/packet-sabp-template.c"
+#line 97 "../../asn1/sabp/packet-sabp-template.c"
 
 static int dissect_ProtocolIEFieldValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
@@ -1746,6 +1755,57 @@ static int dissect_SuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, pro
 static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   return (dissector_try_uint(sabp_proc_uout_dissector_table, ProcedureCode, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+}
+
+
+/* 3GPP TS 23.041 version 11.4.0
+ * 9.4.2.2.5 CB Data
+ */
+static void
+dissect_sabp_cb_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+	proto_item *item, *cbs_page_item;
+	proto_tree *subtree;
+	tvbuff_t *page_tvb, *unpacked_tvb;
+	int offset = 0;
+	int n;
+	guint8 nr_pages, len, cb_inf_msg_len;
+
+
+	/* Octet 1 Number-of-Pages */
+	nr_pages = tvb_get_guint8(tvb, offset);
+	proto_tree_add_item(tree, hf_sabp_no_of_pages, tvb, offset, 1, ENC_BIG_ENDIAN);
+	offset++;
+	/*  
+	 * NOTE: n equal to or less than 15
+	 */
+	if(nr_pages > 15){
+		/* Error */
+		return;
+	}
+	for (n = 0; n < nr_pages; n++) {
+		item = proto_tree_add_text(tree, tvb, offset, 83, "CB page %u data",  n+1);
+		subtree = proto_item_add_subtree(item, ett_sabp_cbs_page);
+		/* octet 2 - 83 CBS-Message-Information-Page 1  */
+		cbs_page_item = proto_tree_add_item(subtree, hf_sabp_cb_msg_inf_page, tvb, offset, 82, ENC_BIG_ENDIAN);
+		cb_inf_msg_len = tvb_get_guint8(tvb,offset+82);
+		page_tvb = tvb_new_subset(tvb, offset, cb_inf_msg_len, cb_inf_msg_len);
+		unpacked_tvb = dissect_cbs_data(sms_encoding, page_tvb, subtree, pinfo, 0);
+		len = tvb_length(unpacked_tvb);
+		if (unpacked_tvb != NULL){
+			if (tree != NULL){
+				proto_tree *cbs_page_subtree = proto_item_add_subtree(cbs_page_item, ett_sabp_cbs_page_content);
+				proto_tree_add_string(cbs_page_subtree, hf_sabp_cbs_page_content, unpacked_tvb, 0, len, tvb_get_ephemeral_string(unpacked_tvb, 0, len));
+			}
+		}
+
+		offset = offset+82;
+		/* 84 CBS-Message-Information-Length 1 */
+		proto_tree_add_item(subtree, hf_sabp_cb_inf_len, tvb, offset, 1, ENC_BIG_ENDIAN);
+		offset++;
+	}
+
+	
 }
 
 static guint
@@ -1810,6 +1870,18 @@ void proto_register_sabp(void) {
       { "Number-of-Pages", "sabp.no_of_pages",
         FT_UINT8, BASE_DEC, NULL, 0,
         NULL, HFILL }},
+    { &hf_sabp_cb_msg_inf_page,
+      { "CBS-Message-Information-Page", "sabp.cb_msg_inf_page",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_sabp_cbs_page_content,
+      { "CBS Page Content", "sabp.cb_page_content",
+        FT_STRING, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_sabp_cb_inf_len,
+      { "CBS-Message-Information-Length", "sabp.cb_inf_len",
+        FT_UINT8, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
 
 
 /*--- Included file: packet-sabp-hfarr.c ---*/
@@ -1831,7 +1903,7 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &sabp_Cause_vals_ext, 0,
         NULL, HFILL }},
     { &hf_sabp_Criticality_Diagnostics_PDU,
-      { "Criticality-Diagnostics", "sabp.Criticality_Diagnostics",
+      { "Criticality-Diagnostics", "sabp.Criticality_Diagnostics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_MessageStructure_PDU,
@@ -1903,75 +1975,75 @@ void proto_register_sabp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Write_Replace_PDU,
-      { "Write-Replace", "sabp.Write_Replace",
+      { "Write-Replace", "sabp.Write_Replace_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Write_Replace_Complete_PDU,
-      { "Write-Replace-Complete", "sabp.Write_Replace_Complete",
+      { "Write-Replace-Complete", "sabp.Write_Replace_Complete_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Write_Replace_Failure_PDU,
-      { "Write-Replace-Failure", "sabp.Write_Replace_Failure",
+      { "Write-Replace-Failure", "sabp.Write_Replace_Failure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Kill_PDU,
-      { "Kill", "sabp.Kill",
+      { "Kill", "sabp.Kill_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Kill_Complete_PDU,
-      { "Kill-Complete", "sabp.Kill_Complete",
+      { "Kill-Complete", "sabp.Kill_Complete_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Kill_Failure_PDU,
-      { "Kill-Failure", "sabp.Kill_Failure",
+      { "Kill-Failure", "sabp.Kill_Failure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Load_Query_PDU,
-      { "Load-Query", "sabp.Load_Query",
+      { "Load-Query", "sabp.Load_Query_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Load_Query_Complete_PDU,
-      { "Load-Query-Complete", "sabp.Load_Query_Complete",
+      { "Load-Query-Complete", "sabp.Load_Query_Complete_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Load_Query_Failure_PDU,
-      { "Load-Query-Failure", "sabp.Load_Query_Failure",
+      { "Load-Query-Failure", "sabp.Load_Query_Failure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Message_Status_Query_PDU,
-      { "Message-Status-Query", "sabp.Message_Status_Query",
+      { "Message-Status-Query", "sabp.Message_Status_Query_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Message_Status_Query_Complete_PDU,
-      { "Message-Status-Query-Complete", "sabp.Message_Status_Query_Complete",
+      { "Message-Status-Query-Complete", "sabp.Message_Status_Query_Complete_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Message_Status_Query_Failure_PDU,
-      { "Message-Status-Query-Failure", "sabp.Message_Status_Query_Failure",
+      { "Message-Status-Query-Failure", "sabp.Message_Status_Query_Failure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Reset_PDU,
-      { "Reset", "sabp.Reset",
+      { "Reset", "sabp.Reset_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Reset_Complete_PDU,
-      { "Reset-Complete", "sabp.Reset_Complete",
+      { "Reset-Complete", "sabp.Reset_Complete_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Reset_Failure_PDU,
-      { "Reset-Failure", "sabp.Reset_Failure",
+      { "Reset-Failure", "sabp.Reset_Failure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Restart_PDU,
-      { "Restart", "sabp.Restart",
+      { "Restart", "sabp.Restart_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Failure_PDU,
-      { "Failure", "sabp.Failure",
+      { "Failure", "sabp.Failure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_Error_Indication_PDU,
-      { "Error-Indication", "sabp.Error_Indication",
+      { "Error-Indication", "sabp.Error_Indication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_SABP_PDU_PDU,
@@ -1979,7 +2051,7 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC, VALS(sabp_SABP_PDU_vals), 0,
         NULL, HFILL }},
     { &hf_sabp_ProtocolIE_Container_item,
-      { "ProtocolIE-Field", "sabp.ProtocolIE_Field",
+      { "ProtocolIE-Field", "sabp.ProtocolIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_id,
@@ -1991,11 +2063,11 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC, VALS(sabp_Criticality_vals), 0,
         NULL, HFILL }},
     { &hf_sabp_protocolIE_Field_value,
-      { "value", "sabp.value",
+      { "value", "sabp.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProtocolIE_Field_value", HFILL }},
     { &hf_sabp_ProtocolExtensionContainer_item,
-      { "ProtocolExtensionField", "sabp.ProtocolExtensionField",
+      { "ProtocolExtensionField", "sabp.ProtocolExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_ext_id,
@@ -2003,7 +2075,7 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionID", HFILL }},
     { &hf_sabp_extensionValue,
-      { "extensionValue", "sabp.extensionValue",
+      { "extensionValue", "sabp.extensionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_procedureCode,
@@ -2027,7 +2099,7 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionContainer", HFILL }},
     { &hf_sabp_CriticalityDiagnostics_IE_List_item,
-      { "CriticalityDiagnostics-IE-List item", "sabp.CriticalityDiagnostics_IE_List_item",
+      { "CriticalityDiagnostics-IE-List item", "sabp.CriticalityDiagnostics_IE_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_iECriticality,
@@ -2043,7 +2115,7 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RepetitionNumber0", HFILL }},
     { &hf_sabp_MessageStructure_item,
-      { "MessageStructure item", "sabp.MessageStructure_item",
+      { "MessageStructure item", "sabp.MessageStructure_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_repetitionNumber1,
@@ -2051,11 +2123,11 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RepetitionNumber1", HFILL }},
     { &hf_sabp_Failure_List_item,
-      { "Failure-List-Item", "sabp.Failure_List_Item",
+      { "Failure-List-Item", "sabp.Failure_List_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_service_area_identifier,
-      { "service-area-identifier", "sabp.service_area_identifier",
+      { "service-area-identifier", "sabp.service_area_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_cause,
@@ -2063,7 +2135,7 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &sabp_Cause_vals_ext, 0,
         NULL, HFILL }},
     { &hf_sabp_Number_of_Broadcasts_Completed_List_item,
-      { "Number-of-Broadcasts-Completed-List-Item", "sabp.Number_of_Broadcasts_Completed_List_Item",
+      { "Number-of-Broadcasts-Completed-List-Item", "sabp.Number_of_Broadcasts_Completed_List_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_number_of_broadcasts_completed,
@@ -2075,7 +2147,7 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC, VALS(sabp_Number_Of_Broadcasts_Completed_Info_vals), 0,
         NULL, HFILL }},
     { &hf_sabp_Radio_Resource_Loading_List_item,
-      { "Radio-Resource-Loading-List-Item", "sabp.Radio_Resource_Loading_List_Item",
+      { "Radio-Resource-Loading-List-Item", "sabp.Radio_Resource_Loading_List_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_available_bandwidth,
@@ -2095,7 +2167,7 @@ void proto_register_sabp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING_SIZE_2", HFILL }},
     { &hf_sabp_Service_Areas_List_item,
-      { "Service-Area-Identifier", "sabp.Service_Area_Identifier",
+      { "Service-Area-Identifier", "sabp.Service_Area_Identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_protocolIEs,
@@ -2107,32 +2179,32 @@ void proto_register_sabp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionContainer", HFILL }},
     { &hf_sabp_initiatingMessage,
-      { "initiatingMessage", "sabp.initiatingMessage",
+      { "initiatingMessage", "sabp.initiatingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_successfulOutcome,
-      { "successfulOutcome", "sabp.successfulOutcome",
+      { "successfulOutcome", "sabp.successfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_unsuccessfulOutcome,
-      { "unsuccessfulOutcome", "sabp.unsuccessfulOutcome",
+      { "unsuccessfulOutcome", "sabp.unsuccessfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sabp_initiatingMessage_value,
-      { "value", "sabp.value",
+      { "value", "sabp.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InitiatingMessage_value", HFILL }},
     { &hf_sabp_successfulOutcome_value,
-      { "value", "sabp.value",
+      { "value", "sabp.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SuccessfulOutcome_value", HFILL }},
     { &hf_sabp_unsuccessfulOutcome_value,
-      { "value", "sabp.value",
+      { "value", "sabp.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnsuccessfulOutcome_value", HFILL }},
 
 /*--- End of included file: packet-sabp-hfarr.c ---*/
-#line 178 "../../asn1/sabp/packet-sabp-template.c"
+#line 250 "../../asn1/sabp/packet-sabp-template.c"
   };
 
   /* List of subtrees */
@@ -2143,6 +2215,8 @@ void proto_register_sabp(void) {
 		  &ett_sabp_bcast_msg,
           &ett_sabp_cbs_serial_number,
           &ett_sabp_cbs_new_serial_number,
+		  &ett_sabp_cbs_page,
+		  &ett_sabp_cbs_page_content,
 
 /*--- Included file: packet-sabp-ettarr.c ---*/
 #line 1 "../../asn1/sabp/packet-sabp-ettarr.c"
@@ -2187,7 +2261,7 @@ void proto_register_sabp(void) {
     &ett_sabp_UnsuccessfulOutcome,
 
 /*--- End of included file: packet-sabp-ettarr.c ---*/
-#line 189 "../../asn1/sabp/packet-sabp-template.c"
+#line 263 "../../asn1/sabp/packet-sabp-template.c"
   };
 
 
@@ -2270,7 +2344,7 @@ proto_reg_handoff_sabp(void)
 
 
 /*--- End of included file: packet-sabp-dis-tab.c ---*/
-#line 226 "../../asn1/sabp/packet-sabp-template.c"
+#line 300 "../../asn1/sabp/packet-sabp-template.c"
 
 }
 

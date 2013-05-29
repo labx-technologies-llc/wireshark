@@ -49,7 +49,7 @@ static int hf_oipf_ciplus_data = -1;
    for the dissector table directly, we have to process it as a string
    (the string must not be a local variable as glib stores a pointer to
    it in the hash table) */
-static gchar *sas_app_id_str_oipf = "0x0108113101190000";
+static const gchar sas_app_id_str_oipf[] = "0x0108113101190000";
 
 static const value_string oipf_ciplus_cmd_id[] = {
     { 0x01, "send_msg" },
@@ -78,7 +78,7 @@ dissect_oipf_ciplus(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, voi
 {
     gint        msg_len;
     proto_item *ti;
-    proto_tree *oipf_ciplus_tree = NULL;
+    proto_tree *oipf_ciplus_tree;
     guint       offset           = 0;
     guint8      i, send_datatype_nbr;
     guint16     dat_len;
@@ -90,10 +90,8 @@ dissect_oipf_ciplus(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, voi
     if (msg_len < 8)
         return 0;
 
-    if (tree) {
-        ti = proto_tree_add_text(tree, tvb, 0, msg_len, "Open IPTV Forum CSPG-CI+");
-        oipf_ciplus_tree = proto_item_add_subtree(ti, ett_oipf_ciplus);
-    }
+    ti = proto_tree_add_text(tree, tvb, 0, msg_len, "Open IPTV Forum CSPG-CI+");
+    oipf_ciplus_tree = proto_item_add_subtree(ti, ett_oipf_ciplus);
 
     proto_tree_add_item(oipf_ciplus_tree, hf_oipf_ciplus_cmd_id,
             tvb, offset, 1, ENC_BIG_ENDIAN);

@@ -42,7 +42,6 @@
 #include "packet-ndmp.h"
 #include "packet-tcp.h"
 #include "packet-scsi.h"
-#include "packet-frame.h"
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
 #include <epan/dissectors/rpc_defrag.h>
@@ -137,10 +136,10 @@ static int hf_ndmp_execute_cdb_flags_data_out = -1;
 static int hf_ndmp_execute_cdb_timeout = -1;
 static int hf_ndmp_execute_cdb_datain_len = -1;
 static int hf_ndmp_execute_cdb_cdb_len = -1;
-static int hf_ndmp_execute_cdb_dataout = -1;
+/* static int hf_ndmp_execute_cdb_dataout = -1; */
 static int hf_ndmp_execute_cdb_status = -1;
 static int hf_ndmp_execute_cdb_dataout_len = -1;
-static int hf_ndmp_execute_cdb_datain = -1;
+/* static int hf_ndmp_execute_cdb_datain = -1; */
 static int hf_ndmp_execute_cdb_sns_len = -1;
 static int hf_ndmp_tape_invalid_file_num = -1;
 static int hf_ndmp_tape_invalid_soft_errors = -1;
@@ -284,8 +283,7 @@ static const fragment_items ndmp_frag_items = {
        "NDMP fragments"
 };
 
-static GHashTable *ndmp_fragment_table = NULL;
-static GHashTable *ndmp_reassembled_table = NULL;
+static reassembly_table ndmp_reassembly_table;
 
 /* XXX someone should start adding the new stuff from v3, v4 and v5*/
 #define NDMP_PROTOCOL_UNKNOWN	0
@@ -332,8 +330,8 @@ get_itl_nexus(packet_info *pinfo, gboolean create_new)
 {
 	itl_nexus_t *itl;
 
-	if(create_new || !(itl=se_tree_lookup32_le(ndmp_conv_data->itl, pinfo->fd->num))){
-		itl=se_alloc(sizeof(itl_nexus_t));
+	if(create_new || !(itl=(itl_nexus_t *)se_tree_lookup32_le(ndmp_conv_data->itl, pinfo->fd->num))){
+		itl=se_new(itl_nexus_t);
 		itl->cmdset=0xff;
 		itl->conversation=ndmp_conv_data->conversation;
 		se_tree_insert32(ndmp_conv_data->itl, pinfo->fd->num, itl);
@@ -1406,7 +1404,7 @@ dissect_execute_cdb_cdb(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		cdb_tvb=tvb_new_subset(tvb, offset, tvb_len, tvb_rlen);
 
 		if(ndmp_conv_data->task && !ndmp_conv_data->task->itlq){
-			ndmp_conv_data->task->itlq=se_alloc(sizeof(itlq_nexus_t));
+			ndmp_conv_data->task->itlq=se_new(itlq_nexus_t);
 			ndmp_conv_data->task->itlq->lun=0xffff;
 			ndmp_conv_data->task->itlq->first_exchange_frame=pinfo->fd->num;
 			ndmp_conv_data->task->itlq->last_exchange_frame=0;
@@ -2371,7 +2369,7 @@ dissect_file_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *par
 	proto_tree* tree = NULL;
 	int old_offset=offset;
 	guint32 type;
-	char *name;
+	const char *name;
 
 	if (parent_tree) {
 		item = proto_tree_add_text(parent_tree, tvb, offset, -1,
@@ -3122,9 +3120,9 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 */
 	conversation = find_or_create_conversation(pinfo);
 
-	ndmp_conv_data=conversation_get_proto_data(conversation, proto_ndmp);
+	ndmp_conv_data=(ndmp_conv_data_t *)conversation_get_proto_data(conversation, proto_ndmp);
 	if(!ndmp_conv_data){
-		ndmp_conv_data=se_alloc(sizeof(ndmp_conv_data_t));
+		ndmp_conv_data=se_new(ndmp_conv_data_t);
 		ndmp_conv_data->version=NDMP_PROTOCOL_UNKNOWN;
 		ndmp_conv_data->tasks=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "NDMP tasks");
 		ndmp_conv_data->itl=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "NDMP itl");
@@ -3176,7 +3174,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		 */
 		DISSECTOR_ASSERT((pinfo != NULL) && (pinfo->private_data != NULL));
 
-		tcpinfo = pinfo->private_data;
+		tcpinfo = (struct tcpinfo *)pinfo->private_data;
 
 		seq = tcpinfo->seq;
 		len = (ndmp_rm & RPC_RM_FRAGLEN) + 4;
@@ -3188,7 +3186,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		 */
 		tcpinfo->seq = nxt;
 
-		nfi = se_tree_lookup32(frags, seq);
+		nfi = (ndmp_frag_info *)se_tree_lookup32(frags, seq);
 
 		if (!nfi)
 		{
@@ -3204,7 +3202,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			{
 				if ( !(pinfo->fd->flags.visited))
 				{
-					nfi=se_alloc(sizeof(ndmp_frag_info));
+					nfi=se_new(ndmp_frag_info);
 					nfi->first_seq = seq;
 					nfi->offset = 1;
 					se_tree_insert32(frags, nxt, (void *)nfi);
@@ -3237,7 +3235,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			{
 				if ( !(pinfo->fd->flags.visited))
 				{
-					nfi=se_alloc(sizeof(ndmp_frag_info));
+					nfi=se_new(ndmp_frag_info);
 					nfi->first_seq = seq;
 					nfi->offset = frag_num+1;
 					se_tree_insert32(frags, nxt, (void *)nfi);
@@ -3245,15 +3243,13 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			}
 		}
 
-		/* If fragmentation is neccessary */
+		/* If fragmentation is necessary */
 		if (do_frag)
 		{
 			pinfo->fragmented = TRUE;
 
-			frag_msg = fragment_add_seq_check(tvb, 4, pinfo,
-				seq,
-				ndmp_fragment_table,
-				ndmp_reassembled_table,
+			frag_msg = fragment_add_seq_check(&ndmp_reassembly_table,
+				tvb, 4, pinfo, seq, NULL,
 				frag_num,
 				tvb_length_remaining(tvb, offset)-4,
 				!(ndmp_rm & RPC_RM_LASTFRAG));
@@ -3358,14 +3354,14 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	switch(nh.type){
 	case NDMP_MESSAGE_REQUEST:
 		if(!pinfo->fd->flags.visited){
-			ndmp_conv_data->task=se_alloc(sizeof(ndmp_task_data_t));
+			ndmp_conv_data->task=se_new(ndmp_task_data_t);
 			ndmp_conv_data->task->request_frame=pinfo->fd->num;
 			ndmp_conv_data->task->response_frame=0;
 			ndmp_conv_data->task->ndmp_time=pinfo->fd->abs_ts;
 			ndmp_conv_data->task->itlq=NULL;
 			se_tree_insert32(ndmp_conv_data->tasks, nh.seq, ndmp_conv_data->task);
 		} else {
-			ndmp_conv_data->task=se_tree_lookup32(ndmp_conv_data->tasks, nh.seq);
+			ndmp_conv_data->task=(ndmp_task_data_t *)se_tree_lookup32(ndmp_conv_data->tasks, nh.seq);
 		}
 		if(ndmp_conv_data->task && ndmp_conv_data->task->response_frame){
 			proto_item *it;
@@ -3375,7 +3371,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		}
 		break;
 	case NDMP_MESSAGE_REPLY:
-		ndmp_conv_data->task=se_tree_lookup32(ndmp_conv_data->tasks, nh.rep_seq);
+		ndmp_conv_data->task=(ndmp_task_data_t *)se_tree_lookup32(ndmp_conv_data->tasks, nh.rep_seq);
 
 		if(ndmp_conv_data->task && !pinfo->fd->flags.visited){
 			ndmp_conv_data->task->response_frame=pinfo->fd->num;
@@ -3539,8 +3535,8 @@ dissect_ndmp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
 static void
 ndmp_init(void)
 {
-	fragment_table_init(&ndmp_fragment_table);
-	reassembled_table_init(&ndmp_reassembled_table);
+	reassembly_table_init(&ndmp_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 
@@ -3869,9 +3865,11 @@ proto_register_ndmp(void)
 		"CDB length", "ndmp.execute_cdb.cdb_len", FT_UINT32, BASE_DEC,
 		NULL, 0, "Length of CDB", HFILL }},
 
+#if 0
 	{ &hf_ndmp_execute_cdb_dataout, {
 		"Data out", "ndmp.execute_cdb.dataout", FT_BYTES, BASE_NONE,
 		NULL, 0, "Data to be transferred to the SCSI device", HFILL }},
+#endif
 
 	{ &hf_ndmp_execute_cdb_status, {
 		"Status", "ndmp.execute_cdb.status", FT_UINT8, BASE_DEC,
@@ -3881,9 +3879,11 @@ proto_register_ndmp(void)
 		"Data out length", "ndmp.execute_cdb.dataout_len", FT_UINT32, BASE_DEC,
 		NULL, 0, "Number of bytes transferred to the device", HFILL }},
 
+#if 0
 	{ &hf_ndmp_execute_cdb_datain, {
 		"Data in", "ndmp.execute_cdb.datain", FT_BYTES, BASE_NONE,
 		NULL, 0, "Data transferred from the SCSI device", HFILL }},
+#endif
 
 	{ &hf_ndmp_execute_cdb_sns_len, {
 		"Sense data length", "ndmp.execute_cdb.sns_len", FT_UINT32, BASE_DEC,

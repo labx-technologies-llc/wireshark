@@ -793,8 +793,9 @@ static value_string_ext vals_bearer_types_ext = VALUE_STRING_EXT_INIT(vals_beare
 
 static const value_string vals_content_types[] = {
     /* Well-known media types */
-    { 0x00, "*/*" },
-    { 0x01, "text/*" },
+    /* XXX: hack: "..." "..." used to define several strings so that checkAPIs & etc won't see a 'start of comment' */
+    { 0x00, "*" "/" "*" },
+    { 0x01, "text/" "*" },
     { 0x02, "text/html" },
     { 0x03, "text/plain" },
     { 0x04, "text/x-hdml" },
@@ -804,12 +805,12 @@ static const value_string vals_content_types[] = {
     { 0x08, "text/vnd.wap.wml" },
     { 0x09, "text/vnd.wap.wmlscript" },
     { 0x0A, "text/vnd.wap.channel" },
-    { 0x0B, "multipart/*" },
+    { 0x0B, "multipart/" "*" },
     { 0x0C, "multipart/mixed" },
     { 0x0D, "multipart/form-data" },
     { 0x0E, "multipart/byteranges" },
     { 0x0F, "multipart/alternative" },
-    { 0x10, "application/*" },
+    { 0x10, "application/" "*" },
     { 0x11, "application/java-vm" },
     { 0x12, "application/x-www-form-urlencoded" },
     { 0x13, "application/x-hdmlc" },
@@ -821,7 +822,7 @@ static const value_string vals_content_types[] = {
     { 0x19, "application/vnd.wap.wtls-user-certificate" },
     { 0x1A, "application/x-x509-ca-cert" },
     { 0x1B, "application/x-x509-user-cert" },
-    { 0x1C, "image/*" },
+    { 0x1C, "image/" "*" },
     { 0x1D, "image/gif" },
     { 0x1E, "image/jpeg" },
     { 0x1F, "image/tiff" },
@@ -1317,7 +1318,7 @@ parameter_value_q (proto_tree *tree, proto_item *ti, tvbuff_t *tvb, int start);
     " <Warning: Quoted-string value has been encoded with a trailing quote>"
 
 /* WSP well-known header parsing function prototypes;
- * will be listed in the function lookup table WellKnownHeaders[] */
+ * will be listed in the function lookup table WellKnownHeader[] */
 static guint32 wkh_default (proto_tree *tree, tvbuff_t *tvb,
         guint32 hdr_start, packet_info *pinfo _U_);
 static guint32 wkh_accept (proto_tree *tree, tvbuff_t *tvb,
@@ -1413,9 +1414,6 @@ static guint32 wkh_www_authenticate (proto_tree *tree, tvbuff_t *tvb,
 static guint32 wkh_authorization (proto_tree *tree, tvbuff_t *tvb,
         guint32 hdr_start, packet_info *pinfo _U_);
 static guint32 wkh_proxy_authorization (proto_tree *tree, tvbuff_t *tvb,
-        guint32 hdr_start, packet_info *pinfo _U_);
-/* Pragma */
-static guint32 wkh_pragma (proto_tree *tree, tvbuff_t *tvb,
         guint32 hdr_start, packet_info *pinfo _U_);
 /* Integer-value */
 static guint32 wkh_content_length (proto_tree *tree, tvbuff_t *tvb,
@@ -1762,8 +1760,6 @@ add_headers (proto_tree *tree, tvbuff_t *tvb, int hf, packet_info *pinfo)
         hdr_id = tvb_get_guint8(tvb, offset);
         if (hdr_id & 0x80) { /* Well-known header */
             hdr_len = 1;
-            val_start = ++offset;
-            val_id = tvb_get_guint8(tvb, val_start);
             /* Call header value dissector for given header */
             if (codepage == 1) { /* Default header code page */
                 DebugLog(("add_headers(code page 0): %s\n",
@@ -2676,7 +2672,7 @@ wkh_accept_encoding(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_i
             /* Remember: offset == val_start + val_len_len + val_len */
             if (off < offset) { /* Add Q-value if available */
                 parameter_tree = proto_item_add_subtree(ti, ett_header);
-                off = parameter_value_q(parameter_tree, ti, tvb, off);
+                parameter_value_q(parameter_tree, ti, tvb, off);
             }
         }
     wkh_4_End(hf_hdr_accept_encoding);
@@ -3265,7 +3261,7 @@ wkh_pragma(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_info *pinf
         /* NULL subtree for parameter() results in no subtree
          * TODO - provide a single parameter dissector that appends data
          * to the header field data. */
-        off = parameter(NULL, ti, tvb, off, offset - off);
+        parameter(NULL, ti, tvb, off, offset - off);
         ok = TRUE;
     wkh_4_End(hf_hdr_pragma);
 }
@@ -3315,7 +3311,7 @@ wkh_ ## underscored(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_i
     guint32 val = 0, off = val_start, len;    \
     \
     wkh_1_WellKnownValue; \
-        val_str = match_strval_ext(val_id & 0x7F, valueStringExtAddr); \
+        val_str = try_val_to_str_ext(val_id & 0x7F, valueStringExtAddr); \
         if (val_str) { \
             tvb_ensure_bytes_exist(tvb, hdr_start, offset - hdr_start); \
             ti = proto_tree_add_string(tree, hf_hdr_ ## underscored, \
@@ -3334,7 +3330,7 @@ wkh_ ## underscored(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_i
             get_long_integer(val, tvb, off, len, ok); \
             if (ok) { \
                 val = val; /* hack to prevent 'set but not used' gcc warning */ \
-                val_str = match_strval_ext(val_id & 0x7F, valueStringExtAddr); \
+                val_str = try_val_to_str_ext(val_id & 0x7F, valueStringExtAddr); \
                 if (val_str) { \
                     tvb_ensure_bytes_exist(tvb, hdr_start, offset - hdr_start); \
                     ti = proto_tree_add_string(tree, hf_hdr_ ## underscored, \
@@ -3368,7 +3364,7 @@ wkh_cache_control(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_inf
 
     wkh_1_WellKnownValue;
         val = val_id & 0x7F;
-        val_str = match_strval_ext(val, &vals_cache_control_ext);
+        val_str = try_val_to_str_ext(val, &vals_cache_control_ext);
         if (val_str) {
             tvb_ensure_bytes_exist(tvb, hdr_start, offset - hdr_start);
             ti = proto_tree_add_string(tree, hf_hdr_cache_control,
@@ -3491,7 +3487,7 @@ wkh_warning(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_info *pin
 
     wkh_1_WellKnownValue;
         val = val_id & 0x7F;
-        val_str = match_strval_ext(val, &vals_wsp_warning_code_ext);
+        val_str = try_val_to_str_ext(val, &vals_wsp_warning_code_ext);
         if (val_str) {
             tvb_ensure_bytes_exist(tvb, hdr_start, offset - hdr_start);
             ti = proto_tree_add_string(tree, hf_hdr_warning,
@@ -3509,7 +3505,7 @@ wkh_warning(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_info *pin
         warn_code = tvb_get_guint8(tvb, off);
         if (warn_code & 0x80) { /* Well known warn code */
             val = warn_code & 0x7f;
-            val_str = match_strval_ext(val, &vals_wsp_warning_code_short_ext);
+            val_str = try_val_to_str_ext(val, &vals_wsp_warning_code_short_ext);
             if (val_str) { /* OK */
                 str = ep_strdup_printf("code=%s", val_str);
                 tvb_ensure_bytes_exist(tvb, hdr_start, offset - hdr_start);
@@ -3533,7 +3529,7 @@ wkh_warning(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_info *pin
                                 tvb, off, len, str);
                         val_str = ep_strdup_printf("; text=%s", str);
                         proto_item_append_string(ti, val_str);
-                        off += len;
+                        /*off += len;*/
                     }
                 }
             }
@@ -3557,7 +3553,7 @@ wkh_profile_warning(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_i
 
     wkh_1_WellKnownValue;
         val = val_id & 0x7F;
-        val_str = match_strval_ext(val, &vals_wsp_profile_warning_code_ext);
+        val_str = try_val_to_str_ext(val, &vals_wsp_profile_warning_code_ext);
         if (val_str) {
             tvb_ensure_bytes_exist(tvb, hdr_start, offset - hdr_start);
             ti = proto_tree_add_string(tree, hf_hdr_profile_warning,
@@ -3570,7 +3566,7 @@ wkh_profile_warning(proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packet_i
         off = val_start + val_len_len;
         warn_code = tvb_get_guint8(tvb, off++);
         if (warn_code & 0x80) { /* Well known warn code */
-            val_str = match_strval_ext(val, &vals_wsp_profile_warning_code_ext);
+            val_str = try_val_to_str_ext(val, &vals_wsp_profile_warning_code_ext);
             if (val_str) { /* OK */
                 tvb_ensure_bytes_exist(tvb, hdr_start, offset - hdr_start);
                 ti = proto_tree_add_string(tree, hf_hdr_profile_warning,
@@ -3780,7 +3776,7 @@ static guint32 wkh_te (proto_tree *tree, tvbuff_t *tvb, guint32 hdr_start, packe
         off = val_start + val_len_len;
         val = tvb_get_guint8(tvb, off);
         if (val & 0x80) { /* Well-known-TE */
-            val_str = match_strval_ext((val & 0x7F), &vals_well_known_te_ext);
+            val_str = try_val_to_str_ext((val & 0x7F), &vals_well_known_te_ext);
             if (val_str) {
                 tvb_ensure_bytes_exist(tvb, hdr_start, offset - hdr_start);
                 ti = proto_tree_add_string(tree, hf_hdr_te,
@@ -4643,9 +4639,6 @@ add_addresses(proto_tree *tree, tvbuff_t *tvb, int hf)
     guint8             address_flags_len;
     int                address_len;
     proto_tree        *address_flags_tree;
-    guint16            port_num;
-    guint32            address_ipv4;
-    struct e_in6_addr  address_ipv6;
     guint32            tvb_len = tvb_length(tvb);
     guint32            offset  = 0;
     guint32            idx     = 0; /* Address index */
@@ -4699,17 +4692,9 @@ add_addresses(proto_tree *tree, tvbuff_t *tvb, int hf)
             bearer_type = 0x00; /* XXX */
         }
         if (address_flags_len & PORT_NUMBER_INCLUDED) {
-            port_num = tvb_get_ntohs (tvb, offset);
                 proto_tree_add_uint (addr_tree, hf_address_port_num,
-                        tvb, offset, 2, port_num);
+                        tvb, offset, 2, ENC_BIG_ENDIAN);
             offset += 2;
-        } else {
-            /*
-             * Redirecting to the same server port number as was
-             * being used, i.e. the source port number of this
-             * redirect.
-             */
-            port_num = 0;
         }
         if (!(address_flags_len & BEARER_TYPE_INCLUDED)) {
             /*
@@ -4750,9 +4735,8 @@ add_addresses(proto_tree *tree, tvbuff_t *tvb, int hf)
                  */
                 goto unknown_address_type;
             }
-            address_ipv4 = tvb_get_ipv4(tvb, offset);
             proto_tree_add_ipv4 (addr_tree, hf_address_ipv4_addr,
-                    tvb, offset, 4, address_ipv4);
+                    tvb, offset, 4, ENC_NA);
             break;
 
         case BT_IPv6:
@@ -4765,9 +4749,8 @@ add_addresses(proto_tree *tree, tvbuff_t *tvb, int hf)
                  */
                 goto unknown_address_type;
             }
-            tvb_get_ipv6(tvb, offset, &address_ipv6);
             proto_tree_add_ipv6 (addr_tree, hf_address_ipv6_addr,
-                    tvb, offset, 16, (guint8 *)&address_ipv6);
+                    tvb, offset, 16, ENC_NA);
             break;
 
         unknown_address_type:
@@ -4887,7 +4870,7 @@ dissect_sir(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     offset += len;
     /* ProvURL */
     tvb_ensure_bytes_exist(tvb, offset, val_len);
-    ti = proto_tree_add_item (tree, hf_sir_prov_url,
+    proto_tree_add_item (tree, hf_sir_prov_url,
             tvb, offset, val_len, ENC_ASCII|ENC_NA);
     offset += val_len;
 
@@ -4920,7 +4903,6 @@ dissect_wsp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     guint       uriLength        = 0;
     guint       uriStart         = 0;
     guint       capabilityLength = 0;
-    guint       capabilityStart  = 0;
     guint       headersLength    = 0;
     guint       headerLength     = 0;
     guint       headerStart      = 0;
@@ -5030,12 +5012,11 @@ dissect_wsp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                     proto_item_append_text(proto_ti, ", Session ID: %u", value);
                     offset += count;
                 }
-                capabilityStart = offset;
                 count = 0;  /* Initialise count */
                 capabilityLength = tvb_get_guintvar (tvb, offset, &count);
-                offset += count;
                 proto_tree_add_uint (wsp_tree, hf_capabilities_length,
-                        tvb, capabilityStart, count, capabilityLength);
+                        tvb, offset, count, capabilityLength);
+                offset += count;
 
                 if (pdut != WSP_PDU_RESUME)
                 {
@@ -5044,13 +5025,11 @@ dissect_wsp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                     proto_tree_add_uint (wsp_tree, hf_wsp_header_length,
                             tvb, offset, count, headerLength);
                     offset += count;
-                    capabilityStart = offset;
-                    headerStart = capabilityStart + capabilityLength;
+
                 } else {
                         /* Resume computes the headerlength
                          * by remaining bytes */
-                    capabilityStart = offset;
-                    headerStart = capabilityStart + capabilityLength;
+                    headerStart = offset + capabilityLength;
                     headerLength = tvb_reported_length_remaining (tvb,
                             headerStart);
                 }
@@ -5152,7 +5131,7 @@ dissect_wsp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                     add_headers (wsp_tree, tmp_tvb, hf_wsp_headers_section, pinfo);
                 }
                 /* XXX - offset is no longer used after this point */
-                offset = nextOffset+headerLength;
+                /* offset = nextOffset+headerLength; */
             }
             /* WSP_PDU_POST data - First check whether a subdissector exists
              * for the content type */
@@ -5176,7 +5155,7 @@ dissect_wsp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                 if (! found_match) {
                     if (! dissector_try_heuristic(heur_subdissector_list,
                                 tmp_tvb, pinfo, tree, NULL)) {
-                        guint8* save_private_data = pinfo->private_data;
+                        guint8* save_private_data = (guint8 *)pinfo->private_data;
 
                         pinfo->match_string = contentTypeStr;
                         pinfo->private_data = NULL; /* TODO: parameters */
@@ -5248,7 +5227,7 @@ dissect_wsp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                     add_headers (wsp_tree, tmp_tvb, hf_wsp_headers_section, pinfo);
                 }
                 /* XXX - offset is no longer used after this point */
-                offset += count+headersLength+1;
+                /* offset += count+headersLength+1;*/
             }
             /* WSP_PDU_REPLY data - First check whether a subdissector exists
              * for the content type */
@@ -5271,7 +5250,7 @@ dissect_wsp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                 if (! found_match) {
                     if (! dissector_try_heuristic(heur_subdissector_list,
                                 tmp_tvb, pinfo, tree, NULL)) {
-                        guint8* save_private_data = pinfo->private_data;
+                        guint8* save_private_data = (guint8 *)pinfo->private_data;
 
                         pinfo->match_string = contentTypeStr;
                         pinfo->private_data = NULL; /* TODO: parameters */
@@ -5327,7 +5306,7 @@ dissect_wsp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                     add_headers (wsp_tree, tmp_tvb, hf_wsp_headers_section, pinfo);
                 }
                 /* XXX - offset is no longer used after this point */
-                offset += headersLength;
+                /*offset += headersLength;*/
             }
             /* WSP_PDU_PUSH data - First check whether a subdissector exists
              * for the content type */
@@ -5355,7 +5334,7 @@ dissect_wsp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                 if (! found_match) {
                     if (! dissector_try_heuristic(heur_subdissector_list,
                                 tmp_tvb, pinfo, tree, NULL)) {
-                        guint8* save_private_data = pinfo->private_data;
+                        guint8* save_private_data = (guint8 *)pinfo->private_data;
 
                         pinfo->match_string = contentTypeStr;
                         pinfo->private_data = NULL; /* TODO: parameters */
@@ -5843,7 +5822,7 @@ add_post_variable (proto_tree *tree, tvbuff_t *tvb, guint variableStart, guint v
 
     if (valueEnd < valueStart)
     {
-        valueBuffer = ep_alloc (1);
+        valueBuffer = (char *)ep_alloc (1);
         valueBuffer[0] = 0;
         valueEnd = valueStart;
     }
@@ -5863,7 +5842,7 @@ add_post_variable (proto_tree *tree, tvbuff_t *tvb, guint variableStart, guint v
     }
     valueLength = valueEnd-valueStart;
 
-    proto_tree_add_text (tree, tvb, variableStart, valueEnd-variableStart, "%s: %s", variableBuffer, valueBuffer);
+    proto_tree_add_text (tree, tvb, variableStart, valueLength, "%s: %s", variableBuffer, valueBuffer);
 
 }
 
@@ -5956,7 +5935,7 @@ add_multipart_data (proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo)
         if (! found_match) {
             if (! dissector_try_heuristic(heur_subdissector_list,
                         tmp_tvb, pinfo, mpart_tree, NULL)) {
-                guint8* save_private_data = pinfo->private_data;
+                guint8* save_private_data = (guint8 *)pinfo->private_data;
 
                 pinfo->match_string = contentTypeStr;
                 pinfo->private_data = NULL; /* TODO: parameters */

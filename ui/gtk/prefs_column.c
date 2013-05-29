@@ -33,7 +33,9 @@
 #include <epan/column.h>
 #include <epan/strutil.h>
 
-#include "../globals.h"
+#include "globals.h"
+
+#include "ui/preference_utils.h"
 
 #include "ui/gtk/prefs_column.h"
 #include "ui/gtk/gtkglobals.h"
@@ -61,36 +63,36 @@ static gboolean column_title_changed_cb(GtkCellRendererText *, const gchar *, co
 static char custom_occurrence_str[8] = "";
 
 enum {
-  VISIBLE_COLUMN,
-  TITLE_COLUMN,
-  FORMAT_COLUMN,
-  DATA_COLUMN,
-  N_COLUMN /* The number of columns */
+    VISIBLE_COLUMN,
+    TITLE_COLUMN,
+    FORMAT_COLUMN,
+    DATA_COLUMN,
+    N_COLUMN /* The number of columns */
 };
 
 /* Visible toggled */
 static void
 visible_toggled(GtkCellRendererToggle *cell _U_, gchar *path_str, gpointer data)
 {
-  GtkTreeModel    *model = (GtkTreeModel *)data;
-  GtkTreeIter      iter;
-  GtkTreePath     *path = gtk_tree_path_new_from_string(path_str);
-  GList           *clp;
-  fmt_data        *cfmt;
+    GtkTreeModel *model = (GtkTreeModel *)data;
+    GtkTreeIter   iter;
+    GtkTreePath  *path  = gtk_tree_path_new_from_string(path_str);
+    GList        *clp;
+    fmt_data     *cfmt;
 
-  gtk_tree_model_get_iter(model, &iter, path);
-  gtk_tree_model_get(model, &iter, DATA_COLUMN, &clp, -1);
+    gtk_tree_model_get_iter(model, &iter, path);
+    gtk_tree_model_get(model, &iter, DATA_COLUMN, &clp, -1);
 
-  cfmt = (fmt_data *) clp->data;
-  if (cfmt->visible)
-    cfmt->visible = FALSE;
-  else
-    cfmt->visible = TRUE;
+    cfmt = (fmt_data *) clp->data;
+    if (cfmt->visible)
+        cfmt->visible = FALSE;
+    else
+        cfmt->visible = TRUE;
 
-  gtk_list_store_set(GTK_LIST_STORE(model), &iter, VISIBLE_COLUMN, cfmt->visible, -1);
-  cfile.columns_changed = TRUE;
+    gtk_list_store_set(GTK_LIST_STORE(model), &iter, VISIBLE_COLUMN, cfmt->visible, -1);
+    cfile.columns_changed = TRUE;
 
-  gtk_tree_path_free(path);
+    gtk_tree_path_free(path);
 } /* visible_toggled */
 
 /*
@@ -99,7 +101,7 @@ visible_toggled(GtkCellRendererToggle *cell _U_, gchar *path_str, gpointer data)
  */
 GtkWidget *
 column_prefs_show(GtkWidget *prefs_window) {
-    GtkWidget         *main_vb, *bottom_hb, *column_l, *add_bt, *tb, *lb;
+    GtkWidget         *main_vb, *bottom_hb, *column_l, *add_bt, *grid, *lb;
     GtkWidget         *list_vb, *list_lb, *list_sc;
     GtkWidget         *add_remove_vb;
     GtkWidget         *props_fr, *props_hb;
@@ -126,7 +128,9 @@ column_prefs_show(GtkWidget *prefs_window) {
     gtk_widget_show (list_vb);
     gtk_box_pack_start (GTK_BOX (main_vb), list_vb, TRUE, TRUE, 0);
 
-    list_lb = gtk_label_new (("[The first list entry will be displayed as the leftmost column - Drag and drop entries to change column order]"));
+    list_lb = gtk_label_new (
+        "[The first list entry will be displayed as the leftmost column"
+        " - Drag and drop entries to change column order]");
     gtk_widget_show (list_lb);
     gtk_box_pack_start (GTK_BOX (list_vb), list_lb, FALSE, FALSE, 0);
 
@@ -136,8 +140,8 @@ column_prefs_show(GtkWidget *prefs_window) {
     gtk_widget_show(list_sc);
 
     store = gtk_list_store_new(N_COLUMN,
-			       G_TYPE_BOOLEAN,
-			       G_TYPE_STRING, G_TYPE_STRING, G_TYPE_POINTER);
+                               G_TYPE_BOOLEAN,
+                               G_TYPE_STRING, G_TYPE_STRING, G_TYPE_POINTER);
     column_row_deleted_handler_id =
         g_signal_connect(GTK_TREE_MODEL(store), "row-deleted", G_CALLBACK(column_dnd_row_deleted_cb), NULL);
 
@@ -192,8 +196,8 @@ column_prefs_show(GtkWidget *prefs_window) {
             fmt = g_strdup_printf("%s", col_format_desc(cfmt->fmt));
         }
         gtk_list_store_insert_with_values(store, &iter, G_MAXINT,
-			   VISIBLE_COLUMN, cfmt->visible,
-			   TITLE_COLUMN, cfmt->title, FORMAT_COLUMN, fmt, DATA_COLUMN, clp, -1);
+                           VISIBLE_COLUMN, cfmt->visible,
+                           TITLE_COLUMN, cfmt->title, FORMAT_COLUMN, fmt, DATA_COLUMN, clp, -1);
 
         if (first_row) {
             first_iter = iter;
@@ -206,7 +210,7 @@ column_prefs_show(GtkWidget *prefs_window) {
 
     /* Bottom row: Add/remove buttons and properties */
     bottom_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5, FALSE);
-    gtk_box_pack_start (GTK_BOX (main_vb), bottom_hb, FALSE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (main_vb), bottom_hb, FALSE, FALSE, 0);
     gtk_widget_show(bottom_hb);
 
     /* Add / remove buttons */
@@ -234,35 +238,41 @@ column_prefs_show(GtkWidget *prefs_window) {
     gtk_widget_show(props_fr);
 
     /* Column name entry and format selection */
-    tb = gtk_table_new(2, 4, FALSE);
-    gtk_container_set_border_width(GTK_CONTAINER(tb), 5);
-    gtk_container_add(GTK_CONTAINER(props_fr), tb);
-    gtk_table_set_row_spacings(GTK_TABLE(tb), 10);
-    gtk_table_set_col_spacings(GTK_TABLE(tb), 15);
-    gtk_widget_show(tb);
+    /* XXX: IMO, the grid should have a fixed width instead of
+     *       expanding to the horizontal window width when the window
+     *       is resized horizontally. However, I couldn't quite make
+     *       things work properly when I tried to change the grid
+     *       behavior.
+     */
+    grid = ws_gtk_grid_new();
+    gtk_container_set_border_width(GTK_CONTAINER(grid), 5);
+    gtk_container_add(GTK_CONTAINER(props_fr), grid);
+    ws_gtk_grid_set_row_spacing(GTK_GRID(grid), 10);
+    ws_gtk_grid_set_column_spacing(GTK_GRID(grid), 15);
+    gtk_widget_show(grid);
 
     lb = gtk_label_new("Field type:");
     gtk_misc_set_alignment(GTK_MISC(lb), 0.0f, 0.5f);
-    gtk_table_attach_defaults(GTK_TABLE(tb), lb, 0, 1, 0, 1);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), lb, 0, 0, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_tooltip_text(lb, "Select which packet information to present in the column.");
     gtk_widget_show(lb);
 
     props_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5, FALSE);
-    gtk_table_attach(GTK_TABLE(tb), props_hb, 1, 2, 0, 1, GTK_FILL, GTK_SHRINK, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), props_hb, 1, 0, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_tooltip_text(props_hb, "Select which packet information to present in the column.");
     gtk_widget_show(props_hb);
 
     field_lb = gtk_label_new("Field name:");
     gtk_misc_set_alignment(GTK_MISC(field_lb), 0.0f, 0.5f);
-    gtk_table_attach_defaults(GTK_TABLE(tb), field_lb, 0, 1, 1, 2);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), field_lb, 0, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(field_lb, FALSE);
-    gtk_widget_set_tooltip_text(field_lb, 
+    gtk_widget_set_tooltip_text(field_lb,
                           "Field name used when field type is \"Custom\". "
                           "This string has the same syntax as a display filter string.");
     gtk_widget_show(field_lb);
 
     field_te = gtk_entry_new();
-    g_object_set_data (G_OBJECT(field_te), E_FILT_FIELD_NAME_ONLY_KEY, "");
+    g_object_set_data (G_OBJECT(field_te), E_FILT_FIELD_NAME_ONLY_KEY, (gpointer)"");
     g_signal_connect(field_te, "changed", G_CALLBACK(filter_te_syntax_check_cb), NULL);
 
     /* XXX: column_field_changed_cb will be called for every character entered in the entry box.      */
@@ -275,35 +285,35 @@ column_prefs_show(GtkWidget *prefs_window) {
     g_signal_connect(field_te, "key-press-event", G_CALLBACK (filter_string_te_key_pressed_cb), NULL);
     g_signal_connect(prefs_window, "key-press-event", G_CALLBACK (filter_parent_dlg_key_pressed_cb), NULL);
     colorize_filter_te_as_empty(field_te);
-    gtk_table_attach_defaults(GTK_TABLE(tb), field_te, 1, 2, 1, 2);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), field_te, 1, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(field_te, FALSE);
-    gtk_widget_set_tooltip_text(field_te, 
+    gtk_widget_set_tooltip_text(field_te,
                           "Field name used when field type is \"Custom\". "
                           "This string has the same syntax as a display filter string.");
     gtk_widget_show(field_te);
 
     occurrence_lb = gtk_label_new("Field occurrence:");
     gtk_misc_set_alignment(GTK_MISC(occurrence_lb), 0.0f, 0.5f);
-    gtk_table_attach_defaults(GTK_TABLE(tb), occurrence_lb, 2, 3, 1, 2);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), occurrence_lb, 2, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(occurrence_lb, FALSE);
-    gtk_widget_set_tooltip_text(occurrence_lb, 
-                          "Field occurence to use. "
+    gtk_widget_set_tooltip_text(occurrence_lb,
+                          "Field occurrence to use. "
                           "0=all (default), 1=first, 2=second, ..., -1=last.");
     gtk_widget_show(occurrence_lb);
 
     occurrence_te = gtk_entry_new();
     gtk_entry_set_max_length (GTK_ENTRY(occurrence_te),4);
-    g_object_set_data (G_OBJECT(occurrence_te), "occurrence", "");
+    g_object_set_data (G_OBJECT(occurrence_te), "occurrence", (gpointer)"");
 
     /* XXX: column_occurrence_changed_cb will be called for every character entered in the entry box.      */
     /*       Consider Changing logic so that the field is "accepted" only when a return is entered ?? */
     column_occurrence_changed_handler_id =
         g_signal_connect(occurrence_te, "changed", G_CALLBACK(column_occurrence_changed_cb), column_l);
 
-    gtk_table_attach_defaults(GTK_TABLE(tb), occurrence_te, 3, 4, 1, 2);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), occurrence_te, 3, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(occurrence_te, FALSE);
-    gtk_widget_set_tooltip_text(occurrence_te, 
-                          "Field occurence to use. "
+    gtk_widget_set_tooltip_text(occurrence_te,
+                          "Field occurrence to use. "
                           "0=all (default), 1=first, 2=second, ..., -1=last.");
     gtk_widget_show(occurrence_te);
 
@@ -323,52 +333,6 @@ column_prefs_show(GtkWidget *prefs_window) {
     gtk_tree_selection_select_iter(sel, &first_iter);
 
     return(main_vb);
-}
-
-void
-column_prefs_add_custom(gint fmt, const gchar *title, const gchar *custom_field, gint custom_occurrence)
-{
-  GList *clp;
-  fmt_data *cfmt, *last_cfmt;
-
-  cfmt = (fmt_data *) g_malloc(sizeof(fmt_data));
-  /*
-   * Because a single underscore is interpreted as a signal that the next character
-   * is going to be marked as accelerator for this header (i.e. is going to be
-   * shown underlined), escape it be inserting a second consecutive underscore.
-   */
-  cfmt->title = g_strdup(title);
-  cfmt->fmt = fmt;
-  cfmt->custom_field = g_strdup(custom_field);
-  cfmt->custom_occurrence = custom_occurrence;
-  cfmt->resolved = TRUE;
-
-  if (custom_field) {
-    cfmt->visible = TRUE;
-    clp = g_list_last(prefs.col_list);
-    last_cfmt = (fmt_data *) clp->data;
-    if (last_cfmt->fmt == COL_INFO) {
-      /* Last column is COL_INFO, add custom column before this */
-      prefs.col_list = g_list_insert(prefs.col_list, cfmt, g_list_length(prefs.col_list)-1);
-    } else {
-      prefs.col_list = g_list_append(prefs.col_list, cfmt);
-    }
-  } else {
-    cfmt->visible = FALSE;  /* Will be set to TRUE in visible_toggled() when added to list */
-    prefs.col_list = g_list_append(prefs.col_list, cfmt);
-  }
-}
-
-void
-column_prefs_remove(gint col)
-{
-  GList    *clp = g_list_nth(prefs.col_list, col);
-  fmt_data *cfmt = (fmt_data *) clp->data;
-
-  g_free(cfmt->title);
-  g_free(cfmt->custom_field);
-  g_free(cfmt);
-  prefs.col_list = g_list_remove_link(prefs.col_list, clp);
 }
 
 /* To do: add input checking to each of these callbacks */
@@ -416,7 +380,6 @@ static void
 column_list_delete_cb(GtkWidget *w _U_, gpointer data) {
     GtkTreeView      *column_l = GTK_TREE_VIEW(data);
     GList            *clp;
-    fmt_data         *cfmt;
     GtkTreeSelection *sel;
     GtkTreeModel     *model;
     GtkTreeIter       iter;
@@ -426,12 +389,7 @@ column_list_delete_cb(GtkWidget *w _U_, gpointer data) {
     if (gtk_tree_selection_get_selected(sel, &model, &iter))
     {
         gtk_tree_model_get(model, &iter, DATA_COLUMN, &clp, -1);
-
-        cfmt = (fmt_data *) clp->data;
-        g_free(cfmt->title);
-        g_free(cfmt->custom_field);
-        g_free(cfmt);
-        prefs.col_list = g_list_remove_link(prefs.col_list, clp);
+	column_prefs_remove_link(clp);
 
         /* Change the row selection to the next row (if available) or    */
         /*  the previous row (if available). If there's only one row     */
@@ -756,9 +714,9 @@ column_occurrence_changed_cb(GtkEditable *te, gpointer data) {
  */
 static void
 column_dnd_row_deleted_cb(GtkTreeModel *model, GtkTreePath *path _U_, gpointer data _U_) {
-    GtkTreeIter   iter;
-    GList        *clp, *new_col_list = NULL;
-    gboolean      items_left;
+    GtkTreeIter  iter;
+    GList       *clp, *new_col_list = NULL;
+    gboolean     items_left;
 
     /*
      * XXX - This rebuilds prefs.col_list based on the current model. We

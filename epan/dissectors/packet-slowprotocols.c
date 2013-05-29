@@ -1748,7 +1748,7 @@ dissect_esmc_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *treex)
                         expert_add_info_format(pinfo, item_c, PI_MALFORMED, PI_WARN
                                 ,"Unused bits of TLV must be all zeroes");
                     }
-                    if (NULL != match_strval(ql, esmc_quality_level_opt_1_vals))
+                    if (NULL != try_val_to_str(ql, esmc_quality_level_opt_1_vals))
                     {
                         proto_tree_add_item(tree_b, hf_esmc_quality_level_opt_1, tvb, offset, 1, ENC_BIG_ENDIAN);
                     }
@@ -2315,7 +2315,7 @@ dissect_oampdu_event_notification(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 
         event_type = tvb_get_guint8(tvb, offset);
 
-        if (event_type == 0) break;
+        if (event_type == OAMPDU_EVENT_TYPE_END) break;
 
         event_item = proto_tree_add_uint(tree, hf_oampdu_event_type,
                             tvb, offset, 1, event_type);
@@ -2324,8 +2324,6 @@ dissect_oampdu_event_notification(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 
         switch (event_type)
         {
-            case OAMPDU_EVENT_TYPE_END:
-                break;
             case OAMPDU_EVENT_TYPE_ESPE:
             {
                 event_tree = proto_item_add_subtree(event_item,
@@ -3199,7 +3197,7 @@ proto_register_slow_protocols(void)
         { &hf_oampdu_flags_dying_gasp,
           { "Dying Gasp",        "slow.oam.flags.dyingGasp",
             FT_BOOLEAN,    8,        TFS(&tfs_true_false),    OAMPDU_FLAGS_DYING_GASP,
-            "An unrecoverable local failure occured. True = 1, False = 0", HFILL }},
+            "An unrecoverable local failure occurred. True = 1, False = 0", HFILL }},
 
         { &hf_oampdu_flags_critical_event,
           { "Critical Event",        "slow.oam.flags.criticalEvent",

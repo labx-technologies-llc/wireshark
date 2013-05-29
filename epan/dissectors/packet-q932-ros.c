@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-q932-ros.c                                                          */
 /* ../../tools/asn2wrs.py -b -p q932.ros -c ./q932-ros.cnf -s ./packet-q932-ros-template -D . -O ../../epan/dissectors ../ros/Remote-Operations-Information-Objects.asn Facility-Information-Element-Components.asn */
 
@@ -704,19 +704,19 @@ void proto_register_q932_ros(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_ros_invoke,
-      { "invoke", "q932.ros.invoke",
+      { "invoke", "q932.ros.invoke_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_ros_returnResult,
-      { "returnResult", "q932.ros.returnResult",
+      { "returnResult", "q932.ros.returnResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_ros_returnError,
-      { "returnError", "q932.ros.returnError",
+      { "returnError", "q932.ros.returnError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_ros_reject,
-      { "reject", "q932.ros.reject",
+      { "reject", "q932.ros.reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_ros_invokeId,
@@ -732,7 +732,7 @@ void proto_register_q932_ros(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "T_linkedIdPresent", HFILL }},
     { &hf_q932_ros_absent,
-      { "absent", "q932.ros.absent",
+      { "absent", "q932.ros.absent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_ros_opcode,
@@ -744,7 +744,7 @@ void proto_register_q932_ros(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "InvokeArgument", HFILL }},
     { &hf_q932_ros_result,
-      { "result", "q932.ros.result",
+      { "result", "q932.ros.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_ros_resultArgument,

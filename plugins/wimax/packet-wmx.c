@@ -597,11 +597,11 @@ static gint ett_wimax_cdma = -1;
 static gint ett_wimax_ffb = -1;
 #endif
 
-static gchar *tlv_val_1byte = "TLV value: %s (0x%02x)";
-static gchar *tlv_val_2byte = "TLV value: %s (0x%04x)";
-static gchar *tlv_val_3byte = "TLV value: %s (0x%06x)";
-static gchar *tlv_val_4byte = "TLV value: %s (0x%08x)";
-static gchar *tlv_val_5byte = "TLV value: %s (0x%08x...)";
+static const gchar tlv_val_1byte[] = "TLV value: %s (0x%02x)";
+static const gchar tlv_val_2byte[] = "TLV value: %s (0x%04x)";
+static const gchar tlv_val_3byte[] = "TLV value: %s (0x%06x)";
+static const gchar tlv_val_4byte[] = "TLV value: %s (0x%08x)";
+static const gchar tlv_val_5byte[] = "TLV value: %s (0x%08x...)";
 
 /*************************************************************/
 /* add_tlv_subtree()                                         */
@@ -617,7 +617,7 @@ static gchar *tlv_val_5byte = "TLV value: %s (0x%08x...)";
 /* return:                                                   */
 /*   pointer to a proto_tree                                 */
 /*************************************************************/
-proto_tree *add_tlv_subtree(tlv_info_t *this, gint idx, proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start, gint length _U_, gboolean little_endian)
+proto_tree *add_tlv_subtree(tlv_info_t *self, gint idx, proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start, gint length _U_, gboolean little_endian)
 {
 	/* Declare local variables */
 	proto_tree *tlv_tree;
@@ -627,14 +627,18 @@ proto_tree *add_tlv_subtree(tlv_info_t *this, gint idx, proto_tree *tree, int hf
 	guint8 size_of_tlv_length_field;
 	guint8 tlv_type;
 	guint32 tlv_value;
-	gchar *hex_fmt;
+	const gchar *hex_fmt;
 
 	/* Retrieve the necessary TLV information */
-	tlv_val_offset = get_tlv_value_offset(this);
+	tlv_val_offset = get_tlv_value_offset(self);
 	start_of_tlv = start - tlv_val_offset;
-	tlv_value_length = get_tlv_length(this);
-	size_of_tlv_length_field = get_tlv_size_of_length(this);
-	tlv_type = get_tlv_type(this);
+	tlv_value_length = get_tlv_length(self);
+	size_of_tlv_length_field = get_tlv_size_of_length(self);
+	tlv_type = get_tlv_type(self);
+
+	/* Make sure we're dealing with a valid TLV here */
+	if (get_tlv_type(self) < 0)
+		return tree;
 
 	/* display the TLV name and display the value in hex. Highlight type, length, and value. */
 	tlv_item = proto_tree_add_item(tree, hfindex, tvb, start, tlv_value_length, little_endian);
@@ -707,7 +711,7 @@ proto_tree *add_tlv_subtree(tlv_info_t *this, gint idx, proto_tree *tree, int hf
 /* return:                                                   */
 /*   pointer to a proto_tree                                 */
 /*************************************************************/
-proto_tree *add_protocol_subtree(tlv_info_t *this, gint idx, proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start, gint length, const char *format, ...)
+proto_tree *add_protocol_subtree(tlv_info_t *self, gint idx, proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start, gint length, const char *format, ...)
 {
 	/* Declare local variables */
 	proto_tree *tlv_tree;
@@ -719,14 +723,18 @@ proto_tree *add_protocol_subtree(tlv_info_t *this, gint idx, proto_tree *tree, i
 	guint32 tlv_value;
 	va_list ap; /* points to each unnamed arg in turn */
 	gchar *message = NULL;
-	gchar *hex_fmt;
+	const gchar *hex_fmt;
 
+	/* Make sure we're dealing with a valid TLV here */
+	if (get_tlv_type(self) < 0)
+		return tree;
+    
 	/* Retrieve the necessary TLV information */
-	tlv_val_offset = get_tlv_value_offset(this);
+	tlv_val_offset = get_tlv_value_offset(self);
 	start_of_tlv = start - tlv_val_offset;
-	tlv_value_length = get_tlv_length(this);
-	size_of_tlv_length_field = get_tlv_size_of_length(this);
-	tlv_type = get_tlv_type(this);
+	tlv_value_length = get_tlv_length(self);
+	size_of_tlv_length_field = get_tlv_size_of_length(self);
+	tlv_type = get_tlv_type(self);
 
 	/* display the TLV name and display the value in hex. Highlight type, length, and value. */
 	va_start(ap, format);

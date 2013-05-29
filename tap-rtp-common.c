@@ -52,8 +52,8 @@
 /* GCompareFunc style comparison function for _rtp_stream_info */
 gint rtp_stream_info_cmp(gconstpointer aa, gconstpointer bb)
 {
-	const struct _rtp_stream_info* a = aa;
-	const struct _rtp_stream_info* b = bb;
+	const struct _rtp_stream_info* a = (const struct _rtp_stream_info*)aa;
+	const struct _rtp_stream_info* b = (const struct _rtp_stream_info*)bb;
 
 	if (a==b)
 		return 0;
@@ -97,7 +97,7 @@ void rtpstream_reset(rtpstream_tapinfo_t *tapinfo)
 
 void rtpstream_reset_cb(void *arg)
 {
-	rtpstream_reset(arg);
+	rtpstream_reset((rtpstream_tapinfo_t *)arg);
 }
 
 /*
@@ -186,8 +186,8 @@ void rtp_write_sample(rtp_sample_t* sample, FILE* file)
 /* whenever a RTP packet is seen by the tap listener */
 int rtpstream_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const void *arg2)
 {
-	rtpstream_tapinfo_t *tapinfo = arg;
-	const struct _rtp_info *rtpinfo = arg2;
+	rtpstream_tapinfo_t *tapinfo = (rtpstream_tapinfo_t *)arg;
+	const struct _rtp_info *rtpinfo = (const struct _rtp_info *)arg2;
 	rtp_stream_info_t tmp_strinfo;
 	rtp_stream_info_t *strinfo = NULL;
 	GList* list;
@@ -255,13 +255,13 @@ int rtpstream_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, con
 			tmp_strinfo.rtp_stats.reg_pt = PT_UNDEFINED;
 
 			/* Get the Setup frame number who set this RTP stream */
-			p_conv_data = p_get_proto_data(pinfo->fd, proto_get_id_by_filter_name("rtp"));
+			p_conv_data = (struct _rtp_conversation_info *)p_get_proto_data(pinfo->fd, proto_get_id_by_filter_name("rtp"), 0);
 			if (p_conv_data)
 				tmp_strinfo.setup_frame_number = p_conv_data->frame_number;
 			else
 				tmp_strinfo.setup_frame_number = 0xFFFFFFFF;
 
-			strinfo = g_malloc(sizeof(rtp_stream_info_t));
+			strinfo = g_new(rtp_stream_info_t,1);
 			*strinfo = tmp_strinfo;  /* memberwise copy of struct */
 			tapinfo->strinfo_list = g_list_append(tapinfo->strinfo_list, strinfo);
 		}
@@ -450,6 +450,10 @@ int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 
 	/*  Is this the first packet we got in this direction? */
 	if (statinfo->first_packet) {
+		/* Save the MAC address of the first RTP frame */
+		if( pinfo->dl_src.type == AT_ETHER){
+			COPY_ADDRESS(&(statinfo->first_packet_mac_addr), &(pinfo->dl_src));
+		}
 		statinfo->start_seq_nr = rtpinfo->info_seq_num;
 		statinfo->stop_seq_nr = rtpinfo->info_seq_num;
 		statinfo->seq_num = rtpinfo->info_seq_num;
@@ -481,6 +485,15 @@ int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 
 	/* Reset flags */
 	statinfo->flags = 0;
+
+	/* Chek for duplicates (src mac differs from first_packet_mac_addr) */
+	if( pinfo->dl_src.type == AT_ETHER){
+		if(!ADDRESSES_EQUAL(&(statinfo->first_packet_mac_addr), &(pinfo->dl_src))){
+			statinfo->flags |= STAT_FLAG_DUP_PKT;
+			statinfo->delta = current_time-(statinfo->time);
+			return 0;
+		}
+	}
 
 	/* When calculating expected rtp packets the seq number can wrap around
 	 * so we have to count the number of cycles
@@ -526,11 +539,15 @@ int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 	 */
 	if ( (statinfo->seq_num+1 == rtpinfo->info_seq_num) || (statinfo->flags & STAT_FLAG_FIRST) )
 		statinfo->seq_num = rtpinfo->info_seq_num;
-	/* If the first one is 65535. XXX same problem as above: if seq 65535 or 0 is lost... */
+	/* If the first one is 65535 we wrap */
 	else if ( (statinfo->seq_num == 65535) && (rtpinfo->info_seq_num == 0) )
 		statinfo->seq_num = rtpinfo->info_seq_num;
-	/* Lost packets */
-	else if (statinfo->seq_num+1 < rtpinfo->info_seq_num) {
+	/* Lost packets. If the prev seq is enourmously larger than the cur seq
+	 * we assume that instead of being massively late we lost the packet(s)
+	 * that would have indicated the sequence number wrapping. An imprecise
+	 * heuristic at best, but it seems to work well enough.
+	 * https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=5958 */
+	else if (statinfo->seq_num+1 < rtpinfo->info_seq_num || statinfo->seq_num - rtpinfo->info_seq_num > 0xFF00) {
 		statinfo->seq_num = rtpinfo->info_seq_num;
 		statinfo->sequence++;
 		statinfo->flags |= STAT_FLAG_WRONG_SEQ;
@@ -702,4 +719,15 @@ int rtp_packet_analyse(tap_rtp_stat_t *statinfo,
 	return 0;
 }
 
-
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

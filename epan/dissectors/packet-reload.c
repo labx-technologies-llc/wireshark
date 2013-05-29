@@ -28,7 +28,7 @@
  * - draft-ietf-p2psip-sip-06
  * - draft-ietf-p2psip-service-discovery-03
  * - draft-ietf-p2psip-self-tuning-04
- * - draft-ietf-p2psip-diagnostics-06
+ * - draft-ietf-p2psip-diagnostics-10
  * - draft-zong-p2psip-drr-01
  */
 
@@ -687,24 +687,24 @@ typedef struct _Kind {
 } kind_t;
 
 static kind_t predefined_kinds[] = {
-  {"INVALID"                        ,DATAKINDID_INVALID,                     -1},
-  {"SIP-REGISTRATION"               ,DATAKINDID_SIP_REGISTRATION,            DATAMODEL_DICTIONARY},
-  {"TURN-SERVICE"                   ,DATAKINDID_TURNSERVICE,                 DATAMODEL_SINGLE},
-  {"CERTIFICATE_BY_NODE"            ,DATAKINDID_CERTIFICATE_BY_NODE,         DATAMODEL_ARRAY},
-  {"RESERVED_ROUTING_TABLE_SIZE"    ,DATAKINDID_RESERVED_ROUTING_TABLE_SIZE, -1},
-  {"RESERVED_SOFTWARE_VERSION"      ,DATAKINDID_RESERVED_SOFTWARE_VERSION,   -1},
-  {"RESERVED_MACHINE_UPTIME"        ,DATAKINDID_RESERVED_MACHINE_UPTIME,     -1},
-  {"DATAKINDID_RESERVED_APP_UPTIME" ,DATAKINDID_RESERVED_APP_UPTIME,         -1},
-  {"RESERVED_MEMORY_FOOTPRINT"      ,DATAKINDID_RESERVED_MEMORY_FOOTPRINT,   -1},
-  {"RESERVED_DATASIZE_STORED"       ,DATAKINDID_RESERVED_DATASIZE_STORED,    -1},
-  {"RESERVED_INSTANCES_STORED"      ,DATAKINDID_RESERVED_INSTANCES_STORED,   -1},
-  {"RESERVED_MESSAGES_SENT_RCVD"    ,DATAKINDID_RESERVED_MESSAGES_SENT_RCVD, -1},
-  {"RESERVED_EWMA_BYTES_SENT"       ,DATAKINDID_RESERVED_EWMA_BYTES_SENT,    -1},
-  {"RESERVED_EWMA_BYTES_RCVD"       ,DATAKINDID_RESERVED_EWMA_BYTES_RCVD,    -1},
-  {"RESERVED_LAST_CONTACT"          ,DATAKINDID_RESERVED_LAST_CONTACT,       -1},
-  {"RESERVED_RTT"                   ,DATAKINDID_RESERVED_RTT,                -1},
-  {"CERTIFICATE_BY_USER"            ,DATAKINDID_CERTIFICATE_BY_USER,         DATAMODEL_ARRAY},
-  {"REDIR"                          ,DATAKINDID_REDIR,                       DATAMODEL_DICTIONARY},
+  {(gchar *)"INVALID"                        ,DATAKINDID_INVALID,                     -1},
+  {(gchar *)"SIP-REGISTRATION"               ,DATAKINDID_SIP_REGISTRATION,            DATAMODEL_DICTIONARY},
+  {(gchar *)"TURN-SERVICE"                   ,DATAKINDID_TURNSERVICE,                 DATAMODEL_SINGLE},
+  {(gchar *)"CERTIFICATE_BY_NODE"            ,DATAKINDID_CERTIFICATE_BY_NODE,         DATAMODEL_ARRAY},
+  {(gchar *)"RESERVED_ROUTING_TABLE_SIZE"    ,DATAKINDID_RESERVED_ROUTING_TABLE_SIZE, -1},
+  {(gchar *)"RESERVED_SOFTWARE_VERSION"      ,DATAKINDID_RESERVED_SOFTWARE_VERSION,   -1},
+  {(gchar *)"RESERVED_MACHINE_UPTIME"        ,DATAKINDID_RESERVED_MACHINE_UPTIME,     -1},
+  {(gchar *)"DATAKINDID_RESERVED_APP_UPTIME" ,DATAKINDID_RESERVED_APP_UPTIME,         -1},
+  {(gchar *)"RESERVED_MEMORY_FOOTPRINT"      ,DATAKINDID_RESERVED_MEMORY_FOOTPRINT,   -1},
+  {(gchar *)"RESERVED_DATASIZE_STORED"       ,DATAKINDID_RESERVED_DATASIZE_STORED,    -1},
+  {(gchar *)"RESERVED_INSTANCES_STORED"      ,DATAKINDID_RESERVED_INSTANCES_STORED,   -1},
+  {(gchar *)"RESERVED_MESSAGES_SENT_RCVD"    ,DATAKINDID_RESERVED_MESSAGES_SENT_RCVD, -1},
+  {(gchar *)"RESERVED_EWMA_BYTES_SENT"       ,DATAKINDID_RESERVED_EWMA_BYTES_SENT,    -1},
+  {(gchar *)"RESERVED_EWMA_BYTES_RCVD"       ,DATAKINDID_RESERVED_EWMA_BYTES_RCVD,    -1},
+  {(gchar *)"RESERVED_LAST_CONTACT"          ,DATAKINDID_RESERVED_LAST_CONTACT,       -1},
+  {(gchar *)"RESERVED_RTT"                   ,DATAKINDID_RESERVED_RTT,                -1},
+  {(gchar *)"CERTIFICATE_BY_USER"            ,DATAKINDID_CERTIFICATE_BY_USER,         DATAMODEL_ARRAY},
+  {(gchar *)"REDIR"                          ,DATAKINDID_REDIR,                       DATAMODEL_DICTIONARY},
 };
 
 
@@ -760,7 +760,7 @@ static void uat_kindid_record_free_cb(void*r) {
 
 UAT_DEC_CB_DEF(kindidlist_uats,id,kind_t)
 UAT_CSTRING_CB_DEF(kindidlist_uats,name,kind_t)
-UAT_VS_DEF(kindidlist_uats,data_model,kind_t,0,"string")
+UAT_VS_DEF(kindidlist_uats,data_model,kind_t,guint,0,"string")
 
 
 #define MSG_LENGH_OFFSET                16
@@ -1020,14 +1020,13 @@ static const value_string applicationids[] = {
 /*
  * defragmentation
  */
-static GHashTable *reload_fragment_table    = NULL;
-static GHashTable *reload_reassembled_table = NULL;
+static reassembly_table reload_reassembly_table;
 
 static void
 reload_defragment_init(void)
 {
-  fragment_table_init(&reload_fragment_table);
-  reassembled_table_init(&reload_reassembled_table);
+  reassembly_table_init(&reload_reassembly_table,
+                        &addresses_reassembly_table_functions);
 }
 
 
@@ -1455,9 +1454,9 @@ dissect_icecandidates(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint
 {
   proto_item *ti_icecandidates;
   proto_tree *icecandidates_tree;
-  guint16     icecandidates_offset = 0;
-  guint16     icecandidates_length;
-  guint16     local_offset         = 0;
+  guint32     icecandidates_offset = 0;
+  guint32     icecandidates_length;
+  guint32     local_offset         = 0;
   int         nCandidates          = 0;
 
   icecandidates_length = tvb_get_ntohs(tvb, offset);
@@ -1560,7 +1559,7 @@ dissect_icecandidates(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint
     }
     /* Ice extensions */
     {
-      guint16 iceextensions_offset = 0;
+      guint32 iceextensions_offset = 0;
       proto_item *ti_iceextension, *ti_extensions;
       proto_tree *iceextension_tree,*extensions_tree;
       guint16 iceextension_name_length;
@@ -2235,7 +2234,7 @@ dissect_kinddata(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint16 of
   proto_tree_add_item(kinddata_tree, hf_reload_generation_counter, tvb, offset+local_offset, 8, ENC_BIG_ENDIAN);
   local_offset += 8;
   {
-    guint32 values_offset = 0;
+    gint32 values_offset = 0;
     guint32 values_increment;
     proto_item *ti_values;
     proto_tree *values_tree;
@@ -2251,7 +2250,7 @@ dissect_kinddata(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint16 of
     proto_tree_add_uint(values_tree, hf_reload_length_uint32, tvb, offset +local_offset, 4, values_length);
     local_offset += 4;
 
-    while (values_offset < values_length) {
+    while (values_offset >= 0 && (guint32)values_offset < values_length) {
       values_increment = dissect_storeddata(tvb, pinfo, values_tree, offset+local_offset+values_offset, values_length - values_offset, kind, meta);
       if (values_increment == 0) {
         break;
@@ -2270,7 +2269,7 @@ static int dissect_nodeid_list(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 {
   guint16     list_length;
   guint16     local_offset   = 0;
-  guint16     list_offset    = 0;
+  gint32      list_offset    = 0;
   guint16     list_increment = 0;
   int         nNodeIds       = 0;
   proto_item *ti_local;
@@ -2288,7 +2287,7 @@ static int dissect_nodeid_list(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
   local_tree =  proto_item_add_subtree(ti_local, ett_reload_nodeid_list);
 
   local_offset += dissect_length(tvb, local_tree, offset, length_size);
-  while (list_offset < list_length) {
+  while (list_offset >= 0 && list_offset < list_length) {
     dissect_nodeid(-1, tvb, pinfo, local_tree, offset+local_offset+list_offset,list_length-list_offset);
     list_increment = reload_nodeid_length;
     if (list_increment <= 0) break;
@@ -2337,7 +2336,7 @@ dissect_storeans(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint16 of
   proto_tree *local_tree, *kind_responses_tree;
   guint16     local_offset          = 0;
   guint16     kind_responses_length;
-  guint16     kind_responses_offset = 0;
+  gint32      kind_responses_offset = 0;
   int         nKindResponses        = 0;
 
   ti_local = proto_tree_add_item(tree, hf_reload_storeans, tvb, offset, length, ENC_NA);
@@ -2349,7 +2348,7 @@ dissect_storeans(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint16 of
 
   proto_tree_add_item(kind_responses_tree, hf_reload_length_uint16, tvb, offset, 2, ENC_BIG_ENDIAN);
   local_offset += 2;
-  while (kind_responses_offset < kind_responses_length) {
+  while (kind_responses_offset >=0 && kind_responses_offset < kind_responses_length) {
     int local_increment = dissect_storekindresponse(tvb, pinfo, kind_responses_tree, offset+local_offset+kind_responses_offset, kind_responses_length-kind_responses_offset);
     if (local_increment <= 0) break;
     kind_responses_offset += local_increment;
@@ -2405,7 +2404,7 @@ dissect_storereq(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint16 of
 
 
   {
-    guint32     kind_data_offset = 0;
+    gint32      kind_data_offset = 0;
     guint32     kind_data_increment;
     proto_item *ti_kind_data;
     proto_tree *kind_data_tree;
@@ -2417,7 +2416,7 @@ dissect_storereq(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint16 of
     proto_tree_add_item(kind_data_tree, hf_reload_length_uint32, tvb, offset + local_offset, 4, ENC_BIG_ENDIAN);
     local_offset += 4;
 
-    while (kind_data_offset < kind_data_length) {
+    while (kind_data_offset >= 0 && (guint32)kind_data_offset < kind_data_length) {
       kind_data_increment = dissect_kinddata(tvb, pinfo, kind_data_tree, offset+local_offset+kind_data_offset, kind_data_length - kind_data_offset, FALSE);
       if (kind_data_increment == 0) {
         break;
@@ -2482,7 +2481,7 @@ dissect_storeddataspecifier(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     {
       proto_item *ti_indices;
       proto_tree *indices_tree;
-      guint16     indices_offset = 0;
+      gint32      indices_offset = 0;
       guint16     indices_length = tvb_get_ntohs(tvb, offset+local_offset);
       int         nIndices       = 0;
       ti_indices = proto_tree_add_item(storeddataspecifier_tree, hf_reload_storeddataspecifier_indices,
@@ -2491,7 +2490,7 @@ dissect_storeddataspecifier(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
       indices_tree =  proto_item_add_subtree(ti_indices, ett_reload_storeddataspecifier_indices);
       proto_tree_add_item(indices_tree, hf_reload_length_uint16, tvb, offset+local_offset, 2, ENC_BIG_ENDIAN);
       local_offset += 2;
-      while (indices_offset < indices_length) {
+      while (indices_offset >= 0 && indices_offset < indices_length) {
         indices_offset += dissect_arrayrange(tvb, indices_tree, offset + local_offset + indices_offset);
         nIndices++;
       }
@@ -2503,12 +2502,12 @@ dissect_storeddataspecifier(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     {
       proto_item *ti_keys;
       proto_tree *keys_tree;
-      guint16     keys_offset = 0;
+      gint32      keys_offset = 0;
       guint16     keys_length = tvb_get_ntohs(tvb, offset+local_offset);
       int         nKeys       = 0;
       ti_keys = proto_tree_add_item(tree, hf_reload_storeddataspecifier_keys, tvb, offset+local_offset, 2+keys_length, ENC_NA);
       keys_tree =  proto_item_add_subtree(ti_keys, ett_reload_storeddataspecifier_keys);
-      while (keys_offset < keys_length) {
+      while (keys_offset >= 0 && keys_offset < keys_length) {
         guint32 local_increment;
         local_increment = dissect_opaque(tvb, pinfo, keys_tree, hf_reload_dictionarykey, offset, 2, keys_length-keys_offset);
         if (local_increment == 0) break;
@@ -2537,7 +2536,7 @@ dissect_fetchreq(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint16 of
   proto_tree *specifiers_tree;
   guint16     resourceid_length;
   guint16     specifiers_length;
-  guint16     specifiers_offset = 0;
+  gint32      specifiers_offset = 0;
   int         nSpecifiers       = 0;
   guint16     local_offset      = 0;
   guint16     local_length      = 0;
@@ -2568,7 +2567,7 @@ dissect_fetchreq(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint16 of
   proto_tree_add_item(specifiers_tree, hf_reload_length_uint16, tvb, offset+local_offset, 2, ENC_BIG_ENDIAN);
   local_offset += 2;
 
-  while (specifiers_offset < specifiers_length) {
+  while (specifiers_offset >= 0 && specifiers_offset < specifiers_length) {
     guint32 specifiers_increment;
     specifiers_increment = dissect_storeddataspecifier(tvb, pinfo, specifiers_tree, offset+local_offset+specifiers_offset, specifiers_length-specifiers_offset);
     if (specifiers_increment == 0) {
@@ -2794,9 +2793,9 @@ static int dissect_findans(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
   proto_tree_add_uint(local_tree, hf_reload_length_uint16, tvb, offset, 2, results_length);
 
   {
-    guint16 results_offset = 0;
+    gint32  results_offset = 0;
     int nResults           = 0;
-    while (results_offset < results_length) {
+    while (results_offset >= 0 && results_offset < results_length) {
       proto_item *ti_findkinddata;
       proto_tree *findkinddata_tree;
       guint16     findkinddata_length;
@@ -2927,7 +2926,7 @@ static int dissect_dmflag(tvbuff_t *tvb, proto_tree *tree, guint16 offset) {
   guint       i;
   guint32     bit_offset = offset<<3;
 
-  ti_local = proto_tree_add_item(tree, hf_reload_dmflags, tvb, offset, 64, ENC_BIG_ENDIAN);
+  ti_local = proto_tree_add_item(tree, hf_reload_dmflags, tvb, offset, 8, ENC_BIG_ENDIAN);
   local_tree = proto_item_add_subtree(ti_local, ett_reload_dmflags);
 
   for (i=0; i<(sizeof(reload_dmflag_items)/sizeof(gint *)); i++) {
@@ -2975,11 +2974,11 @@ static int dissect_diagnosticrequest(int anchor, tvbuff_t *tvb, packet_info *pin
   proto_tree_add_item(local_tree, hf_reload_diagnosticrequest_timestampinitiated, tvb,
                       offset+local_offset, 8, ENC_TIME_NTP|ENC_BIG_ENDIAN);
   local_offset += 8;
+  local_offset += dissect_dmflag(tvb, local_tree, offset+local_offset);
   local_length = tvb_get_ntohl(tvb, offset+local_offset);
   proto_tree_add_item(local_tree, hf_reload_length_uint32, tvb, offset+local_offset, 4, ENC_BIG_ENDIAN);
   local_offset += 4;
 
-  local_offset += dissect_dmflag(tvb, local_tree, offset+local_offset);
   if (local_offset+local_length > length) {
     expert_add_info_format(pinfo, ti_local, PI_PROTOCOL, PI_ERROR, "Truncated DiagnosticRequest");
     local_length = length-local_offset;
@@ -2987,7 +2986,7 @@ static int dissect_diagnosticrequest(int anchor, tvbuff_t *tvb, packet_info *pin
   if (local_length>0) {
     proto_item *ti_extensions;
     proto_tree *extensions_tree;
-    guint16     extensions_offset = 0;
+    guint32     extensions_offset = 0;
     guint32     extensions_length = 0;
     int         nExtensions       = 0;
 
@@ -3085,14 +3084,14 @@ static int dissect_diagnosticinfo(tvbuff_t *tvb, proto_tree *tree, guint16 offse
   {
     proto_item *ti_instances;
     proto_tree *instances_tree;
-    guint16     instances_offset = 0;
+    gint32      instances_offset = 0;
     int         nElements        = 0;
 
     ti_instances = proto_tree_add_item(local_tree, hf_reload_diagnosticinfo_instances_stored,\
                                        tvb, offset+local_offset, length, ENC_NA);
     instances_tree = proto_item_add_subtree(ti_instances, ett_reload_diagnosticinfo_instances_stored);
     proto_item_append_text(ti_instances, "[%d]", length);
-    while (instances_offset < length) {
+    while (instances_offset >= 0 && instances_offset < length) {
       proto_item *ti_instances_per_kindid;
       proto_tree *instances_per_kindid_tree;
       kind_t     *kind;
@@ -3121,7 +3120,7 @@ static int dissect_diagnosticinfo(tvbuff_t *tvb, proto_tree *tree, guint16 offse
   {
     proto_item *ti_messages;
     proto_tree *messages_tree;
-    guint16     messages_offset = 0;
+    gint32      messages_offset = 0;
     int         nElements       = 0;
 
     ti_messages = proto_tree_add_item(local_tree, hf_reload_diagnosticinfo_messages_sent_rcvd,
@@ -3129,7 +3128,7 @@ static int dissect_diagnosticinfo(tvbuff_t *tvb, proto_tree *tree, guint16 offse
     messages_tree = proto_item_add_subtree(ti_messages, ett_reload_diagnosticinfo_messages_sent_rcvd);
     proto_item_append_text(ti_messages, "[%d]", length);
 
-    while (messages_offset < length) {
+    while (messages_offset >= 0 && messages_offset < length) {
       proto_item *ti_sent_rcvd;
       proto_tree *sent_rcvd_tree;
       guint16     message_code;
@@ -3216,7 +3215,7 @@ static int dissect_diagnosticresponse(int anchor, tvbuff_t *tvb, packet_info *pi
   {
     proto_item *ti_diagnostics;
     proto_tree *diagnostics_tree;
-    guint16     diagnostics_offset = 0;
+    gint32      diagnostics_offset = 0;
     guint32     diagnostics_length = 0;
     int         nDiagnostics       = 0;
 
@@ -3230,7 +3229,7 @@ static int dissect_diagnosticresponse(int anchor, tvbuff_t *tvb, packet_info *pi
     proto_item_append_text(ti_diagnostics, " (DiagnosticInfo<%d>)",diagnostics_length);
     proto_tree_add_item(diagnostics_tree, hf_reload_length_uint32, tvb, offset+local_offset, 4, ENC_BIG_ENDIAN);
     local_offset += 4;
-    while (diagnostics_offset<diagnostics_length) {
+    while (diagnostics_offset >= 0 && (guint32)diagnostics_offset<diagnostics_length) {
       int local_increment = dissect_diagnosticinfo(tvb, diagnostics_tree, offset+local_offset+diagnostics_offset, diagnostics_length-diagnostics_offset);
       if (local_increment <= 0) break;
       diagnostics_offset += local_increment;
@@ -3341,7 +3340,7 @@ static int dissect_probereq(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   {
     int probe_offset = 0;
     int nInfos       = 0;
-    while (probe_offset < info_list_length) {
+    while (probe_offset >= 0 && probe_offset < info_list_length) {
       proto_tree_add_item(requested_info_tree, hf_reload_probe_information_type,
                           tvb, offset + 1 + probe_offset, 1, ENC_BIG_ENDIAN);
       probe_offset += 1;
@@ -3374,7 +3373,7 @@ static int dissect_probeans(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     int probe_offset = 0;
     int probe_increment;
     int nInfos       = 0;
-    while (probe_offset < info_list_length) {
+    while (probe_offset >= 0 && probe_offset < info_list_length) {
       probe_increment = dissect_probe_information(tvb, pinfo, infos_tree, offset + 2 + probe_offset, info_list_length - probe_offset);
       if (probe_increment <= 0) {
         break;
@@ -3832,7 +3831,7 @@ extern gint dissect_reload_messagecontents(tvbuff_t *tvb, packet_info *pinfo, pr
     proto_tree *extensions_tree;
     proto_item *ti_extensions;
     proto_tree *extension_tree;
-    guint16 extension_offset = 0;
+    gint32 extension_offset = 0;
     int nExtensions = 0;
 
     ti_extensions =
@@ -3840,7 +3839,7 @@ extern gint dissect_reload_messagecontents(tvbuff_t *tvb, packet_info *pinfo, pr
     extensions_tree = proto_item_add_subtree(ti_extensions, ett_reload_message_extensions);
     proto_tree_add_item(extensions_tree, hf_reload_length_uint32, tvb, offset, 4, ENC_BIG_ENDIAN);
     offset += 4;
-    while (extension_offset < extensions_length) {
+    while (extension_offset >= 0 && (guint32)extension_offset < extensions_length) {
       guint16 type;
       proto_item *ti_extension;
       guint32 extension_content_length = tvb_get_ntohl(tvb, offset + extension_offset + 3);
@@ -3971,12 +3970,12 @@ dissect_reload_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   /*
    * Do we already have a state structure for this conv
    */
-  reload_info = conversation_get_proto_data(conversation, proto_reload);
+  reload_info = (reload_conv_info_t *)conversation_get_proto_data(conversation, proto_reload);
   if (!reload_info) {
     /* No.  Attach that information to the conversation, and add
      * it to the list of information structures.
      */
-    reload_info = se_alloc(sizeof(reload_conv_info_t));
+    reload_info = se_new(reload_conv_info_t);
     reload_info->transaction_pdus = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "reload_transaction_pdus");
     conversation_add_proto_data(conversation, proto_reload, reload_info);
   }
@@ -4096,14 +4095,14 @@ dissect_reload_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 
   if (options_length > 0) {
-    guint16     local_offset = 0;
+    gint32      local_offset = 0;
     proto_item *ti_options;
     proto_tree *options_tree;
     int         nOptions     = 0;
 
     ti_options = proto_tree_add_item(reload_forwarding_tree, hf_reload_forwarding_options, tvb, offset+local_offset, options_length, ENC_NA);
     options_tree = proto_item_add_subtree(ti_options, ett_reload_forwarding_options);
-    while (local_offset < options_length) {
+    while (local_offset >=0 && local_offset < options_length) {
       int local_increment;
       local_increment = dissect_forwardingoption(tvb, pinfo, options_tree, offset+local_offset, options_length-local_offset);
       if (0 >= local_increment) break;
@@ -4119,10 +4118,10 @@ dissect_reload_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     reload_fd_head = NULL;
 
     if (tvb_bytes_exist(tvb, offset, msg_length - offset)) {
-      reload_fd_head = fragment_add_check(tvb, offset, pinfo,
+      reload_fd_head = fragment_add_check(&reload_reassembly_table, tvb, offset,
+                         pinfo,
                          transaction_id[0]^transaction_id[1],
-                         reload_fragment_table,
-                         reload_reassembled_table,
+                         NULL,
                          fragment,
                          msg_length - offset,
                          !last_fragment);
@@ -4162,9 +4161,9 @@ dissect_reload_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   if (!pinfo->fd->flags.visited) {
 
-    if ((reload_trans =
+    if ((reload_trans = (reload_transaction_t *)
            se_tree_lookup32_array(reload_info->transaction_pdus, transaction_id_key)) == NULL) {
-      reload_trans = se_alloc(sizeof(reload_transaction_t));
+      reload_trans = se_new(reload_transaction_t);
       reload_trans->req_frame = 0;
       reload_trans->rep_frame = 0;
       reload_trans->req_time = pinfo->fd->abs_ts;
@@ -4187,12 +4186,12 @@ dissect_reload_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
   }
   else {
-    reload_trans = se_tree_lookup32_array(reload_info->transaction_pdus, transaction_id_key);
+    reload_trans = (reload_transaction_t *)se_tree_lookup32_array(reload_info->transaction_pdus, transaction_id_key);
   }
 
   if (!reload_trans) {
     /* create a "fake" pana_trans structure */
-    reload_trans = ep_alloc(sizeof(reload_transaction_t));
+    reload_trans = ep_new(reload_transaction_t);
     reload_trans->req_frame = 0;
     reload_trans->rep_frame = 0;
     reload_trans->req_time = pinfo->fd->abs_ts;
@@ -4288,9 +4287,9 @@ dissect_reload_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* certificates */
 
     {
-      guint16 certificate_offset = 0;
+      gint32 certificate_offset = 0;
       int nCertificates = 0;
-      while (certificate_offset < certificates_length) {
+      while (certificate_offset >= 0 && certificate_offset < certificates_length) {
         proto_item *ti_genericcertificate;
         proto_tree *genericcertificate_tree;
         guint16 certificate_length;
@@ -5841,9 +5840,11 @@ proto_register_reload(void)
     &ett_reload_kindid_list,
     &ett_reload_redirserviceproviderdata,
     &ett_reload_redirserviceprovider,
+    &ett_reload_self_tuning_data,
     &ett_reload_findreq,
     &ett_reload_dmflags,
     &ett_reload_diagnosticextension,
+    &ett_reload_diagnosticrequest,
     &ett_reload_diagnosticrequest_extensions,
     &ett_reload_pathtrackreq,
     &ett_reload_diagnosticinfo,
@@ -5883,7 +5884,7 @@ proto_register_reload(void)
             sizeof(kind_t),
             "reload_kindids",               /* filename */
             TRUE,                           /* from_profile */
-            (void*) &kindidlist_uats,       /* data_ptr */
+            (void**) &kindidlist_uats,      /* data_ptr */
             &nreloadkinds,                  /* numitems_ptr */
             UAT_AFFECTS_DISSECTION,         /* affects dissection of packets, but not set of named fields */
             NULL,                           /* Help section (currently a wiki page) */

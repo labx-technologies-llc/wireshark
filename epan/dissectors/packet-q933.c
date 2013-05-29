@@ -48,9 +48,9 @@ static int hf_q933_extension_ind			= -1;
 static int hf_q933_calling_party_number 		= -1;
 static int hf_q933_called_party_number 			= -1;
 static int hf_q933_connected_number 			= -1;
-static int hf_q933_redirecting_number 			= -1;
-static int hf_q933_screening_ind				= -1;
-static int hf_q933_presentation_ind				= -1;
+/* static int hf_q933_redirecting_number 			= -1; */
+static int hf_q933_screening_ind			= -1;
+static int hf_q933_presentation_ind			= -1;
 static int hf_q933_report_type				= -1;
 static int hf_q933_link_verf_txseq		       	= -1;
 static int hf_q933_link_verf_rxseq		       	= -1;
@@ -691,16 +691,16 @@ l2_done:
 			octet = tvb_get_guint8(tvb, offset);
 			proto_tree_add_text(tree, tvb, offset, 1,
 			    "Packet window size: %u", octet & 0x7F);
-			offset += 1;
-			len -= 1;
+			/*offset += 1;*/
+			/*len -= 1;*/
 			break;
 
 		case Q933_UIL3_USER_SPEC:
 			proto_tree_add_text(tree, tvb, offset, 1,
 			    "Default packet size: %u octets",
 			    1 << (octet & 0x0F));
-			offset += 1;
-			len -= 1;
+			/*offset += 1;*/
+			/*len -= 1;*/
 			break;
 
 		case Q933_UIL3_TR_9577:
@@ -717,8 +717,8 @@ l2_done:
 			    "Additional layer 3 protocol information: %s",
 			    val_to_str(add_l3_info, nlpid_vals,
 			      "Unknown (0x%02X)"));
-			offset += 2;
-			len -= 2;
+			/*offset += 2;*/
+			/*len -= 2;*/
 			break;
 		}
 	}
@@ -1485,7 +1485,7 @@ dissect_q933_guint16_value(tvbuff_t *tvb, int offset, int len,
 	}
 	value |= (octet & 0x7F);
 	offset += 1;
-	len -= 1;
+	/*len -= 1;*/
 	value_len++;
 
 	proto_tree_add_text(tree, tvb, offset, value_len, "%s: %u ms", label,
@@ -1532,7 +1532,7 @@ dissect_q933_e2e_transit_delay_ie(tvbuff_t *tvb, int offset, int len,
 
 	if (len == 0)
 		return;
-	value_len = dissect_q933_guint16_value(tvb, offset, len, tree,
+	/*value_len = */dissect_q933_guint16_value(tvb, offset, len, tree,
 	    "Maximum end-to-end transit delay");
 }
 
@@ -1939,7 +1939,6 @@ dissect_q933(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 * And now for the information elements....
 	 */
 	codeset = locked_codeset = 0;	/* start out in codeset 0 */
-	non_locking_shift = TRUE;
 	while (tvb_reported_length_remaining(tvb, offset) > 0) {
 		info_element = tvb_get_guint8(tvb, offset);
 
@@ -2244,9 +2243,11 @@ proto_register_q933(void)
 		  { "Connected party number digits", "q933.connected_number.digits", FT_STRING, BASE_NONE, NULL, 0x0,
 			NULL, HFILL }},
 
+#if 0
 		{ &hf_q933_redirecting_number,
 		  { "Redirecting party number digits", "q933.redirecting_number.digits", FT_STRING, BASE_NONE, NULL, 0x0,
 			NULL, HFILL }},
+#endif
 		{ &hf_q933_report_type,
 		  { "Report type", "q933.report_type", FT_UINT8, BASE_DEC, VALS(q933_report_type_vals), 0x0,
 			NULL, HFILL }},

@@ -44,6 +44,9 @@
 #define PSNAME "T.124"
 #define PFNAME "t124"
 
+void proto_register_t124(void);
+void proto_reg_handoff_t124(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_t124 = -1;
 static proto_tree *top_tree = NULL;
@@ -163,7 +166,7 @@ dissect_t124_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
    */
   TRY {
     (void) dissect_per_sequence(tvb, 0, &asn1_ctx, NULL, -1, -1, t124Heur_sequence);
-  } CATCH2(BoundsError, ReportedBoundsError) {
+  } CATCH_BOUNDS_ERRORS {
     failed = TRUE;
   } ENDTRY;
 

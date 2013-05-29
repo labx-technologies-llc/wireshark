@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-h323.c                                                              */
 /* ../../tools/asn2wrs.py -p h323 -c ./h323.cnf -s ./packet-h323-template -D . -O ../../epan/dissectors RAS-PROTOCOL-TUNNEL.asn ROBUSTNESS-DATA.asn */
 
@@ -51,7 +51,7 @@
 gef_ctx_t* gef_ctx_alloc(gef_ctx_t *parent, const gchar *type) {
   gef_ctx_t *gefx;
 
-  gefx = ep_alloc0(sizeof(gef_ctx_t));
+  gefx = ep_new0(gef_ctx_t);
   gefx->signature = GEF_CTX_SIGNATURE;
   gefx->parent = parent;
   gefx->type = type;
@@ -70,7 +70,7 @@ gef_ctx_t* gef_ctx_get(void *ptr) {
     actx = NULL;
 
   if (actx)
-    gefx = actx->private_data;
+    gefx = (gef_ctx_t *)actx->private_data;
 
   if (!gef_ctx_check_signature(gefx)) 
     gefx = NULL;
@@ -451,15 +451,15 @@ void proto_register_h323(void) {
 /*--- Included file: packet-h323-hfarr.c ---*/
 #line 1 "../../asn1/h323/packet-h323-hfarr.c"
     { &hf_h323_RasTunnelledSignallingMessage_PDU,
-      { "RasTunnelledSignallingMessage", "h323.RasTunnelledSignallingMessage",
+      { "RasTunnelledSignallingMessage", "h323.RasTunnelledSignallingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_RobustnessData_PDU,
-      { "RobustnessData", "h323.RobustnessData",
+      { "RobustnessData", "h323.RobustnessData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_tunnelledProtocolID,
-      { "tunnelledProtocolID", "h323.tunnelledProtocolID",
+      { "tunnelledProtocolID", "h323.tunnelledProtocolID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TunnelledProtocol", HFILL }},
     { &hf_h323_messageContent,
@@ -471,11 +471,11 @@ void proto_register_h323(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_h323_tunnellingRequired,
-      { "tunnellingRequired", "h323.tunnellingRequired",
+      { "tunnellingRequired", "h323.tunnellingRequired_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_nonStandardData,
-      { "nonStandardData", "h323.nonStandardData",
+      { "nonStandardData", "h323.nonStandardData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonStandardParameter", HFILL }},
     { &hf_h323_versionID,
@@ -487,27 +487,27 @@ void proto_register_h323(void) {
         FT_UINT32, BASE_DEC, VALS(h323_T_robustnessData_vals), 0,
         NULL, HFILL }},
     { &hf_h323_rrqData,
-      { "rrqData", "h323.rrqData",
+      { "rrqData", "h323.rrqData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Rrq_RD", HFILL }},
     { &hf_h323_rcfData,
-      { "rcfData", "h323.rcfData",
+      { "rcfData", "h323.rcfData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Rcf_RD", HFILL }},
     { &hf_h323_setupData,
-      { "setupData", "h323.setupData",
+      { "setupData", "h323.setupData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Setup_RD", HFILL }},
     { &hf_h323_connectData,
-      { "connectData", "h323.connectData",
+      { "connectData", "h323.connectData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Connect_RD", HFILL }},
     { &hf_h323_statusData,
-      { "statusData", "h323.statusData",
+      { "statusData", "h323.statusData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Status_RD", HFILL }},
     { &hf_h323_statusInquiryData,
-      { "statusInquiryData", "h323.statusInquiryData",
+      { "statusInquiryData", "h323.statusInquiryData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "StatusInquiry_RD", HFILL }},
     { &hf_h323_BackupCallSignalAddresses_item,
@@ -519,7 +519,7 @@ void proto_register_h323(void) {
         FT_UINT32, BASE_DEC, VALS(h225_TransportAddress_vals), 0,
         "TransportAddress", HFILL }},
     { &hf_h323_alternateTransport,
-      { "alternateTransport", "h323.alternateTransport",
+      { "alternateTransport", "h323.alternateTransport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlternateTransportAddresses", HFILL }},
     { &hf_h323_backupCallSignalAddresses,
@@ -527,7 +527,7 @@ void proto_register_h323(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_hasSharedRepository,
-      { "hasSharedRepository", "h323.hasSharedRepository",
+      { "hasSharedRepository", "h323.hasSharedRepository_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_irrFrequency,
@@ -551,7 +551,7 @@ void proto_register_h323(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_h323_resetH245,
-      { "resetH245", "h323.resetH245",
+      { "resetH245", "h323.resetH245_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_timeToLive,
@@ -559,7 +559,7 @@ void proto_register_h323(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_includeFastStart,
-      { "includeFastStart", "h323.includeFastStart",
+      { "includeFastStart", "h323.includeFastStart_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 

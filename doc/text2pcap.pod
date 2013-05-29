@@ -8,10 +8,12 @@ text2pcap - Generate a capture file from an ASCII hexdump of packets
 B<text2pcap>
 S<[ B<-a> ]>
 S<[ B<-d> ]>
+S<[ B<-D> ]>
 S<[ B<-e> E<lt>l3pidE<gt> ]>
 S<[ B<-h> ]>
 S<[ B<-i> E<lt>protoE<gt> ]>
 S<[ B<-l> E<lt>typenumE<gt> ]>
+S<[ B<-n> ]>
 S<[ B<-m> E<lt>max-packetE<gt> ]>
 S<[ B<-o> hex|oct|dec ]>
 S<[ B<-q> ]>
@@ -100,6 +102,12 @@ B<NOTE:> Do not enable it if the input file does not contain the ASCII text dump
 Displays debugging information during the process. Can be used
 multiple times to generate more debugging information.
 
+=item -D
+
+The text before the packet starts either with an I or O indicating that
+the packet is inbound or outbound.
+This is only stored if the output format is PCAP-NG.
+
 =item -e E<lt>l3pidE<gt>
 
 Include a dummy Ethernet header before each packet. Specify the L3PID
@@ -137,14 +145,18 @@ packets.
 
 =item -m E<lt>max-packetE<gt>
 
-Set the maximum packet length, default is 64000.
+Set the maximum packet length, default is 65535.
 Useful for testing various packet boundaries when only an application
 level datastream is available.  Example:
 
-I<od -Ax -tx1 stream | text2pcap -m1460 -T1234,1234 - stream.pcap>
+I<od -Ax -tx1 -v stream | text2pcap -m1460 -T1234,1234 - stream.pcap>
 
 will convert from plain datastream format to a sequence of Ethernet
 TCP packets.
+
+=item -n
+
+Write PCAP-NG file instead of a PCAP.
 
 =item -o hex|oct|dec
 
@@ -211,7 +223,7 @@ Example: I<-u1000,69> to make the packets look like TFTP/UDP packets.
 =head1 SEE ALSO
 
 od(1), pcap(3), wireshark(1), tshark(1), dumpcap(1), mergecap(1),
-editcap(1), strptime(3), pcap-filter(7) or tcpdump(8) if it doesn't exist.
+editcap(1), strptime(3), pcap-filter(7) or tcpdump(8)
 
 =head1 NOTES
 

@@ -50,8 +50,10 @@
 #ifdef _WIN32 /* Needed for console I/O */
 #if _MSC_VER < 1500
 /* AttachConsole() needs this #define! */
+/* But we're not calling it from here any more; do we need this? */
 #define _WIN32_WINNT 0x0501
 #endif
+
 #include <fcntl.h>
 #include <conio.h>
 #include <ui/win32/console_win32.h>
@@ -60,6 +62,8 @@
 #ifdef HAVE_LIBPORTAUDIO
 #include <portaudio.h>
 #endif /* HAVE_LIBPORTAUDIO */
+
+#include <wsutil/crash_info.h>
 
 #include <epan/epan.h>
 #include <epan/filesystem.h>
@@ -104,8 +108,10 @@
 
 #include "ui/alert_box.h"
 #include "ui/main_statusbar.h"
+#include "ui/preference_utils.h"
 #include "ui/recent.h"
 #include "ui/recent_utils.h"
+#include "ui/software_update.h"
 #include "ui/simple_dialog.h"
 #include "ui/ui_util.h"
 
@@ -179,13 +185,8 @@
 #include "ui/gtk/old-gtk-compat.h"
 
 #ifdef HAVE_LIBPCAP
-#include "../../image/wsicon16.xpm"
-#include "../../image/wsicon32.xpm"
-#include "../../image/wsicon48.xpm"
-#include "../../image/wsicon64.xpm"
-#include "../../image/wsiconcap16.xpm"
-#include "../../image/wsiconcap32.xpm"
-#include "../../image/wsiconcap48.xpm"
+#include "wsicon.h"
+#include "wsiconcap.h"
 #endif
 
 #ifdef HAVE_AIRPCAP
@@ -207,6 +208,11 @@
  * GTK settings for Wireshark are stored.
  */
 #define RC_FILE "gtkrc"
+
+#ifdef HAVE_LIBPCAP
+capture_options global_capture_opts;
+capture_session global_capture_session;
+#endif
 
 capture_file cfile;
 
@@ -330,7 +336,7 @@ match_selected_ptree_cb(gpointer data, MATCH_SELECTED_E action)
     if (cfile.finfo_selected) {
         filter = proto_construct_match_selected_string(cfile.finfo_selected,
                                                        cfile.edt);
-        match_selected_cb_do(g_object_get_data(G_OBJECT(data), E_DFILTER_TE_KEY), action, filter);
+        match_selected_cb_do((GtkWidget *)g_object_get_data(G_OBJECT(data), E_DFILTER_TE_KEY), action, filter);
     }
 }
 
@@ -366,7 +372,7 @@ colorize_selected_ptree_cb(GtkWidget *w _U_, gpointer data _U_, guint8 filt_nr)
 static void selected_ptree_info_answered_cb(gpointer dialog _U_, gint btn, gpointer data)
 {
     gchar *selected_proto_url;
-    gchar *proto_abbrev = data;
+    gchar *proto_abbrev = (gchar *)data;
 
 
     switch(btn) {
@@ -398,7 +404,7 @@ selected_ptree_info_cb(GtkWidget *widget _U_, gpointer data _U_)
         /* convert selected field to protocol abbreviation */
         /* XXX - could this conversion be simplified? */
         field_id = cfile.finfo_selected->hfinfo->id;
-        /* if the selected field isn't a protocol, get it's parent */
+        /* if the selected field isn't a protocol, get its parent */
         if(!proto_registrar_is_protocol(field_id)) {
             field_id = proto_registrar_get_parent(cfile.finfo_selected->hfinfo->id);
         }
@@ -446,7 +452,7 @@ selected_ptree_info_cb(GtkWidget *widget _U_, gpointer data _U_)
 static void selected_ptree_ref_answered_cb(gpointer dialog _U_, gint btn, gpointer data)
 {
     gchar *selected_proto_url;
-    gchar *proto_abbrev = data;
+    gchar *proto_abbrev = (gchar *)data;
 
     switch(btn) {
     case(ESD_BTN_OK):
@@ -476,7 +482,7 @@ selected_ptree_ref_cb(GtkWidget *widget _U_, gpointer data _U_)
         /* convert selected field to protocol abbreviation */
         /* XXX - could this conversion be simplified? */
         field_id = cfile.finfo_selected->hfinfo->id;
-        /* if the selected field isn't a protocol, get it's parent */
+        /* if the selected field isn't a protocol, get its parent */
         if(!proto_registrar_is_protocol(field_id)) {
             field_id = proto_registrar_get_parent(cfile.finfo_selected->hfinfo->id);
         }
@@ -601,10 +607,10 @@ get_filter_from_packet_list_row_and_column(gpointer data)
                 /* leak a little but safer than ep_ here */
                 if (cfile.cinfo.col_fmt[column] == COL_CUSTOM) {
                     header_field_info *hfi = proto_registrar_get_byname(cfile.cinfo.col_custom_field[column]);
-                    if (hfi->parent == -1) {
+                    if (hfi && hfi->parent == -1) {
                         /* Protocol only */
                         buf = se_strdup(cfile.cinfo.col_expr.col_expr[column]);
-                    } else if (hfi->type == FT_STRING) {
+                    } else if (hfi && hfi->type == FT_STRING) {
                         /* Custom string, add quotes */
                         buf = se_strdup_printf("%s == \"%s\"", cfile.cinfo.col_expr.col_expr[column],
                                                cfile.cinfo.col_expr.col_expr_val[column]);
@@ -626,9 +632,9 @@ get_filter_from_packet_list_row_and_column(gpointer data)
 void
 match_selected_plist_cb(gpointer data, MATCH_SELECTED_E action)
 {
-    match_selected_cb_do(g_object_get_data(G_OBJECT(data), E_DFILTER_TE_KEY),
+    match_selected_cb_do((GtkWidget *)g_object_get_data(G_OBJECT(data), E_DFILTER_TE_KEY),
         action,
-        get_filter_from_packet_list_row_and_column(data));
+        get_filter_from_packet_list_row_and_column((GtkWidget *)data));
 }
 
 /* This function allows users to right click in the details window and copy the text
@@ -739,7 +745,7 @@ reftime_frame_cb(GtkWidget *w _U_, gpointer data _U_, REFTIME_ACTION_E action)
     case REFTIME_TOGGLE:
         if (cfile.current_frame) {
             if(recent.gui_time_format != TS_RELATIVE && cfile.current_frame->flags.ref_time==0) {
-                reftime_dialog = simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTNS_YES_NO,
+                reftime_dialog = (GtkWidget *)simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTNS_YES_NO,
                     "%sSwitch to the appropriate Time Display Format?%s\n\n"
                     "Time References don't work well with the currently selected Time Display Format.\n\n"
                     "Do you want to switch to \"Seconds Since Beginning of Capture\" now?",
@@ -979,7 +985,7 @@ main_do_quit(void)
 
 #ifdef HAVE_LIBPCAP
     /* Nuke any child capture in progress. */
-    capture_kill_child(&global_capture_opts);
+    capture_kill_child(&global_capture_session);
 #endif
 
     /* Are we in the middle of reading a capture? */
@@ -1157,7 +1163,7 @@ print_usage(gboolean print_ver) {
   fprintf(output, "  -I                       capture in monitor mode, if available\n");
 #endif
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-  fprintf(output, "  -B <buffer size>         size of kernel buffer (def: 1MB)\n");
+  fprintf(output, "  -B <buffer size>         size of kernel buffer (def: %dMB)\n", DEFAULT_CAPTURE_BUFFER_SIZE);
 #endif
   fprintf(output, "  -y <link type>           link layer type (def: first appropriate)\n");
   fprintf(output, "  -D                       print list of interfaces and exit\n");
@@ -1191,7 +1197,7 @@ print_usage(gboolean print_ver) {
   fprintf(output, "\n");
   fprintf(output, "User interface:\n");
   fprintf(output, "  -C <config profile>      start with specified configuration profile\n");
-  fprintf(output, "  -d <display filter>      start with the given display filter\n");
+  fprintf(output, "  -Y <display filter>      start with the given display filter\n");
   fprintf(output, "  -g <packet number>       go to specified packet number after \"-r\"\n");
   fprintf(output, "  -J <jump filter>         jump to the first packet matching the (display)\n");
   fprintf(output, "                           filter\n");
@@ -1226,10 +1232,6 @@ print_usage(gboolean print_ver) {
 static void
 show_version(void)
 {
-#ifdef _WIN32
-  create_console();
-#endif
-
   printf(PACKAGE " " VERSION "%s\n"
          "\n"
          "%s"
@@ -1239,35 +1241,6 @@ show_version(void)
          "%s",
       wireshark_svnversion, get_copyright_info(), comp_info_str->str,
       runtime_info_str->str);
-
-#ifdef _WIN32
-  destroy_console();
-#endif
-}
-
-/*
- * Print to the standard error.  On Windows, create a console for the
- * standard error to show up on, if necessary.
- * XXX - pop this up in a window of some sort on UNIX+X11 if the controlling
- * terminal isn't the standard error?
- */
-void
-vfprintf_stderr(const char *fmt, va_list ap)
-{
-#ifdef _WIN32
-  create_console();
-#endif
-  vfprintf(stderr, fmt, ap);
-}
-
-void
-fprintf_stderr(const char *fmt, ...)
-{
-  va_list ap;
-
-  va_start(ap, fmt);
-  vfprintf_stderr(fmt, ap);
-  va_end(ap);
 }
 
 /*
@@ -1279,11 +1252,14 @@ cmdarg_err(const char *fmt, ...)
 {
   va_list ap;
 
-  fprintf_stderr("wireshark: ");
+#ifdef _WIN32
+  create_console();
+#endif
+  fprintf(stderr, "wireshark: ");
   va_start(ap, fmt);
-  vfprintf_stderr(fmt, ap);
+  vfprintf(stderr, fmt, ap);
   va_end(ap);
-  fprintf_stderr("\n");
+  fprintf(stderr, "\n");
 }
 
 /*
@@ -1297,9 +1273,12 @@ cmdarg_err_cont(const char *fmt, ...)
 {
   va_list ap;
 
+#ifdef _WIN32
+  create_console();
+#endif
   va_start(ap, fmt);
-  vfprintf_stderr(fmt, ap);
-  fprintf_stderr("\n");
+  vfprintf(stderr, fmt, ap);
+  fprintf(stderr, "\n");
   va_end(ap);
 }
 
@@ -1312,13 +1291,6 @@ tap_update_cb(gpointer data _U_)
 {
     draw_tap_listeners(FALSE);
     return TRUE;
-}
-
-/* Restart the tap update display timer with new configured interval */
-void reset_tap_update_timer(void)
-{
-    g_source_remove(tap_update_timer_id);
-    tap_update_timer_id = g_timeout_add(prefs.tap_update_interval, tap_update_cb, NULL);
 }
 
 /*
@@ -1343,25 +1315,6 @@ resolv_update_cb(gpointer data _U_)
 }
 
 
-/* Set main_window_name and it's icon title to the capture filename */
-static void
-set_display_filename(capture_file *cf)
-{
-  gchar *display_name;
-  gchar *window_name;
-
-  if (cf->filename) {
-    display_name = cf_get_display_name(cf);
-    window_name = g_strdup_printf("%s%s", cf->unsaved_changes ? "*" : "",
-                                  display_name);
-    g_free(display_name);
-    main_set_window_name(window_name);
-    g_free(window_name);
-  } else {
-    main_set_window_name("The Wireshark Network Analyzer");
-  }
-}
-
 /* Update various parts of the main window for a capture file "unsaved
    changes" change - update the title to reflect whether there are
    unsaved changes or not, and update the menus and toolbar to
@@ -1369,7 +1322,7 @@ set_display_filename(capture_file *cf)
 void
 main_update_for_unsaved_changes(capture_file *cf)
 {
-  set_display_filename(cf);
+  set_titlebar_for_capture_file(cf);
   set_menus_for_capture_file(cf);
   set_toolbar_for_capture_file(cf);
 }
@@ -1427,7 +1380,7 @@ main_cf_cb_file_closing(capture_file *cf)
      * data structures, so it wouldn't be easy to use a progress bar,
      * rather than, say, a progress spinner, here! */
     if(cf->count > 10000) {
-        close_dlg = simple_dialog(ESD_TYPE_STOP, ESD_BTN_NONE,
+        close_dlg = (GtkWidget *)simple_dialog(ESD_TYPE_STOP, ESD_BTN_NONE,
                                   "%sClosing file!%s\n\nPlease wait ...",
                                   simple_dialog_primary_start(),
                                   simple_dialog_primary_end());
@@ -1438,10 +1391,11 @@ main_cf_cb_file_closing(capture_file *cf)
        capture file we're closing. */
     destroy_packet_wins();
 
-    /* Restore the standard title bar message. */
-    main_set_window_name("The Wireshark Network Analyzer");
+    /* Update the titlebar to reflect the lack of a capture file. */
+    set_titlebar_for_capture_file(NULL);
 
-    /* Disable all menu items that make sense only if you have a capture. */
+    /* Disable all menu and toolbar items that make sense only if
+       you have a capture. */
     set_menus_for_capture_file(NULL);
     set_toolbar_for_capture_file(NULL);
     main_set_for_captured_packets(FALSE);
@@ -1518,10 +1472,10 @@ main_cf_cb_file_rescan_finished(capture_file *cf)
 
 #ifdef HAVE_LIBPCAP
 static GList *icon_list_create(
-    const char **icon16_xpm,
-    const char **icon32_xpm,
-    const char **icon48_xpm,
-    const char **icon64_xpm)
+    const guint8 *icon16_pb,
+    const guint8 *icon32_pb,
+    const guint8 *icon48_pb,
+    const guint8 *icon64_pb)
 {
   GList *icon_list = NULL;
   GdkPixbuf * pixbuf16;
@@ -1530,26 +1484,26 @@ static GList *icon_list_create(
   GdkPixbuf * pixbuf64;
 
 
-  if(icon16_xpm != NULL) {
-      pixbuf16 = gdk_pixbuf_new_from_xpm_data(icon16_xpm);
+  if(icon16_pb != NULL) {
+      pixbuf16 = gdk_pixbuf_new_from_inline(-1, icon16_pb, FALSE, NULL);
       g_assert(pixbuf16);
       icon_list = g_list_append(icon_list, pixbuf16);
   }
 
-  if(icon32_xpm != NULL) {
-      pixbuf32 = gdk_pixbuf_new_from_xpm_data(icon32_xpm);
+  if(icon32_pb != NULL) {
+      pixbuf32 = gdk_pixbuf_new_from_inline(-1, icon32_pb, FALSE, NULL);
       g_assert(pixbuf32);
       icon_list = g_list_append(icon_list, pixbuf32);
   }
 
-  if(icon48_xpm != NULL) {
-      pixbuf48 = gdk_pixbuf_new_from_xpm_data(icon48_xpm);
+  if(icon48_pb != NULL) {
+      pixbuf48 = gdk_pixbuf_new_from_inline(-1, icon48_pb, FALSE, NULL);
       g_assert(pixbuf48);
       icon_list = g_list_append(icon_list, pixbuf48);
   }
 
-  if(icon64_xpm != NULL) {
-      pixbuf64 = gdk_pixbuf_new_from_xpm_data(icon64_xpm);
+  if(icon64_pb != NULL) {
+      pixbuf64 = gdk_pixbuf_new_from_inline(-1, icon64_pb, FALSE, NULL);
       g_assert(pixbuf64);
       icon_list = g_list_append(icon_list, pixbuf64);
   }
@@ -1558,25 +1512,14 @@ static GList *icon_list_create(
 }
 
 static void
-main_capture_set_main_window_title(capture_options *capture_opts)
-{
-    GString *title = g_string_new("");
-
-    g_string_append(title, "Capturing ");
-    g_string_append_printf(title, "from %s ", cf_get_tempfile_source(capture_opts->cf));
-    main_set_window_name(title->str);
-    g_string_free(title, TRUE);
-}
-
-static void
-main_capture_cb_capture_prepared(capture_options *capture_opts)
+main_capture_cb_capture_prepared(capture_session *cap_session)
 {
     static GList *icon_list = NULL;
 
-    main_capture_set_main_window_title(capture_opts);
+    set_titlebar_for_capture_in_progress((capture_file *)cap_session->cf);
 
     if(icon_list == NULL) {
-        icon_list = icon_list_create(wsiconcap16_xpm, wsiconcap32_xpm, wsiconcap48_xpm, NULL);
+        icon_list = icon_list_create(wsiconcap_16_pb_data, wsiconcap_32_pb_data, wsiconcap_48_pb_data, wsiconcap_64_pb_data);
     }
     gtk_window_set_icon_list(GTK_WINDOW(top_level), icon_list);
 
@@ -1590,11 +1533,11 @@ main_capture_cb_capture_prepared(capture_options *capture_opts)
 }
 
 static void
-main_capture_cb_capture_update_started(capture_options *capture_opts)
+main_capture_cb_capture_update_started(capture_session *cap_session)
 {
     /* We've done this in "prepared" above, but it will be cleared while
        switching to the next multiple file. */
-    main_capture_set_main_window_title(capture_opts);
+    set_titlebar_for_capture_in_progress((capture_file *)cap_session->cf);
 
     main_set_for_capture_in_progress(TRUE);
     set_capture_if_dialog_for_capture_in_progress(TRUE);
@@ -1608,9 +1551,9 @@ main_capture_cb_capture_update_started(capture_options *capture_opts)
 }
 
 static void
-main_capture_cb_capture_update_finished(capture_options *capture_opts)
+main_capture_cb_capture_update_finished(capture_session *cap_session)
 {
-    capture_file *cf = capture_opts->cf;
+    capture_file *cf = (capture_file *)cap_session->cf;
     static GList *icon_list = NULL;
 
     /* The capture isn't stopping any more - it's stopped. */
@@ -1621,19 +1564,22 @@ main_capture_cb_capture_update_finished(capture_options *capture_opts)
         add_menu_recent_capture_file(cf->filename);
     }
 
-    /* Update the main window as appropriate */
-    main_update_for_unsaved_changes(cf);
-
     /* Enable menu items that make sense if you're not currently running
      a capture. */
     main_set_for_capture_in_progress(FALSE);
     set_capture_if_dialog_for_capture_in_progress(FALSE);
 
+    /* Update the main window as appropriate. This has to occur AFTER
+     * main_set_for_capture_in_progress() or else some of the menus are
+     * incorrectly disabled (see bug
+     * https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=8108) */
+    main_update_for_unsaved_changes(cf);
+
     /* Set up main window for a capture file. */
     main_set_for_capture_file(TRUE);
 
     if(icon_list == NULL) {
-        icon_list = icon_list_create(wsicon16_xpm, wsicon32_xpm, wsicon48_xpm, wsicon64_xpm);
+        icon_list = icon_list_create(wsicon_16_pb_data, wsicon_32_pb_data, wsicon_48_pb_data, wsicon_64_pb_data);
     }
     gtk_window_set_icon_list(GTK_WINDOW(top_level), icon_list);
 
@@ -1645,24 +1591,24 @@ main_capture_cb_capture_update_finished(capture_options *capture_opts)
 }
 
 static void
-main_capture_cb_capture_fixed_started(capture_options *capture_opts _U_)
+main_capture_cb_capture_fixed_started(capture_session *cap_session _U_)
 {
     /* Don't set up main window for a capture file. */
     main_set_for_capture_file(FALSE);
 }
 
 static void
-main_capture_cb_capture_fixed_finished(capture_options *capture_opts _U_)
+main_capture_cb_capture_fixed_finished(capture_session *cap_session _U_)
 {
 #if 0
-    capture_file *cf = capture_opts->cf;
+    capture_file *cf = (capture_file *)cap_session->cf;
 #endif
     static GList *icon_list = NULL;
 
     /* The capture isn't stopping any more - it's stopped. */
     capture_stopping = FALSE;
 
-    /*set_display_filename(cf);*/
+    /*set_titlebar_for_capture_file(cf);*/
 
     /* Enable menu items that make sense if you're not currently running
      a capture. */
@@ -1671,10 +1617,10 @@ main_capture_cb_capture_fixed_finished(capture_options *capture_opts _U_)
 
     /* Restore the standard title bar message */
     /* (just in case we have trouble opening the capture file). */
-    main_set_window_name("The Wireshark Network Analyzer");
+    set_titlebar_for_capture_file(NULL);
 
     if(icon_list == NULL) {
-        icon_list = icon_list_create(wsicon16_xpm, wsicon32_xpm, wsicon48_xpm, wsicon64_xpm);
+        icon_list = icon_list_create(wsicon_16_pb_data, wsicon_32_pb_data, wsicon_48_pb_data, wsicon_64_pb_data);
     }
     gtk_window_set_icon_list(GTK_WINDOW(top_level), icon_list);
 
@@ -1689,7 +1635,7 @@ main_capture_cb_capture_fixed_finished(capture_options *capture_opts _U_)
 }
 
 static void
-main_capture_cb_capture_stopping(capture_options *capture_opts _U_)
+main_capture_cb_capture_stopping(capture_session *cap_session _U_)
 {
     capture_stopping = TRUE;
     set_menus_for_capture_stopping();
@@ -1701,7 +1647,7 @@ main_capture_cb_capture_stopping(capture_options *capture_opts _U_)
 }
 
 static void
-main_capture_cb_capture_failed(capture_options *capture_opts _U_)
+main_capture_cb_capture_failed(capture_session *cap_session _U_)
 {
     static GList *icon_list = NULL;
 
@@ -1710,8 +1656,7 @@ main_capture_cb_capture_failed(capture_options *capture_opts _U_)
 
     /* the capture failed before the first packet was captured
        reset title, menus and icon */
-
-    main_set_window_name("The Wireshark Network Analyzer");
+    set_titlebar_for_capture_file(NULL);
 
     main_set_for_capture_in_progress(FALSE);
     set_capture_if_dialog_for_capture_in_progress(FALSE);
@@ -1719,7 +1664,7 @@ main_capture_cb_capture_failed(capture_options *capture_opts _U_)
     main_set_for_capture_file(FALSE);
 
     if(icon_list == NULL) {
-        icon_list = icon_list_create(wsicon16_xpm, wsicon32_xpm, wsicon48_xpm, wsicon64_xpm);
+        icon_list = icon_list_create(wsicon_16_pb_data, wsicon_32_pb_data, wsicon_48_pb_data, wsicon_64_pb_data);
     }
     gtk_window_set_icon_list(GTK_WINDOW(top_level), icon_list);
 
@@ -1735,7 +1680,7 @@ main_capture_cb_capture_failed(capture_options *capture_opts _U_)
 static void
 main_cf_cb_packet_selected(gpointer data)
 {
-    capture_file *cf = data;
+    capture_file *cf = (capture_file *)data;
 
     /* Display the GUI protocol tree and packet bytes.
       XXX - why do we dump core if we call "proto_tree_draw()"
@@ -1783,55 +1728,56 @@ main_cf_cb_field_unselected(capture_file *cf)
 static void
 main_cf_callback(gint event, gpointer data, gpointer user_data _U_)
 {
+    capture_file *cf = (capture_file *)data;
     switch(event) {
     case(cf_cb_file_opened):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Opened");
-        fileset_file_opened(data);
+        fileset_file_opened(cf);
         break;
     case(cf_cb_file_closing):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Closing");
-        main_cf_cb_file_closing(data);
+        main_cf_cb_file_closing(cf);
         break;
     case(cf_cb_file_closed):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Closed");
-        main_cf_cb_file_closed(data);
+        main_cf_cb_file_closed(cf);
         fileset_file_closed();
         break;
     case(cf_cb_file_read_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Read started");
-        main_cf_cb_file_read_started(data);
+        main_cf_cb_file_read_started(cf);
         break;
     case(cf_cb_file_read_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Read finished");
-        main_cf_cb_file_read_finished(data);
+        main_cf_cb_file_read_finished(cf);
         break;
     case(cf_cb_file_reload_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Reload started");
-        main_cf_cb_file_read_started(data);
+        main_cf_cb_file_read_started(cf);
         break;
     case(cf_cb_file_reload_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Reload finished");
-        main_cf_cb_file_read_finished(data);
+        main_cf_cb_file_read_finished(cf);
         break;
     case(cf_cb_file_rescan_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Rescan started");
         break;
     case(cf_cb_file_rescan_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Rescan finished");
-        main_cf_cb_file_rescan_finished(data);
+        main_cf_cb_file_rescan_finished(cf);
         break;
     case(cf_cb_file_fast_save_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Fast save finished");
-        main_cf_cb_file_rescan_finished(data);
+        main_cf_cb_file_rescan_finished(cf);
         break;
     case(cf_cb_packet_selected):
-        main_cf_cb_packet_selected(data);
+        main_cf_cb_packet_selected(cf);
         break;
     case(cf_cb_packet_unselected):
-        main_cf_cb_packet_unselected(data);
+        main_cf_cb_packet_unselected(cf);
         break;
     case(cf_cb_field_unselected):
-        main_cf_cb_field_unselected(data);
+        main_cf_cb_field_unselected(cf);
         break;
     case(cf_cb_file_save_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Save started");
@@ -1865,7 +1811,7 @@ main_cf_callback(gint event, gpointer data, gpointer user_data _U_)
 
 #ifdef HAVE_LIBPCAP
 static void
-main_capture_callback(gint event, capture_options *capture_opts, gpointer user_data _U_)
+main_capture_callback(gint event, capture_session *cap_session, gpointer user_data _U_)
 {
 #ifdef HAVE_GTKOSXAPPLICATION
     GtkosxApplication *theApp;
@@ -1873,14 +1819,14 @@ main_capture_callback(gint event, capture_options *capture_opts, gpointer user_d
     switch(event) {
     case(capture_cb_capture_prepared):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture prepared");
-        main_capture_cb_capture_prepared(capture_opts);
+        main_capture_cb_capture_prepared(cap_session);
         break;
     case(capture_cb_capture_update_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture update started");
-        main_capture_cb_capture_update_started(capture_opts);
+        main_capture_cb_capture_update_started(cap_session);
 #ifdef HAVE_GTKOSXAPPLICATION
-        theApp = g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
-        gtkosx_application_set_dock_icon_pixbuf(theApp,gdk_pixbuf_new_from_xpm_data(wsiconcap48_xpm));
+        theApp = (GtkosxApplication *)g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
+        gtkosx_application_set_dock_icon_pixbuf(theApp, gdk_pixbuf_new_from_inline(-1, wsiconcap_48_pb_data, FALSE, NULL));
 #endif
         break;
     case(capture_cb_capture_update_continue):
@@ -1888,32 +1834,32 @@ main_capture_callback(gint event, capture_options *capture_opts, gpointer user_d
         break;
     case(capture_cb_capture_update_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture update finished");
-        main_capture_cb_capture_update_finished(capture_opts);
+        main_capture_cb_capture_update_finished(cap_session);
         break;
     case(capture_cb_capture_fixed_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture fixed started");
-        main_capture_cb_capture_fixed_started(capture_opts);
+        main_capture_cb_capture_fixed_started(cap_session);
         break;
     case(capture_cb_capture_fixed_continue):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture fixed continue");
         break;
     case(capture_cb_capture_fixed_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture fixed finished");
-        main_capture_cb_capture_fixed_finished(capture_opts);
+        main_capture_cb_capture_fixed_finished(cap_session);
         break;
     case(capture_cb_capture_stopping):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture stopping");
         /* Beware: this state won't be called, if the capture child
-         * closes the capturing on it's own! */
+         * closes the capturing on its own! */
 #ifdef HAVE_GTKOSXAPPLICATION
-        theApp = g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
-        gtkosx_application_set_dock_icon_pixbuf(theApp,gdk_pixbuf_new_from_xpm_data(wsicon64_xpm));
+        theApp = (GtkosxApplication *)g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
+        gtkosx_application_set_dock_icon_pixbuf(theApp, gdk_pixbuf_new_from_inline(-1, wsicon_64_pb_data, FALSE, NULL));
 #endif
-        main_capture_cb_capture_stopping(capture_opts);
+        main_capture_cb_capture_stopping(cap_session);
         break;
     case(capture_cb_capture_failed):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture failed");
-        main_capture_cb_capture_failed(capture_opts);
+        main_capture_cb_capture_failed(cap_session);
         break;
     default:
         g_warning("main_capture_callback: event %u unknown", event);
@@ -2180,7 +2126,7 @@ main(int argc, char *argv[])
   GtkWidget           *splash_win = NULL;
   GLogLevelFlags       log_flags;
   guint                go_to_packet = 0;
-  gboolean             jump_backwards = FALSE;
+  search_direction     jump_backwards = SD_FORWARD;
   dfilter_t           *jump_to_filter = NULL;
   int                  optind_initial;
   int                  status;
@@ -2208,14 +2154,16 @@ main(int argc, char *argv[])
 #define OPTSTRING_I ""
 #endif
 
-#define OPTSTRING "a:" OPTSTRING_A "b:" OPTSTRING_B "c:C:d:Df:g:Hhi:" OPTSTRING_I "jJ:kK:lLm:nN:o:P:pr:R:Ss:t:u:vw:X:y:z:"
+#define OPTSTRING "a:" OPTSTRING_A "b:" OPTSTRING_B "c:C:Df:g:Hhi:" OPTSTRING_I "jJ:kK:lLm:nN:o:P:pr:R:Ss:t:u:vw:X:y:Y:z:"
 
   static const char optstring[] = OPTSTRING;
+
 
   /* Set the C-language locale to the native environment. */
   setlocale(LC_ALL, "");
 #ifdef _WIN32
   arg_list_utf_16to8(argc, argv);
+  create_app_running_mutex();
 #endif /* _WIN32 */
 
   /*
@@ -2255,7 +2203,7 @@ main(int argc, char *argv[])
 
     if (airpcap_if_list == NULL || g_list_length(airpcap_if_list) == 0){
       if (err == CANT_GET_AIRPCAP_INTERFACE_LIST && err_str != NULL) {
-        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", "Failed to open Airpcap Adapters!");
+        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", "Failed to open Airpcap Adapters.");
         g_free(err_str);
       }
       airpcap_if_active = NULL;
@@ -2264,7 +2212,7 @@ main(int argc, char *argv[])
 
       /* select the first ad default (THIS SHOULD BE CHANGED) */
       airpcap_if_active = airpcap_get_default_if(airpcap_if_list);
-          }
+    }
     break;
 #if 0
     /*
@@ -2284,12 +2232,7 @@ main(int argc, char *argv[])
 #endif
   }
 #endif /* HAVE_AIRPCAP */
-
-  /* Start windows sockets */
-  WSAStartup( MAKEWORD( 1, 1 ), &wsaData );
 #endif  /* _WIN32 */
-
-  profile_store_persconffiles (TRUE);
 
   /* Assemble the compile-time version information string */
   comp_info_str = g_string_new("Compiled ");
@@ -2299,6 +2242,20 @@ main(int argc, char *argv[])
   /* Assemble the run-time version information string */
   runtime_info_str = g_string_new("Running ");
   get_runtime_version_info(runtime_info_str, get_gui_runtime_info);
+
+#ifdef _WIN32
+  ws_add_crash_info(PACKAGE " " VERSION "%s\n"
+         "\n"
+         "%s"
+         "\n"
+         "%s",
+      wireshark_svnversion, comp_info_str->str, runtime_info_str->str);
+
+  /* Start windows sockets */
+  WSAStartup( MAKEWORD( 1, 1 ), &wsaData );
+#endif  /* _WIN32 */
+
+  profile_store_persconffiles (TRUE);
 
   /* Read the profile independent recent file.  We have to do this here so we can */
   /* set the profile before it can be set from the command line parameterts */
@@ -2349,13 +2306,19 @@ main(int argc, char *argv[])
           }
           exit(2);
         }
+#ifdef _WIN32
+        create_console();
+#endif /* _WIN32 */
         capture_opts_print_interfaces(if_list);
         free_interface_list(if_list);
+#ifdef _WIN32
+        destroy_console();
+#endif /* _WIN32 */
         exit(0);
-#else
+#else /* HAVE_LIBPCAP */
         capture_option_specified = TRUE;
         arg_error = TRUE;
-#endif
+#endif /* HAVE_LIBPCAP */
         break;
       case 'h':        /* Print help and exit */
         print_usage(TRUE);
@@ -2375,7 +2338,13 @@ main(int argc, char *argv[])
         }
         break;
       case 'v':        /* Show version and exit */
+#ifdef _WIN32
+        create_console();
+#endif
         show_version();
+#ifdef _WIN32
+        destroy_console();
+#endif
         exit(0);
         break;
       case 'X':
@@ -2479,14 +2448,14 @@ main(int argc, char *argv[])
 
   /* We might want to have component specific log levels later ... */
 
-  log_flags =
-            G_LOG_LEVEL_ERROR|
+  log_flags = (GLogLevelFlags)
+            (G_LOG_LEVEL_ERROR|
             G_LOG_LEVEL_CRITICAL|
             G_LOG_LEVEL_WARNING|
             G_LOG_LEVEL_MESSAGE|
             G_LOG_LEVEL_INFO|
             G_LOG_LEVEL_DEBUG|
-            G_LOG_FLAG_FATAL|G_LOG_FLAG_RECURSION;
+            G_LOG_FLAG_FATAL|G_LOG_FLAG_RECURSION);
 
   g_log_set_handler(NULL,
             log_flags,
@@ -2505,7 +2474,9 @@ main(int argc, char *argv[])
 
   /* Set the initial values in the capture options. This might be overwritten
      by preference settings and then again by the command line parameters. */
-  capture_opts_init(&global_capture_opts, &cfile);
+  capture_opts_init(&global_capture_opts);
+
+  capture_session_init(&global_capture_session, (void *)&cfile);
 #endif
 
   /* Initialize whatever we need to allocate colors for GTK+ */
@@ -2621,11 +2592,8 @@ main(int argc, char *argv[])
       case 'C':
         /* Configuration profile settings were already processed just ignore them this time*/
         break;
-      case 'd':
-        dfilter = optarg;
-        break;
       case 'j':        /* Search backwards for a matching packet from filter in option J */
-        jump_backwards = TRUE;
+        jump_backwards = SD_BACKWARD;
         break;
       case 'g':        /* Go to packet with the given packet number */
         go_to_packet = get_positive_int(optarg, "go to packet");
@@ -2650,8 +2618,8 @@ main(int argc, char *argv[])
 #endif
         break;
       case 'm':        /* Fixed-width font for the display */
-        g_free(prefs_p->gui_font_name);
-        prefs_p->gui_font_name = g_strdup(optarg);
+        g_free(prefs_p->gui_gtk2_font_name);
+        prefs_p->gui_gtk2_font_name = g_strdup(optarg);
         break;
       case 'n':        /* No name resolution */
         gbl_resolv_flags.mac_name = FALSE;
@@ -2754,6 +2722,9 @@ main(int argc, char *argv[])
       case 'X':
           /* ext ops were already processed just ignore them this time*/
           break;
+      case 'Y':
+        dfilter = optarg;
+        break;
       case 'z':
         /* We won't call the init function for the stat this soon
            as it would disallow MATE's fields (which are registered
@@ -2877,8 +2848,10 @@ main(int argc, char *argv[])
   }
 
   if (start_capture || list_link_layer_types) {
-    /* Did the user specify an interface to use? */
-    status = capture_opts_trim_iface(&global_capture_opts,
+    /* We're supposed to do a live capture or get a list of link-layer
+       types for a live capture device; if the user didn't specify an
+       interface to use, pick a default. */
+    status = capture_opts_default_iface_if_necessary(&global_capture_opts,
         ((prefs_p->capture_device) && (*prefs_p->capture_device != '\0')) ? get_if_name(prefs_p->capture_device) : NULL);
     if (status != 0) {
       exit(status);
@@ -2908,11 +2881,17 @@ main(int argc, char *argv[])
           cmdarg_err("The capture device \"%s\" has no data link types.", device.name);
           exit(2);
         }
+#ifdef _WIN32
+        create_console();
+#endif /* _WIN32 */
 #if defined(HAVE_PCAP_CREATE)
         capture_opts_print_if_capabilities(caps, device.name, device.monitor_mode_supported);
 #else
         capture_opts_print_if_capabilities(caps, device.name, FALSE);
 #endif
+#ifdef _WIN32
+        destroy_console();
+#endif /* _WIN32 */
         free_if_capabilities(caps);
       }
     }
@@ -2930,12 +2909,12 @@ main(int argc, char *argv[])
 
 #ifdef HAVE_LIBPCAP
   if ((global_capture_opts.num_selected == 0) &&
-      (prefs.capture_device != NULL) && (*prefs_p->capture_device != '\0')) {
+      ((prefs.capture_device != NULL) && (*prefs_p->capture_device != '\0'))) {
     guint i;
     interface_t device;
     for (i = 0; i < global_capture_opts.all_ifaces->len; i++) {
       device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
-      if (!device.hidden && strcmp(device.display_name, prefs.capture_device) == 0) {
+      if (!device.hidden && strstr(prefs.capture_device, device.name) != NULL) {
         device.selected = TRUE;
         global_capture_opts.num_selected++;
         global_capture_opts.all_ifaces = g_array_remove_index(global_capture_opts.all_ifaces, i);
@@ -2943,6 +2922,13 @@ main(int argc, char *argv[])
         break;
       }
     }
+  }
+  if (global_capture_opts.num_selected == 0 && global_capture_opts.all_ifaces->len == 1) {
+    interface_t device = g_array_index(global_capture_opts.all_ifaces, interface_t, 0);
+    device.selected = TRUE;
+    global_capture_opts.num_selected++;
+    global_capture_opts.all_ifaces = g_array_remove_index(global_capture_opts.all_ifaces, 0);
+    g_array_insert_val(global_capture_opts.all_ifaces, 0, device);
   }
 #endif
 
@@ -2960,7 +2946,7 @@ main(int argc, char *argv[])
 #else
   gtk_rc_parse(rc_file);
   g_free(rc_file);
-  rc_file = get_persconffile_path(RC_FILE, FALSE, FALSE);
+  rc_file = get_persconffile_path(RC_FILE, FALSE);
   gtk_rc_parse(rc_file);
 #endif
   g_free(rc_file);
@@ -3034,15 +3020,6 @@ main(int argc, char *argv[])
   main_load_window_geometry(top_level);
 
   g_timeout_add(info_update_freq, resolv_update_cb, NULL);
-
-  if (dfilter) {
-    GtkWidget *filter_te;
-    filter_te = gtk_bin_get_child(GTK_BIN(g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY)));
-    gtk_entry_set_text(GTK_ENTRY(filter_te), dfilter);
-
-    /* Run the display filter so it goes in effect. */
-    main_filter_packets(&cfile, dfilter, FALSE);
-  }
 
   /* If we were given the name of a capture file, read it in now;
      we defer it until now, so that, if we can't open it, and pop
@@ -3154,7 +3131,7 @@ main(int argc, char *argv[])
          to use for this capture. */
       if (global_capture_opts.ifaces->len == 0)
         collect_ifaces(&global_capture_opts);
-      if (capture_start(&global_capture_opts)) {
+      if (capture_start(&global_capture_opts, &global_capture_session)) {
         /* The capture started.  Open stat windows; we do so after creating
            the main window, to avoid GTK warnings, and after successfully
            opening the capture file, so we know we have something to compute
@@ -3182,14 +3159,24 @@ main(int argc, char *argv[])
 #endif /* HAVE_LIBPCAP */
   }
 
+  if (dfilter) {
+    GtkWidget *filter_te;
+    filter_te = gtk_bin_get_child(GTK_BIN(g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY)));
+    gtk_entry_set_text(GTK_ENTRY(filter_te), dfilter);
+
+    /* Run the display filter so it goes in effect. */
+    main_filter_packets(&cfile, dfilter, FALSE);
+  }
+
+
   /* register our pid if we are being run from a U3 device */
   u3_register_pid();
 
   profile_store_persconffiles (FALSE);
 
 #ifdef HAVE_GTKOSXAPPLICATION
-  theApp = g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
-  gtkosx_application_set_dock_icon_pixbuf(theApp,gdk_pixbuf_new_from_xpm_data(wsicon64_xpm));
+  theApp = (GtkosxApplication *)g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
+  gtkosx_application_set_dock_icon_pixbuf(theApp, gdk_pixbuf_new_from_inline(-1, wsicon_64_pb_data, FALSE, NULL));
   gtkosx_application_ready(theApp);
 #endif
 
@@ -3198,6 +3185,8 @@ main(int argc, char *argv[])
 #ifdef HAVE_LIBPCAP
   gtk_iface_mon_start();
 #endif
+
+  software_update_init();
 
   /* we'll enter the GTK loop now and hand the control over to GTK ... */
   gtk_main();
@@ -3221,6 +3210,8 @@ main(int argc, char *argv[])
 #ifdef HAVE_GTKOSXAPPLICATION
   g_object_unref(theApp);
 #endif
+
+  software_update_cleanup();
 
   /* Shutdown windows sockets */
   WSACleanup();
@@ -3524,7 +3515,7 @@ void main_widgets_rearrange(void) {
 static void
 is_widget_visible(GtkWidget *widget, gpointer data)
 {
-    gboolean *is_visible = data;
+    gboolean *is_visible = ( gboolean *)data;
 
     if (!*is_visible) {
         if (gtk_widget_get_visible(widget))
@@ -3655,13 +3646,17 @@ top_level_key_pressed_cb(GtkWidget *w _U_, GdkEventKey *event, gpointer user_dat
 }
 
 static void
-create_main_window (gint pl_size, gint tv_size, gint bv_size, e_prefs *prefs_p)
+create_main_window (gint pl_size, gint tv_size, gint bv_size, e_prefs *prefs_p
+#if !defined(HAVE_IGE_MAC_INTEGRATION) && !defined (HAVE_GTKOSXAPPLICATION)
+                    _U_
+#endif
+                    )
 {
     GtkAccelGroup *accel;
 
     /* Main window */
     top_level = window_new(GTK_WINDOW_TOPLEVEL, "");
-    main_set_window_name("The Wireshark Network Analyzer");
+    set_titlebar_for_capture_file(NULL);
 
     gtk_widget_set_name(top_level, "main window");
     g_signal_connect(top_level, "delete_event", G_CALLBACK(main_window_delete_event_cb),
@@ -3706,7 +3701,7 @@ create_main_window (gint pl_size, gint tv_size, gint bv_size, e_prefs *prefs_p)
     gtk_widget_show_all(pkt_scrollw);
 
     /* Tree view */
-    tv_scrollw = proto_tree_view_new(prefs_p, &tree_view_gbl);
+    tv_scrollw = proto_tree_view_new(&tree_view_gbl);
     gtk_widget_set_size_request(tv_scrollw, -1, tv_size);
     gtk_widget_show(tv_scrollw);
 
@@ -3772,21 +3767,6 @@ show_main_window(gboolean doing_work)
 #ifdef HAVE_AIRPCAP
   airpcap_toolbar_show(wireless_tb);
 #endif /* HAVE_AIRPCAP */
-}
-
-/* Fill in capture options with values from the preferences */
-void
-prefs_to_capture_opts(void)
-{
-#ifdef HAVE_LIBPCAP
-  /* Set promiscuous mode from the preferences setting. */
-  /* the same applies to other preferences settings as well. */
-    global_capture_opts.default_options.promisc_mode = prefs.capture_prom_mode;
-    global_capture_opts.use_pcapng                   = prefs.capture_pcap_ng;
-    global_capture_opts.show_info                    = prefs.capture_show_info;
-    global_capture_opts.real_time_mode               = prefs.capture_real_time;
-    auto_scroll_live                                 = prefs.capture_auto_scroll;
-#endif /* HAVE_LIBPCAP */
 }
 
 static void copy_global_profile (const gchar *profile_name)

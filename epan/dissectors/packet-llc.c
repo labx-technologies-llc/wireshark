@@ -205,7 +205,7 @@ http://www.cisco.com/univercd/cc/td/doc/product/software/ios113ed/113ed_cr/ibm_r
 	{ OUI_SONY_ERICSSON_5,	"Sony Ericsson Mobile Communications AB" },
 	{ OUI_SONY_ERICSSON_6,	"Sony Ericsson Mobile Communications AB" },
 	{ OUI_SONY_ERICSSON_7,	"Sony Ericsson Mobile Communications AB" },
-	{ OUI_BLUETOOTH,		"Bluetooth" },
+	{ OUI_BLUETOOTH,		"Bluetooth SIG, Inc." },
 	{ OUI_SONY_ERICSSON_8,	"Sony Ericsson Mobile Communications AB" },
 	{ OUI_IEEE_802_1QBG,	"IEEE 802.1Qbg" },
 	{ OUI_TURBOCELL,		"Karlnet (Turbocell)" },
@@ -262,7 +262,7 @@ llc_add_oui(guint32 oui, const char *table_name, const char *table_ui_name,
 {
 	oui_info_t *new_info;
 
-	new_info = g_malloc(sizeof (oui_info_t));
+	new_info = (oui_info_t *)g_malloc(sizeof (oui_info_t));
 	new_info->table = register_dissector_table(table_name,
 	    table_ui_name, FT_UINT16, BASE_HEX);
 	new_info->field_info = hf_item;
@@ -605,7 +605,6 @@ dissect_snap(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree,
 	case OUI_HP_2:
 		oui_info = get_snap_oui_info(oui);
 		hf = *oui_info->field_info->p_id;
-		subdissector_table = oui_info->table;
 		proto_tree_add_uint(snap_tree, hf, tvb, offset+3, 2, etype);
 		next_tvb = tvb_new_subset_remaining(tvb, offset+5);
 
@@ -782,7 +781,7 @@ oui_info_t *
 get_snap_oui_info(guint32 oui)
 {
 	if (oui_info_table != NULL) {
-		return g_hash_table_lookup(oui_info_table,
+		return (oui_info_t *)g_hash_table_lookup(oui_info_table,
 		    GUINT_TO_POINTER(oui));
 	} else
 		return NULL;
@@ -924,7 +923,7 @@ proto_register_basicxid(void)
 static void
 register_hf(gpointer key _U_, gpointer value, gpointer user_data _U_)
 {
-	oui_info_t *info = value;
+	oui_info_t *info = (oui_info_t *)value;
 
 	proto_register_field_array(proto_llc, info->field_info, 1);
 }

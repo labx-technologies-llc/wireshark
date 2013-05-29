@@ -247,6 +247,9 @@ static const value_string flags_vals[] = {
     {0x0, NULL}
 };
 
+void proto_register_btatt(void);
+void proto_reg_handoff_btatt(void);
+
 static void
 dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
@@ -256,24 +259,18 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint8 opcode;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "ATT");
-    
+
     switch (pinfo->p2p_dir) {
-
-    case P2P_DIR_SENT:
-        col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
-        break;
-
-    case P2P_DIR_RECV:
-        col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
-        break;
-
-    case P2P_DIR_UNKNOWN:
-        break;
-
-    default:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
-            pinfo->p2p_dir);
-        break;
+        case P2P_DIR_SENT:
+            col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
     }
 
     if (tvb_length_remaining(tvb, 0) < 1)
@@ -286,7 +283,7 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     opcode = tvb_get_guint8(tvb, 0);
     offset++;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str(opcode, opcode_vals, "<unknown>"));
+    col_append_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str_const(opcode, opcode_vals, "<unknown>"));
 
     switch (opcode) {
     case 0x01: /* Error Response */
@@ -294,7 +291,7 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         offset++;
         proto_tree_add_item(st, hf_btatt_handle_in_error, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         col_append_fstr(pinfo->cinfo, COL_INFO, " - %s, Handle: 0x%04x",
-                        val_to_str(tvb_get_guint8(tvb, offset+2), error_vals, "<unknown>"),
+                        val_to_str_const(tvb_get_guint8(tvb, offset+2), error_vals, "<unknown>"),
                         tvb_get_letohs(tvb, offset));
         offset += 2;
         proto_tree_add_item(st, hf_btatt_error_code, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -424,7 +421,7 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     
                     proto_tree_add_item(ltree, hf_btatt_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                     offset += 2;
-                    proto_tree_add_item(ltree, hf_btatt_value, tvb, offset, length-2, ENC_LITTLE_ENDIAN);
+                    proto_tree_add_item(ltree, hf_btatt_value, tvb, offset, length - 2, ENC_NA);
                     offset += (length-2);
                 }
             }
@@ -488,7 +485,7 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     offset += 2;
                     proto_tree_add_item(ltree, hf_btatt_group_end_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                     offset += 2;
-                    proto_tree_add_item(ltree, hf_btatt_value, tvb, offset, length-4, ENC_LITTLE_ENDIAN);
+                    proto_tree_add_item(ltree, hf_btatt_value, tvb, offset, length - 4, ENC_NA);
                     offset += (length-4);
                 }
             }
@@ -518,7 +515,7 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     case 0x18: /* Execute Write Request */
         col_append_fstr(pinfo->cinfo, COL_INFO, ", %s",
-                        val_to_str(tvb_get_guint8(tvb, offset), flags_vals, "<unknown>"));
+                        val_to_str_const(tvb_get_guint8(tvb, offset), flags_vals, "<unknown>"));
         proto_tree_add_item(st, hf_btatt_flags, tvb, offset, 1, ENC_LITTLE_ENDIAN);
         offset++;
         break;
@@ -657,7 +654,7 @@ proto_register_btatt(void)
     };
 
     /* Register the protocol name and description */
-    proto_btatt = proto_register_protocol("Bluetooth Attribute Protocol", "ATT", "btatt");
+    proto_btatt = proto_register_protocol("Bluetooth Attribute Protocol", "BT ATT", "btatt");
 
     register_dissector("btatt", dissect_btatt, proto_btatt);
 

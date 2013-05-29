@@ -136,139 +136,136 @@ extern void dissect_zbee_zdp_rsp_mgmt_nwkupdate     (tvbuff_t *tvb, packet_info 
  **************************************
  */
 /* Global field indicies. */
-int proto_zbee_zdp = -1;
-int hf_zbee_zdp_seqno = -1;
-int hf_zbee_zdp_length = -1; /* Deprecates since ZigBee 2006. */
+static int proto_zbee_zdp = -1;
+static int hf_zbee_zdp_seqno = -1;
+#if 0
+static int hf_zbee_zdp_length = -1; /* Deprecates since ZigBee 2006. */
+#endif
 
 /* General indicies. */
-int hf_zbee_zdp_ext_addr = -1;
-int hf_zbee_zdp_device = -1;
-int hf_zbee_zdp_req_type = -1;
-int hf_zbee_zdp_index = -1;
-int hf_zbee_zdp_status = -1;
-int hf_zbee_zdp_ep_count = -1;
-int hf_zbee_zdp_endpoint = -1;
-int hf_zbee_zdp_profile = -1;
-int hf_zbee_zdp_cluster = -1;
-int hf_zbee_zdp_addr_mode = -1;
-int hf_zbee_zdp_table_size = -1;
-int hf_zbee_zdp_table_count = -1;
-int hf_zbee_zdp_in_count = -1;
-int hf_zbee_zdp_out_count = -1;
-int hf_zbee_zdp_in_cluster = -1;
-int hf_zbee_zdp_out_cluster = -1;
-int hf_zbee_zdp_assoc_device_count = -1;
-int hf_zbee_zdp_assoc_device = -1;
+       int hf_zbee_zdp_ext_addr = -1;
+       int hf_zbee_zdp_device = -1;
+       int hf_zbee_zdp_req_type = -1;
+       int hf_zbee_zdp_index = -1;
+static int hf_zbee_zdp_status = -1;
+       int hf_zbee_zdp_ep_count = -1;
+       int hf_zbee_zdp_endpoint = -1;
+       int hf_zbee_zdp_profile = -1;
+       int hf_zbee_zdp_cluster = -1;
+       int hf_zbee_zdp_addr_mode = -1;
+       int hf_zbee_zdp_table_size = -1;
+       int hf_zbee_zdp_table_count = -1;
+       int hf_zbee_zdp_in_count = -1;
+       int hf_zbee_zdp_out_count = -1;
+       int hf_zbee_zdp_in_cluster = -1;
+       int hf_zbee_zdp_out_cluster = -1;
+       int hf_zbee_zdp_assoc_device_count = -1;
+       int hf_zbee_zdp_assoc_device = -1;
 
 /* Capability information indicies. */
-int hf_zbee_zdp_cinfo_alloc = -1;
-int hf_zbee_zdp_cinfo_security = -1;
-int hf_zbee_zdp_cinfo_idle_rx = -1;
-int hf_zbee_zdp_cinfo_power = -1;
-int hf_zbee_zdp_cinfo_ffd = -1;
-int hf_zbee_zdp_cinfo_alt_coord = -1;
+static int hf_zbee_zdp_cinfo_alloc = -1;
+static int hf_zbee_zdp_cinfo_security = -1;
+static int hf_zbee_zdp_cinfo_idle_rx = -1;
+static int hf_zbee_zdp_cinfo_power = -1;
+static int hf_zbee_zdp_cinfo_ffd = -1;
+static int hf_zbee_zdp_cinfo_alt_coord = -1;
 
 /* Server mode flag indicies. */
-int hf_zbee_zdp_server_pri_trust = -1;
-int hf_zbee_zdp_server_bak_trust = -1;
-int hf_zbee_zdp_server_pri_bind = -1;
-int hf_zbee_zdp_server_bak_bind = -1;
-int hf_zbee_zdp_server_pri_disc = -1;
-int hf_zbee_zdp_server_bak_disc = -1;
+static int hf_zbee_zdp_server_pri_trust = -1;
+static int hf_zbee_zdp_server_bak_trust = -1;
+static int hf_zbee_zdp_server_pri_bind = -1;
+static int hf_zbee_zdp_server_bak_bind = -1;
+static int hf_zbee_zdp_server_pri_disc = -1;
+static int hf_zbee_zdp_server_bak_disc = -1;
 
 /* Node descriptor indicies. */
-int hf_zbee_zdp_node_type = -1;
-int hf_zbee_zdp_node_complex = -1;
-int hf_zbee_zdp_node_user = -1;
-int hf_zbee_zdp_node_freq_868 = -1;
-int hf_zbee_zdp_node_freq_900 = -1;
-int hf_zbee_zdp_node_freq_2400 = -1;
-int hf_zbee_zdp_node_manufacturer = -1;
-int hf_zbee_zdp_node_max_buffer = -1;
-int hf_zbee_zdp_node_max_transfer = -1;
+static int hf_zbee_zdp_node_type = -1;
+static int hf_zbee_zdp_node_complex = -1;
+static int hf_zbee_zdp_node_user = -1;
+static int hf_zbee_zdp_node_freq_868 = -1;
+static int hf_zbee_zdp_node_freq_900 = -1;
+static int hf_zbee_zdp_node_freq_2400 = -1;
+static int hf_zbee_zdp_node_manufacturer = -1;
+static int hf_zbee_zdp_node_max_buffer = -1;
+static int hf_zbee_zdp_node_max_transfer = -1;
 
 /* Power descriptor indicies. */
-int hf_zbee_zdp_power_mode = -1;
-int hf_zbee_zdp_power_avail_ac = -1;
-int hf_zbee_zdp_power_avail_recharge = -1;
-int hf_zbee_zdp_power_avail_dispose = -1;
-int hf_zbee_zdp_power_source_ac = -1;
-int hf_zbee_zdp_power_source_recharge = -1;
-int hf_zbee_zdp_power_source_dispose = -1;
-int hf_zbee_zdp_power_level = -1;
+static int hf_zbee_zdp_power_mode = -1;
+static int hf_zbee_zdp_power_avail_ac = -1;
+static int hf_zbee_zdp_power_avail_recharge = -1;
+static int hf_zbee_zdp_power_avail_dispose = -1;
+static int hf_zbee_zdp_power_source_ac = -1;
+static int hf_zbee_zdp_power_source_recharge = -1;
+static int hf_zbee_zdp_power_source_dispose = -1;
+static int hf_zbee_zdp_power_level = -1;
 
 /* Simple descriptor indicies. */
-int hf_zbee_zdp_simple_app_device = -1;
-int hf_zbee_zdp_simple_app_version = -1;
-int hf_zbee_zdp_simple_length = -1;
+static int hf_zbee_zdp_simple_app_device = -1;
+static int hf_zbee_zdp_simple_app_version = -1;
+       int hf_zbee_zdp_simple_length = -1;
 
 /* Complex descriptor indicies. */
-int hf_zbee_zdp_complex_length = -1;
-int hf_zbee_zdp_complex_tag = -1;
-int hf_zbee_zdp_complex = -1;
+       int hf_zbee_zdp_complex_length = -1;
+static int hf_zbee_zdp_complex = -1;
 
 /* User descriptor indicies. */
-int hf_zbee_zdp_user = -1;
-int hf_zbee_zdp_user_length = -1;
+       int hf_zbee_zdp_user = -1;
+       int hf_zbee_zdp_user_length = -1;
 
 /* Discovery indicies. */
-int hf_zbee_zdp_cache = -1;
-int hf_zbee_zdp_disc_node_size = -1;
-int hf_zbee_zdp_disc_power_size = -1;
-int hf_zbee_zdp_disc_ep_count = -1;
-int hf_zbee_zdp_disc_simple_count = -1;
-int hf_zbee_zdp_disc_simple_size = -1;
+       int hf_zbee_zdp_cache = -1;
+       int hf_zbee_zdp_disc_node_size = -1;
+       int hf_zbee_zdp_disc_power_size = -1;
+       int hf_zbee_zdp_disc_ep_count = -1;
+       int hf_zbee_zdp_disc_simple_count = -1;
+       int hf_zbee_zdp_disc_simple_size = -1;
 
 /* Binding indicies. */
-int hf_zbee_zdp_target = -1;
-int hf_zbee_zdp_target64 = -1;
-int hf_zbee_zdp_target_ep = -1;
-int hf_zbee_zdp_replacement = -1;
-int hf_zbee_zdp_replacement_ep = -1;
-int hf_zbee_zdp_bind_src = -1;
-int hf_zbee_zdp_bind_src64 = -1;
-int hf_zbee_zdp_bind_src_ep = -1;
-int hf_zbee_zdp_bind_dst = -1;
-int hf_zbee_zdp_bind_dst64 = -1;
-int hf_zbee_zdp_bind_dst_ep = -1;
+       int hf_zbee_zdp_target = -1;
+       int hf_zbee_zdp_replacement = -1;
+       int hf_zbee_zdp_replacement_ep = -1;
+       int hf_zbee_zdp_bind_src = -1;
+       int hf_zbee_zdp_bind_src64 = -1;
+       int hf_zbee_zdp_bind_src_ep = -1;
+       int hf_zbee_zdp_bind_dst = -1;
+       int hf_zbee_zdp_bind_dst64 = -1;
+       int hf_zbee_zdp_bind_dst_ep = -1;
 
 /* Network Management indicies. */
-int hf_zbee_zdp_duration = -1;
-int hf_zbee_zdp_leave_children = -1;
-int hf_zbee_zdp_leave_rejoin = -1;
-int hf_zbee_zdp_significance = -1;
-int hf_zbee_zdp_scan_count = -1;
-int hf_zbee_zdp_update_id = -1;
-int hf_zbee_zdp_manager = -1;
-int hf_zbee_zdp_tx_total = -1;
-int hf_zbee_zdp_tx_fail = -1;
-int hf_zbee_zdp_channel_count = -1;
+       int hf_zbee_zdp_duration = -1;
+       int hf_zbee_zdp_leave_children = -1;
+       int hf_zbee_zdp_leave_rejoin = -1;
+       int hf_zbee_zdp_significance = -1;
+       int hf_zbee_zdp_scan_count = -1;
+       int hf_zbee_zdp_update_id = -1;
+       int hf_zbee_zdp_manager = -1;
+       int hf_zbee_zdp_tx_total = -1;
+       int hf_zbee_zdp_tx_fail = -1;
+       int hf_zbee_zdp_channel_count = -1;
 
 /* Subtree indicies. */
-gint ett_zbee_zdp = -1;
-gint ett_zbee_zdp_endpoint = -1;
-gint ett_zbee_zdp_match_in = -1;
-gint ett_zbee_zdp_match_out = -1;
-gint ett_zbee_zdp_node = -1;
-gint ett_zbee_zdp_node_in = -1;
-gint ett_zbee_zdp_node_out = -1;
-gint ett_zbee_zdp_power = -1;
-gint ett_zbee_zdp_simple = -1;
-gint ett_zbee_zdp_complex = -1;
-gint ett_zbee_zdp_cinfo = -1;
-gint ett_zbee_zdp_server = -1;
-gint ett_zbee_zdp_simple_sizes = -1;
-gint ett_zbee_zdp_bind = -1;
-gint ett_zbee_zdp_bind_end_in = -1;
-gint ett_zbee_zdp_bind_end_out = -1;
-gint ett_zbee_zdp_bind_table = -1;
-gint ett_zbee_zdp_bind_source = -1;
-gint ett_zbee_zdp_channels = -1;
-gint ett_zbee_zdp_assoc_device = -1;
-gint ett_zbee_zdp_nwk = -1;
-gint ett_zbee_zdp_lqi = -1;
-gint ett_zbee_zdp_rtg = -1;
-gint ett_zbee_zdp_cache = -1;
+static gint ett_zbee_zdp = -1;
+       gint ett_zbee_zdp_endpoint = -1;
+       gint ett_zbee_zdp_match_in = -1;
+       gint ett_zbee_zdp_match_out = -1;
+       gint ett_zbee_zdp_node = -1;
+static gint ett_zbee_zdp_node_in = -1;
+static gint ett_zbee_zdp_node_out = -1;
+       gint ett_zbee_zdp_power = -1;
+       gint ett_zbee_zdp_simple = -1;
+       gint ett_zbee_zdp_cinfo = -1;
+       gint ett_zbee_zdp_server = -1;
+       gint ett_zbee_zdp_simple_sizes = -1;
+       gint ett_zbee_zdp_bind = -1;
+       gint ett_zbee_zdp_bind_end_in = -1;
+       gint ett_zbee_zdp_bind_end_out = -1;
+static gint ett_zbee_zdp_bind_table = -1;
+       gint ett_zbee_zdp_bind_source = -1;
+       gint ett_zbee_zdp_assoc_device = -1;
+       gint ett_zbee_zdp_nwk = -1;
+       gint ett_zbee_zdp_lqi = -1;
+       gint ett_zbee_zdp_rtg = -1;
+       gint ett_zbee_zdp_cache = -1;
 
 /* Data dissector handle. */
 static dissector_handle_t  data_handle;
@@ -579,7 +576,7 @@ zbee_parse_eui64(proto_tree *tree, int hfindex, tvbuff_t *tvb, guint *offset, gu
     }
 
     /* Increment the offset. */
-    *offset += sizeof(guint64);
+    *offset += (int)sizeof(guint64);
 
     /* return the item if requested. */
     if (ti) *ti = item;
@@ -609,9 +606,9 @@ zdp_parse_status(proto_tree *tree, tvbuff_t *tvb, guint *offset)
     /* Get and display the flags. */
     status = tvb_get_guint8(tvb, *offset);
     if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_zdp_status, tvb, *offset, sizeof(guint8), status);
+        proto_tree_add_uint(tree, hf_zbee_zdp_status, tvb, *offset, (int)sizeof(guint8), status);
     }
-    *offset += sizeof(guint8);
+    *offset += (int)sizeof(guint8);
 
     return status;
 } /* zdp_parse_status */
@@ -639,21 +636,21 @@ zdp_parse_chanmask(proto_tree *tree, tvbuff_t *tvb, guint *offset)
     /* Get and display the channel mask. */
     mask = tvb_get_letohl(tvb, *offset);
     if (tree) {
-        ti = proto_tree_add_text(tree, tvb, *offset, sizeof(guint32), "Channels: ");
+        ti = proto_tree_add_text(tree, tvb, *offset, (int)sizeof(guint32), "Channels: ");
 
         /* Check if there are any channels to display. */
         if (mask==0) {
             proto_item_append_text(ti, "None");
         }
         /* Display the first channel #. */
-        for (i=0; i<(8*(int)sizeof(guint32)); i++) {
+        for (i=0; i<(8*(int)(int)sizeof(guint32)); i++) {
             if ((1<<i) & mask) {
                 proto_item_append_text(ti, "%d", i++);
                 break;
             }
         } /* for */
         /* Display the rest of the channels. */
-        for (;i<(8*(int)sizeof(guint32)); i++) {
+        for (;i<(8*(int)(int)sizeof(guint32)); i++) {
             if (!((1<<i) & mask)) {
                 /* This channel isn't selected. */
                 continue;
@@ -674,7 +671,7 @@ zdp_parse_chanmask(proto_tree *tree, tvbuff_t *tvb, guint *offset)
             }
         } /* for */
     }
-    *offset += sizeof(guint32);
+    *offset += (int)sizeof(guint32);
 
     return mask;
 } /* zdp_parse_chanmask */
@@ -705,19 +702,19 @@ zdp_parse_cinfo(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offset)
     flags = tvb_get_guint8(tvb, *offset);
     if (tree) {
         if (ettindex != -1) {
-            ti = proto_tree_add_text(tree, tvb, *offset, sizeof(guint8), "Capability Information");
+            ti = proto_tree_add_text(tree, tvb, *offset, (int)sizeof(guint8), "Capability Information");
             field_tree = proto_item_add_subtree(ti, ettindex);
         }
         else field_tree = tree;
 
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_alt_coord, tvb, *offset, sizeof(guint8), flags & ZBEE_CINFO_ALT_COORD);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_ffd, tvb, *offset, sizeof(guint8), flags & ZBEE_CINFO_FFD);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_power, tvb, *offset, sizeof(guint8), flags & ZBEE_CINFO_POWER);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_idle_rx, tvb, *offset, sizeof(guint8), flags & ZBEE_CINFO_IDLE_RX);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_security, tvb, *offset, sizeof(guint8), flags & ZBEE_CINFO_SECURITY);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_alloc, tvb, *offset, sizeof(guint8), flags & ZBEE_CINFO_ALLOC);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_alt_coord, tvb, *offset, (int)sizeof(guint8), flags & ZBEE_CINFO_ALT_COORD);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_ffd, tvb, *offset, (int)sizeof(guint8), flags & ZBEE_CINFO_FFD);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_power, tvb, *offset, (int)sizeof(guint8), flags & ZBEE_CINFO_POWER);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_idle_rx, tvb, *offset, (int)sizeof(guint8), flags & ZBEE_CINFO_IDLE_RX);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_security, tvb, *offset, (int)sizeof(guint8), flags & ZBEE_CINFO_SECURITY);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_cinfo_alloc, tvb, *offset, (int)sizeof(guint8), flags & ZBEE_CINFO_ALLOC);
     }
-    *offset += sizeof(guint8);
+    *offset += (int)sizeof(guint8);
 
     return flags;
 } /* zdp_parse_cinfo */
@@ -748,19 +745,19 @@ zdp_parse_server_flags(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *of
     flags = tvb_get_letohs(tvb, *offset);
     if (tree) {
         if (ettindex != -1) {
-            ti = proto_tree_add_text(tree, tvb, *offset, sizeof(guint8), "Server Flags");
+            ti = proto_tree_add_text(tree, tvb, *offset, (int)sizeof(guint8), "Server Flags");
             field_tree = proto_item_add_subtree(ti, ettindex);
         }
         else field_tree = tree;
 
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_pri_trust, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_PRIMARY_TRUST);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_bak_trust, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_BACKUP_TRUST);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_pri_bind, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_PRIMARY_BIND);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_bak_bind, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_BACKUP_BIND);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_pri_disc, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_PRIMARY_DISC);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_bak_disc, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_BACKUP_DISC);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_pri_trust, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_PRIMARY_TRUST);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_bak_trust, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_BACKUP_TRUST);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_pri_bind, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_PRIMARY_BIND);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_bak_bind, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_BACKUP_BIND);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_pri_disc, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_PRIMARY_DISC);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_server_bak_disc, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_SERVER_BACKUP_DISC);
     }
-    *offset += sizeof(guint16);
+    *offset += (int)sizeof(guint16);
 
     return flags;
 } /* zdp_parse_server_flags */
@@ -805,12 +802,12 @@ zdp_parse_node_desc(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offse
     flags = tvb_get_letohs(tvb, *offset);
     if (tree) {
         guint16 type = flags & ZBEE_ZDP_NODE_TYPE;
-        ti = proto_tree_add_uint(field_tree, hf_zbee_zdp_node_type, tvb, *offset, sizeof(guint16), type);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_complex, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_COMPLEX);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_user, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_USER);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_freq_868, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_FREQ_868MHZ);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_freq_900, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_FREQ_900MHZ);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_freq_2400, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_NODE_FREQ_2400MHZ);
+        ti = proto_tree_add_uint(field_tree, hf_zbee_zdp_node_type, tvb, *offset, (int)sizeof(guint16), type);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_complex, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_COMPLEX);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_user, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_USER);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_freq_868, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_FREQ_868MHZ);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_freq_900, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_FREQ_900MHZ);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_node_freq_2400, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_NODE_FREQ_2400MHZ);
 
         /* Enumerate the type field. */
         if (type == ZBEE_ZDP_NODE_TYPE_COORD)    proto_item_append_text(ti, " (Coordinator)");
@@ -818,13 +815,13 @@ zdp_parse_node_desc(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offse
         else if (type == ZBEE_ZDP_NODE_TYPE_RFD) proto_item_append_text(ti, " (End Device)");
         else proto_item_append_text(ti, " (Reserved)");
     }
-    *offset += sizeof(guint16);
+    *offset += (int)sizeof(guint16);
 
     /* Get and display the capability flags. */
     /*capability      =*/ zdp_parse_cinfo(field_tree, ett_zbee_zdp_cinfo, tvb, offset);
-    /*mfr_code        =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_node_manufacturer, tvb, offset, sizeof(guint16), NULL);
-    /*max_buff        =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_node_max_buffer, tvb, offset, sizeof(guint8), NULL);
-    /*max_transfer    =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_node_max_transfer, tvb, offset, sizeof(guint16), NULL);
+    /*mfr_code        =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_node_manufacturer, tvb, offset, (int)sizeof(guint16), NULL);
+    /*max_buff        =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_node_max_buffer, tvb, offset, (int)sizeof(guint8), NULL);
+    /*max_transfer    =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_node_max_transfer, tvb, offset, (int)sizeof(guint16), NULL);
 
     /* Get and display the server flags. */
     if (pinfo->zbee_stack_vers >= ZBEE_VERSION_2007) {
@@ -866,7 +863,7 @@ zdp_parse_power_desc(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offs
     guint16     level;
 
     if ((tree) && (ettindex != -1)) {
-        ti = proto_tree_add_text(tree, tvb, *offset, sizeof(guint16), "Power Descriptor");
+        ti = proto_tree_add_text(tree, tvb, *offset, (int)sizeof(guint16), "Power Descriptor");
         field_tree = proto_item_add_subtree(ti, ettindex);
     }
     else field_tree = tree;
@@ -875,31 +872,31 @@ zdp_parse_power_desc(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offs
     mode  = flags & ZBEE_ZDP_POWER_MODE;
     level = flags & ZBEE_ZDP_POWER_LEVEL;
     if (tree) {
-        ti = proto_tree_add_uint(field_tree, hf_zbee_zdp_power_mode, tvb, *offset, sizeof(guint16), mode);
+        ti = proto_tree_add_uint(field_tree, hf_zbee_zdp_power_mode, tvb, *offset, (int)sizeof(guint16), mode);
         if (mode == ZBEE_ZDP_POWER_MODE_RX_ON)              proto_item_append_text(ti, " (Receiver Always On)");
         else if (mode == ZBEE_ZDP_POWER_MODE_RX_PERIODIC)   proto_item_append_text(ti, " (Receiver Periodically On)");
         else if (mode == ZBEE_ZDP_POWER_MODE_RX_STIMULATE)  proto_item_append_text(ti, " (Receiver On When Stimulated)");
         else proto_item_append_text(ti, " (Reserved)");
 
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_avail_ac, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_POWER_AVAIL_AC);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_avail_recharge, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_POWER_AVAIL_RECHARGEABLE);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_avail_dispose, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_POWER_AVAIL_DISPOSEABLE);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_avail_ac, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_POWER_AVAIL_AC);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_avail_recharge, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_POWER_AVAIL_RECHARGEABLE);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_avail_dispose, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_POWER_AVAIL_DISPOSEABLE);
 
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_source_ac, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_POWER_SOURCE_AC);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_source_recharge, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_POWER_SOURCE_RECHARGEABLE);
-        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_source_dispose, tvb, *offset, sizeof(guint16), flags & ZBEE_ZDP_POWER_SOURCE_DISPOSEABLE);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_source_ac, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_POWER_SOURCE_AC);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_source_recharge, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_POWER_SOURCE_RECHARGEABLE);
+        proto_tree_add_boolean(field_tree, hf_zbee_zdp_power_source_dispose, tvb, *offset, (int)sizeof(guint16), flags & ZBEE_ZDP_POWER_SOURCE_DISPOSEABLE);
 
         if (level == ZBEE_ZDP_POWER_LEVEL_FULL)
-            proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, sizeof(guint16), level, "Full");
+            proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, (int)sizeof(guint16), level, "Full");
         else if (level == ZBEE_ZDP_POWER_LEVEL_OK)
-            proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, sizeof(guint16), level, "OK");
+            proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, (int)sizeof(guint16), level, "OK");
         else if (level == ZBEE_ZDP_POWER_LEVEL_LOW)
-            proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, sizeof(guint16), level, "Low");
+            proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, (int)sizeof(guint16), level, "Low");
         else if (level == ZBEE_ZDP_POWER_LEVEL_CRITICAL)
-            proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, sizeof(guint16), level, "Critical");
-        else proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, sizeof(guint16), level, "Reserved");
+            proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, (int)sizeof(guint16), level, "Critical");
+        else proto_tree_add_uint_format_value(field_tree, hf_zbee_zdp_power_level, tvb, *offset, (int)sizeof(guint16), level, "Reserved");
     }
-    *offset += sizeof(guint16);
+    *offset += (int)sizeof(guint16);
 } /* zdp_parse_power_desc */
 
 /*FUNCTION:------------------------------------------------------
@@ -940,14 +937,14 @@ zdp_parse_simple_desc(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *off
     }
     else field_tree = tree;
 
-    /*endpoint    =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_endpoint, tvb, offset, sizeof(guint8), NULL);
-    /*profile     =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_profile, tvb, offset, sizeof(guint16), NULL);
-    /*app_device  =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_simple_app_device, tvb, offset, sizeof(guint16), NULL);
-    /*app_version =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_simple_app_version, tvb, offset, sizeof(guint8), NULL);
+    /*endpoint    =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_endpoint, tvb, offset, (int)sizeof(guint8), NULL);
+    /*profile     =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_profile, tvb, offset, (int)sizeof(guint16), NULL);
+    /*app_device  =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_simple_app_device, tvb, offset, (int)sizeof(guint16), NULL);
+    /*app_version =*/ zbee_parse_uint(field_tree, hf_zbee_zdp_simple_app_version, tvb, offset, (int)sizeof(guint8), NULL);
 
-    sizeof_cluster = (pinfo->zbee_stack_vers >= ZBEE_VERSION_2007)?sizeof(guint16):sizeof(guint8);
+    sizeof_cluster = (pinfo->zbee_stack_vers >= ZBEE_VERSION_2007)?(int)sizeof(guint16):(int)sizeof(guint8);
 
-    in_count    = zbee_parse_uint(field_tree, hf_zbee_zdp_in_count, tvb, offset, sizeof(guint8), NULL);
+    in_count    = zbee_parse_uint(field_tree, hf_zbee_zdp_in_count, tvb, offset, (int)sizeof(guint8), NULL);
     if ((tree) && (in_count)) {
         ti = proto_tree_add_text(field_tree, tvb, *offset, in_count*sizeof_cluster, "Input Cluster List");
         cluster_tree = proto_item_add_subtree(ti, ett_zbee_zdp_node_in);
@@ -956,7 +953,7 @@ zdp_parse_simple_desc(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *off
         zbee_parse_uint(cluster_tree, hf_zbee_zdp_in_cluster, tvb, offset, sizeof_cluster, NULL);
     }
 
-    out_count = zbee_parse_uint(field_tree, hf_zbee_zdp_out_count, tvb, offset, sizeof(guint8), NULL);
+    out_count = zbee_parse_uint(field_tree, hf_zbee_zdp_out_count, tvb, offset, (int)sizeof(guint8), NULL);
     if ((tree) && (out_count)) {
         ti = proto_tree_add_text(field_tree, tvb, *offset, in_count*sizeof_cluster, "Output Cluster List");
         cluster_tree = proto_item_add_subtree(ti, ett_zbee_zdp_node_out);
@@ -1017,8 +1014,8 @@ zdp_parse_complex_desc(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *of
     proto_item  *field_root;
     proto_tree  *field_tree;
 
-    gchar   *str = ep_alloc(length);
-    gchar   *complex = ep_alloc(max_len);
+    gchar   *str = (gchar *)ep_alloc(length);
+    gchar   *complex = (gchar *)ep_alloc(max_len);
     guint8  tag;
 
     if ((tree) && (ettindex != -1)) {
@@ -1031,7 +1028,7 @@ zdp_parse_complex_desc(proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *of
     if (tag == tag_charset) {
         gchar   lang_str[3];
         guint8  charset  = tvb_get_guint8(tvb, *offset + 3);
-        gchar   *charset_str;
+        const gchar *charset_str;
 
         if (charset == 0x00) charset_str = "ASCII";
         else                 charset_str = "Unknown Character Set";
@@ -1099,9 +1096,9 @@ dissect_zbee_zdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* Get and display the sequence number. */
     seqno = tvb_get_guint8(tvb, offset);
     if (tree) {
-        proto_tree_add_uint(zdp_tree, hf_zbee_zdp_seqno, tvb, offset, sizeof(guint8), seqno);
+        proto_tree_add_uint(zdp_tree, hf_zbee_zdp_seqno, tvb, offset, (int)sizeof(guint8), seqno);
     }
-    offset += sizeof(guint8);
+    offset += (int)sizeof(guint8);
 
     if (pinfo->zbee_stack_vers <= ZBEE_VERSION_2004) {
         /* ZigBee 2004 and earlier had different cluster identifiers, need to convert
@@ -1398,9 +1395,11 @@ void proto_register_zbee_zdp(void)
         { "Sequence Number",            "zbee_zdp.seqno", FT_UINT8, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
 
+#if 0
         { &hf_zbee_zdp_length,
         { "Length",                     "zbee_zdp.length", FT_UINT8, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_zbee_zdp_ext_addr,
         { "Extended Address",           "zbee_zdp.ext_addr", FT_EUI64, BASE_NONE, NULL, 0x0,
@@ -1646,14 +1645,6 @@ void proto_register_zbee_zdp(void)
         { "Target",                     "zbee_zdp.target", FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL }},
 
-        { &hf_zbee_zdp_target64,
-        { "Target",                     "zbee_zdp.target64", FT_EUI64, BASE_NONE, NULL, 0x0,
-            NULL, HFILL }},
-
-        { &hf_zbee_zdp_target_ep,
-        { "Target Endpoint",            "zbee_zdp.target_ep", FT_UINT8, BASE_DEC, NULL, 0x0,
-            NULL, HFILL }},
-
         { &hf_zbee_zdp_replacement,
         { "Replacement",                "zbee_zdp.replacement", FT_EUI64, BASE_NONE, NULL, 0x0,
             NULL, HFILL }},
@@ -1738,7 +1729,6 @@ void proto_register_zbee_zdp(void)
         &ett_zbee_zdp_node_out,
         &ett_zbee_zdp_power,
         &ett_zbee_zdp_simple,
-        &ett_zbee_zdp_complex,
         &ett_zbee_zdp_cinfo,
         &ett_zbee_zdp_server,
         &ett_zbee_zdp_simple_sizes,
@@ -1747,7 +1737,6 @@ void proto_register_zbee_zdp(void)
         &ett_zbee_zdp_bind_end_out,
         &ett_zbee_zdp_bind_table,
         &ett_zbee_zdp_bind_source,
-        &ett_zbee_zdp_channels,
         &ett_zbee_zdp_assoc_device,
         &ett_zbee_zdp_nwk,
         &ett_zbee_zdp_lqi,

@@ -46,6 +46,7 @@
 #include <epan/tap.h>
 #include <epan/prefs.h>
 #include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include "packet-q708.h"
 #include "packet-sccp.h"
 #include "packet-frame.h"
@@ -288,7 +289,7 @@ mtp3_pc_to_str(const guint32 pc)
 {
   gchar *str;
 
-  str=ep_alloc(MAX_STRUCTURED_PC_LENGTH);
+  str=(gchar *)ep_alloc(MAX_STRUCTURED_PC_LENGTH);
   mtp3_pc_to_str_buf(pc, str, MAX_STRUCTURED_PC_LENGTH);
   return str;
 }
@@ -610,11 +611,11 @@ dissect_mtp3_routing_label(tvbuff_t *tvb, packet_info *pinfo, proto_tree *mtp3_t
     DISSECTOR_ASSERT_NOT_REACHED();
   }
 
-  mtp3_addr_opc->type = mtp3_standard;
+  mtp3_addr_opc->type = (Standard_Type)mtp3_standard;
   mtp3_addr_opc->pc = opc;
   SET_ADDRESS(&pinfo->src, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr_opc);
 
-  mtp3_addr_dpc->type = mtp3_standard;
+  mtp3_addr_dpc->type = (Standard_Type)mtp3_standard;
   mtp3_addr_dpc->pc = dpc;
   SET_ADDRESS(&pinfo->dst, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr_dpc);
 }
@@ -650,7 +651,6 @@ dissect_mtp3_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     call_dissector(data_handle, payload_tvb, pinfo, tree);
 }
 
-#define HEURISTIC_FAILED_STANDARD 0xffff
 static guint
 heur_mtp3_standard(tvbuff_t *tvb, packet_info *pinfo, guint8 si)
 {
@@ -698,7 +698,7 @@ reset_mtp3_standard(void)
 static void
 dissect_mtp3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-    mtp3_tap_rec_t* tap_rec = ep_alloc0(sizeof(mtp3_tap_rec_t));
+    mtp3_tap_rec_t* tap_rec = ep_new0(mtp3_tap_rec_t);
     gint heuristic_standard;
     guint8 si;
 
@@ -720,7 +720,7 @@ dissect_mtp3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	    mtp3_standard = heuristic_standard;
 
 	    /* Register a frame-end routine to ensure mtp3_standard is set
-	     * back, even if an exception is thrown.
+	     * back even if an exception is thrown.
 	     */
 	    register_frame_end_routine(pinfo, reset_mtp3_standard);
 	}
@@ -752,8 +752,8 @@ dissect_mtp3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	mtp3_tree = proto_item_add_subtree(mtp3_item, ett_mtp3);
     }
 
-    mtp3_addr_opc = ep_alloc0(sizeof(mtp3_addr_pc_t));
-    mtp3_addr_dpc = ep_alloc0(sizeof(mtp3_addr_pc_t));
+    mtp3_addr_opc = (mtp3_addr_pc_t *)wmem_alloc0(pinfo->pool, sizeof(mtp3_addr_pc_t));
+    mtp3_addr_dpc = (mtp3_addr_pc_t *)wmem_alloc0(pinfo->pool, sizeof(mtp3_addr_pc_t));
 
     /* Dissect the packet (even if !tree so can call sub-dissectors and update
      * the source and destination address columns) */

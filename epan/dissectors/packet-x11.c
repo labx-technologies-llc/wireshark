@@ -59,11 +59,10 @@
 #include <epan/packet.h>
 #include <epan/conversation.h>
 #include <epan/expert.h>
-
+#include <epan/show_exception.h>
 #include <epan/prefs.h>
 #include <epan/emem.h>
 
-#include "packet-frame.h"
 
 #include "packet-x11-keysymdef.h"
 #include "packet-x11.h"
@@ -201,6 +200,8 @@ static gint ett_x11_configure_window_mask = -1; /* XXX - unused */
 static gint ett_x11_keyboard_value_mask = -1;   /* XXX - unused */
 static gint ett_x11_same_screen_focus = -1;
 static gint ett_x11_event = -1;
+
+static expert_field ei_x11_invalid_format = EI_INIT;
 
 /* desegmentation of X11 messages */
 static gboolean x11_desegment = TRUE;
@@ -1229,11 +1230,11 @@ static const value_string zero_is_none_vals[] = {
                                                                               \
       seqno = VALUE16(tvb, *offsetp);                                         \
       proto_tree_add_uint_format(t, hf_x11_reply_##name, tvb,                 \
-      *offsetp, sizeof(seqno), seqno,                                         \
+      *offsetp, 2, seqno,                                                     \
       "sequencenumber: %d (%s)",                                              \
       (int)seqno,                                                             \
       val_to_str(opcode & 0xFF, state->opcode_vals, "<Unknown opcode %d>"));  \
-      *offsetp += sizeof(seqno);                                              \
+      *offsetp += 2;                                                          \
 } while (0)
 
 #define REPLYCONTENTS_COMMON() do {                                   \
@@ -1273,11 +1274,8 @@ static const value_string zero_is_none_vals[] = {
             func(next_tvb, pinfo, tree, sep, state, byte_order);      \
       }                                                               \
                                                                       \
-      CATCH(BoundsError) {                                            \
-            RETHROW;                                                  \
-      }                                                               \
-      CATCH(ReportedBoundsError) {                                    \
-            show_reported_bounds_error(next_tvb, pinfo, tree);        \
+      CATCH_NONFATAL_ERRORS {                                         \
+            show_exception(next_tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE); \
       }                                                               \
       ENDTRY;                                                         \
                                                                       \
@@ -1335,7 +1333,7 @@ static void atom(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       else {
             header_field_info *hfi = proto_registrar_get_nth(hf);
             if (hfi -> strings)
-                  interpretation = match_strval(v, cVALS(hfi -> strings));
+                  interpretation = try_val_to_str(v, cVALS(hfi -> strings));
       }
       if (!interpretation) interpretation = "error in Xlib client program ?";
       proto_tree_add_uint_format(t, hf, tvb, *offsetp, 4, v, "%s: %u (%s)",
@@ -1353,7 +1351,7 @@ static guint32 add_boolean(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf)
 
 static void colorFlags(tvbuff_t *tvb, int *offsetp, proto_tree *t)
 {
-      unsigned do_red_green_blue = VALUE8(tvb, *offsetp);
+      guint do_red_green_blue = VALUE8(tvb, *offsetp);
       proto_item *ti;
       proto_tree *tt;
 
@@ -1541,7 +1539,7 @@ static void listOfColorItem(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       while(length--) {
             proto_item *tti;
             proto_tree *ttt;
-            unsigned do_red_green_blue;
+            guint do_red_green_blue;
             guint16 red, green, blue;
             emem_strbuf_t *buffer;
             const char *sep;
@@ -1580,10 +1578,12 @@ static void listOfColorItem(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       }
 }
 
+#if 0  /* XXX: Use of GTree no longer needed; use value_string_ext */
 static gint compareGuint32(gconstpointer a, gconstpointer b)
 {
       return GPOINTER_TO_INT(b) - GPOINTER_TO_INT(a);
 }
+#endif
 
 static void
 XConvertCase(register int sym, int *lower, int *upper)
@@ -1893,7 +1893,7 @@ static void listOfKeycode(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
                           guint byte_order _U_)
 {
       proto_item *ti = proto_tree_add_item(t, hf, tvb, *offsetp,
-        array_length(modifiers) * keycodes_per_modifier, ENC_NA);
+        (int)array_length(modifiers) * keycodes_per_modifier, ENC_NA);
       proto_tree *tt = proto_item_add_subtree(ti, ett_x11_list_of_keycode);
       size_t m;
 
@@ -1904,7 +1904,7 @@ static void listOfKeycode(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
             int i;
 
             p = tvb_get_ptr(tvb, *offsetp, keycodes_per_modifier);
-            modifiermap[m] =
+            modifiermap[m] = (int *)
                 g_malloc(sizeof(*modifiermap[m]) * keycodes_per_modifier);
 
             tikc = proto_tree_add_bytes_format(tt, hf_x11_keycodes_item, tvb,
@@ -1949,7 +1949,7 @@ static void listOfKeysyms(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
 
             tvb_ensure_bytes_exist(tvb, *offsetp, 4 * keysyms_per_keycode);
             keycodemap[keycode]
-                  = g_malloc(sizeof(*keycodemap[keycode]) * keysyms_per_keycode);
+                  =  (int *)g_malloc(sizeof(*keycodemap[keycode]) * keysyms_per_keycode);
 
             for(i = 0; i < keysyms_per_keycode; ++i) {
                   /* keysymvalue = byte3 * 256 + byte4. */
@@ -2024,7 +2024,7 @@ static void listOfRectangle(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       proto_tree *tt = proto_item_add_subtree(ti, ett_x11_list_of_rectangle);
       while(length--) {
             gint16 x, y;
-            unsigned width, height;
+            guint width, height;
             proto_item *tti;
             proto_tree *ttt;
 
@@ -2097,7 +2097,7 @@ static void listOfString8(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       tt = proto_item_add_subtree(ti, ett_x11_list_of_string8);
 
       while(length--) {
-            unsigned l = VALUE8(tvb, *offsetp);
+            guint l = VALUE8(tvb, *offsetp);
             s = tvb_get_ephemeral_string(tvb, *offsetp + 1, l);
             proto_tree_add_string_format(tt, hf_item, tvb, *offsetp, l + 1, s, "\"%s\"", s);
             *offsetp += l + 1;
@@ -2106,7 +2106,7 @@ static void listOfString8(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
 
 #define STRING16_MAX_DISPLAYED_LENGTH 150
 
-static int stringIsActuallyAn8BitString(tvbuff_t *tvb, int offset, unsigned length)
+static int stringIsActuallyAn8BitString(tvbuff_t *tvb, int offset, guint length)
 {
       if (length > STRING16_MAX_DISPLAYED_LENGTH) length = STRING16_MAX_DISPLAYED_LENGTH;
       for(; length > 0; offset += 2, length--) {
@@ -2120,11 +2120,11 @@ static int stringIsActuallyAn8BitString(tvbuff_t *tvb, int offset, unsigned leng
 
 static void string16_with_buffer_preallocated(tvbuff_t *tvb, proto_tree *t,
                                               int hf, int hf_bytes,
-                                              int offset, unsigned length,
+                                              int offset, guint length,
                                               char **s, guint byte_order)
 {
       int truncated = FALSE;
-      unsigned l = length / 2;
+      guint l = length / 2;
 
       if (stringIsActuallyAn8BitString(tvb, offset, l)) {
             char *dp;
@@ -2135,7 +2135,7 @@ static void string16_with_buffer_preallocated(tvbuff_t *tvb, proto_tree *t,
                   l = STRING16_MAX_DISPLAYED_LENGTH;
             }
 
-            *s = ep_alloc(l + 3);
+            *s = (char *)ep_alloc(l + 3);
             dp = *s;
             *dp++ = '"';
             if (truncated) l -= 3;
@@ -2184,7 +2184,7 @@ static void listOfTextItem(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       tt = proto_item_add_subtree(ti, ett_x11_list_of_text_item);
 
       while(n--) {
-            unsigned l = VALUE8(tvb, *offsetp);
+            guint l = VALUE8(tvb, *offsetp);
             if (l == 255) { /* Item is a font */
                   fid = tvb_get_ntohl(tvb, *offsetp + 1);
                   proto_tree_add_uint(tt, hf_x11_textitem_font, tvb, *offsetp, 5, fid);
@@ -2221,7 +2221,7 @@ static guint32 field8(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       const gchar *enumValue = NULL;
 
       if (hfi -> strings)
-            enumValue = match_strval(v, cVALS(hfi -> strings));
+            enumValue = try_val_to_str(v, cVALS(hfi -> strings));
       if (enumValue)
             proto_tree_add_uint_format(t, hf, tvb, *offsetp, 1, v,
             hfi -> display == BASE_DEC ? "%s: %u (%s)" : "%s: 0x%02x (%s)",
@@ -2240,7 +2240,7 @@ static guint32 field16(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       const gchar *enumValue = NULL;
 
       if (hfi -> strings)
-            enumValue = match_strval(v, cVALS(hfi -> strings));
+            enumValue = try_val_to_str(v, cVALS(hfi -> strings));
       if (enumValue)
             proto_tree_add_uint_format(t, hf, tvb, *offsetp, 2, v,
             hfi -> display == BASE_DEC ? "%s: %u (%s)" : "%s: 0x%02x (%s)",
@@ -2260,7 +2260,7 @@ static guint32 field32(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       const gchar *nameAsChar = hfi -> name;
 
       if (hfi -> strings)
-            enumValue = match_strval(v, cVALS(hfi -> strings));
+            enumValue = try_val_to_str(v, cVALS(hfi -> strings));
       if (enumValue)
             proto_tree_add_uint_format(t, hf, tvb, *offsetp, 4, v,
                                        hfi -> display == BASE_DEC ? "%s: %u (%s)" : "%s: 0x%08x (%s)",
@@ -2462,7 +2462,7 @@ static void setOfPointerEvent(tvbuff_t *tvb, int *offsetp, proto_tree *t,
 }
 
 static void string8(tvbuff_t *tvb, int *offsetp, proto_tree *t,
-    int hf, unsigned length)
+    int hf, guint length)
 {
       proto_tree_add_item(t, hf, tvb, *offsetp, length, ENC_NA|ENC_ASCII);
       *offsetp += length;
@@ -2471,7 +2471,7 @@ static void string8(tvbuff_t *tvb, int *offsetp, proto_tree *t,
 /* The length is the length of the _byte_zone_ (twice the length of the string) */
 
 static void string16(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
-    int hf_bytes, unsigned length, guint byte_order)
+    int hf_bytes, guint length, guint byte_order)
 {
       char *s = NULL;
 
@@ -3039,11 +3039,11 @@ static void tryExtension(int opcode, tvbuff_t *tvb, packet_info *pinfo, int *off
       const gchar *extension;
       void (*func)(tvbuff_t *tvb, packet_info *pinfo, int *offsetp, proto_tree *t, guint byte_order);
 
-      extension = match_strval(opcode, state->opcode_vals);
+      extension = try_val_to_str(opcode, state->opcode_vals);
       if (!extension)
             return;
 
-      func = g_hash_table_lookup(extension_table, extension);
+      func = (void (*)(tvbuff_t *, packet_info *, int *, proto_tree *, guint))g_hash_table_lookup(extension_table, extension);
       if (func)
             func(tvb, pinfo, offsetp, t, byte_order);
 }
@@ -3053,7 +3053,7 @@ static void tryExtensionReply(int opcode, tvbuff_t *tvb, packet_info *pinfo, int
 {
       void (*func)(tvbuff_t *tvb, packet_info *pinfo, int *offsetp, proto_tree *t, guint byte_order);
 
-      func = g_hash_table_lookup(state->reply_funcs, GINT_TO_POINTER(opcode));
+      func = (void (*)(tvbuff_t *, packet_info *, int *, proto_tree *, guint))g_hash_table_lookup(state->reply_funcs, GINT_TO_POINTER(opcode));
       if (func)
             func(tvb, pinfo, offsetp, t, byte_order);
       else
@@ -3065,7 +3065,7 @@ static void tryExtensionEvent(int event, tvbuff_t *tvb, int *offsetp, proto_tree
 {
       void (*func)(tvbuff_t *tvb, int *offsetp, proto_tree *t, guint byte_order);
 
-      func = g_hash_table_lookup(state->eventcode_funcs, GINT_TO_POINTER(event));
+      func = (void (*)(tvbuff_t *, int *, proto_tree *, guint))g_hash_table_lookup(state->eventcode_funcs, GINT_TO_POINTER(event));
       if (func)
             func(tvb, offsetp, t, byte_order);
 }
@@ -3080,7 +3080,7 @@ static void register_extension(x11_conv_data_t *state, value_string *vals_p,
 
       vals_p->value = major_opcode;
 
-      error_string = g_hash_table_lookup(error_table, vals_p->strptr);
+      error_string = (const char **)g_hash_table_lookup(error_table, vals_p->strptr);
       while (error_string && *error_string && first_error <= LastExtensionError) {
             /* store string of extension error */
             for (i = 0; i <= LastExtensionError; i++) {
@@ -3098,7 +3098,7 @@ static void register_extension(x11_conv_data_t *state, value_string *vals_p,
             error_string++;
       }
 
-      event_info = g_hash_table_lookup(event_table, vals_p->strptr);
+      event_info = (x11_event_info *)g_hash_table_lookup(event_table, vals_p->strptr);
       while (event_info && event_info->name && first_event <= LastExtensionEvent) {
             /* store string of extension event */
             for (i = 0; i <= LastExtensionEvent; i++) {
@@ -3120,7 +3120,7 @@ static void register_extension(x11_conv_data_t *state, value_string *vals_p,
             event_info++;
       }
 
-      reply_info = g_hash_table_lookup(reply_table, vals_p->strptr);
+      reply_info = (x11_reply_info *)g_hash_table_lookup(reply_table, vals_p->strptr);
       if (reply_info)
             for (i = 0; reply_info[i].dissect; i++)
                   g_hash_table_insert(state->reply_funcs,
@@ -3399,7 +3399,7 @@ static void dissect_x11_request(tvbuff_t *tvb, packet_info *pinfo,
                     LISTofCARD32(data32, v32 * 4);
                 break;
             default:
-                expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Invalid Format");
+                expert_add_info(pinfo, ti, &ei_x11_invalid_format);
                 break;
             }
             PAD();
@@ -3873,7 +3873,7 @@ static void dissect_x11_request(tvbuff_t *tvb, packet_info *pinfo,
 
       case X_PolyText8:
             UNUSED(1);
-            v16 = REQUEST_LENGTH();
+            REQUEST_LENGTH();
             DRAWABLE(drawable);
             GCONTEXT(gc);
             INT16(x);
@@ -3884,7 +3884,7 @@ static void dissect_x11_request(tvbuff_t *tvb, packet_info *pinfo,
 
       case X_PolyText16:
             UNUSED(1);
-            v16 = REQUEST_LENGTH();
+            REQUEST_LENGTH();
             DRAWABLE(drawable);
             GCONTEXT(gc);
             INT16(x);
@@ -4329,7 +4329,7 @@ static void dissect_x11_requests(tvbuff_t *tvb, packet_info *pinfo,
             /*
              * Is there state attached to this conversation?
              */
-            if ((state = conversation_get_proto_data(conversation, proto_x11))
+            if ((state = (x11_conv_data_t *)conversation_get_proto_data(conversation, proto_x11))
             == NULL)
                 state = x11_stateinit(conversation);
 
@@ -4534,11 +4534,8 @@ static void dissect_x11_requests(tvbuff_t *tvb, packet_info *pinfo,
                             state, byte_order);
                   }
             }
-            CATCH(BoundsError) {
-                  RETHROW;
-            }
-            CATCH(ReportedBoundsError) {
-                  show_reported_bounds_error(tvb, pinfo, tree);
+            CATCH_NONFATAL_ERRORS {
+                  show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
             }
             ENDTRY;
 
@@ -4558,7 +4555,7 @@ x11_stateinit(conversation_t *conversation)
       static x11_conv_data_t stateinit;
       int i;
 
-      state = g_malloc(sizeof (x11_conv_data_t));
+      state = (x11_conv_data_t *)g_malloc(sizeof (x11_conv_data_t));
       *state = stateinit;
       state->next = x11_conv_data_list;
       x11_conv_data_list = state;
@@ -4627,7 +4624,7 @@ dissect_x11_replies(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       /*
        * Is there state attached to this conversation?
        */
-      if ((state = conversation_get_proto_data(conversation, proto_x11))
+      if ((state = (x11_conv_data_t *)conversation_get_proto_data(conversation, proto_x11))
           == NULL) {
             /*
              * No - create a state structure and attach it.
@@ -4680,7 +4677,7 @@ dissect_x11_replies(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              *  - reply to initial connection
              *  - errorreply (a request generated an error)
              *  - requestreply (reply to a request)
-             *  - event (some event occured)
+             *  - event (some event occurred)
              */
             if (g_hash_table_lookup(state->seqtable,
                                     GINT_TO_POINTER(state->sequencenumber)) == (int *)INITIAL_CONN
@@ -4838,7 +4835,7 @@ dissect_x11_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                         break;
                   }
 
-                  vals_p = g_hash_table_lookup(state->valtable,
+                  vals_p = (value_string *)g_hash_table_lookup(state->valtable,
                                                GINT_TO_POINTER(sequence_number));
                   if (vals_p != NULL) {
                         major_opcode = VALUE8(tvb, offset + 9);
@@ -4902,7 +4899,7 @@ dissect_x11_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                   REPLY(reply);
                   CARD8(format);
                   SEQUENCENUMBER_REPLY(sequencenumber);
-                  length = REPLYLENGTH(replylength);
+                  REPLYLENGTH(replylength);
                   ATOM(get_property_type);
                   CARD32(bytes_after);
                   CARD32(valuelength);
@@ -5606,7 +5603,13 @@ void proto_register_x11(void)
             &ett_x11_same_screen_focus,
             &ett_x11_event,
       };
+
+      static ei_register_info ei[] = {
+            { &ei_x11_invalid_format, { "x11.invalid_format", PI_PROTOCOL, PI_WARN, "Invalid Format", EXPFILL }},
+      };
+
       module_t *x11_module;
+      expert_module_t* expert_x11;
 
 /* Register the protocol name and description */
       proto_x11 = proto_register_protocol("X11", "X11", "x11");
@@ -5614,6 +5617,8 @@ void proto_register_x11(void)
 /* Required function calls to register the header fields and subtrees used */
       proto_register_field_array(proto_x11, hf, array_length(hf));
       proto_register_subtree_array(ett, array_length(ett));
+      expert_x11 = expert_register_protocol(proto_x11);
+      expert_register_field_array(expert_x11, ei, array_length(ei));
 
       register_init_routine(x11_init_protocol);
 

@@ -40,6 +40,11 @@ do
 	svn add $file
 
 	case "$file" in
+		*.asciidoc|*.dox|*.txt)
+			svn ps svn:keywords Id $file
+			svn ps svn:eol-style native $file
+			svn ps svn:mime-type text/plain $file
+			;;
 		*.png)
 			svn ps svn:mime-type image/png $file
 			;;
@@ -63,7 +68,7 @@ do
 		*.gz)
 			svn ps svn:mime-type application/x-gzip $file
 			;;
-		*.xml)
+		*.ts|*.ui|*.xml)
 			svn ps svn:keywords Id $file
 			svn ps svn:eol-style native $file
 			svn ps svn:mime-type text/xml $file

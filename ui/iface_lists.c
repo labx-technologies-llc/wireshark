@@ -39,8 +39,6 @@
 #include "ui/capture_globals.h"
 #include "ui/iface_lists.h"
 
-capture_options global_capture_opts;
-
 /*
  * Used when sorting an interface list into alphabetical order by
  * their friendly names.
@@ -48,7 +46,7 @@ capture_options global_capture_opts;
 gint
 if_list_comparator_alph(const void *first_arg, const void *second_arg)
 {
-    const if_info_t *first = first_arg, *second = second_arg;
+    const if_info_t *first = (const if_info_t *)first_arg, *second = (const if_info_t *)second_arg;
 
     if (first != NULL && first->friendly_name != NULL &&
         second != NULL && second->friendly_name != NULL) {
@@ -88,7 +86,7 @@ scan_local_interfaces(void)
     if (global_capture_opts.all_ifaces->len > 0) {
         for (i = (int)global_capture_opts.all_ifaces->len-1; i >= 0; i--) {
             device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
-            if (device.local) {
+            if (device.local && device.type != IF_PIPE && device.type != IF_STDIN) {
                 global_capture_opts.all_ifaces = g_array_remove_index(global_capture_opts.all_ifaces, i);
             }
         }
@@ -98,7 +96,7 @@ scan_local_interfaces(void)
     if_list = capture_interface_list(&err, NULL);
     count = 0;
     for (if_entry = if_list; if_entry != NULL; if_entry = g_list_next(if_entry)) {
-        if_info = if_entry->data;
+        if_info = (if_info_t *)if_entry->data;
         ip_str = g_string_new("");
         ips = 0;
         if (strstr(if_info->name, "rpcap:")) {
@@ -112,7 +110,7 @@ scan_local_interfaces(void)
         }
         device.hidden = FALSE;
         device.locked = FALSE;
-        temp = g_malloc0(sizeof(if_info_t));
+        temp = (if_info_t *)g_malloc0(sizeof(if_info_t));
         temp->name = g_strdup(if_info->name);
         temp->friendly_name = g_strdup(if_info->friendly_name);
         temp->vendor_description = g_strdup(if_info->vendor_description);
@@ -159,11 +157,11 @@ scan_local_interfaces(void)
         if (prefs_is_capture_device_hidden(if_info->name)) {
             device.hidden = TRUE;
         }
-        device.type = get_interface_type(if_info->name, if_info->vendor_description);
+        device.type = if_info->type;
         monitor_mode = prefs_capture_device_monitor_mode(if_info->name);
         caps = capture_get_if_capabilities(if_info->name, monitor_mode, NULL);
         for (; (curr_addr = g_slist_nth(if_info->addrs, ips)) != NULL; ips++) {
-            temp_addr = g_malloc0(sizeof(if_addr_t));
+            temp_addr = (if_addr_t *)g_malloc0(sizeof(if_addr_t));
             if (ips != 0) {
                 g_string_append(ip_str, "\n");
             }
@@ -215,7 +213,7 @@ scan_local_interfaces(void)
             device.monitor_mode_supported = caps->can_set_rfmon;
 #endif
             for (lt_entry = caps->data_link_types; lt_entry != NULL; lt_entry = g_list_next(lt_entry)) {
-                data_link_info = lt_entry->data;
+                data_link_info = (data_link_info_t *)lt_entry->data;
                 if (linktype_count == 0) {
                     device.active_dlt = data_link_info->dlt;
                 }
@@ -242,12 +240,22 @@ scan_local_interfaces(void)
         device.local = TRUE;
         device.if_info = *temp;
         device.last_packets = 0;
-        device.pmode        = global_capture_opts.default_options.promisc_mode;
-        device.has_snaplen  = global_capture_opts.default_options.has_snaplen;
-        device.snaplen      = global_capture_opts.default_options.snaplen;
+        if ((device.pmode = capture_dev_user_pmode_find(if_info->name)) == -1) {
+            device.pmode = global_capture_opts.default_options.promisc_mode;
+        }
+        if ((device.has_snaplen = capture_dev_user_hassnap_find(if_info->name)) == -1) {
+            device.has_snaplen = global_capture_opts.default_options.has_snaplen;
+        }
+        if (capture_dev_user_snaplen_find(if_info->name) == -1) {
+            device.snaplen = global_capture_opts.default_options.snaplen;
+        } else {
+            device.snaplen = (guint)capture_dev_user_snaplen_find(if_info->name);
+        }
         device.cfilter      = g_strdup(global_capture_opts.default_options.cfilter);
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-        device.buffer = 1;
+        if ((device.buffer = capture_dev_user_buffersize_find(if_info->name)) == -1) {
+            device.buffer = global_capture_opts.default_options.buffer_size;
+        }
 #endif
 
         if (global_capture_opts.ifaces->len > 0) {
@@ -262,7 +270,9 @@ scan_local_interfaces(void)
                     device.has_snaplen = interface_opts.has_snaplen;
                     device.snaplen = interface_opts.snaplen;
                     device.cfilter = g_strdup(interface_opts.cfilter);
-                    device.active_dlt = interface_opts.linktype;
+                    if (interface_opts.linktype != -1) {
+                        device.active_dlt = interface_opts.linktype;
+                    }
                     device.selected = TRUE;
                     global_capture_opts.num_selected++;
                     break;
@@ -296,7 +306,7 @@ scan_local_interfaces(void)
         }
         if (!found) {  /* new interface, maybe a pipe */
             device.name         = g_strdup(interface_opts.name);
-            device.display_name = g_strdup_printf("%s", device.name);
+            device.display_name = g_strdup_printf("%s: %s", device.name, interface_opts.descr);
             device.hidden       = FALSE;
             device.selected     = TRUE;
             device.type         = IF_PIPE;
@@ -362,7 +372,7 @@ hide_interface(gchar* new_hide)
         device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
         found = FALSE;
         for (entry = hidden_devices; entry != NULL; entry = g_list_next(entry)) {
-            if (strcmp(entry->data, device.name)==0) {
+            if (strcmp((char *)entry->data, device.name)==0) {
                 device.hidden = TRUE;
                 if (device.selected) {
                     device.selected = FALSE;

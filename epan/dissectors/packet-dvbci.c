@@ -1,6 +1,6 @@
 /* packet-dvbci.c
  * Routines for DVB-CI (Common Interface) dissection
- * Copyright 2011-2012, Martin Kaiser <martin@kaiser.cx>
+ * Copyright 2011-2013, Martin Kaiser <martin@kaiser.cx>
  *
  * $Id$
  *
@@ -48,7 +48,7 @@
 #include "packet-ber.h"
 
 #ifdef HAVE_LIBGCRYPT
-#include <gcrypt.h>
+#include <wsutil/wsgcrypt.h>
 #endif
 
 
@@ -108,11 +108,16 @@
 #define ML_MORE 0x80
 #define ML_LAST 0x00
 
-/* sequence id for reassembly of fragmented lpdus
-   this can be an arbitrary constant value since lpdus must arrive in order */
-#define SEQ_ID_LINK_LAYER  4
-/* the same goes for the transport layer */
-#define SEQ_ID_TRANSPORT_LAYER  7
+/* base values of sequence ids for reassembly of fragmented tpdus
+   if there's two open transport connections, their tpdu fragments may be
+    interleaved, we must add the tcid to the base value in order to
+    distinguish between different transport connections
+   TPDU_SEQ_ID_BASE and SPDU_SEQ_ID_BASE can be arbitrary 32bit values, they
+    must be more than 256 apart since we add the 8bit tcid */
+#define TPDU_SEQ_ID_BASE       123
+/* same as above, the spdu fragments are also demultiplexed based on the
+    t_c_id field */
+#define SPDU_SEQ_ID_BASE      2417
 
 /* transport layer */
 #define NO_TAG        0x00
@@ -150,6 +155,9 @@
 /* status for close session */
 #define SESS_CLOSED       0x00
 #define SESS_NB_NOT_ALLOC 0xF0
+
+/* circuit id from session number (16bit) and transport connection id * (8bit) */
+#define CT_ID(s,t) ((guint32)(s<<8|t))
 
 /* resource id */
 #define RES_ID_TYPE_MASK 0xC0000000
@@ -303,6 +311,8 @@
 #define CC_ID_CICAM_LICENSE      0x21
 #define CC_ID_LICENSE_STATUS     0x22
 #define CC_ID_LICENSE_RCV_STATUS 0x23
+#define CC_ID_HOST_LICENSE       0x24
+#define CC_ID_PLAY_COUNT         0x25
 #define CC_ID_OPERATING_MODE     0x26
 #define CC_ID_PINCODE_DATA       0x27
 #define CC_ID_REC_START_STATUS   0x28
@@ -1033,10 +1043,8 @@ static int hf_dvbci_sas_msg_len = -1;
 
 static dissector_table_t sas_msg_dissector_table;
 
-static GHashTable *tpdu_fragment_table = NULL;
-static GHashTable *tpdu_reassembled_table = NULL;
-static GHashTable *spdu_fragment_table = NULL;
-static GHashTable *spdu_reassembled_table = NULL;
+static reassembly_table tpdu_reassembly_table;
+static reassembly_table spdu_reassembly_table;
 
 static const fragment_items tpdu_frag_items = {
     &ett_dvbci_link_frag,
@@ -1367,6 +1375,9 @@ static const value_string dvbci_cc_dat_id[] = {
     { CC_ID_CICAM_LICENSE,      "License received from the cicam" },
     { CC_ID_LICENSE_STATUS,     "Current status of the license" },
     { CC_ID_LICENSE_RCV_STATUS, "Status of the license exchange" },
+    { CC_ID_HOST_LICENSE,
+        "License for which the host requests the current status" },
+    { CC_ID_PLAY_COUNT,         "Play count" },
     { CC_ID_OPERATING_MODE,     "Operating mode" },
     { CC_ID_PINCODE_DATA,       "Pincode data" },
     { CC_ID_REC_START_STATUS,   "Record start status" },
@@ -1517,10 +1528,10 @@ dvbci_init(void)
     buf_size_cam  = 0;
     buf_size_host = 0;
 
-    fragment_table_init(&tpdu_fragment_table);
-    reassembled_table_init(&tpdu_reassembled_table);
-    fragment_table_init(&spdu_fragment_table);
-    reassembled_table_init(&spdu_reassembled_table);
+    reassembly_table_init(&tpdu_reassembly_table,
+                          &addresses_reassembly_table_functions);
+    reassembly_table_init(&spdu_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 
@@ -1713,11 +1724,9 @@ dissect_conn_desc(tvbuff_t *tvb, gint offset,  circuit_t *circuit,
     if (tag!= T_CONNECTION_DESCRIPTOR)
         return 0;
 
-    if (tree) {
-        ti = proto_tree_add_text(tree, tvb,
-                        offset_start, -1, "Connection descriptor");
-        conn_desc_tree = proto_item_add_subtree(ti, ett_dvbci_lsc_conn_desc);
-    }
+    ti = proto_tree_add_text(tree, tvb,
+            offset_start, -1, "Connection descriptor");
+    conn_desc_tree = proto_item_add_subtree(ti, ett_dvbci_lsc_conn_desc);
 
     proto_tree_add_item(conn_desc_tree, hf_dvbci_apdu_tag,
             tvb, offset, APDU_TAG_SIZE, ENC_BIG_ENDIAN);
@@ -1840,11 +1849,11 @@ dissect_cc_item(tvbuff_t *tvb, gint offset,
 
     offset_start = offset;
     dat_id = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        ti = proto_tree_add_text(tree, tvb, offset_start, -1, "CC data item: %s",
-                val_to_str_const(dat_id, dvbci_cc_dat_id, "unknown"));
-        cc_item_tree = proto_item_add_subtree(ti, ett_dvbci_cc_item);
-    }
+
+    ti = proto_tree_add_text(tree, tvb, offset_start, -1, "CC data item: %s",
+            val_to_str_const(dat_id, dvbci_cc_dat_id, "unknown"));
+    cc_item_tree = proto_item_add_subtree(ti, ett_dvbci_cc_item);
+
     proto_tree_add_item(cc_item_tree, hf_dvbci_cc_dat_id,
             tvb, offset, 1, ENC_BIG_ENDIAN);
     offset++;
@@ -1890,6 +1899,8 @@ dissect_cc_item(tvbuff_t *tvb, gint offset,
             prog_num = tvb_get_ntohs(tvb, offset);
             col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL,
                     "Program number 0x%x", prog_num);
+            proto_tree_add_item(cc_item_tree, hf_dvbci_cc_prog_num,
+                    tvb, offset, 2, ENC_BIG_ENDIAN);
             break;
         case CC_ID_KEY_REGISTER:
             proto_tree_add_item(cc_item_tree, hf_dvbci_cc_key_register,
@@ -2161,11 +2172,10 @@ dissect_ca_desc(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                 "The ca_pmt shall only contain ca descriptors (tag 0x9)");
         return 0;
     }
-    if (tree) {
-        ti = proto_tree_add_text(
-                tree, tvb, offset_start, -1, "Conditional Access descriptor");
-        ca_desc_tree = proto_item_add_subtree(ti, ett_dvbci_ca_desc);
-    }
+
+    ti = proto_tree_add_text(
+            tree, tvb, offset_start, -1, "Conditional Access descriptor");
+    ca_desc_tree = proto_item_add_subtree(ti, ett_dvbci_ca_desc);
     offset++;
 
     len_byte = tvb_get_guint8(tvb,offset);
@@ -2203,11 +2213,8 @@ dissect_es(tvbuff_t *tvb, gint offset, packet_info *pinfo, proto_tree *tree)
 
     offset_start = offset;
 
-    if (tree) {
-        ti = proto_tree_add_text(
-                tree, tvb, offset_start, -1, "Elementary Stream");
-        es_tree = proto_item_add_subtree(ti, ett_dvbci_application);
-    }
+    ti = proto_tree_add_text(tree, tvb, offset_start, -1, "Elementary Stream");
+    es_tree = proto_item_add_subtree(ti, ett_dvbci_application);
 
     proto_tree_add_item(
             es_tree, hf_dvbci_stream_type, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -2315,22 +2322,20 @@ dissect_res_id(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                 RES_VER(res_id));
     }
 
-    if (tree) {
-        ti = proto_tree_add_text(tree, tvb, offset, tvb_data_len,
-                "Resource ID: 0x%04x", res_id);
-        res_tree = proto_item_add_subtree(ti, ett_dvbci_res);
+    ti = proto_tree_add_text(tree, tvb, offset, tvb_data_len,
+            "Resource ID: 0x%04x", res_id);
+    res_tree = proto_item_add_subtree(ti, ett_dvbci_res);
 
-        /* parameter "value" == complete resource id,
-           RES_..._MASK will be applied by the hf definition */
-        proto_tree_add_uint(res_tree, hf_dvbci_res_id_type,
-                  tvb, offset, tvb_data_len, res_id);
-        proto_tree_add_uint(res_tree, hf_dvbci_res_class,
-                  tvb, offset, tvb_data_len, res_id);
-        proto_tree_add_uint(res_tree, hf_dvbci_res_type,
-                  tvb, offset, tvb_data_len, res_id);
-        proto_tree_add_uint(res_tree, hf_dvbci_res_ver,
-                  tvb, offset, tvb_data_len, res_id);
-    }
+    /* parameter "value" == complete resource id,
+       RES_..._MASK will be applied by the hf definition */
+    proto_tree_add_uint(res_tree, hf_dvbci_res_id_type,
+            tvb, offset, tvb_data_len, res_id);
+    proto_tree_add_uint(res_tree, hf_dvbci_res_class,
+            tvb, offset, tvb_data_len, res_id);
+    proto_tree_add_uint(res_tree, hf_dvbci_res_type,
+            tvb, offset, tvb_data_len, res_id);
+    proto_tree_add_uint(res_tree, hf_dvbci_res_ver,
+            tvb, offset, tvb_data_len, res_id);
 
     return ti;
 }
@@ -2674,7 +2679,7 @@ dissect_dvbci_payload_dt(guint32 tag, gint len_field,
     }
     else if (tag==T_DATE_TIME) {
         if (len_field!=5 && len_field!=7) {
-            tag_str = match_strval(tag, dvbci_apdu_tag);
+            tag_str = try_val_to_str(tag, dvbci_apdu_tag);
             pi = proto_tree_add_text(tree, tvb, APDU_TAG_SIZE, offset-APDU_TAG_SIZE,
                     "Invalid APDU length field");
             expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR,
@@ -3748,13 +3753,11 @@ dissect_dvbci_apdu(tvbuff_t *tvb, circuit_t *circuit,
 
     apdu_len = tvb_reported_length(tvb);
 
-    if (tree) {
-        ti = proto_tree_add_text(tree, tvb, 0, apdu_len, "Application Layer");
-        app_tree = proto_item_add_subtree(ti, ett_dvbci_application);
-    }
+    ti = proto_tree_add_text(tree, tvb, 0, apdu_len, "Application Layer");
+    app_tree = proto_item_add_subtree(ti, ett_dvbci_application);
 
     tag = tvb_get_ntoh24(tvb, 0);
-    tag_str = match_strval(tag, dvbci_apdu_tag);
+    tag_str = try_val_to_str(tag, dvbci_apdu_tag);
     offset = APDU_TAG_SIZE;
 
     col_set_str(pinfo->cinfo, COL_INFO,
@@ -3772,13 +3775,16 @@ dissect_dvbci_apdu(tvbuff_t *tvb, circuit_t *circuit,
     }
 
     offset = dissect_ber_length(pinfo, app_tree, tvb, offset, &len_field, NULL);
-    if ((offset+len_field) > apdu_len) {
+    if ((offset+len_field) != apdu_len) {
         pi = proto_tree_add_text(app_tree, tvb,
                 APDU_TAG_SIZE, offset-APDU_TAG_SIZE,
                 "Length field mismatch");
-        expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR,
-                "Length field mismatch");
-        return;
+        expert_add_info_format(pinfo, pi, PI_PROTOCOL, PI_WARN,
+            "Length field is different from the number of apdu payload bytes");
+        /* we need len_field bytes of apdu payload to call
+           ai->dissect_payload() and continue dissecting */
+        if (apdu_len < offset+len_field)
+            return;
     }
 
     ai = (apdu_info_t *)g_hash_table_lookup(apdu_table,
@@ -3853,7 +3859,7 @@ dissect_dvbci_apdu(tvbuff_t *tvb, circuit_t *circuit,
 
 static void
 dissect_dvbci_spdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-        guint8 direction)
+        guint8 direction, guint8 tcid)
 {
     guint32            spdu_len;
     proto_item        *ti          = NULL;
@@ -3875,13 +3881,11 @@ dissect_dvbci_spdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
     spdu_len = tvb_reported_length(tvb);
 
-    if (tree) {
-        ti = proto_tree_add_text(tree, tvb, 0, -1, "Session Layer");
-        sess_tree = proto_item_add_subtree(ti, ett_dvbci_session);
-    }
+    ti = proto_tree_add_text(tree, tvb, 0, -1, "Session Layer");
+    sess_tree = proto_item_add_subtree(ti, ett_dvbci_session);
 
     tag = tvb_get_guint8(tvb,0);
-    tag_str = match_strval(tag, dvbci_spdu_tag);
+    tag_str = try_val_to_str(tag, dvbci_spdu_tag);
     col_add_str(pinfo->cinfo, COL_INFO,
             val_to_str_const(tag, dvbci_spdu_tag, "Invalid SPDU"));
     if (tag_str) {
@@ -3948,7 +3952,7 @@ dissect_dvbci_spdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                 break;
             }
             col_append_sep_str(pinfo->cinfo, COL_INFO, NULL, "Session opened");
-            circuit = circuit_new(CT_DVBCI, (guint32)ssnb, pinfo->fd->num);
+            circuit = circuit_new(CT_DVBCI, CT_ID(ssnb, tcid), pinfo->fd->num);
             if (circuit) {
                 /* we always add the resource id immediately after the circuit
                    was created */
@@ -3972,7 +3976,7 @@ dissect_dvbci_spdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
             ssnb = tvb_get_ntohs(tvb, offset+1);
             proto_tree_add_item(sess_tree, hf_dvbci_sess_nb,
                     tvb, offset+1, 2, ENC_BIG_ENDIAN);
-            circuit = find_circuit(CT_DVBCI, (guint32)ssnb, pinfo->fd->num);
+            circuit = find_circuit(CT_DVBCI, CT_ID(ssnb, tcid), pinfo->fd->num);
             if (circuit)
                 close_circuit(circuit, pinfo->fd->num);
             break;
@@ -3990,7 +3994,7 @@ dissect_dvbci_spdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     }
 
     if (ssnb && !circuit)
-        circuit = find_circuit(CT_DVBCI, (guint32)ssnb, pinfo->fd->num);
+        circuit = find_circuit(CT_DVBCI, CT_ID(ssnb, tcid), pinfo->fd->num);
 
     /* if the packet contains no resource id, we add the cached id from
        the circuit so that each packet has a resource id that can be
@@ -4072,7 +4076,7 @@ dissect_dvbci_tpdu_status(tvbuff_t *tvb, gint offset,
     offset_new++;
 
     sb_value = tvb_get_guint8(tvb, offset_new);
-    sb_str = match_strval(sb_value, dvbci_sb_value);
+    sb_str = try_val_to_str(sb_value, dvbci_sb_value);
     if (sb_str) {
         col_append_sep_fstr(pinfo->cinfo, COL_INFO, ": ", "%s", sb_str);
         proto_tree_add_item(tree, hf_dvbci_sb_value, tvb,
@@ -4107,7 +4111,7 @@ dissect_dvbci_tpdu_hdr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     if (direction==DATA_HOST_TO_CAM) {
         c_tpdu_tag = tvb_get_guint8(tvb, 0);
         tag = &c_tpdu_tag;
-        c_tpdu_str = match_strval(c_tpdu_tag, dvbci_c_tpdu);
+        c_tpdu_str = try_val_to_str(c_tpdu_tag, dvbci_c_tpdu);
         if (c_tpdu_str) {
             col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "%s", c_tpdu_str);
             proto_tree_add_item(tree, hf_dvbci_c_tpdu_tag, tvb, 0, 1, ENC_BIG_ENDIAN);
@@ -4125,7 +4129,7 @@ dissect_dvbci_tpdu_hdr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     else {
         r_tpdu_tag = tvb_get_guint8(tvb, 0);
         tag = &r_tpdu_tag;
-        r_tpdu_str = match_strval(r_tpdu_tag, dvbci_r_tpdu);
+        r_tpdu_str = try_val_to_str(r_tpdu_tag, dvbci_r_tpdu);
         if (r_tpdu_str) {
             col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "%s", r_tpdu_str);
             proto_tree_add_item(tree, hf_dvbci_r_tpdu_tag, tvb, 0, 1, ENC_BIG_ENDIAN);
@@ -4206,10 +4210,8 @@ dissect_dvbci_tpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
     col_clear(pinfo->cinfo, COL_INFO);
 
-    if (tree) {
-        ti = proto_tree_add_text(tree, tvb, 0, -1, "Transport Layer");
-        trans_tree = proto_item_add_subtree(ti, ett_dvbci_transport);
-    }
+    ti = proto_tree_add_text(tree, tvb, 0, -1, "Transport Layer");
+    trans_tree = proto_item_add_subtree(ti, ett_dvbci_transport);
 
     offset = dissect_dvbci_tpdu_hdr(tvb, pinfo, trans_tree, direction,
             lpdu_tcid, tpdu_len, &hdr_tag, &body_len);
@@ -4226,10 +4228,9 @@ dissect_dvbci_tpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
            to work around this issue, we use a dedicated body_tvb as
             input to reassembly routines */
         body_tvb = tvb_new_subset(tvb, offset, body_len, body_len);
-        frag_msg = fragment_add_seq_next(body_tvb, 0, pinfo,
-                SEQ_ID_TRANSPORT_LAYER,
-                spdu_fragment_table,
-                spdu_reassembled_table,
+        /* dissect_dvbci_tpdu_hdr() checked that lpdu_tcid==t_c_id */
+        frag_msg = fragment_add_seq_next(&spdu_reassembly_table,
+                body_tvb, 0, pinfo, SPDU_SEQ_ID_BASE+lpdu_tcid, NULL,
                 body_len,
                 hdr_tag == T_DATA_MORE ? 1 : 0);
         payload_tvb = process_reassembled_data(body_tvb, 0, pinfo,
@@ -4263,7 +4264,7 @@ dissect_dvbci_tpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     }
 
     if (payload_tvb)
-        dissect_dvbci_spdu(payload_tvb, pinfo, tree, direction);
+        dissect_dvbci_spdu(payload_tvb, pinfo, tree, direction, lpdu_tcid);
 }
 
 
@@ -4284,17 +4285,15 @@ dissect_dvbci_lpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
     col_add_str(pinfo->cinfo, COL_INFO, "LPDU");
 
-    if (tree) {
-        ti = proto_tree_add_text(tree, tvb, 0, 2, "Link Layer");
-        link_tree = proto_item_add_subtree(ti, ett_dvbci_link);
-    }
+    ti = proto_tree_add_text(tree, tvb, 0, 2, "Link Layer");
+    link_tree = proto_item_add_subtree(ti, ett_dvbci_link);
 
     tcid = tvb_get_guint8(tvb, 0);
     col_append_sep_fstr(pinfo->cinfo, COL_INFO, ": ", "tcid %d", tcid);
     proto_tree_add_item(link_tree, hf_dvbci_tcid, tvb, 0, 1, ENC_BIG_ENDIAN);
 
     more_last = tvb_get_guint8(tvb, 1);
-    if (match_strval(more_last, dvbci_ml)) {
+    if (try_val_to_str(more_last, dvbci_ml)) {
         proto_tree_add_item(link_tree, hf_dvbci_ml, tvb, 1, 1, ENC_BIG_ENDIAN);
     }
     else {
@@ -4313,10 +4312,8 @@ dissect_dvbci_lpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                 buf_size_host);
     }
 
-    frag_msg = fragment_add_seq_next(tvb, 2, pinfo,
-            SEQ_ID_LINK_LAYER,
-            tpdu_fragment_table,
-            tpdu_reassembled_table,
+    frag_msg = fragment_add_seq_next(&tpdu_reassembly_table,
+            tvb, 2, pinfo, TPDU_SEQ_ID_BASE+tcid, NULL,
             tvb_reported_length_remaining(tvb, 2),
             more_last == ML_MORE ? 1 : 0);
 
@@ -4652,7 +4649,7 @@ dissect_dvbci(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 
     offset_evt = offset;
     event = tvb_get_guint8(tvb, offset++);
-    event_str = match_strval(event, dvbci_event);
+    event_str = try_val_to_str(event, dvbci_event);
     if (!event_str)
         return 0;
 

@@ -25,6 +25,8 @@
 #ifndef __SMINMPEC_H__
 #define __SMINMPEC_H__
 
+#include "ws_symbol_export.h"
+
 /*
  * These are SMI Network Management Private Enterprise Codes for
  * organizations; see
@@ -61,6 +63,7 @@
 #define VENDOR_NETSCREEN             3224
 #define VENDOR_NOMADIX               3309
 #define VENDOR_T_MOBILE              3414 /* Former VoiceStream Wireless, Inc. */
+#define VENDOR_ZTE                   3902
 #define VENDOR_SIEMENS               4329
 #define VENDOR_CABLELABS             4491
 #define VENDOR_UNISPHERE             4874
@@ -71,6 +74,7 @@
 #define VENDOR_DE_TE_MOBIL           6490
 #define VENDOR_QUINTUM               6618
 #define VENDOR_INTERLINK             6728
+#define VENDOR_CNCTC                 7951
 #define VENDOR_COLUBRIS              8744
 #define VENDOR_ERICSSON_PKT_CORE    10923
 #define VENDOR_COLUMBIA_UNIVERSITY  11862
@@ -80,10 +84,11 @@
 #define VENDOR_PLIXER               13745
 #define VENDOR_WIFI_ALLIANCE        14122
 #define VENDOR_T_SYSTEMS_NOVA       16787
+#define VENDOR_CHINATELECOM_GUANZHOU 20942
 #define VENDOR_CACE                 32622
 /* Greater than 32,767 need to be tagged unsigned. */
 #define VENDOR_NTOP                 35632u
 
-WS_VAR_IMPORT value_string_ext sminmpec_values_ext;
+WS_DLL_PUBLIC value_string_ext sminmpec_values_ext;
 
 #endif /* __SMINMPEC_H__ */

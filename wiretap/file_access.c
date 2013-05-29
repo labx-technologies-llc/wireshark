@@ -85,6 +85,7 @@
 #include "mime_file.h"
 #include "ipfix.h"
 #include "vwr.h"
+#include "camins.h"
 #include "pcap-encap.h"
 
 /* The open_file_* routines should return:
@@ -97,6 +98,14 @@
  *
  * If the routine handles this type of file, it should set the "file_type"
  * field in the "struct wtap" to the type of the file.
+ *
+ * Note that the routine does not have to free the private data pointer on
+ * error. The caller takes care of that by calling wtap_close on error.
+ * (See https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=8518)
+ *
+ * However, the caller does have to free the private data pointer when
+ * returning 0, since the next file type will be called and will likely
+ * just overwrite the pointer.
  *
  * Put the trace files that are merely saved telnet-sessions last, since it's
  * possible that you could have captured someone a router telnet-session
@@ -126,15 +135,14 @@ static wtap_open_routine_t open_routines_base[] = {
 	dbs_etherwatch_open,
 	k12_open,
 	catapult_dct2000_open,
-	ber_open,
+	ber_open,          /* XXX - this is really a heuristic */
 	aethra_open,
 	btsnoop_open,
 	eyesdn_open,
-	vwr_open,
+	vwr_open,          /* XXX - this is really a heuristic */
 	packetlogger_open, /* This type does not have a magic number, but its
 			    * files are sometimes grabbed by mpeg_open. */
 	mpeg_open,
-	mp2t_open,
 	tnef_open,
 	dct3trace_open,
 	daintree_sna_open,
@@ -159,12 +167,14 @@ static wtap_open_routine_t open_routines_base[] = {
 	ascend_open,
 	toshiba_open,
 	i4btrace_open,
+	mp2t_open,
 	csids_open,
 	vms_open,
 	cosine_open,
 	hcidump_open,
 	commview_open,
-	nstrace_open
+	nstrace_open,
+	camins_open
 };
 
 #define	N_FILE_TYPES	(sizeof open_routines_base / sizeof open_routines_base[0])
@@ -365,10 +375,7 @@ wtap* wtap_open_offline(const char *filename, int *err, char **err_info,
 		   Initialize the data offset while we're at it. */
 		if (file_seek(wth->fh, 0, SEEK_SET, err) == -1) {
 			/* I/O error - give up */
-			if (wth->random_fh != NULL)
-				file_close(wth->random_fh);
-			file_close(wth->fh);
-			g_free(wth);
+			wtap_close(wth);
 			return NULL;
 		}
 
@@ -376,10 +383,7 @@ wtap* wtap_open_offline(const char *filename, int *err, char **err_info,
 
 		case -1:
 			/* I/O error - give up */
-			if (wth->random_fh != NULL)
-				file_close(wth->random_fh);
-			file_close(wth->fh);
-			g_free(wth);
+			wtap_close(wth);
 			return NULL;
 
 		case 0:
@@ -495,262 +499,330 @@ wtap_fdreopen(wtap *wth, const char *filename, int *err)
    Entries must be sorted by WTAP_FILE_xxx values in ascending order */
 static const struct file_type_info dump_open_table_base[] = {
 	/* WTAP_FILE_UNKNOWN (only used internally for initialization) */
-	{ NULL, NULL, NULL, NULL, FALSE, FALSE,
+	{ NULL, NULL, NULL, NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_PCAP */
         /* Gianluca Varenni suggests that we add "deprecated" to the description. */
-	{ "Wireshark/tcpdump/... - libpcap", "libpcap", "pcap", "cap;dmp", FALSE, FALSE,
+	{ "Wireshark/tcpdump/... - libpcap", "libpcap", "pcap", "cap;dmp",
+	  FALSE, FALSE, 0,
 	  libpcap_dump_can_write_encap, libpcap_dump_open },
 
 	/* WTAP_FILE_PCAPNG */
-	{ "Wireshark - pcapng", "pcapng", "pcapng", "ntar", FALSE, TRUE,
+	{ "Wireshark - pcapng", "pcapng", "pcapng", "ntar",
+	  FALSE, TRUE, WTAP_COMMENT_PER_SECTION|WTAP_COMMENT_PER_INTERFACE|WTAP_COMMENT_PER_PACKET,
 	  pcapng_dump_can_write_encap, pcapng_dump_open },
 
 	/* WTAP_FILE_PCAP_NSEC */
-	{ "Wireshark - nanosecond libpcap", "nseclibpcap", "pcap", "cap;dmp", FALSE, FALSE,
+	{ "Wireshark - nanosecond libpcap", "nseclibpcap", "pcap", "cap;dmp",
+	  FALSE, FALSE, 0,
 	  libpcap_dump_can_write_encap, libpcap_dump_open },
 
 	/* WTAP_FILE_PCAP_AIX */
-	{ "AIX tcpdump - libpcap", "aixlibpcap", "pcap", "cap;dmp", FALSE, FALSE,
+	{ "AIX tcpdump - libpcap", "aixlibpcap", "pcap", "cap;dmp",
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_PCAP_SS991029 */
-	{ "Modified tcpdump - libpcap", "modlibpcap", "pcap", "cap;dmp", FALSE, FALSE,
+	{ "Modified tcpdump - libpcap", "modlibpcap", "pcap", "cap;dmp",
+	  FALSE, FALSE, 0,
 	  libpcap_dump_can_write_encap, libpcap_dump_open },
 
 	/* WTAP_FILE_PCAP_NOKIA */
-	{ "Nokia tcpdump - libpcap ", "nokialibpcap", "pcap", "cap;dmp", FALSE, FALSE,
+	{ "Nokia tcpdump - libpcap ", "nokialibpcap", "pcap", "cap;dmp",
+	  FALSE, FALSE, 0,
 	  libpcap_dump_can_write_encap, libpcap_dump_open },
 
 	/* WTAP_FILE_PCAP_SS990417 */
-	{ "RedHat 6.1 tcpdump - libpcap", "rh6_1libpcap", "pcap", "cap;dmp", FALSE, FALSE,
+	{ "RedHat 6.1 tcpdump - libpcap", "rh6_1libpcap", "pcap", "cap;dmp",
+	  FALSE, FALSE, 0,
 	  libpcap_dump_can_write_encap, libpcap_dump_open },
 
 	/* WTAP_FILE_PCAP_SS990915 */
-	{ "SuSE 6.3 tcpdump - libpcap", "suse6_3libpcap", "pcap", "cap;dmp", FALSE, FALSE,
+	{ "SuSE 6.3 tcpdump - libpcap", "suse6_3libpcap", "pcap", "cap;dmp",
+	  FALSE, FALSE, 0,
 	  libpcap_dump_can_write_encap, libpcap_dump_open },
 
 	/* WTAP_FILE_5VIEWS */
-	{ "InfoVista 5View capture", "5views", "5vw", NULL, TRUE, FALSE,
+	{ "InfoVista 5View capture", "5views", "5vw", NULL,
+	   TRUE, FALSE, 0,
 	  _5views_dump_can_write_encap, _5views_dump_open },
 
 	/* WTAP_FILE_IPTRACE_1_0 */
-	{ "AIX iptrace 1.0", "iptrace_1", NULL, NULL, FALSE, FALSE,
+	{ "AIX iptrace 1.0", "iptrace_1", NULL, NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_IPTRACE_2_0 */
-	{ "AIX iptrace 2.0", "iptrace_2", NULL, NULL, FALSE, FALSE,
+	{ "AIX iptrace 2.0", "iptrace_2", NULL, NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_BER */
-	{ "ASN.1 Basic Encoding Rules", "ber", NULL, NULL, FALSE, FALSE,
-		NULL, NULL },
+	{ "ASN.1 Basic Encoding Rules", "ber", NULL, NULL,
+	  FALSE, FALSE, 0,
+	  NULL, NULL },
 
 	/* WTAP_FILE_HCIDUMP */
-	{ "Bluetooth HCI dump", "hcidump", NULL, NULL, FALSE, FALSE,
+	{ "Bluetooth HCI dump", "hcidump", NULL, NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_CATAPULT_DCT2000 */
-	{ "Catapult DCT2000 trace (.out format)", "dct2000", "out", NULL, FALSE, FALSE,
+	{ "Catapult DCT2000 trace (.out format)", "dct2000", "out", NULL,
+	  FALSE, FALSE, 0,
 	  catapult_dct2000_dump_can_write_encap, catapult_dct2000_dump_open },
 
 	/* WTAP_FILE_NETXRAY_OLD */
-	{ "Cinco Networks NetXRay 1.x", "netxray1", "cap", NULL, TRUE, FALSE,
+	{ "Cinco Networks NetXRay 1.x", "netxray1", "cap", NULL,
+	  TRUE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_NETXRAY_1_0 */
-	{ "Cinco Networks NetXRay 2.0 or later", "netxray2", "cap", NULL, TRUE, FALSE,
+	{ "Cinco Networks NetXRay 2.0 or later", "netxray2", "cap", NULL,
+	  TRUE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_COSINE */
-	{ "CoSine IPSX L2 capture", "cosine", "txt", NULL, FALSE, FALSE,
+	{ "CoSine IPSX L2 capture", "cosine", "txt", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_CSIDS */
-	{ "CSIDS IPLog", "csids", NULL, NULL, FALSE, FALSE,
+	{ "CSIDS IPLog", "csids", NULL, NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_DBS_ETHERWATCH */
-	{ "DBS Etherwatch (VMS)", "etherwatch", "txt", NULL, FALSE, FALSE,
+	{ "DBS Etherwatch (VMS)", "etherwatch", "txt", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL},
 
 	/* WTAP_FILE_ERF */
-	{ "Endace ERF capture", "erf", "erf", NULL, FALSE, FALSE,
+	{ "Endace ERF capture", "erf", "erf", NULL,
+	  FALSE, FALSE, 0,
 	  erf_dump_can_write_encap, erf_dump_open },
 
 	/* WTAP_FILE_EYESDN */
-	{ "EyeSDN USB S0/E1 ISDN trace format", "eyesdn", "trc", NULL, FALSE, FALSE,
+	{ "EyeSDN USB S0/E1 ISDN trace format", "eyesdn", "trc", NULL,
+	   FALSE, FALSE, 0,
 	   eyesdn_dump_can_write_encap, eyesdn_dump_open },
 
 	/* WTAP_FILE_NETTL */
-	{ "HP-UX nettl trace", "nettl", "trc0", "trc1", FALSE, FALSE,
+	{ "HP-UX nettl trace", "nettl", "trc0", "trc1",
+	  FALSE, FALSE, 0,
 	  nettl_dump_can_write_encap, nettl_dump_open },
 
 	/* WTAP_FILE_ISERIES */
-	{ "IBM iSeries comm. trace (ASCII)", "iseries_ascii", "txt", NULL, FALSE, FALSE,
+	{ "IBM iSeries comm. trace (ASCII)", "iseries_ascii", "txt", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_ISERIES_UNICODE */
-	{ "IBM iSeries comm. trace (UNICODE)", "iseries_unicode", "txt", NULL, FALSE, FALSE,
+	{ "IBM iSeries comm. trace (UNICODE)", "iseries_unicode", "txt", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_I4BTRACE */
-	{ "I4B ISDN trace", "i4btrace", NULL, NULL, FALSE, FALSE,
+	{ "I4B ISDN trace", "i4btrace", NULL, NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_ASCEND */
-	{ "Lucent/Ascend access server trace", "ascend", "txt", NULL, FALSE, FALSE,
+	{ "Lucent/Ascend access server trace", "ascend", "txt", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_NETMON_1_x */
-	{ "Microsoft NetMon 1.x", "netmon1", "cap", NULL, TRUE, FALSE,
+	{ "Microsoft NetMon 1.x", "netmon1", "cap", NULL,
+	  TRUE, FALSE, 0,
 	  netmon_dump_can_write_encap_1_x, netmon_dump_open },
 
 	/* WTAP_FILE_NETMON_2_x */
-	{ "Microsoft NetMon 2.x", "netmon2", "cap", NULL, TRUE, FALSE,
+	{ "Microsoft NetMon 2.x", "netmon2", "cap", NULL,
+	  TRUE, FALSE, 0,
 	  netmon_dump_can_write_encap_2_x, netmon_dump_open },
 
 	/* WTAP_FILE_NGSNIFFER_UNCOMPRESSED */
-	{ "NA Sniffer (DOS)", "ngsniffer", "cap", "enc;trc;fdc;syc", FALSE, FALSE,
+	{ "NA Sniffer (DOS)", "ngsniffer", "cap", "enc;trc;fdc;syc",
+	  FALSE, FALSE, 0,
 	  ngsniffer_dump_can_write_encap, ngsniffer_dump_open },
 
 	/* WTAP_FILE_NGSNIFFER_COMPRESSED */
-	{ "NA Sniffer (DOS), compressed", "ngsniffer_comp", "caz", NULL, FALSE, FALSE,
+	{ "NA Sniffer (DOS), compressed", "ngsniffer_comp", "caz", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_NETXRAY_1_1 */
-	{ "NA Sniffer (Windows) 1.1", "ngwsniffer_1_1", "cap", NULL, TRUE, FALSE,
+	{ "NA Sniffer (Windows) 1.1", "ngwsniffer_1_1", "cap", NULL,
+	  TRUE, FALSE, 0,
 	  netxray_dump_can_write_encap_1_1, netxray_dump_open_1_1 },
 
 	/* WTAP_FILE_NETXRAY_2_00x */
-	{ "NA Sniffer (Windows) 2.00x", "ngwsniffer_2_0", "cap", NULL, TRUE, FALSE,
+	{ "NA Sniffer (Windows) 2.00x", "ngwsniffer_2_0", "cap", NULL,
+	  TRUE, FALSE, 0,
 	  netxray_dump_can_write_encap_2_0, netxray_dump_open_2_0 },
 
 	/* WTAP_FILE_NETWORK_INSTRUMENTS */
-	{ "Network Instruments Observer", "niobserver", "bfr", NULL, FALSE, FALSE,
+	{ "Network Instruments Observer", "niobserver", "bfr", NULL,
+	  FALSE, FALSE, 0,
 	  network_instruments_dump_can_write_encap, network_instruments_dump_open },
 
 	/* WTAP_FILE_LANALYZER */
-	{ "Novell LANalyzer","lanalyzer", "tr1", NULL, TRUE, FALSE,
+	{ "Novell LANalyzer","lanalyzer", "tr1", NULL,
+	  TRUE, FALSE, 0,
 	  lanalyzer_dump_can_write_encap, lanalyzer_dump_open },
 
 	/* WTAP_FILE_PPPDUMP */
-	{ "pppd log (pppdump format)", "pppd", NULL, NULL, FALSE, FALSE,
+	{ "pppd log (pppdump format)", "pppd", NULL, NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_RADCOM */
-	{ "RADCOM WAN/LAN analyzer", "radcom", NULL, NULL, FALSE, FALSE,
+	{ "RADCOM WAN/LAN analyzer", "radcom", NULL, NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_SNOOP */
-	{ "Sun snoop", "snoop", "snoop", "cap", FALSE, FALSE,
+	{ "Sun snoop", "snoop", "snoop", "cap",
+	  FALSE, FALSE, 0,
 	  snoop_dump_can_write_encap, snoop_dump_open },
 
 	/* WTAP_FILE_SHOMITI */
-	{ "Shomiti/Finisar Surveyor", "shomiti", "cap", NULL, FALSE, FALSE,
+	{ "Shomiti/Finisar Surveyor", "shomiti", "cap", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_VMS */
-	{ "TCPIPtrace (VMS)", "tcpiptrace", "txt", NULL, FALSE, FALSE,
+	{ "TCPIPtrace (VMS)", "tcpiptrace", "txt", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL},
 
 	/* WTAP_FILE_K12 */
-	{ "Tektronix K12xx 32-bit .rf5 format", "rf5", "rf5", NULL, TRUE, FALSE,
-		k12_dump_can_write_encap, k12_dump_open },
+	{ "Tektronix K12xx 32-bit .rf5 format", "rf5", "rf5", NULL,
+	   TRUE, FALSE, 0,
+	   k12_dump_can_write_encap, k12_dump_open },
 
 	/* WTAP_FILE_TOSHIBA */
-	{ "Toshiba Compact ISDN Router snoop", "toshiba", "txt", NULL, FALSE, FALSE,
+	{ "Toshiba Compact ISDN Router snoop", "toshiba", "txt", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_VISUAL_NETWORKS */
-	{ "Visual Networks traffic capture", "visual", NULL, NULL, TRUE, FALSE,
+	{ "Visual Networks traffic capture", "visual", NULL, NULL,
+	  TRUE, FALSE, 0,
 	  visual_dump_can_write_encap, visual_dump_open },
 
 	/* WTAP_FILE_PEEKCLASSIC_V56 */
-	{ "WildPackets classic (V5 and V6)", "peekclassic56", "pkt", "tpc;apc;wpz", FALSE, FALSE,
+	{ "WildPackets classic (V5 and V6)", "peekclassic56", "pkt", "tpc;apc;wpz",
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_PEEKCLASSIC_V7 */
-	{ "WildPackets classic (V7)", "peekclassic7", "pkt", "tpc;apc;wpz", FALSE, FALSE,
+	{ "WildPackets classic (V7)", "peekclassic7", "pkt", "tpc;apc;wpz",
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_PEEKTAGGED */
-	{ "WildPackets tagged", "peektagged", "pkt", "tpc;apc;wpz", FALSE, FALSE,
+	{ "WildPackets tagged", "peektagged", "pkt", "tpc;apc;wpz",
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_MPEG */
-	{ "MPEG", "mpeg", "mpeg", "mpg;mp3", FALSE, FALSE,
+	{ "MPEG", "mpeg", "mpeg", "mpg;mp3",
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_K12TEXT  */
-	{ "K12 text file", "k12text", "txt", NULL, FALSE, FALSE,
+	{ "K12 text file", "k12text", "txt", NULL,
+	  FALSE, FALSE, 0,
 	  k12text_dump_can_write_encap, k12text_dump_open },
 
 	/* WTAP_FILE_NETSCREEN */
-	{ "NetScreen snoop text file", "netscreen", "txt", NULL, FALSE, FALSE,
+	{ "NetScreen snoop text file", "netscreen", "txt", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_COMMVIEW */
-	{ "TamoSoft CommView", "commview", "ncf", NULL, FALSE, FALSE,
+	{ "TamoSoft CommView", "commview", "ncf", NULL,
+	  FALSE, FALSE, 0,
 	  commview_dump_can_write_encap, commview_dump_open },
 
 	/* WTAP_FILE_BTSNOOP */
-	{ "Symbian OS btsnoop", "btsnoop", "log", NULL, FALSE, FALSE,
+	{ "Symbian OS btsnoop", "btsnoop", "log", NULL,
+	  FALSE, FALSE, 0,
 	  btsnoop_dump_can_write_encap, btsnoop_dump_open_h4 },
 
 	/* WTAP_FILE_TNEF */
-	{ "Transport-Neutral Encapsulation Format", "tnef", NULL, NULL, FALSE, FALSE,
+	{ "Transport-Neutral Encapsulation Format", "tnef", NULL, NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_DCT3TRACE */
-	{ "Gammu DCT3 trace", "dct3trace", "xml", NULL, FALSE, FALSE,
+	{ "Gammu DCT3 trace", "dct3trace", "xml", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_PACKETLOGGER */
-	{ "PacketLogger", "pklg", "pklg", NULL, FALSE, FALSE,
+	{ "PacketLogger", "pklg", "pklg", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_DAINTREE_SNA */
-	{ "Daintree SNA", "dsna", "dcf", NULL, FALSE, FALSE,
+	{ "Daintree SNA", "dsna", "dcf", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_NETSCALER_1_0 */
-	{ "NetScaler Trace (Version 1.0)", "nstrace10", NULL, NULL, TRUE, FALSE,
+	{ "NetScaler Trace (Version 1.0)", "nstrace10", NULL, NULL,
+	  TRUE, FALSE, 0,
 	  nstrace_10_dump_can_write_encap, nstrace_dump_open },
 
 	/* WTAP_FILE_NETSCALER_2_0 */
-	{ "NetScaler Trace (Version 2.0)", "nstrace20", "cap", NULL, TRUE, FALSE,
+	{ "NetScaler Trace (Version 2.0)", "nstrace20", "cap", NULL,
+	  TRUE, FALSE, 0,
 	  nstrace_20_dump_can_write_encap, nstrace_dump_open },
 
 	/* WTAP_FILE_JPEG_JFIF */
-	{ "JPEG/JFIF", "jpeg", "jpg", "jpeg;jfif", FALSE, FALSE,
+	{ "JPEG/JFIF", "jpeg", "jpg", "jpeg;jfif",
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_IPFIX */
-	{ "IPFIX File Format", "ipfix", "pfx", "ipfix", FALSE, FALSE,
+	{ "IPFIX File Format", "ipfix", "pfx", "ipfix",
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_ENCAP_MIME */
-	{ "MIME File Format", "mime", NULL, NULL, FALSE, FALSE,
+	{ "MIME File Format", "mime", NULL, NULL,
+	   FALSE, FALSE, 0,
 	   NULL, NULL },
 
 	/* WTAP_FILE_AETHRA */
-	{ "Aethra .aps file", "aethra", "aps", NULL, FALSE, FALSE,
+	{ "Aethra .aps file", "aethra", "aps", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_MPEG_2_TS */
-	{ "MPEG2 transport stream", "mp2t", "mp2t", "ts;mpg", FALSE, FALSE,
+	{ "MPEG2 transport stream", "mp2t", "mp2t", "ts;mpg",
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_VWR_80211 */
-	{ "Ixia IxVeriWave .vwr Raw 802.11 Capture", "vwr80211", "*.vwr", ".vwr", FALSE, FALSE,
+	{ "Ixia IxVeriWave .vwr Raw 802.11 Capture", "vwr80211", "vwr", NULL,
+	  FALSE, FALSE, 0,
 	  NULL, NULL },
 
 	/* WTAP_FILE_VWR_ETH */
-	{ "Ixia IxVeriWave .vwr Raw Ethernet Capture", "vwreth", "*.vwr", ".vwr", FALSE, FALSE,
-	  NULL, NULL }
+	{ "Ixia IxVeriWave .vwr Raw Ethernet Capture", "vwreth", "vwr", NULL,
+	  FALSE, FALSE, 0,
+	  NULL, NULL },
 
+	/* WTAP_FILE_CAMINS */
+	{ "CAM Inspector file", "camins", "camins", NULL,
+	  FALSE, FALSE, 0,
+	  NULL, NULL }
 };
 
 gint wtap_num_file_types = sizeof(dump_open_table_base) / sizeof(struct file_type_info);
@@ -804,12 +876,27 @@ wtap_dump_file_encap_type(const GArray *file_encaps)
 	return encap;
 }
 
+static gboolean
+wtap_dump_can_write_encap(int filetype, int encap)
+{
+	if (filetype < 0 || filetype >= wtap_num_file_types
+	    || dump_open_table[filetype].can_write_encap == NULL)
+		return FALSE;
+
+	if ((*dump_open_table[filetype].can_write_encap)(encap) != 0)
+		return FALSE;
+
+	return TRUE;
+}
+
 /*
- * Return TRUE if a capture with a given GArray of WTAP_ENCAP_ types
- * can be written in a specified format, and FALSE if it can't.
+ * Return TRUE if a capture with a given GArray of encapsulation types
+ * and a given bitset of comment types can be written in a specified
+ * format, and FALSE if it can't.
  */
-gboolean
-wtap_dump_can_write_encaps(int ft, const GArray *file_encaps)
+static gboolean
+wtap_dump_can_write_format(int ft, const GArray *file_encaps,
+    guint32 required_comment_types)
 {
 	guint i;
 
@@ -822,11 +909,22 @@ wtap_dump_can_write_encaps(int ft, const GArray *file_encaps)
 	}
 
 	/*
-	 * Is the required per-file encapsulation type supported?
+	 * Yes.  Can we write out all the required comments in this
+	 * format?
+	 */
+	if (!wtap_dump_supports_comment_types(ft, required_comment_types)) {
+		/* No. */
+		return FALSE;
+	}
+
+	/*
+	 * Yes.  Is the required per-file encapsulation type supported?
 	 * This might be WTAP_ENCAP_PER_PACKET.
 	 */
-	if (!wtap_dump_can_write_encap(ft, wtap_dump_file_encap_type(file_encaps)))
+	if (!wtap_dump_can_write_encap(ft, wtap_dump_file_encap_type(file_encaps))) {
+		/* No. */
 		return FALSE;
+	}
 
 	/*
 	 * Yes.  Are all the individual encapsulation types supported?
@@ -843,13 +941,37 @@ wtap_dump_can_write_encaps(int ft, const GArray *file_encaps)
 	return TRUE;
 }
 
-/*
+/**
+ * Return TRUE if we can write a file with the given GArray of
+ * encapsulation types and the given bitmask of comment types.
+ */
+gboolean
+wtap_dump_can_write(const GArray *file_encaps, guint32 required_comment_types)
+{
+  int ft;
+
+  for (ft = 0; ft < WTAP_NUM_FILE_TYPES; ft++) {
+    /* To save a file with Wiretap, Wiretap has to handle that format,
+       and its code to handle that format must be able to write a file
+       with this file's encapsulation types. */
+    if (wtap_dump_can_write_format(ft, file_encaps, required_comment_types)) {
+      /* OK, we can write it out in this type. */
+      return TRUE;
+    }
+  }
+
+  /* No, we couldn't save it in any format. */
+  return FALSE;
+}
+
+/**
  * Get a GArray of WTAP_FILE_ values for file types that can be used
- * to save a file of a given type with a given GArray of WTAP_ENCAP_
- * types.
+ * to save a file of a given type with a given GArray of encapsulation
+ * types and the given bitmask of comment types.
  */
 GArray *
-wtap_get_savable_file_types(int file_type, const GArray *file_encaps)
+wtap_get_savable_file_types(int file_type, const GArray *file_encaps,
+    guint32 required_comment_types)
 {
 	GArray *savable_file_types;
 	int ft;
@@ -857,22 +979,18 @@ wtap_get_savable_file_types(int file_type, const GArray *file_encaps)
 	int other_file_type = -1;
 
 	/* Can we save this file in its own file type? */
-	if (wtap_dump_can_write_encaps(file_type, file_encaps)) {
+	if (wtap_dump_can_write_format(file_type, file_encaps,
+	                               required_comment_types)) {
 		/* Yes - make that the default file type. */
 		default_file_type = file_type;
 	} else {
-		/* No - can we save it as a pcap-NG file? */
-		if (wtap_dump_can_write_encaps(WTAP_FILE_PCAPNG, file_encaps)) {
-			/* Yes - default to pcap-NG, instead. */
-			default_file_type = WTAP_FILE_PCAPNG;
-		} else {
-			/* OK, find the first file type we *can* save it as. */
-			default_file_type = -1;
-			for (ft = 0; ft < WTAP_NUM_FILE_TYPES; ft++) {
-				if (wtap_dump_can_write_encaps(ft, file_encaps)) {
-					/* OK, got it. */
-					default_file_type = ft;
-				}
+		/* OK, find the first file type we *can* save it as. */
+		default_file_type = -1;
+		for (ft = 0; ft < WTAP_NUM_FILE_TYPES; ft++) {
+			if (wtap_dump_can_write_format(ft, file_encaps,
+			                               required_comment_types)) {
+				/* OK, got it. */
+				default_file_type = ft;
 			}
 		}
 	}
@@ -888,13 +1006,17 @@ wtap_get_savable_file_types(int file_type, const GArray *file_encaps)
 	/* Put the default file format first in the list. */
 	g_array_append_val(savable_file_types, default_file_type);
 
-	/* If it's pcap, put pcap-NG right after it; otherwise, if it's
-	   pcap-NG, put pcap right after it. */
+	/* If the default is pcap, put pcap-NG right after it if we can
+	   also write it in pcap-NG format; otherwise, if the default is
+	   pcap-NG, put pcap right after it if we can also write it in
+	   pcap format. */
 	if (default_file_type == WTAP_FILE_PCAP) {
-		if (wtap_dump_can_write_encaps(WTAP_FILE_PCAPNG, file_encaps))
+		if (wtap_dump_can_write_format(WTAP_FILE_PCAPNG, file_encaps,
+		                               required_comment_types))
 			other_file_type = WTAP_FILE_PCAPNG;
 	} else if (default_file_type == WTAP_FILE_PCAPNG) {
-		if (wtap_dump_can_write_encaps(WTAP_FILE_PCAP, file_encaps))
+		if (wtap_dump_can_write_format(WTAP_FILE_PCAP, file_encaps,
+		                               required_comment_types))
 			other_file_type = WTAP_FILE_PCAP;
 	}
 	if (other_file_type != -1)
@@ -906,7 +1028,8 @@ wtap_get_savable_file_types(int file_type, const GArray *file_encaps)
 			continue;	/* not a real file type */
 		if (ft == default_file_type || ft == other_file_type)
 			continue;	/* we've already done this one */
-		if (wtap_dump_can_write_encaps(ft, file_encaps)) {
+		if (wtap_dump_can_write_format(ft, file_encaps,
+		                               required_comment_types)) {
 			/* OK, we can write it out in this type. */
 			g_array_append_val(savable_file_types, ft);
 		}
@@ -1077,18 +1200,6 @@ gboolean wtap_dump_can_open(int filetype)
 	return TRUE;
 }
 
-gboolean wtap_dump_can_write_encap(int filetype, int encap)
-{
-	if (filetype < 0 || filetype >= wtap_num_file_types
-	    || dump_open_table[filetype].can_write_encap == NULL)
-		return FALSE;
-
-	if ((*dump_open_table[filetype].can_write_encap)(encap) != 0)
-		return FALSE;
-
-	return TRUE;
-}
-
 #ifdef HAVE_LIBZ
 gboolean wtap_dump_can_compress(int filetype)
 {
@@ -1117,6 +1228,20 @@ gboolean wtap_dump_has_name_resolution(int filetype)
 		return FALSE;
 
 	return TRUE;
+}
+
+gboolean wtap_dump_supports_comment_types(int filetype, guint32 comment_types)
+{
+	guint32 supported_comment_types;
+
+	if (filetype < 0 || filetype >= wtap_num_file_types)
+		return FALSE;
+
+	supported_comment_types = dump_open_table[filetype].supported_comment_types;
+
+	if ((comment_types & supported_comment_types) == comment_types)
+		return TRUE;
+	return FALSE;
 }
 
 static gboolean wtap_dump_open_check(int filetype, int encap, gboolean comressed, int *err);
@@ -1517,5 +1642,43 @@ static int wtap_dump_file_close(wtap_dumper *wdh)
 #endif
 	{
 		return fclose((FILE *)wdh->fh);
+	}
+}
+
+gint64 wtap_dump_file_seek(wtap_dumper *wdh, gint64 offset, int whence, int *err)
+{
+#ifdef HAVE_LIBZ
+	if(wdh->compressed) {
+		*err = WTAP_ERR_CANT_SEEK_COMPRESSED;
+		return -1;
+	} else
+#endif
+	{
+		if (-1 == fseek((FILE *)wdh->fh, (long)offset, whence)) {
+			*err = errno;
+			return -1;
+		} else
+		{
+			return 0;
+		}	
+	}
+}
+gint64 wtap_dump_file_tell(wtap_dumper *wdh, int *err)
+{
+	gint64 rval;
+#ifdef HAVE_LIBZ
+	if(wdh->compressed) {
+		*err = WTAP_ERR_CANT_SEEK_COMPRESSED;
+		return -1;
+	} else
+#endif
+	{
+		if (-1 == (rval = ftell((FILE *)wdh->fh))) {
+			*err = errno;
+			return -1;
+		} else
+		{
+			return rval;
+		}	
 	}
 }

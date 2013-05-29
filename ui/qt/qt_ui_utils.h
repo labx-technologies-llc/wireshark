@@ -34,6 +34,8 @@
 #include <glib.h>
 #include <epan/timestamp.h>
 
+#include <QString>
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -72,6 +74,23 @@ extern gboolean main_do_quit(void);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+/** Create a glib-compatible copy of a QString.
+ *
+ * @param q_string A QString.
+ *
+ * @return A copy of the QString. UTF-8 allocated with g_malloc().
+ */
+gchar *qstring_strdup(QString q_string);
+
+/** Transfer ownership of a GLib character string to a newly constructed QString
+ *
+ * @param glib_string A string allocated with g_malloc() or NULL. Will be
+ * freed.
+ *
+ * @return A QString instance created from the input string.
+ */
+QString gchar_free_to_qstring(gchar *glib_string);
 
 #endif /* __QT_UI_UTILS__H__ */
 

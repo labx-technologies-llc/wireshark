@@ -24,6 +24,8 @@
 #ifndef __INET_V6DEFS_H__
 #define __INET_V6DEFS_H__
 
+#include "ws_symbol_export.h"
+
 /*
  * Versions of "inet_pton()" and "inet_ntop()", for the benefit of OSes that
  * don't have it.
@@ -39,9 +41,9 @@
 #define inet_ntop ws_inet_ntop
 #endif
 
-extern int inet_pton(int af, const char *src, void *dst);
+WS_DLL_PUBLIC int inet_pton(int af, const char *src, void *dst);
 #ifndef HAVE_INET_NTOP_PROTO
-extern const char *inet_ntop(int af, const void *src, char *dst,
+WS_DLL_PUBLIC const char *inet_ntop(int af, const void *src, char *dst,
     size_t size);
 #endif
 

@@ -26,6 +26,10 @@
 #ifndef XMPP_UTILS_H
 #define XMPP_UTILS_H
 
+#include "ws_symbol_export.h"
+#include "tvbuff.h"
+#include "dissectors/packet-xml.h"
+
 #define xmpp_elem_cdata(elem) \
 elem->data?elem->data->value:""
 
@@ -36,8 +40,8 @@ typedef struct _xmpp_array_t
 } xmpp_array_t;
 
 typedef struct _xmpp_attr_t{
-    gchar *value;
-    gchar *name;
+    const gchar *value;
+    const gchar *name;
     gint offset;
     gint length;
 
@@ -72,19 +76,19 @@ typedef struct _xmpp_element_t{
 
 /*informations about attributes that are displayed in proto tree*/
 typedef struct _xmpp_attr_info{
-    gchar *name;
+    const gchar *name;
     gint hf;
     gboolean is_required;
     gboolean in_short_list;
 
     /*function validates this attribute
     it may impose other restrictions (e.g. validating atribut's name, ...)*/
-    void (*val_func)(packet_info *pinfo, proto_item *item, gchar *name, gchar *value, gpointer data);
+    void (*val_func)(packet_info *pinfo, proto_item *item, const gchar *name, const gchar *value, gconstpointer data);
     gpointer data;
 } xmpp_attr_info;
 
 typedef struct _xmpp_attr_info_ext{
-    gchar* ns;
+    const gchar* ns;
     xmpp_attr_info info;
 } xmpp_attr_info_ext;
 
@@ -103,7 +107,7 @@ typedef enum _xmpp_elem_info_occurrence
 /*informations about elements that are displayed in proto tree*/
 typedef struct _xmpp_elem_info{
     xmpp_elem_info_type type;
-    gpointer data;
+    gconstpointer data;
     /*function that displays element in tree*/
     void (*elem_func)(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xmpp_element_t* element);
     xmpp_elem_info_occurrence occurrence;
@@ -181,7 +185,7 @@ extern void xmpp_element_t_tree_free(xmpp_element_t *root);
 extern xmpp_array_t* xmpp_ep_init_array_t(const gchar** array, gint len);
 
 /*Allocs ephemeral memory for xmpp_attr_t struct*/
-extern xmpp_attr_t* xmpp_ep_init_attr_t(gchar *value, gint offset, gint length);
+extern xmpp_attr_t* xmpp_ep_init_attr_t(const gchar *value, gint offset, gint length);
 
 /*Allocs ephemeral memory for upcased string*/
 extern gchar* xmpp_ep_string_upcase(const gchar* string);
@@ -224,7 +228,7 @@ extern void xmpp_proto_tree_show_first_child(proto_tree *tree);
 extern gchar* proto_item_get_text(proto_item *item);
 
 /*Function returns struct that contains 3 strings. It is used to build xmpp_attr_info struct.*/
-extern gpointer xmpp_name_attr_struct(gchar *name, gchar *attr_name, gchar *attr_value);
+extern gpointer xmpp_name_attr_struct(const gchar *name, const gchar *attr_name, const gchar *attr_value);
 
 /** Function displays attributes from element in way described in attrs.
  * Elements that doesn't exist in attrs are displayed as text.
@@ -240,11 +244,13 @@ extern void xmpp_display_attrs(proto_tree *tree, xmpp_element_t *element, packet
  * that contains XMPP_ATTR_INFO struct and string with namespace. It is used when packet
  * contains several namespaces and each attribute belongs to particular namespace.
  * E.g.
+ * @code
  * <auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl'
  *  mechanism='PLAIN'
  *  xmlns:ga='http://www.google.com/talk/protocol/auth'
  *  ga:client-uses-full-bind-result='true'>
  * </auth>
+ * @endcode
  */
 extern void xmpp_display_attrs_ext(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo, tvbuff_t *tvb, xmpp_attr_info_ext *attrs, guint n);
 
@@ -258,7 +264,7 @@ extern void xmpp_display_elems(proto_tree *tree, xmpp_element_t *parent, packet_
 /* Validates attribute value. Takes string array(gchar**) in parameter data.
  * Is used in XMPP_ATTR_INFO struct.
  */
-extern void xmpp_val_enum_list(packet_info *pinfo, proto_item *item, gchar *name, gchar *value, gpointer data);
+extern void xmpp_val_enum_list(packet_info *pinfo, proto_item *item, const gchar *name, const gchar *value, gconstpointer data);
 
 /** Function changes element to attribute. It searches element by name in parent element,
  * next it create attribute using transform_func and inserts it to parent attributes hash table

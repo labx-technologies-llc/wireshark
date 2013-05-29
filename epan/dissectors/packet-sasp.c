@@ -82,7 +82,7 @@ static int hf_sasp_gmd_cnt = -1;
 /*dereg req*/
 static int hf_sasp_dereg_req_sz = -1;
 static int hf_dereg_req_lbflag = -1;
-static int hf_dereg_req_reason = -1;
+/* static int hf_dereg_req_reason = -1; */
 static int hf_dereg_req_reason_flag = -1;
 
 /*dereg reply*/
@@ -100,7 +100,7 @@ static int hf_setmemstate_req_lbflag = -1;
 static int hf_sasp_setmemstate_req_gmsd_cnt = -1;
 
 /*setmemstate reply*/
-static int hf_sasp_setmemstate_rep = -1;
+/* static int hf_sasp_setmemstate_rep = -1; */
 static int hf_sasp_setmemstate_rep_rcode = -1;
 static int hf_sasp_setmemstate_rep_sz = -1;
 
@@ -142,13 +142,13 @@ static int hf_sasp_setlbstate_req_LB_uid_len  = -1;
 static int hf_sasp_setlbstate_req_LB_uid  = -1;
 static int hf_sasp_setlbstate_req_LB_health  = -1;
 /*static int hf_sasp_setlbstate_req_LB_flag = -1;*/
-static int hf_lbstate_flag = -1;
+/* static int hf_lbstate_flag = -1; */
 static int hf_sasp_pushflag = -1;
 static int hf_sasp_trustflag = -1;
 static int hf_sasp_nochangeflag = -1;
 
 /*setlbstate reply*/
-static int hf_sasp_setlbstate_rep = -1;
+/* static int hf_sasp_setlbstate_rep = -1; */
 static int hf_sasp_setlbstate_rep_rcode = -1;
 static int hf_sasp_setlbstate_rep_sz = -1;
 
@@ -167,7 +167,7 @@ static int hf_sasp_memstatedatacomp_quiesce_flag = -1;
 static int hf_sasp_weight_entry_data_comp_type = -1;
 static int hf_sasp_weight_entry_data_comp_sz = -1;
 static int hf_sasp_weight_entry_data_comp_state = -1;
-static int hf_wtstate_flag = -1;
+/* static int hf_wtstate_flag = -1; */
 static int hf_sasp_wed_contactsuccess_flag = -1;
 static int hf_sasp_wed_quiesce_flag = -1;
 static int hf_sasp_wed_registration_flag = -1;
@@ -207,6 +207,8 @@ static gint ett_sasp_grp_wt_entry_datacomp = -1;
 static gint ett_sasp_weight_entry_data_comp = -1;
 static gint ett_wt_entry_data_flag = -1;
 static gint ett_sasp_wt_rep = -1;
+
+static expert_field ei_msg_type_invalid = EI_INIT;
 
 /* desegmentation of SASP over TCP */
 static gboolean sasp_desegment = TRUE;
@@ -384,7 +386,7 @@ dissect_sasp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	hti = proto_tree_add_uint_format(sasp_tree, hf_sasp_type, tvb, offset, 2, hdr_type,
 				   "Type: %s", (hdr_type == SASP_HDR_TYPE) ? "SASP" : "[Invalid]");
 	if (hdr_type != SASP_HDR_TYPE) {
-		expert_add_info_format(pinfo, hti, PI_MALFORMED, PI_ERROR,
+		expert_add_info_format_text(pinfo, hti, &ei_msg_type_invalid,
 				       "Invalid SASP Header Type [0x%04x]", hdr_type);
 		/* XXX: The folowing should actually happen automatically ? */
 		col_set_str(pinfo->cinfo, COL_INFO, "[Malformed: Invalid SASP Header Type]");
@@ -502,7 +504,7 @@ dissect_sasp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			/* Unknown SASP Message Type */
 			col_add_fstr(pinfo->cinfo, COL_INFO,
 				     "[Malformed: Unknown Message Type [0x%04x]", msg_type);
-			expert_add_info_format(pinfo, mti, PI_MALFORMED, PI_WARN,
+			expert_add_info_format_text(pinfo, mti, &ei_msg_type_invalid,
 					       "Unknown SASP Message Type: 0x%4x", msg_type);
 			return;
 	 }
@@ -577,7 +579,7 @@ static void dissect_dereg_req(tvbuff_t *tvb, proto_tree *pay_load, guint32 offse
 	proto_tree *dereg_req_data;
 
 	guint8	 reason_flag;
-	gboolean first_flag = TRUE;
+	static gboolean first_flag = TRUE;
 
 
 	emem_strbuf_t *reasonflags_strbuf = ep_strbuf_new_label("");
@@ -1312,10 +1314,12 @@ void proto_register_sasp(void)
 		    FT_UINT8, BASE_HEX, NULL, 0x0,
 		    NULL, HFILL } },
 
+#if 0
 		{ &hf_dereg_req_reason,
 	 	  { "Dereg Req-Reason", "sasp.dereg-req.reason",
 		    FT_UINT8, BASE_HEX, NULL, 0x0,
 		    "SASP Dereg Req Reason", HFILL } },
+#endif
 
 		/* Dereg Rep */
 		{ &hf_sasp_dereg_rep_sz,
@@ -1358,10 +1362,12 @@ void proto_register_sasp(void)
 		    "Group Of Member State Data Count", HFILL } },
 
 		/* Set Mem State Reply */
+#if 0
 		{ &hf_sasp_setmemstate_rep,
 		  { "Set Memstate Reply", "sasp.setmemstate-rep",
 		    FT_UINT32, BASE_HEX, NULL, 0x0,
 		    "SASP Set Memstate Reply", HFILL } },
+#endif
 
 		{ &hf_sasp_setmemstate_rep_sz,
 		  { "Set Memstate Rep-Size", "sasp.setmemstate-rep.size",
@@ -1446,10 +1452,12 @@ void proto_register_sasp(void)
 
 		/*Set LB State Rep */
 
+#if 0
 		{ &hf_sasp_setlbstate_rep,
 		  { "Set Lbstate Rep", "sasp.msg.type",
 		    FT_UINT32, BASE_HEX, NULL, 0x0,
 		    "SASP Set Lbstate Rep", HFILL } },
+#endif
 
 		{ &hf_sasp_setlbstate_rep_sz,
 		  { "Set Lbstate Rep-Size", "sasp.setlbstate-rep.size",
@@ -1535,10 +1543,12 @@ void proto_register_sasp(void)
 		    FT_UINT8, BASE_HEX, VALS(lbstate_healthtable), 0x0,
 		    "SASP Set LB State Req LB Health", HFILL } },
 
+#if 0
 		{ &hf_lbstate_flag,
 		  { "Flags", "sasp.flags.lbstate",
 		    FT_UINT8, BASE_HEX, NULL, 0x0,
 		    NULL, HFILL } },
+#endif
 
 		{ &hf_sasp_pushflag,
 		  { "PUSH", "sasp.flags.push",
@@ -1614,10 +1624,12 @@ void proto_register_sasp(void)
 		    FT_UINT8, BASE_HEX, NULL, 0x0,
 		    "SASP Wt Entry Data Comp State", HFILL } },
 
+#if 0
 		{ &hf_wtstate_flag,
 		  { "Flags", "sasp.flags.wtstate",
 		    FT_UINT8, BASE_HEX, NULL, 0x0,
 		    NULL, HFILL } },
+#endif
 
 		{ &hf_sasp_wed_contactsuccess_flag,
 		  { "Contact Success", "sasp.flags.contactsuccess",
@@ -1695,12 +1707,19 @@ void proto_register_sasp(void)
 		&ett_sasp_wt_rep,
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_msg_type_invalid, { "sasp.msg.type.invalid", PI_PROTOCOL, PI_WARN, "Invalid Type", EXPFILL }},
+	};
+
 	module_t *sasp_module;
+	expert_module_t* expert_sasp;
 
 	proto_sasp = proto_register_protocol("Server/Application State Protocol", "SASP", "sasp");
 
 	proto_register_field_array(proto_sasp, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_sasp = expert_register_protocol(proto_sasp);
+	expert_register_field_array(expert_sasp, ei, array_length(ei));
 
 	sasp_module = prefs_register_protocol(proto_sasp, NULL);
 	prefs_register_bool_preference(sasp_module, "desegment_sasp_messages",

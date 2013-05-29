@@ -43,8 +43,10 @@
 
 #include "ui/recent.h"
 #include "ui/gtk/old-gtk-compat.h"
+#include "ui/gtk/main_80211_toolbar.h"
 
 #include <ws80211_utils.h>
+#include "capture_session.h"
 #include "capture_sync.h"
 
 static GtkWidget *tb80211_tb, *tb80211_iface_list_box, *tb80211_freq_list_box, *tb80211_chan_type_box, *tb80211_info_label;
@@ -57,13 +59,13 @@ static gint32 tb80211_current_type = -1;
 static gboolean tb80211_dont_set_chan;
 static gboolean tb80211_dont_set_iface;
 
-static void tb80211_set_info(char *errstr)
+static void tb80211_set_info(const char *errstr)
 {
     gtk_label_set_markup(GTK_LABEL(tb80211_info_label), errstr);
 }
 
 static
-void add_channel_type(char *type, int oldtype, int indx )
+void add_channel_type(const char *type, int oldtype, int indx )
 {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(tb80211_chan_type_box), type);
 
@@ -165,7 +167,8 @@ int get_selected_channel_type(void)
 static int
 tb80211_do_set_channel(char *iface, int freq, int type)
 {
-	gchar *freq_s, *type_s;
+	gchar *freq_s;
+	const gchar *type_s;
 	gchar *data, *primary_msg, *secondary_msg;
 	int ret;
 
@@ -332,7 +335,7 @@ out_free:
 }
 
 static void
-tb80211_add_label(gchar *text, GtkWidget *tb)
+tb80211_add_label(const gchar *text, GtkWidget *tb)
 {
     GtkWidget     *label;
     GtkToolItem	  *label_ti;

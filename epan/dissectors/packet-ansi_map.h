@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ansi_map.h                                                          */
 /* ../../tools/asn2wrs.py -b -p ansi_map -c ./ansi_map.cnf -s ./packet-ansi_map-template -D . -O ../../epan/dissectors ansi_map.asn */
 
@@ -34,6 +34,8 @@
 #ifndef PACKET_ANSI_MAP_H
 #define PACKET_ANSI_MAP_H
 
+#include "ws_symbol_export.h"
+
 #define	ANSI_MAP_MAX_NUM_MESSAGE_TYPES	256
 
 typedef struct _ansi_map_tap_rec_t {
@@ -47,7 +49,7 @@ typedef struct _ansi_map_tap_rec_t {
  * without having to duplicate it. With MSVC and a
  * libwireshark.dll, we need a special declaration.
  */
-WS_VAR_IMPORT const value_string ansi_map_opr_code_strings[];
+WS_DLL_PUBLIC const value_string ansi_map_opr_code_strings[];
 
 
 

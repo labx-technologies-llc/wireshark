@@ -41,8 +41,12 @@
 #include <epan/sctpppids.h>
 #include <epan/emem.h>
 #include "packet-mtp3.h"
+#include "packet-sccp.h"
+#include "packet-frame.h"
 #include "packet-q708.h"
 #include <epan/tap.h>
+
+static gint m3ua_pref_mtp3_standard;
 
 #define SCTP_PORT_M3UA         2905
 #define ADD_PADDING(x) ((((x) + 3) >> 2) << 2)
@@ -238,7 +242,7 @@ static int hf_parameter_tag = -1;
 static int hf_parameter_length = -1;
 static int hf_parameter_value = -1;
 static int hf_parameter_padding = -1;
-static int hf_parameter_trailer = -1;
+/* static int hf_parameter_trailer = -1; */
 static int hf_network_appearance = -1;
 static int hf_info_string = -1;
 static int hf_routing_context = -1;
@@ -1109,24 +1113,92 @@ dissect_circuit_range_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_t
 #define DATA_SLS_OFFSET   (DATA_MP_OFFSET  + DATA_MP_LENGTH)
 #define DATA_ULP_OFFSET   (DATA_SLS_OFFSET + DATA_SLS_LENGTH)
 
+static guint
+m3ua_heur_mtp3_standard(tvbuff_t *tvb, packet_info *pinfo, guint32 opc, guint32 dpc, guint8 si)
+{
+    switch (si) {
+    case MTP_SI_SCCP:
+	{
+	    if (opc < ITU_PC_MASK && dpc < ITU_PC_MASK &&
+		looks_like_valid_sccp(PINFO_FD_NUM(pinfo), tvb, ITU_STANDARD)) {
+
+		return ITU_STANDARD;
+	    }
+	    /* Network 0 is reserved in ANSI */
+	    /* Could also check that cluster!=0 for small networks (networks 1-5) */
+	    if ((opc & ANSI_NETWORK_MASK) > 0 && (dpc & ANSI_NETWORK_MASK) > 0 &&
+		looks_like_valid_sccp(PINFO_FD_NUM(pinfo), tvb, ANSI_STANDARD)) {
+
+		return ANSI_STANDARD;
+	    }
+	    if (looks_like_valid_sccp(PINFO_FD_NUM(pinfo), tvb, CHINESE_ITU_STANDARD)) {
+		return CHINESE_ITU_STANDARD;
+	    }
+	    if (opc < JAPAN_PC_MASK && dpc < JAPAN_PC_MASK &&
+		looks_like_valid_sccp(PINFO_FD_NUM(pinfo), tvb, JAPAN_STANDARD)) {
+
+		return JAPAN_STANDARD;
+	    }
+
+	    return HEURISTIC_FAILED_STANDARD;
+
+	}
+    default:
+	return HEURISTIC_FAILED_STANDARD;
+    }
+}
+
+static void
+m3ua_reset_mtp3_standard(void)
+{
+    mtp3_standard = m3ua_pref_mtp3_standard;
+}
+
 static void
 dissect_protocol_data_parameter(tvbuff_t *parameter_tvb, packet_info *pinfo, proto_tree *tree, proto_tree *parameter_tree, proto_item *parameter_item)
 {
   guint16 ulp_length;
   tvbuff_t *payload_tvb;
-  proto_item *item;
-  mtp3_tap_rec_t* mtp3_tap = ep_alloc0(sizeof(mtp3_tap_rec_t));
+  proto_item *item, *gen_item;
+  mtp3_tap_rec_t* mtp3_tap = ep_new0(mtp3_tap_rec_t);
   proto_tree *q708_tree;
+  gint heuristic_standard;
+  guint8 si;
+  guint32 opc, dpc;
 
+  si = tvb_get_guint8(parameter_tvb, DATA_SI_OFFSET);
+  ulp_length  = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH - DATA_HDR_LENGTH;
+  payload_tvb = tvb_new_subset(parameter_tvb, DATA_ULP_OFFSET, ulp_length, ulp_length);
+  dpc = tvb_get_ntohl(parameter_tvb, DATA_DPC_OFFSET);
+  opc = tvb_get_ntohl(parameter_tvb, DATA_OPC_OFFSET);
 
-  mtp3_tap->addr_dpc.type = mtp3_standard;
-  mtp3_tap->addr_dpc.pc = tvb_get_ntohl(parameter_tvb,DATA_DPC_OFFSET);
+  m3ua_pref_mtp3_standard = mtp3_standard;
+
+  if (mtp3_heuristic_standard) {
+      heuristic_standard = m3ua_heur_mtp3_standard(payload_tvb, pinfo, opc, dpc, si);
+      if (heuristic_standard == HEURISTIC_FAILED_STANDARD) {
+	  gen_item = proto_tree_add_text(tree, parameter_tvb, 0, 0, "Could not determine Heuristic using %s", val_to_str_const(mtp3_standard, mtp3_standard_vals, "unknown"));
+      } else {
+	  gen_item = proto_tree_add_text(tree, parameter_tvb, 0, 0, "%s", val_to_str_const(heuristic_standard, mtp3_standard_vals, "unknown"));
+
+	  mtp3_standard = heuristic_standard;
+
+	  /* Register a frame-end routine to ensure mtp3_standard is set
+	   * back even if an exception is thrown.
+	   */
+	  register_frame_end_routine(pinfo, m3ua_reset_mtp3_standard);
+      }
+      PROTO_ITEM_SET_GENERATED(gen_item);
+  }
+
+  mtp3_tap->addr_dpc.type = (Standard_Type)mtp3_standard;
+  mtp3_tap->addr_dpc.pc = dpc;
   mtp3_tap->addr_dpc.ni = tvb_get_guint8(parameter_tvb, DATA_NI_OFFSET);
   SET_ADDRESS(&pinfo->dst, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) &mtp3_tap->addr_dpc);
 
 
-  mtp3_tap->addr_opc.type = mtp3_standard;
-  mtp3_tap->addr_opc.pc = tvb_get_ntohl(parameter_tvb,DATA_OPC_OFFSET);
+  mtp3_tap->addr_opc.type = (Standard_Type)mtp3_standard;
+  mtp3_tap->addr_opc.pc = opc;
   mtp3_tap->addr_opc.ni = tvb_get_guint8(parameter_tvb, DATA_NI_OFFSET);
   SET_ADDRESS(&pinfo->src, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) &mtp3_tap->addr_opc);
 
@@ -1140,19 +1212,19 @@ dissect_protocol_data_parameter(tvbuff_t *parameter_tvb, packet_info *pinfo, pro
   if (parameter_tree) {
     item = proto_tree_add_item(parameter_tree, hf_protocol_data_opc, parameter_tvb, DATA_OPC_OFFSET, DATA_OPC_LENGTH, ENC_BIG_ENDIAN);
     if (mtp3_pc_structured())
-      proto_item_append_text(item, " (%s)", mtp3_pc_to_str(tvb_get_ntohl(parameter_tvb, DATA_OPC_OFFSET)));
+      proto_item_append_text(item, " (%s)", mtp3_pc_to_str(opc));
     if(mtp3_tap->addr_opc.ni == MTP3_NI_INT0) {
         q708_tree = proto_item_add_subtree(item,ett_q708_opc);
         /*  Q.708 (1984-10)  Numbering of International Signalling Point Codes  */
-        analyze_q708_ispc(parameter_tvb, q708_tree, DATA_OPC_OFFSET, DATA_OPC_LENGTH, mtp3_tap->addr_opc.pc);
+        analyze_q708_ispc(parameter_tvb, q708_tree, DATA_OPC_OFFSET, DATA_OPC_LENGTH, opc);
     }
 
     item = proto_tree_add_item(parameter_tree, hf_protocol_data_dpc, parameter_tvb, DATA_DPC_OFFSET, DATA_DPC_LENGTH, ENC_BIG_ENDIAN);
     if (mtp3_pc_structured())
-      proto_item_append_text(item, " (%s)", mtp3_pc_to_str(tvb_get_ntohl(parameter_tvb, DATA_DPC_OFFSET)));
+      proto_item_append_text(item, " (%s)", mtp3_pc_to_str(dpc));
     if(mtp3_tap->addr_dpc.ni == MTP3_NI_INT0) {
         q708_tree = proto_item_add_subtree(item,ett_q708_dpc);
-        analyze_q708_ispc(parameter_tvb, q708_tree, DATA_DPC_OFFSET, DATA_DPC_LENGTH, mtp3_tap->addr_dpc.pc);
+        analyze_q708_ispc(parameter_tvb, q708_tree, DATA_DPC_OFFSET, DATA_DPC_LENGTH, dpc);
     }
 
     proto_tree_add_item(parameter_tree, hf_protocol_data_si,  parameter_tvb, DATA_SI_OFFSET,  DATA_SI_LENGTH,  ENC_BIG_ENDIAN);
@@ -1185,6 +1257,8 @@ dissect_protocol_data_parameter(tvbuff_t *parameter_tvb, packet_info *pinfo, pro
   payload_tvb = tvb_new_subset(parameter_tvb, DATA_ULP_OFFSET, ulp_length, ulp_length);
   if (!dissector_try_uint(si_dissector_table, tvb_get_guint8(parameter_tvb, DATA_SI_OFFSET), payload_tvb, pinfo, tree))
     call_dissector(data_handle, payload_tvb, pinfo, tree);
+
+  mtp3_standard = m3ua_pref_mtp3_standard;
 }
 
 #define CORR_ID_OFFSET PARAMETER_VALUE_OFFSET
@@ -1946,7 +2020,7 @@ dissect_m3ua(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *tree)
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "M3UA (ID 07)");
         break;
       case M3UA_RFC:
-        col_set_str(pinfo->cinfo, COL_PROTOCOL, "M3UA (RFC 3332)");
+        col_set_str(pinfo->cinfo, COL_PROTOCOL, "M3UA (RFC 4666)");
         break;
       };
 
@@ -1985,7 +2059,9 @@ proto_register_m3ua(void)
     { &hf_parameter_length,                 { "Parameter length",             "m3ua.parameter_length",                      FT_UINT16, BASE_DEC,  NULL,                                         0x0, NULL,				HFILL } },
     { &hf_parameter_value,                  { "Parameter value",              "m3ua.parameter_value",                       FT_BYTES,  BASE_NONE, NULL,                                         0x0, NULL,				HFILL } },
     { &hf_parameter_padding,                { "Padding",                      "m3ua.parameter_padding",                     FT_BYTES,  BASE_NONE, NULL,                                         0x0, NULL,				HFILL } },
+#if 0
     { &hf_parameter_trailer,                { "Trailer",                      "m3ua.paramter_trailer",                      FT_BYTES,  BASE_NONE, NULL,                                         0x0, NULL,				HFILL } },
+#endif
     { &hf_network_appearance,               { "Network appearance",           "m3ua.network_appearance",                    FT_UINT32, BASE_DEC,  NULL,                                         0x0, NULL,				HFILL } },
     { &hf_info_string,                      { "Info string",                  "m3ua.info_string",                           FT_STRING, BASE_NONE, NULL,                                         0x0, NULL,				HFILL } },
     { &hf_routing_context,                  { "Routing context",              "m3ua.routing_context",                       FT_UINT32, BASE_DEC,  NULL,                                         0x0, NULL,				HFILL } },
@@ -2057,7 +2133,7 @@ proto_register_m3ua(void)
     { "draft-5", "Internet Draft version 5",        M3UA_V5  },
     { "draft-6", "Internet Draft version 6",        M3UA_V6  },
     { "draft-7", "Internet Draft version 7",        M3UA_V7  },
-    { "rfc3332", "RFC 3332",                        M3UA_RFC },
+    { "rfc4666", "RFC 4666",                        M3UA_RFC },
     { NULL, NULL, 0 }
   };
 

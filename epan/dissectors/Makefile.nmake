@@ -11,7 +11,7 @@ include Makefile.common
 
 CFLAGS= $(WARNINGS_ARE_ERRORS) $(STANDARD_CFLAGS) \
 	/I. /I.. /I../.. $(GLIB_CFLAGS) \
-	$(ZLIB_CFLAGS) \
+	$(ZLIB_CFLAGS) -DWS_BUILD_DLL\
 	$(GNUTLS_CFLAGS) $(NETTLE_CFLAGS) \
 	$(KFW_CFLAGS) $(AIRPCAP_CFLAGS) $(GEOIP_CFLAGS) \
 	/I$(PCAP_DIR)\include
@@ -34,7 +34,9 @@ dissectors.lib: register.obj packet-ncp2222.c $(GENERATED_HEADER_FILES) ../../co
     "$(MSVC_VARIANT)" != "MSVC2008"   && \
     "$(MSVC_VARIANT)" != "MSVC2008EE" && \
     "$(MSVC_VARIANT)" != "MSVC2010"   && \
-    "$(MSVC_VARIANT)" != "MSVC2010EE"
+    "$(MSVC_VARIANT)" != "MSVC2010EE" && \
+    "$(MSVC_VARIANT)" != "MSVC2012"   && \
+    "$(MSVC_VARIANT)" != "MSVC2012EE"
 # Disable debug for large dissectors
 packet-rrc.obj : packet-rrc.c
    $(CC) $(CFLAGS) /Zd /Fd.\ -c $?
@@ -55,7 +57,7 @@ packet-rrc.obj : packet-rrc.c
 # preceded only by "void " starting in column zero, and must not be
 # inside #if.
 #
-# DISSECTOR_SRC is assumed to have all the files that need to be scanned.
+# ALL_DISSECTORS_SRC is assumed to have all the files that need to be scanned.
 #
 # For some unknown reason, having a big "for" loop in the Makefile
 # to scan all the files doesn't work with some "make"s; they seem to

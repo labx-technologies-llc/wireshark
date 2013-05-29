@@ -42,13 +42,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* Current state of capture engine. XXX - differentiate states */
-typedef enum {
-    CAPTURE_STOPPED,        /**< stopped */
-    CAPTURE_PREPARING,      /**< preparing, but still no response from capture child */
-    CAPTURE_RUNNING         /**< capture child signalled ok, capture is running now */
-} capture_state;
-
 #ifdef HAVE_PCAP_REMOTE
 /* Type of capture source */
 typedef enum {
@@ -76,18 +69,6 @@ typedef enum {
                                  in N milliseconds */
 } capture_sampling;
 #endif
-
-typedef enum {
-    IF_WIRED,
-    IF_AIRPCAP,
-    IF_PIPE,
-    IF_STDIN,
-    IF_BLUETOOTH,
-    IF_WIRELESS,
-    IF_DIALUP,
-    IF_USB,
-    IF_VIRTUAL
-} interface_type;
 
 #ifdef HAVE_PCAP_REMOTE
 struct remote_host_info {
@@ -180,7 +161,6 @@ typedef struct interface_options_tag {
 /** Capture options coming from user interface */
 typedef struct capture_options_tag {
     /* general */
-    void     *cf;                   /**< handle to cfile (note: untyped handle) */
     GArray   *ifaces;               /**< array of interfaces.
                                          Currently only used by dumpcap. */
     GArray   *all_ifaces;
@@ -221,22 +201,12 @@ typedef struct capture_options_tag {
     gint32 autostop_duration;       /**< Maximum capture duration */
 
     /* internally used (don't touch from outside) */
-    int fork_child;                 /**< If not -1, in parent, process ID of child */
-    int fork_child_status;          /**< Child exit status */
-#ifdef _WIN32
-    int signal_pipe_write_fd;       /**< the pipe to signal the child */
-#endif
-    capture_state state;            /**< current state of the capture engine */
     gboolean output_to_pipe;        /**< save_file is a pipe (named or stdout) */
-#ifndef _WIN32
-    uid_t owner;                    /**< owner of the cfile */
-    gid_t group;                    /**< group of the cfile */
-#endif
 } capture_options;
 
 /* initialize the capture_options with some reasonable values */
 extern void
-capture_opts_init(capture_options *capture_opts, void *cf);
+capture_opts_init(capture_options *capture_opts);
 
 /* set a command line option value */
 extern int
@@ -263,12 +233,16 @@ capture_opts_trim_snaplen(capture_options *capture_opts, int snaplen_min);
 extern void
 capture_opts_trim_ring_num_files(capture_options *capture_opts);
 
-/* trim the interface entry */
+/* pick default interface if none was specified */
 extern int
-capture_opts_trim_iface(capture_options *capture_opts, const char *capture_device);
+capture_opts_default_iface_if_necessary(capture_options *capture_opts,
+                                        const char *capture_device);
 
 extern void
 collect_ifaces(capture_options *capture_opts);
+
+/* Default capture buffer size in Mbytes. */
+#define DEFAULT_CAPTURE_BUFFER_SIZE 2
 
 #ifdef __cplusplus
 }

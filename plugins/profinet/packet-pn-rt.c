@@ -71,7 +71,7 @@ static int hf_pn_rt_sf_crc16_ok = -1;
 static int hf_pn_rt_sf_crc16_null = -1;
 static int hf_pn_rt_sf = -1;
 static int hf_pn_rt_sf_position = -1;
-static int hf_pn_rt_sf_position_control = -1;
+/* static int hf_pn_rt_sf_position_control = -1; */
 static int hf_pn_rt_sf_data_length = -1;
 static int hf_pn_rt_sf_cycle_counter = -1;
 
@@ -333,7 +333,7 @@ dissect_pn_rt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 /* for reasemble processing we need some inits.. */
 /* Register PNIO defrag table init routine.      */
 
-static GHashTable *pdu_frag_table  = NULL;
+static reassembly_table pdu_reassembly_table;
 static GHashTable *reasembled_frag_table = NULL;
 
 static dissector_handle_t data_handle;
@@ -355,7 +355,8 @@ pnio_defragment_init(void)
     for (i=0; i < 16; i++)    /* init  the reasemble help array */
         start_frag_OR_ID[i] = 0;
 
-    fragment_table_init(&pdu_frag_table);
+    reassembly_table_init(&pdu_reassembly_table,
+                          &addresses_reassembly_table_functions);
     if (reasembled_frag_table == NULL)
     {
         reasembled_frag_table =  g_hash_table_new(NULL, NULL);
@@ -431,8 +432,9 @@ dissect_FRAG_PDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
             }
             u32ReasembleID = start_frag_OR_ID[u32FragID];
             /* use frame data instead of "pnio fraglen" which sets 8 octet steps */
-            pdu_frag = fragment_add_seq(tvb, offset, pinfo, u32ReasembleID, pdu_frag_table, uFragNumber,
-                                        (tvb_length(tvb) - offset)/*u8FragDataLength*8*/, bMoreFollows);
+            pdu_frag = fragment_add_seq(&pdu_reassembly_table, tvb, offset,
+                                        pinfo, u32ReasembleID, NULL, uFragNumber,
+                                        (tvb_length(tvb) - offset)/*u8FragDataLength*8*/, bMoreFollows, 0);
 
             if (pdu_frag && !bMoreFollows) /* PDU is complete! and last fragment */
             {   /* store this frag as the completed frag in hash table */
@@ -441,7 +443,7 @@ dissect_FRAG_PDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
             }
             if (!bMoreFollows) /* last fragment */
             {
-                pdu_frag = g_hash_table_lookup(reasembled_frag_table, GUINT_TO_POINTER(pinfo->fd->num));
+                pdu_frag = (fragment_data *)g_hash_table_lookup(reasembled_frag_table, GUINT_TO_POINTER(pinfo->fd->num));
                 if (pdu_frag)    /* found a matching frag dissect it */
                 {
                     guint16   type;
@@ -898,10 +900,12 @@ proto_register_pn_rt(void)
             FT_UINT8, BASE_DEC, NULL, 0x7F,
             NULL, HFILL }},
 
+#if 0
         { &hf_pn_rt_sf_position_control,
           { "Control", "pn_rt.sf.position_control",
             FT_UINT8, BASE_DEC, VALS(pn_rt_position_control), 0x80,
             NULL, HFILL }},
+#endif
 
         { &hf_pn_rt_sf_data_length,
           { "DataLength", "pn_rt.sf.data_length",

@@ -52,7 +52,7 @@ static int hf_scsi_smc_inv2			= -1;
 static int hf_scsi_smc_range_flags		= -1;
 static int hf_scsi_smc_fast			= -1;
 static int hf_scsi_smc_range			= -1;
-static int hf_scsi_smc_sea			= -1;
+/* static int hf_scsi_smc_sea			= -1; */
 static int hf_scsi_smc_num_elements		= -1;
 static int hf_scsi_smc_invert			= -1;
 static int hf_scsi_smc_ea			= -1;
@@ -576,6 +576,7 @@ const value_string scsi_smc_vals[] = {
     {SCSI_SPC_INQUIRY                         , "Inquiry"},
     {SCSI_SPC_LOGSELECT                       , "Log Select"},
     {SCSI_SPC_LOGSENSE                        , "Log Sense"},
+    {SCSI_SPC_MGMT_PROTOCOL_IN                , "Mgmt Protocol In"},
     {SCSI_SPC_MODESELECT6                     , "Mode Select(6)"},
     {SCSI_SPC_MODESELECT10                    , "Mode Select(10)"},
     {SCSI_SPC_MODESENSE6                      , "Mode Sense(6)"},
@@ -772,7 +773,7 @@ scsi_cdb_table_t scsi_smc_table[256] = {
 /*SPC 0xa0*/{dissect_spc_reportluns},
 /*SMC 0xa1*/{NULL},
 /*SMC 0xa2*/{NULL},
-/*SMC 0xa3*/{NULL},
+/*SPC 0xa3*/{dissect_spc_mgmt_protocol_in},
 /*SMC 0xa4*/{NULL},
 /*SMC 0xa5*/{dissect_smc_movemedium},
 /*SMC 0xa6*/{dissect_smc_exchangemedium},
@@ -908,9 +909,11 @@ proto_register_scsi_smc(void)
 	{ &hf_scsi_smc_range,
           {"RANGE", "scsi_smc.range", FT_BOOLEAN, 8,
            NULL, 0x01, NULL, HFILL}},
+#if 0
         { &hf_scsi_smc_sea,
           {"Starting Element Address", "scsi_smc.sea", FT_UINT16, BASE_DEC,
            NULL, 0x0, NULL, HFILL}},
+#endif
         { &hf_scsi_smc_num_elements,
           {"Number of Elements", "scsi_smc.num_elements", FT_UINT16, BASE_DEC,
            NULL, 0x0, NULL, HFILL}},

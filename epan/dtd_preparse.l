@@ -1,4 +1,9 @@
 /*
+ * We don't use input, so don't generate code for it.
+ */
+%option noinput
+
+/*
  * We don't use unput, so don't generate code for it.
  */
 %option nounput
@@ -76,7 +81,7 @@ static const gchar* dtd_dirname;
 static const gchar* filename;
 static guint linenum;
 
-static gchar* replace_entity(gchar* s);
+static const gchar* replace_entity(gchar* s);
 static const gchar* location(void);
 
 /*
@@ -159,12 +164,12 @@ newline    \n
 
 %%
 
-static gchar* replace_entity(gchar* entity) {
+static const gchar* replace_entity(gchar* entity) {
 	GString* replacement;
 
 	*entity = '%';
 
-	replacement = g_hash_table_lookup(entities,entity);
+	replacement = (GString*)g_hash_table_lookup(entities,entity);
 
 	if (replacement) {
 		return replacement->str;
@@ -187,7 +192,7 @@ static const gchar* location(void) {
 
 static gboolean free_gstring_hash_items(gpointer k,gpointer v,gpointer p _U_) {
 	g_free(k);
-	g_string_free(v,TRUE);
+	g_string_free((GString*)v,TRUE);
 	return TRUE;
 }
 

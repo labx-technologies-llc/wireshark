@@ -33,13 +33,16 @@
 /* Capture file header, *including* magic number, is padded to 128 bytes. */
 #define	CAPTUREFILE_HEADER_SIZE	128
 
+/* Magic number size, in both 1.x and later files. */
+#define MAGIC_SIZE	4
+
 /* Magic number in NetXRay 1.x files. */
-static const char old_netxray_magic[] = {
+static const char old_netxray_magic[MAGIC_SIZE] = {
 	'V', 'L', '\0', '\0'
 };
 
 /* Magic number in NetXRay 2.0 and later, and Windows Sniffer, files. */
-static const char netxray_magic[] = {	/* magic header */
+static const char netxray_magic[MAGIC_SIZE] = {
 	'X', 'C', 'P', '\0'
 };
 
@@ -339,7 +342,7 @@ static gboolean netxray_dump_close_2_0(wtap_dumper *wdh, int *err);
 int netxray_open(wtap *wth, int *err, gchar **err_info)
 {
 	int bytes_read;
-	char magic[sizeof netxray_magic];
+	char magic[MAGIC_SIZE];
 	gboolean is_old;
 	struct netxray_hdr hdr;
 	guint network_type;
@@ -378,17 +381,17 @@ int netxray_open(wtap *wth, int *err, gchar **err_info)
 	/* Read in the string that should be at the start of a NetXRay
 	 * file */
 	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(magic, sizeof magic, wth->fh);
-	if (bytes_read != sizeof magic) {
+	bytes_read = file_read(magic, MAGIC_SIZE, wth->fh);
+	if (bytes_read != MAGIC_SIZE) {
 		*err = file_error(wth->fh, err_info);
-		if (*err != 0)
+		if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
 			return -1;
 		return 0;
 	}
 
-	if (memcmp(magic, netxray_magic, sizeof magic) == 0) {
+	if (memcmp(magic, netxray_magic, MAGIC_SIZE) == 0) {
 		is_old = FALSE;
-	} else if (memcmp(magic, old_netxray_magic, sizeof magic) == 0) {
+	} else if (memcmp(magic, old_netxray_magic, MAGIC_SIZE) == 0) {
 		is_old = TRUE;
 	} else {
 		return 0;
@@ -399,9 +402,9 @@ int netxray_open(wtap *wth, int *err, gchar **err_info)
 	bytes_read = file_read(&hdr, sizeof hdr, wth->fh);
 	if (bytes_read != sizeof hdr) {
 		*err = file_error(wth->fh, err_info);
-		if (*err != 0)
-			return -1;
-		return 0;
+		if (*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return -1;
 	}
 
 	if (is_old) {
@@ -898,7 +901,6 @@ int netxray_open(wtap *wth, int *err, gchar **err_info)
 
 	/* Seek to the beginning of the data records. */
 	if (file_seek(wth->fh, netxray->start_offset, SEEK_SET, err) == -1) {
-		g_free(netxray);
 		return -1;
 	}
 
@@ -1517,10 +1519,8 @@ gboolean netxray_dump_open_1_1(wtap_dumper *wdh, int *err)
 	   haven't yet written any packets.  As we'll have to rewrite
 	   the header when we've written out all the packets, we just
 	   skip over the header for now. */
-	if (fseek(wdh->fh, CAPTUREFILE_HEADER_SIZE, SEEK_SET) == -1) {
-		*err = errno;
+	if (wtap_dump_file_seek(wdh, CAPTUREFILE_HEADER_SIZE, SEEK_SET, err) == -1) 
 		return FALSE;
-	}
 	wdh->bytes_dumped += CAPTUREFILE_HEADER_SIZE;
 
 	netxray = (netxray_dump_t *)g_malloc(sizeof(netxray_dump_t));
@@ -1590,13 +1590,15 @@ static gboolean netxray_dump_close_1_1(wtap_dumper *wdh, int *err)
 {
 	char hdr_buf[CAPTUREFILE_HEADER_SIZE - sizeof(netxray_magic)];
 	netxray_dump_t *netxray = (netxray_dump_t *)wdh->priv;
-	guint32 filelen;
+	gint64 filelen;
 	struct netxray_hdr file_hdr;
 
-	filelen = (guint32)ftell(wdh->fh);	/* XXX - large files? */
+	if (-1 == (filelen = wtap_dump_file_tell(wdh, err)))
+		return FALSE;
 
 	/* Go back to beginning */
-	fseek(wdh->fh, 0, SEEK_SET);
+	if (wtap_dump_file_seek(wdh, 0, SEEK_SET, err) == -1)
+		return FALSE;
 
 	/* Rewrite the file header. */
 	if (!wtap_dump_file_write(wdh, netxray_magic, sizeof netxray_magic, err))
@@ -1608,7 +1610,8 @@ static gboolean netxray_dump_close_1_1(wtap_dumper *wdh, int *err)
 	file_hdr.start_time = htolel(netxray->start.secs);
 	file_hdr.nframes = htolel(netxray->nframes);
 	file_hdr.start_offset = htolel(CAPTUREFILE_HEADER_SIZE);
-	file_hdr.end_offset = htolel(filelen);
+	/* XXX - large files? */
+	file_hdr.end_offset = htolel((guint32)filelen);
 	file_hdr.network = wtap_encap_to_netxray_1_1_encap(wdh->encap);
 	file_hdr.timelo = htolel(0);
 	file_hdr.timehi = htolel(0);
@@ -1676,10 +1679,9 @@ gboolean netxray_dump_open_2_0(wtap_dumper *wdh, int *err)
 	   haven't yet written any packets.  As we'll have to rewrite
 	   the header when we've written out all the packets, we just
 	   skip over the header for now. */
-	if (fseek(wdh->fh, CAPTUREFILE_HEADER_SIZE, SEEK_SET) == -1) {
-		*err = errno;
+	if (wtap_dump_file_seek(wdh, CAPTUREFILE_HEADER_SIZE, SEEK_SET, err) == -1) 
 		return FALSE;
-	}
+
 	wdh->bytes_dumped += CAPTUREFILE_HEADER_SIZE;
 
 	netxray = (netxray_dump_t *)g_malloc(sizeof(netxray_dump_t));
@@ -1768,13 +1770,15 @@ static gboolean netxray_dump_close_2_0(wtap_dumper *wdh, int *err)
 {
 	char hdr_buf[CAPTUREFILE_HEADER_SIZE - sizeof(netxray_magic)];
 	netxray_dump_t *netxray = (netxray_dump_t *)wdh->priv;
-	guint32 filelen;
+	gint64 filelen;
 	struct netxray_hdr file_hdr;
 
-	filelen = (guint32)ftell(wdh->fh);	/* XXX - large files? */
+	if (-1 == (filelen = wtap_dump_file_tell(wdh, err)))
+		return FALSE;
 
 	/* Go back to beginning */
-	fseek(wdh->fh, 0, SEEK_SET);
+	if (wtap_dump_file_seek(wdh, 0, SEEK_SET, err) == -1)
+		return FALSE;
 
 	/* Rewrite the file header. */
 	if (!wtap_dump_file_write(wdh, netxray_magic, sizeof netxray_magic, err))
@@ -1786,7 +1790,8 @@ static gboolean netxray_dump_close_2_0(wtap_dumper *wdh, int *err)
 	file_hdr.start_time = htolel(netxray->start.secs);
 	file_hdr.nframes = htolel(netxray->nframes);
 	file_hdr.start_offset = htolel(CAPTUREFILE_HEADER_SIZE);
-	file_hdr.end_offset = htolel(filelen);
+	/* XXX - large files? */
+	file_hdr.end_offset = htolel((guint32)filelen);
 	file_hdr.network = wtap_encap_to_netxray_2_0_encap(wdh->encap);
 	file_hdr.timelo = htolel(0);
 	file_hdr.timehi = htolel(0);

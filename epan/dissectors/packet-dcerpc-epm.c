@@ -47,7 +47,7 @@ static int hf_epm_max_ents = -1;
 static int hf_epm_num_ents = -1;
 static int hf_epm_uuid = -1;
 static int hf_epm_tower_length = -1;
-static int hf_epm_tower_data = -1;
+/* static int hf_epm_tower_data = -1; */
 static int hf_epm_max_towers = -1;
 static int hf_epm_num_towers = -1;
 static int hf_epm_rc = -1;
@@ -69,6 +69,9 @@ static int hf_epm_proto_http_port = -1;
 static gint ett_epm = -1;
 static gint ett_epm_tower_floor = -1;
 static gint ett_epm_entry = -1;
+
+static expert_field ei_epm_proto_undecoded = EI_INIT;
+
 
 /* the UUID is identical for interface versions 3 and 4 */
 static e_uuid_t uuid_epm = { 0xe1af8308, 0x5d1f, 0x11c9, { 0x91, 0xa4, 0x08, 0x00, 0x2b, 0x14, 0xa0, 0xfa } };
@@ -100,7 +103,7 @@ epm_dissect_pointer_IF_ID(tvbuff_t *tvb, int offset,
 {
     dcerpc_info *di;
 
-    di=pinfo->private_data;
+    di=(dcerpc_info *)pinfo->private_data;
     offset = dissect_ndr_uuid_t (tvb, offset, pinfo, tree, drep,
                                  di->hf_index, NULL);
     offset = dissect_ndr_uint16 (tvb, offset, pinfo, tree, drep,
@@ -117,7 +120,7 @@ epm_dissect_pointer_UUID(tvbuff_t *tvb, int offset,
 {
     dcerpc_info *di;
 
-    di=pinfo->private_data;
+    di=(dcerpc_info *)pinfo->private_data;
     offset = dissect_ndr_uuid_t (tvb, offset, pinfo, tree, drep,
                                  di->hf_index, NULL);
     return offset;
@@ -163,7 +166,7 @@ epm_dissect_ept_entry_t(tvbuff_t *tvb, int offset,
     dcerpc_info *di;
     const char *str;
 
-    di=pinfo->private_data;
+    di=(dcerpc_info *)pinfo->private_data;
     if(di->conformant_run){
         return offset;
     }
@@ -325,7 +328,7 @@ epm_dissect_tower_data (tvbuff_t *tvb, int offset,
     const char *uuid_name;
     guint8   u8little_endian = DREP_LITTLE_ENDIAN;
 
-    di=pinfo->private_data;
+    di=(dcerpc_info *)pinfo->private_data;
     if(di->conformant_run){
         return offset;
     }
@@ -456,10 +459,8 @@ epm_dissect_tower_data (tvbuff_t *tvb, int offset,
 
         default:
             if(len){
-                expert_add_info_format(pinfo, pi, PI_UNDECODED, PI_WARN, "RightHandSide not decoded yet for proto_id 0x%x",
+                expert_add_info_format_text(pinfo, pi, &ei_epm_proto_undecoded, "RightHandSide not decoded yet for proto_id 0x%x",
                     proto_id);
-                tvb_ensure_bytes_exist(tvb, offset, len);
-                proto_tree_add_text(tr, tvb, offset, len, "RightHandSide not decoded yet for proto_id 0x%x", proto_id);
             }
         }
         offset += len;
@@ -482,7 +483,7 @@ epm_dissect_tower (tvbuff_t *tvb, int offset,
     guint3264 len;
     dcerpc_info *di;
 
-    di=pinfo->private_data;
+    di=(dcerpc_info *)pinfo->private_data;
     if(di->conformant_run){
         return offset;
     }
@@ -728,8 +729,10 @@ proto_register_epm (void)
           { "NetBIOS Name", "epm.proto.netbios_name", FT_STRING, BASE_NONE, NULL, 0x0, "NetBIOS name where this service can be found", HFILL }},
         { &hf_epm_tower_length,
           { "Length", "epm.tower.len", FT_UINT32, BASE_DEC, NULL, 0x0, "Length of tower data", HFILL }},
+#if 0
         { &hf_epm_tower_data,
           { "Tower", "epm.tower", FT_BYTES, BASE_NONE, NULL, 0x0, "Tower data", HFILL }},
+#endif
         { &hf_epm_max_towers,
           { "Max Towers", "epm.max_towers", FT_UINT32, BASE_DEC, NULL, 0x0, "Maximum number of towers to return", HFILL }},
         { &hf_epm_num_towers,
@@ -765,10 +768,18 @@ proto_register_epm (void)
         &ett_epm_entry
     };
 
+    static ei_register_info ei[] = {
+        { &ei_epm_proto_undecoded, { "epm.proto_id.undecoded", PI_UNDECODED, PI_WARN, "RightHandSide not decoded yet for proto_id", EXPFILL }},
+    };
+
+    expert_module_t* expert_epm3;
+
     /* interface version 3 */
     proto_epm3 = proto_register_protocol ("DCE/RPC Endpoint Mapper", "EPM", "epm");
     proto_register_field_array (proto_epm3, hf, array_length (hf));
     proto_register_subtree_array (ett, array_length (ett));
+    expert_epm3 = expert_register_protocol(proto_epm3);
+    expert_register_field_array(expert_epm3, ei, array_length(ei));
 
     /* interface version 4 */
     proto_epm4 = proto_register_protocol ("DCE/RPC Endpoint Mapper v4", "EPMv4", "epm4");

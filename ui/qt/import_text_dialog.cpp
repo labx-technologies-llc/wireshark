@@ -62,7 +62,7 @@ ImportTextDialog::ImportTextDialog(QWidget *parent) :
     ok_button_ = ti_ui_->buttonBox->button(QDialogButtonBox::Ok);
     ok_button_->setEnabled(false);
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     // The grid layout squishes each line edit otherwise.
     int le_height = ti_ui_->textFileLineEdit->sizeHint().height();
     ti_ui_->ethertypeLineEdit->setMinimumHeight(le_height);
@@ -211,7 +211,7 @@ int ImportTextDialog::exec() {
         return result();
     }
 
-    import_info_.import_text_filename = ti_ui_->textFileLineEdit->text().toUtf8().data();
+    import_info_.import_text_filename = strdup(ti_ui_->textFileLineEdit->text().toUtf8().data());
     import_info_.import_text_file = ws_fopen(import_info_.import_text_filename, "rb");
     if (!import_info_.import_text_file) {
         open_failure_alert_box(import_info_.import_text_filename, errno, FALSE);
@@ -225,7 +225,7 @@ int ImportTextDialog::exec() {
         ti_ui_->octalOffsetButton->isChecked()   ? OFFSET_OCT :
         OFFSET_NONE;
     import_info_.date_timestamp = ti_ui_->dateTimeLineEdit->text().length() > 0;
-    import_info_.date_timestamp_format = ti_ui_->dateTimeLineEdit->text().toUtf8().data();
+    import_info_.date_timestamp_format = strdup(ti_ui_->dateTimeLineEdit->text().toUtf8().data());
 
     encap_val = ti_ui_->encapComboBox->itemData(ti_ui_->encapComboBox->currentIndex());
     import_info_.dummy_header_type = HEADER_NONE;
@@ -323,6 +323,11 @@ void ImportTextDialog::on_dateTimeLineEdit_textChanged(const QString &time_forma
     } else {
         ti_ui_->timestampExampleLabel->setText(tr("<i>(No format will be applied)</i>"));
     }
+}
+
+void ImportTextDialog::on_directionIndicationCheckBox_toggled(bool checked)
+{
+    import_info_.has_direction = checked;
 }
 
 void ImportTextDialog::on_noDummyButton_toggled(bool checked)

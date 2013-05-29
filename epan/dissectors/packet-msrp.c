@@ -23,7 +23,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * References:
- * http://www.ietf.org/internet-drafts/draft-ietf-simple-message-sessions-10.txt
+ * https://tools.ietf.org/html/rfc4975
  */
 
 #include "config.h"
@@ -192,14 +192,14 @@ msrp_add_address( packet_info *pinfo,
     /*
      * Check if the conversation has data associated with it.
      */
-    p_conv_data = conversation_get_proto_data(p_conv, proto_msrp);
+    p_conv_data = (struct _msrp_conversation_info *)conversation_get_proto_data(p_conv, proto_msrp);
 
     /*
      * If not, add a new data item.
      */
     if (!p_conv_data) {
         /* Create conversation data */
-        p_conv_data = se_alloc0(sizeof(struct _msrp_conversation_info));
+        p_conv_data = se_new0(struct _msrp_conversation_info);
         conversation_add_proto_data(p_conv, proto_msrp, p_conv_data);
     }
 
@@ -222,7 +222,7 @@ show_setup_info(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     struct _msrp_conversation_info *p_conv_data = NULL;
 
     /* Use existing packet data if available */
-    p_conv_data = p_get_proto_data(pinfo->fd, proto_msrp);
+    p_conv_data = (struct _msrp_conversation_info *)p_get_proto_data(pinfo->fd, proto_msrp, 0);
 
     if (!p_conv_data)
     {
@@ -235,15 +235,15 @@ show_setup_info(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         {
             /* Look for data in conversation */
             struct _msrp_conversation_info *p_conv_packet_data;
-            p_conv_data = conversation_get_proto_data(p_conv, proto_msrp);
+            p_conv_data = (struct _msrp_conversation_info *)conversation_get_proto_data(p_conv, proto_msrp);
 
             if (p_conv_data)
             {
                 /* Save this conversation info into packet info */
-                p_conv_packet_data = se_memdup(p_conv_data,
+                p_conv_packet_data = (struct _msrp_conversation_info *)se_memdup(p_conv_data,
                        sizeof(struct _msrp_conversation_info));
 
-                p_add_proto_data(pinfo->fd, proto_msrp, p_conv_packet_data);
+                p_add_proto_data(pinfo->fd, proto_msrp, 0, p_conv_packet_data);
             }
         }
     }

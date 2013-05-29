@@ -42,6 +42,8 @@
 #include <epan/emem.h>
 #include <epan/prefs.h>
 
+void proto_register_dmx_chan(void);
+
 static int proto_dmx_chan = -1;
 
 static int hf_dmx_chan_output_dmx_data = -1;
@@ -76,7 +78,7 @@ dissect_dmx_chan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		proto_item    *item;
 		guint16        length,r,c,row_count;
 		guint8         v;
-		unsigned       offset   = 0;
+		guint          offset   = 0;
 
 		proto_tree    *ti = proto_tree_add_item(tree, proto_dmx_chan, tvb, offset, -1, ENC_NA);
 		proto_tree    *dmx_chan_tree = proto_item_add_subtree(ti, ett_dmx_chan);

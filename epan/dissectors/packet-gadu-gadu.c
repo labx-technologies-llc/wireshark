@@ -419,7 +419,7 @@ gadu_gadu_create_conversation(packet_info *pinfo, guint32 uin)
 	struct gadu_gadu_conv_data *gg_conv;
 
 	conv = find_or_create_conversation(pinfo);
-	gg_conv = conversation_get_proto_data(conv, proto_gadu_gadu);
+	gg_conv = (struct gadu_gadu_conv_data *)conversation_get_proto_data(conv, proto_gadu_gadu);
 	if (!gg_conv) {
 		gg_conv = se_new(struct gadu_gadu_conv_data);
 		gg_conv->uin = uin;
@@ -437,7 +437,7 @@ gadu_gadu_get_conversation_data(packet_info *pinfo)
 	
 	conv = find_conversation(pinfo->fd->num, &pinfo->src, &pinfo->dst, pinfo->ptype, pinfo->srcport, pinfo->destport, 0);
 	if (conv)
-		return conversation_get_proto_data(conv, proto_gadu_gadu);
+		return (struct gadu_gadu_conv_data *)conversation_get_proto_data(conv, proto_gadu_gadu);
 	return NULL;
 }
 
@@ -506,7 +506,7 @@ dissect_gadu_gadu_uint32_string_utf8(tvbuff_t *tvb, int hfindex, proto_tree *tre
 {
 	const int org_offset = offset;
 
-	char *str;
+	const char *str;
 	guint32 len;
 
 	len = tvb_get_letohl(tvb, offset);
@@ -1741,7 +1741,7 @@ dissect_gadu_gadu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			case GG_OWN_RESOURCE_INFO:
 			default:
 			{
-				const char *pkt_name = match_strval(pkt_type, gadu_gadu_packets_type_recv);
+				const char *pkt_name = try_val_to_str(pkt_type, gadu_gadu_packets_type_recv);
 
 				if (pkt_name)
 					col_set_str(pinfo->cinfo, COL_INFO, pkt_name);
@@ -1865,7 +1865,7 @@ dissect_gadu_gadu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			case GG_LOGIN105:
 			default:
 			{
-				const char *pkt_name = match_strval(pkt_type, gadu_gadu_packets_type_send);
+				const char *pkt_name = try_val_to_str(pkt_type, gadu_gadu_packets_type_send);
 
 				if (pkt_name)
 					col_set_str(pinfo->cinfo, COL_INFO, pkt_name);

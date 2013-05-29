@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-smrse.c                                                             */
 /* ../../tools/asn2wrs.py -b -p smrse -c ./smrse.cnf -s ./packet-smrse-template -D . -O ../../epan/dissectors SMRSE.asn */
 
@@ -46,6 +46,9 @@
 
 #define TCP_PORT_SMRSE 4321
 
+void proto_register_smrse(void);
+void proto_reg_handoff_smrse(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_smrse = -1;
 static int hf_smrse_reserved = -1;
@@ -83,7 +86,7 @@ static int hf_smrse_sm_diag_info = -1;            /* RP_UD */
 static int hf_smrse_ms_address = -1;              /* SMS_Address */
 
 /*--- End of included file: packet-smrse-hf.c ---*/
-#line 48 "../../asn1/smrse/packet-smrse-template.c"
+#line 51 "../../asn1/smrse/packet-smrse-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_smrse = -1;
@@ -103,7 +106,7 @@ static gint ett_smrse_RPError = -1;
 static gint ett_smrse_RPAlertSC = -1;
 
 /*--- End of included file: packet-smrse-ett.c ---*/
-#line 52 "../../asn1/smrse/packet-smrse-template.c"
+#line 55 "../../asn1/smrse/packet-smrse-template.c"
 
 
 
@@ -156,7 +159,7 @@ dissect_smrse_T_octet_format(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 #line 21 "../../asn1/smrse/smrse.cnf"
 	char *strp,tmpstr[21];
 	guint32 i, start_offset;
-	gint8 class;
+	gint8 ber_class;
 	gboolean pc, ind;
 	gint32 tag;
 	guint32 len;
@@ -165,7 +168,7 @@ dissect_smrse_T_octet_format(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 	start_offset=offset;
 
 	/* skip the tag and length */
-	offset=dissect_ber_identifier(actx->pinfo, tree, tvb, offset, &class, &pc, &tag);
+	offset=dissect_ber_identifier(actx->pinfo, tree, tvb, offset, &ber_class, &pc, &tag);
 	offset=dissect_ber_length(actx->pinfo, tree, tvb, offset, &len, &ind);
 	if(len>10){
 		len=10;
@@ -479,7 +482,7 @@ dissect_smrse_RPAlertSC(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 
 /*--- End of included file: packet-smrse-fn.c ---*/
-#line 55 "../../asn1/smrse/packet-smrse-template.c"
+#line 58 "../../asn1/smrse/packet-smrse-template.c"
 
 static const value_string tag_vals[] = {
 	{  1,	"AliveTest" },
@@ -587,7 +590,7 @@ void proto_register_smrse(void) {
 /*--- Included file: packet-smrse-hfarr.c ---*/
 #line 1 "../../asn1/smrse/packet-smrse-hfarr.c"
     { &hf_smrse_sc_address,
-      { "sc-address", "smrse.sc_address",
+      { "sc-address", "smrse.sc_address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMS_Address", HFILL }},
     { &hf_smrse_password,
@@ -627,11 +630,11 @@ void proto_register_smrse(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RP_MR", HFILL }},
     { &hf_smrse_mt_originating_address,
-      { "mt-originating-address", "smrse.mt_originating_address",
+      { "mt-originating-address", "smrse.mt_originating_address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMS_Address", HFILL }},
     { &hf_smrse_mt_destination_address,
-      { "mt-destination-address", "smrse.mt_destination_address",
+      { "mt-destination-address", "smrse.mt_destination_address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMS_Address", HFILL }},
     { &hf_smrse_mt_user_data,
@@ -639,7 +642,7 @@ void proto_register_smrse(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "RP_UD", HFILL }},
     { &hf_smrse_mt_origVMSCAddr,
-      { "mt-origVMSCAddr", "smrse.mt_origVMSCAddr",
+      { "mt-origVMSCAddr", "smrse.mt_origVMSCAddr_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMS_Address", HFILL }},
     { &hf_smrse_mt_tariffClass,
@@ -651,7 +654,7 @@ void proto_register_smrse(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RP_MR", HFILL }},
     { &hf_smrse_mo_originating_address,
-      { "mo-originating-address", "smrse.mo_originating_address",
+      { "mo-originating-address", "smrse.mo_originating_address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMS_Address", HFILL }},
     { &hf_smrse_mo_user_data,
@@ -659,7 +662,7 @@ void proto_register_smrse(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "RP_UD", HFILL }},
     { &hf_smrse_origVMSCAddr,
-      { "origVMSCAddr", "smrse.origVMSCAddr",
+      { "origVMSCAddr", "smrse.origVMSCAddr_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMS_Address", HFILL }},
     { &hf_smrse_moimsi,
@@ -679,7 +682,7 @@ void proto_register_smrse(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_smrse_alerting_MS_ISDN,
-      { "alerting-MS-ISDN", "smrse.alerting_MS_ISDN",
+      { "alerting-MS-ISDN", "smrse.alerting_MS_ISDN_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMS_Address", HFILL }},
     { &hf_smrse_sm_diag_info,
@@ -687,12 +690,12 @@ void proto_register_smrse(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "RP_UD", HFILL }},
     { &hf_smrse_ms_address,
-      { "ms-address", "smrse.ms_address",
+      { "ms-address", "smrse.ms_address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMS_Address", HFILL }},
 
 /*--- End of included file: packet-smrse-hfarr.c ---*/
-#line 159 "../../asn1/smrse/packet-smrse-template.c"
+#line 162 "../../asn1/smrse/packet-smrse-template.c"
   };
 
   /* List of subtrees */
@@ -714,7 +717,7 @@ void proto_register_smrse(void) {
     &ett_smrse_RPAlertSC,
 
 /*--- End of included file: packet-smrse-ettarr.c ---*/
-#line 165 "../../asn1/smrse/packet-smrse-template.c"
+#line 168 "../../asn1/smrse/packet-smrse-template.c"
   };
 
   /* Register protocol */

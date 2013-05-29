@@ -510,13 +510,13 @@ static int hf_sflow_agent_address_v6 = -1;
 static int hf_sflow_5_sub_agent_id = -1;
 static int hf_sflow_5_sample_length = -1;
 static int hf_sflow_5_flow_data_length = -1;
-static int hf_sflow_5_counters_data_length = -1;
+/* static int hf_sflow_5_counters_data_length = -1; */
 static int hf_sflow_245_seqnum = -1;
 static int hf_sflow_245_sysuptime = -1;
 static int hf_sflow_245_numsamples = -1;
 static int hf_sflow_245_header_protocol = -1;
 static int hf_sflow_245_sampletype = -1;
-static int hf_sflow_245_ipv4_precedence_type = -1;
+/* static int hf_sflow_245_ipv4_precedence_type = -1; */
 static int hf_sflow_5_flow_record_format = -1;
 static int hf_sflow_5_counters_record_format = -1;
 static int hf_sflow_245_header = -1;
@@ -544,15 +544,15 @@ static int hf_sflow_245_dst_as_entries = -1; /* aka length */
 static int hf_sflow_245_dst_as = -1;
 /* extended gateway (>= version 4) */
 static int hf_sflow_245_community_entries = -1;
-static int hf_sflow_245_community = -1;
+/* static int hf_sflow_245_community = -1; */
 static int hf_sflow_245_localpref = -1;
 
 /* generic interface counter */
 static int hf_sflow_245_ifindex = -1;
 static int hf_sflow_245_iftype = -1;
 static int hf_sflow_245_ifspeed = -1;
-static int hf_sflow_245_ifdirection = -1;
-static int hf_sflow_245_ifstatus = -1;
+/* static int hf_sflow_245_ifdirection = -1; */
+/* static int hf_sflow_245_ifstatus = -1; */
 static int hf_sflow_245_ifinoct = -1;
 static int hf_sflow_245_ifinpkt = -1;
 static int hf_sflow_245_ifinmcast = -1;
@@ -648,7 +648,7 @@ static int hf_sflow_5_dot11QoSCFPollsReceivedCount = -1;
 static int hf_sflow_5_dot11QoSCFPollsUnusedCount = -1;
 static int hf_sflow_5_dot11QoSCFPollsUnusableCount = -1;
 static int hf_sflow_5_dot11QoSCFPollsLostCount = -1;
-static int hf_sflow_5_ieee80211_version = -1;
+/* static int hf_sflow_5_ieee80211_version = -1; */
 
 
 /* processor information */
@@ -675,6 +675,8 @@ static gint ett_sflow_245_gw_as_dst = -1;
 static gint ett_sflow_245_gw_as_dst_seg = -1;
 static gint ett_sflow_245_gw_community = -1;
 static gint ett_sflow_245_sampled_header = -1;
+
+static expert_field ei_sflow_invalid_address_type = EI_INIT;
 
 /* dissectors for other protocols */
 static dissector_handle_t eth_withoutfcs_handle;
@@ -839,7 +841,7 @@ dissect_sflow_245_sampled_header(tvbuff_t *tvb, packet_info *pinfo,
         }
     }
 
-    CATCH2(BoundsError, ReportedBoundsError) {
+    CATCH_BOUNDS_ERRORS {
         /*  Restore the private_data structure in case one of the
          *  called dissectors modified it (and, due to the exception,
          *  was unable to restore it).
@@ -895,7 +897,7 @@ dissect_sflow_245_address_type(tvbuff_t *tvb, packet_info *pinfo,
            Note that we have a problem, though. */
         len = 0;
         pi = proto_tree_add_text(tree, tvb, offset - 4, 4, "Unknown address type (%u)", addr_type);
-        expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unknown/invalid address type");
+        expert_add_info(pinfo, pi, &ei_sflow_invalid_address_type);
     }
 
     if (addr_detail) {
@@ -1053,8 +1055,6 @@ dissect_sflow_245_extended_gateway(tvbuff_t *tvb, packet_info *pinfo, proto_tree
                >= 4.
              */
             dst_seg_len = 1;
-            path_type = 0;
-            kludge = 0;
             sflow_245_dst_as_seg_tree = sflow_245_dst_as_tree;
         } else {
             path_type = tvb_get_ntohl(tvb, offset + len);
@@ -1746,7 +1746,7 @@ dissect_sflow_24_flow_sample(tvbuff_t *tvb, packet_info *pinfo,
         proto_tree_add_text(tree, tvb, offset + 24, 4,
                 "Output interface: ifIndex %u", output & 0x7fffffff);
     }
-    offset += sizeof (flow_header);
+    offset += (int)sizeof (flow_header);
 
     /* what kind of flow sample is it? */
     packet_type = tvb_get_ntohl(tvb, offset);
@@ -2421,7 +2421,7 @@ dissect_sflow_24_counters_sample(tvbuff_t *tvb, proto_tree *tree, gint offset, p
             val_to_str_const(g_ntohl(counters_header.counters_type),
             sflow_245_counterstype, "Unknown type"));
 
-    offset += sizeof (counters_header);
+    offset += (int)sizeof (counters_header);
 
     /* most counters types have the "generic" counters first */
     switch (g_ntohl(counters_header.counters_type)) {
@@ -2504,19 +2504,19 @@ dissect_sflow_24_counters_sample(tvbuff_t *tvb, proto_tree *tree, gint offset, p
     switch (g_ntohl(counters_header.counters_type)) {
         case SFLOW_245_COUNTERS_ETHERNET:
             tvb_memcpy(tvb, (guint8 *) & ethc, offset, sizeof (ethc));
-            offset += sizeof (ethc);
+            offset += (int)sizeof (ethc);
             break;
         case SFLOW_245_COUNTERS_TOKENRING:
             tvb_memcpy(tvb, (guint8 *) & tokc, offset, sizeof (tokc));
-            offset += sizeof (tokc);
+            offset += (int)sizeof (tokc);
             break;
         case SFLOW_245_COUNTERS_VG:
             tvb_memcpy(tvb, (guint8 *) & vgc, offset, sizeof (vgc));
-            offset += sizeof (vgc);
+            offset += (int)sizeof (vgc);
             break;
         case SFLOW_245_COUNTERS_VLAN:
             tvb_memcpy(tvb, (guint8 *) & vlanc, offset, sizeof (vlanc));
-            offset += sizeof (vlanc);
+            offset += (int)sizeof (vlanc);
 
             break;
         default:
@@ -2795,10 +2795,12 @@ proto_register_sflow(void) {
             { "Flow data length (byte)", "sflow_5.flow_data_length",
                 FT_UINT32, BASE_DEC, NULL, 0x0,
                 "sFlow flow data length", HFILL}},
+#if 0
         { &hf_sflow_5_counters_data_length,
             { "Counters data length (byte)", "sflow_5.counter_data_length",
                 FT_UINT32, BASE_DEC, NULL, 0x0,
                 "sFlow counters data length", HFILL}},
+#endif
         { &hf_sflow_245_seqnum,
             { "Sequence number", "sflow_245.sequence_number",
                 FT_UINT32, BASE_DEC, NULL, 0x0,
@@ -2815,14 +2817,18 @@ proto_register_sflow(void) {
             { "sFlow sample type", "sflow_245.sampletype",
                 FT_UINT32, BASE_DEC, VALS(sflow_245_sampletype), 0x0,
                 "Type of sFlow sample", HFILL}},
+#if 0
         { &hf_sflow_5_ieee80211_version,
             { "Version", "sflow_245.ieee80211_version",
                 FT_UINT32, BASE_DEC, VALS(sflow_5_ieee80211_versions), 0x0,
                 "IEEE 802.11 Version", HFILL}},
+#endif
+#if 0
         { &hf_sflow_245_ipv4_precedence_type,
             { "Precedence", "sflow_245.ipv4_precedence_type",
                 FT_UINT8, BASE_DEC, VALS(sflow_245_ipv4_precedence_types), 0x0,
                 "IPv4 Precedence Type", HFILL}},
+#endif
         { &hf_sflow_5_flow_record_format,
             { "Format", "sflow_245.flow_record_format",
                 FT_UINT32, BASE_DEC, VALS(sflow_5_flow_record_type), 0x0,
@@ -2924,10 +2930,12 @@ proto_register_sflow(void) {
             { "Gateway Communities", "sflow_245.communityEntries",
                 FT_UINT32, BASE_DEC, NULL, 0x0,
                 NULL, HFILL}},
+#if 0
         { &hf_sflow_245_community,
             { "Gateway Community", "sflow_245.community",
                 FT_UINT32, BASE_DEC, NULL, 0x0,
                 "Gateway Communities", HFILL}},
+#endif
         { &hf_sflow_245_localpref,
             { "localpref", "sflow_245.localpref",
                 FT_UINT32, BASE_DEC, NULL, 0x0,
@@ -2941,14 +2949,18 @@ proto_register_sflow(void) {
             { "Interface Speed", "sflow_245.ifspeed",
                 FT_UINT64, BASE_DEC, NULL, 0x0,
                 NULL, HFILL}},
+#if 0
         { &hf_sflow_245_ifdirection,
             { "Interface Direction", "sflow_245.ifdirection",
                 FT_UINT32, BASE_DEC, NULL, 0x0,
                 NULL, HFILL}},
+#endif
+#if 0
         { &hf_sflow_245_ifstatus,
             { "Interface Status", "sflow_245.ifstatus",
                 FT_UINT32, BASE_DEC, NULL, 0x0,
                 NULL, HFILL}},
+#endif
         { &hf_sflow_245_ifinoct,
             { "Input Octets", "sflow_245.ifinoct",
                 FT_UINT64, BASE_DEC, NULL, 0x0,
@@ -3338,6 +3350,12 @@ proto_register_sflow(void) {
         &ett_sflow_245_sampled_header,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_sflow_invalid_address_type, { "sflow.invalid_address_type", PI_MALFORMED, PI_ERROR, "Unknown/invalid address type", EXPFILL }},
+    };
+
+    expert_module_t* expert_sflow;
+
     /* Register the protocol name and description */
     proto_sflow = proto_register_protocol(
             "InMon sFlow", /* name       */
@@ -3348,6 +3366,8 @@ proto_register_sflow(void) {
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_sflow, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_sflow = expert_register_protocol(proto_sflow);
+    expert_register_field_array(expert_sflow, ei, array_length(ei));
 
     /* Register our configuration options for sFlow */
     sflow_245_module = prefs_register_protocol(proto_sflow, proto_reg_handoff_sflow_245);

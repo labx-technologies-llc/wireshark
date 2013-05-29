@@ -74,7 +74,7 @@ my $set_version = 0;
 my $set_release = 0;
 my %version_pref = (
 	"version_major" => 1,
-	"version_minor" => 9,
+	"version_minor" => 11,
 	"version_micro" => 0,
 	"version_build" => 0,
 
@@ -93,7 +93,7 @@ my %version_pref = (
 	#"pkg_format" => "",
 	);
 my $srcdir = ".";
-my $svn_info_cmd = "";
+my $info_cmd = "";
 
 # Ensure we run with correct locale
 $ENV{LANG} = "C";
@@ -119,17 +119,17 @@ sub read_svn_info {
 
 	if (-d "$srcdir/.svn") {
 		$info_source = "Command line (svn info)";
-		$svn_info_cmd = "svn info $srcdir";
+		$info_cmd = "svn info $srcdir";
 	} elsif (-d "$srcdir/.git/svn") {
 		$info_source = "Command line (git-svn)";
-		$svn_info_cmd = "(cd $srcdir; git svn info)";
+		$info_cmd = "(cd $srcdir; git svn info)";
 	}
 
 	if ($version_pref{"svn_client"}) {
 		eval {
 			use warnings "all";
 			no warnings "all";
-			$line = qx{$svn_info_cmd};
+			$line = qx{$info_cmd};
 			if (defined($line)) {
 				if ($line =~ /Last Changed Date: (\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/) {
 					$last_change = timegm($6, $5, $4, $3, $2 - 1, $1);
@@ -158,8 +158,8 @@ sub read_svn_info {
 		close(TORTOISE);
 
 		$info_source = "Command line (SubWCRev)";
-		$svn_info_cmd = "SubWCRev $srcdir $tortoise_file $version_file";
-		my $tortoise = system($svn_info_cmd);
+		$info_cmd = "SubWCRev $srcdir $tortoise_file $version_file";
+		my $tortoise = system($info_cmd);
 		if ($tortoise == 0) {
 			$do_hack = 0;
 		}
@@ -188,18 +188,25 @@ sub read_svn_info {
 		eval {
 			use warnings "all";
 			no warnings "all";
-			$svn_info_cmd = "(cd $srcdir; git log --format='commit: %h%ndate: %ad' -n 1 --date=iso)";
-			$line = qx{$svn_info_cmd};
+			# If someone had properly tagged 1.9.0 we could also use
+			# "git describe --abbrev=1 --tags HEAD"
+			
+			$info_cmd = "(cd $srcdir; git log --format='%b' -n 1)";
+			$line = qx{$info_cmd};
 			if (defined($line)) {
-				if ($line =~ /date: (\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/) {
-					$last_change = timegm($6, $5, $4, $3, $2 - 1, $1);
-				}
-				if ($line =~ /commit: (\S+)/) {
+				if ($line =~ /svn path=.*; revision=(\d+)/) {
 					$revision = $1;
 				}
 			}
-			$svn_info_cmd = "(cd $srcdir; git branch)";
-			$line = qx{$svn_info_cmd};
+			$info_cmd = "(cd $srcdir; git log --format='%ad' -n 1 --date=iso)";
+			$line = qx{$info_cmd};
+			if (defined($line)) {
+				if ($line =~ /(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/) {
+					$last_change = timegm($6, $5, $4, $3, $2 - 1, $1);
+				}
+			}
+			$info_cmd = "(cd $srcdir; git branch)";
+			$line = qx{$info_cmd};
 			if (defined($line)) {
 				if ($line =~ /\* (\S+)/) {
 					$repo_path = $1;
@@ -214,8 +221,8 @@ sub read_svn_info {
 		eval {
 			use warnings "all";
 			no warnings "all";
-			$svn_info_cmd = "(cd $srcdir; bzr log -l 1)";
-			$line = qx{$svn_info_cmd};
+			$info_cmd = "(cd $srcdir; bzr log -l 1)";
+			$line = qx{$info_cmd};
 			if (defined($line)) {
 				if ($line =~ /timestamp: \S+ (\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/) {
 					$last_change = timegm($6, $5, $4, $3, $2 - 1, $1);
@@ -360,23 +367,23 @@ sub update_config_nmake
 	print "$filepath has been updated.\n";
 }
 
-# Read docbook/release_notes.xml, then write it back out with an updated
-# "WiresharkCurrentVersion" line.
+# Read docbook/asciidoc.conf, then write it back out with an updated
+# wireshark-version replacement line.
 sub update_release_notes
 {
 	my $line;
 	my $contents = "";
 	my $version = "";
-	my $filepath = "$srcdir/docbook/release-notes.xml";
+	my $filepath = "$srcdir/docbook/asciidoc.conf";
 
 	return if (!$set_version);
 
-	open(RELNOTES, "< $filepath") || die "Can't read $filepath!";
-	while ($line = <RELNOTES>) {
-		#   <!ENTITY WiresharkCurrentVersion "1.7.1">
+	open(ADOC_CONF, "< $filepath") || die "Can't read $filepath!";
+	while ($line = <ADOC_CONF>) {
+		# wireshark-version:\[\]=1.9.1
 
-		if ($line =~ /<\!ENTITY\s+WiresharkCurrentVersion\s+.*([\r\n]+)$/) {
-			$line = sprintf("<!ENTITY WiresharkCurrentVersion \"%d.%d.%d\">$1",
+		if ($line =~ /^wireshark-version:\\\[\\\]=.*([\r\n]+)$/) {
+			$line = sprintf("wireshark-version:\\\[\\\]=%d.%d.%d$1",
 					$version_pref{"version_major"},
 					$version_pref{"version_minor"},
 					$version_pref{"version_micro"},
@@ -385,9 +392,9 @@ sub update_release_notes
 		$contents .= $line
 	}
 
-	open(RELNOTES, "> $filepath") || die "Can't write $filepath!";
-	print(RELNOTES $contents);
-	close(RELNOTES);
+	open(ADOC_CONF, "> $filepath") || die "Can't write $filepath!";
+	print(ADOC_CONF $contents);
+	close(ADOC_CONF);
 	print "$filepath has been updated.\n";
 }
 
@@ -621,7 +628,7 @@ make-version.pl [options] [source directory]
     --set-svn, -s              Set the information in svnversion.h
     --set-version, -v          Set the major, minor, and micro versions in
                                configure.ac, config.nmake, debian/changelog,
-			       and docbook/release_notes.xml.
+			       and docbook/asciidoc.conf.
                                Resets the release information when used by
 			       itself.
     --set-release, -r          Set the release information in configure.ac

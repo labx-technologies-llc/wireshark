@@ -51,6 +51,9 @@
 
 #define  ENIP_CIP_INTERFACE   0
 
+void proto_register_cip(void);
+void proto_reg_handoff_cip(void);
+
 typedef struct mr_mult_req_info {
    guint8 service;
    int num_services;
@@ -109,6 +112,12 @@ static int hf_cip_cm_ot_api = -1;
 static int hf_cip_cm_to_api = -1;
 static int hf_cip_cm_app_reply_size = -1;
 static int hf_cip_cm_app_reply_data = -1;
+static int hf_cip_cm_consumer_number = -1;
+static int hf_cip_cm_targ_vendor_id = -1;
+static int hf_cip_cm_targ_dev_serial_num = -1;
+static int hf_cip_cm_targ_conn_serial_num = -1;
+static int hf_cip_cm_initial_timestamp = -1;
+static int hf_cip_cm_initial_rollover = -1;
 static int hf_cip_cm_remain_path_size = -1;
 static int hf_cip_cm_msg_req_size = -1;
 static int hf_cip_cm_route_path_size = -1;
@@ -216,11 +225,8 @@ static int hf_cip_cco_iomap_attribute = -1;
 static int hf_cip_cco_safety = -1;
 static int hf_cip_cco_change_type = -1;
 
-static int hf_cip_vendor = -1;
-static int hf_cip_devtype = -1;
 static int hf_cip_path_segment = -1;
 static int hf_cip_path_segment_type = -1;
-static int hf_cip_port_segment = -1;
 static int hf_cip_port_ex_link_addr = -1;
 static int hf_cip_port = -1;
 static int hf_cip_link_address_size = -1;
@@ -243,7 +249,6 @@ static int hf_cip_attribute32 = -1;
 static int hf_cip_conpoint8 = -1;
 static int hf_cip_conpoint16 = -1;
 static int hf_cip_conpoint32 = -1;
-static int hf_cip_ekey = -1;
 static int hf_cip_ekey_format = -1;
 static int hf_cip_ekey_vendor = -1;
 static int hf_cip_ekey_devtype = -1;
@@ -299,7 +304,7 @@ static int hf_cip_class_rev = -1;
 static int hf_cip_class_max_inst32 = -1;
 static int hf_cip_class_num_inst32 = -1;
 static int hf_cip_reserved8 = -1;
-static int hf_cip_reserved16 = -1;
+/* static int hf_cip_reserved16 = -1; */
 static int hf_cip_reserved24 = -1;
 static int hf_cip_pad8 = -1;
 
@@ -437,7 +442,7 @@ static int hf_time_sync_port_phys_addr_info_num_ports = -1;
 static int hf_time_sync_port_phys_addr_info_port_num = -1;
 static int hf_time_sync_port_phys_addr_info_phys_proto = -1;
 static int hf_time_sync_port_phys_addr_info_addr_size = -1;
-static int hf_time_sync_port_phys_addr_info_phys_addr = -1;
+/* static int hf_time_sync_port_phys_addr_info_phys_addr = -1; */
 static int hf_time_sync_port_proto_addr_info_num_ports = -1;
 static int hf_time_sync_port_proto_addr_info_port_num = -1;
 static int hf_time_sync_port_proto_addr_info_network_proto = -1;
@@ -487,6 +492,8 @@ static gint ett_cm_mes_req = -1;
 static gint ett_cm_cmd_data = -1;
 static gint ett_cm_ttt = -1;
 static gint ett_cm_add_status_item = -1;
+static gint ett_cip_cm_pid = -1;
+static gint ett_cip_cm_safety = -1;
 
 static gint ett_mb_rrsc = -1;
 static gint ett_mb_cmd_data = -1;
@@ -511,6 +518,61 @@ static gint ett_time_sync_clock_type = -1;
 static gint ett_time_sync_port_profile_id_info = -1;
 static gint ett_time_sync_port_phys_addr_info = -1;
 static gint ett_time_sync_port_proto_addr_info = -1;
+
+static expert_field ei_mal_identity_revision = EI_INIT;
+static expert_field ei_mal_msg_rout_num_classes = EI_INIT;
+static expert_field ei_mal_time_sync_gm_clock = EI_INIT;
+static expert_field ei_mal_time_sync_parent_clock = EI_INIT;
+static expert_field ei_mal_time_sync_local_clock = EI_INIT;
+static expert_field ei_mal_time_sync_port_state_info = EI_INIT;
+static expert_field ei_mal_time_sync_port_state_info_ports = EI_INIT;
+static expert_field ei_mal_time_sync_port_enable_cfg = EI_INIT;
+static expert_field ei_mal_time_sync_port_enable_cfg_ports = EI_INIT;
+static expert_field ei_mal_time_sync_port_log_announce = EI_INIT;
+static expert_field ei_mal_time_sync_port_log_announce_ports = EI_INIT;
+static expert_field ei_mal_time_sync_port_log_sync = EI_INIT;
+static expert_field ei_mal_time_sync_port_log_sync_ports = EI_INIT;
+static expert_field ei_mal_time_sync_clock_type = EI_INIT;
+static expert_field ei_mal_time_sync_manufacture_id = EI_INIT;
+static expert_field ei_mal_time_sync_prod_desc = EI_INIT;
+static expert_field ei_mal_time_sync_prod_desc_64 = EI_INIT;
+static expert_field ei_mal_time_sync_prod_desc_size = EI_INIT;
+static expert_field ei_mal_time_sync_revision_data = EI_INIT;
+static expert_field ei_mal_time_sync_revision_data_32 = EI_INIT;
+static expert_field ei_mal_time_sync_revision_data_size = EI_INIT;
+static expert_field ei_mal_time_sync_user_desc = EI_INIT;
+static expert_field ei_mal_time_sync_user_desc_128 = EI_INIT;
+static expert_field ei_mal_time_sync_user_desc_size = EI_INIT;
+static expert_field ei_mal_time_sync_port_profile_id_info = EI_INIT;
+static expert_field ei_mal_time_sync_port_profile_id_info_ports = EI_INIT;
+static expert_field ei_mal_time_sync_port_phys_addr_info = EI_INIT;
+static expert_field ei_mal_time_sync_port_phys_addr_info_ports = EI_INIT;
+static expert_field ei_mal_time_sync_port_proto_addr_info = EI_INIT;
+static expert_field ei_mal_time_sync_port_proto_addr_info_ports = EI_INIT;
+static expert_field ei_mal_time_sync_sys_time_and_offset = EI_INIT;
+static expert_field ei_proto_log_seg_format = EI_INIT;
+static expert_field ei_mal_incomplete_epath = EI_INIT;
+static expert_field ei_proto_electronic_key_format = EI_INIT;
+static expert_field ei_proto_special_segment_format = EI_INIT;
+static expert_field ei_proto_log_seg_type = EI_INIT;
+static expert_field ei_proto_log_sub_seg_type = EI_INIT;
+static expert_field ei_proto_seg_type = EI_INIT;
+static expert_field ei_proto_unsupported_datatype = EI_INIT;
+static expert_field ei_mal_serv_gal = EI_INIT;
+static expert_field ei_mal_serv_gal_count = EI_INIT;
+static expert_field ei_mal_serv_sal = EI_INIT;
+static expert_field ei_mal_serv_sal_count = EI_INIT;
+static expert_field ei_mal_msp_services = EI_INIT;
+static expert_field ei_mal_msp_inv_offset = EI_INIT;
+static expert_field ei_mal_msp_missing_services = EI_INIT;
+static expert_field ei_mal_msp_resp_offset = EI_INIT;
+static expert_field ei_mal_serv_find_next_object = EI_INIT;
+static expert_field ei_mal_serv_find_next_object_count = EI_INIT;
+static expert_field ei_mal_rpi_no_data = EI_INIT;
+static expert_field ei_mal_inv_config_size = EI_INIT;
+static expert_field ei_mal_ot_size = EI_INIT;
+static expert_field ei_mal_to_size = EI_INIT;
+
 
 dissector_table_t   subdissector_class_table;
 static dissector_table_t   subdissector_symbol_table;
@@ -2472,7 +2534,7 @@ static void add_cip_service_to_info_column(packet_info *pinfo, guint8 service, c
 {
    cip_req_info_t *preq_info;
 
-   preq_info = (cip_req_info_t*)p_get_proto_data( pinfo->fd, proto_cip );
+   preq_info = (cip_req_info_t*)p_get_proto_data( pinfo->fd, proto_cip, 0 );
 
    if ((preq_info == NULL) || (preq_info->isUnconnectedSend == FALSE))
    {
@@ -2498,7 +2560,7 @@ static int dissect_id_revision(packet_info *pinfo, proto_tree *tree, proto_item 
 {
    if (total_len < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Identity revision");
+      expert_add_info(pinfo, item, &ei_mal_identity_revision);
       return total_len;
    }
 
@@ -2517,7 +2579,7 @@ static int dissect_msg_rout_num_classes(packet_info *pinfo _U_, proto_tree *tree
 
    if (total_len < (2+(num_classes*2)))
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Message Router Attribute 1");
+      expert_add_info(pinfo, item, &ei_mal_msg_rout_num_classes);
       return total_len;
    }
 
@@ -2535,7 +2597,7 @@ static int dissect_time_sync_grandmaster_clock(packet_info *pinfo, proto_tree *t
 
    if (total_len < 24)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Grandmaster clock info");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_gm_clock);
       return total_len;
    }
 
@@ -2565,7 +2627,7 @@ static int dissect_time_sync_parent_clock(packet_info *pinfo, proto_tree *tree, 
 {
    if (total_len < 16)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Parent clock info");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_parent_clock);
       return total_len;
    }
 
@@ -2584,7 +2646,7 @@ static int dissect_time_sync_local_clock(packet_info *pinfo, proto_tree *tree, p
 
    if (total_len < 20)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Local clock info");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_local_clock);
       return total_len;
    }
 
@@ -2616,7 +2678,7 @@ static int dissect_time_sync_port_state_info(packet_info *pinfo, proto_tree *tre
 
    if (total_len < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port State Info");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_state_info);
       return total_len;
    }
 
@@ -2625,7 +2687,7 @@ static int dissect_time_sync_port_state_info(packet_info *pinfo, proto_tree *tre
 
    if (2+num_ports*4 < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port State Info - too many ports");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_state_info_ports);
       return total_len;
    }
 
@@ -2649,7 +2711,7 @@ static int dissect_time_sync_port_enable_cfg(packet_info *pinfo, proto_tree *tre
 
    if (total_len < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Enable Cfg");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_enable_cfg);
       return total_len;
    }
 
@@ -2658,7 +2720,7 @@ static int dissect_time_sync_port_enable_cfg(packet_info *pinfo, proto_tree *tre
 
    if (2+num_ports*4 < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Enable Cfg - too many ports");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_enable_cfg_ports);
       return total_len;
    }
 
@@ -2682,7 +2744,7 @@ static int dissect_time_sync_port_log_announce(packet_info *pinfo, proto_tree *t
 
    if (total_len < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Log Announcement Interval Cfg");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_log_announce);
       return total_len;
    }
 
@@ -2691,7 +2753,7 @@ static int dissect_time_sync_port_log_announce(packet_info *pinfo, proto_tree *t
 
    if (2+num_ports*4 < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Log Announcement Interval Cfg - too many ports");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_log_announce_ports);
       return total_len;
    }
 
@@ -2715,7 +2777,7 @@ static int dissect_time_sync_port_log_sync(packet_info *pinfo, proto_tree *tree,
 
    if (total_len < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Log Sync Interval Cfg");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_log_sync);
       return total_len;
    }
 
@@ -2724,7 +2786,7 @@ static int dissect_time_sync_port_log_sync(packet_info *pinfo, proto_tree *tree,
 
    if (2+num_ports*4 < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Log Sync Interval Cfg - too many ports");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_log_sync_ports);
       return total_len;
    }
 
@@ -2747,7 +2809,7 @@ static int dissect_time_sync_clock_type(packet_info *pinfo, proto_tree *tree, pr
 
    if (total_len < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Clock Type");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_clock_type);
       return total_len;
    }
 
@@ -2767,7 +2829,7 @@ static int dissect_time_sync_manufacture_id(packet_info *pinfo, proto_tree *tree
 {
    if (total_len < 4)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Manufacture Identity");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_manufacture_id);
       return total_len;
    }
 
@@ -2783,7 +2845,7 @@ static int dissect_time_sync_prod_desc(packet_info *pinfo, proto_tree *tree, pro
 
    if (total_len < 4)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Product Description");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_prod_desc);
       return total_len;
    }
 
@@ -2792,13 +2854,13 @@ static int dissect_time_sync_prod_desc(packet_info *pinfo, proto_tree *tree, pro
 
    if (size > 64)
    {
-      expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Product Description limited to 64 characters");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_prod_desc_64);
       return total_len;
    }
 
    if ((int)(size+4) < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Product Description - invalid size");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_prod_desc_size);
       return total_len;
    }
 
@@ -2813,7 +2875,7 @@ static int dissect_time_sync_revision_data(packet_info *pinfo, proto_tree *tree,
 
    if (total_len < 4)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Revision Data");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_revision_data);
       return total_len;
    }
 
@@ -2822,13 +2884,13 @@ static int dissect_time_sync_revision_data(packet_info *pinfo, proto_tree *tree,
 
    if (size > 32)
    {
-      expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Revision Data limited to 32 characters");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_revision_data_32);
       return total_len;
    }
 
    if ((int)(size+4) < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Revision Data - invalid size");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_revision_data_size);
       return total_len;
    }
 
@@ -2843,7 +2905,7 @@ static int dissect_time_sync_user_desc(packet_info *pinfo, proto_tree *tree, pro
 
    if (total_len < 4)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed User Description");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_user_desc);
       return total_len;
    }
 
@@ -2852,13 +2914,13 @@ static int dissect_time_sync_user_desc(packet_info *pinfo, proto_tree *tree, pro
 
    if (size > 128)
    {
-      expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "User Description limited to 128 characters");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_user_desc_128);
       return total_len;
    }
 
    if ((int)(size+4) < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed User Description - invalid size");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_user_desc_size);
       return total_len;
    }
 
@@ -2875,7 +2937,7 @@ static int dissect_time_sync_port_profile_id_info(packet_info *pinfo, proto_tree
 
    if (total_len < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Profile Identity Info");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_profile_id_info);
       return total_len;
    }
 
@@ -2884,7 +2946,7 @@ static int dissect_time_sync_port_profile_id_info(packet_info *pinfo, proto_tree
 
    if (2+num_ports*10 < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Profile Identity Info - too many ports");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_profile_id_info_ports);
       return total_len;
    }
 
@@ -2908,7 +2970,7 @@ static int dissect_time_sync_port_phys_addr_info(packet_info *pinfo, proto_tree 
 
    if (total_len < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Physical Address Info");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_phys_addr_info);
       return total_len;
    }
 
@@ -2917,7 +2979,7 @@ static int dissect_time_sync_port_phys_addr_info(packet_info *pinfo, proto_tree 
 
    if (2+num_ports*36 < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Physical Address Info - too many ports");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_phys_addr_info_ports);
       return total_len;
    }
 
@@ -2943,7 +3005,7 @@ static int dissect_time_sync_port_proto_addr_info(packet_info *pinfo, proto_tree
 
    if (total_len < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Protocol Address Info");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_proto_addr_info);
       return total_len;
    }
 
@@ -2952,7 +3014,7 @@ static int dissect_time_sync_port_proto_addr_info(packet_info *pinfo, proto_tree
 
    if (2+num_ports*22 < total_len)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Port Protocol Address Info - too many ports");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_port_proto_addr_info_ports);
       return total_len;
    }
 
@@ -2974,7 +3036,7 @@ static int dissect_time_sync_sys_time_and_offset(packet_info *pinfo, proto_tree 
 {
    if (total_len < 16)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed System Time and Offset");
+      expert_add_info(pinfo, item, &ei_mal_time_sync_sys_time_and_offset);
       return total_len;
    }
 
@@ -3237,7 +3299,7 @@ dissect_cia(tvbuff_t *tvb, int offset, int* pathpos, unsigned char segment_type,
       }
       break;
    default:
-      expert_add_info_format(pinfo, epath_item, PI_PROTOCOL, PI_ERROR, "Unsupported Logical Segment Format");
+      expert_add_info(pinfo, epath_item, &ei_proto_log_seg_format);
       return FALSE;
    }
 
@@ -3342,7 +3404,7 @@ void dissect_epath( tvbuff_t *tvb, packet_info *pinfo, proto_item *epath_item, i
    /* Create a sub tree for the epath */
    path_tree = proto_item_add_subtree( epath_item, ett_path );
 
-   /* can't populate req_data unless its there */
+   /* can't populate req_data unless it's there */
    if (req_data != NULL)
    {
       req_data->iClass = (guint32)-1;
@@ -3366,7 +3428,7 @@ void dissect_epath( tvbuff_t *tvb, packet_info *pinfo, proto_item *epath_item, i
    {
       if (tvb_reported_length_remaining(tvb, offset + pathpos) <= 0)
       {
-         expert_add_info_format(pinfo, epath_item, PI_MALFORMED, PI_ERROR, "Incomplete EPATH");
+         expert_add_info(pinfo, epath_item, &ei_mal_incomplete_epath);
          return;
       }
 
@@ -3584,19 +3646,19 @@ void dissect_epath( tvbuff_t *tvb, packet_info *pinfo, proto_item *epath_item, i
                      }
                      else
                      {
-                        expert_add_info_format(pinfo, epath_item, PI_PROTOCOL, PI_ERROR, "Unsupported Electronic Key Format");
+                        expert_add_info(pinfo, epath_item, &ei_proto_electronic_key_format);
                         return;
                      }
                   }
                   else
                   {
-                     expert_add_info_format(pinfo, epath_item, PI_PROTOCOL, PI_ERROR, "Unsupported Special Segment Format");
+                     expert_add_info(pinfo, epath_item, &ei_proto_special_segment_format);
                      return;
                   }
                   break;
 
                default:
-                  expert_add_info_format(pinfo, epath_item, PI_PROTOCOL, PI_ERROR, "Unsupported Logical Segment Type");
+                  expert_add_info(pinfo, epath_item, &ei_proto_log_seg_type);
                   return;
 
             } /* end of switch( segment_type & CI_LOGICAL_SEG_TYPE_MASK ) */
@@ -3691,7 +3753,7 @@ void dissect_epath( tvbuff_t *tvb, packet_info *pinfo, proto_item *epath_item, i
                   break;
 
                default:
-                  expert_add_info_format(pinfo, epath_item, PI_PROTOCOL, PI_ERROR, "Unsupported Sub-Segment Type");
+                  expert_add_info(pinfo, epath_item, &ei_proto_log_sub_seg_type);
                   return;
 
             } /* End of switch sub-type */
@@ -3856,7 +3918,7 @@ void dissect_epath( tvbuff_t *tvb, packet_info *pinfo, proto_item *epath_item, i
                   break;
 
                default:
-                  expert_add_info_format(pinfo, epath_item, PI_PROTOCOL, PI_ERROR, "Unsupported Sub-Segment Type");
+                  expert_add_info(pinfo, epath_item, &ei_proto_log_sub_seg_type);
                   return;
 
             } /* End of switch sub-type */
@@ -3864,7 +3926,7 @@ void dissect_epath( tvbuff_t *tvb, packet_info *pinfo, proto_item *epath_item, i
             break;
 
          default:
-            expert_add_info_format(pinfo, epath_item, PI_PROTOCOL, PI_ERROR, "Unsupported Segment Type");
+            expert_add_info(pinfo, epath_item, &ei_proto_seg_type);
             return;
 
       } /* end of switch( segment_type & CI_SEGMENT_TYPE_MASK ) */
@@ -4010,7 +4072,7 @@ dissect_cip_attribute(packet_info *pinfo, proto_tree *tree, proto_item *item, tv
    case cip_stringN:
    case cip_stringi:
       /* CURRENTLY NOT SUPPORTED */
-      expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Unsupported Datatype");
+      expert_add_info(pinfo, item, &ei_proto_unsupported_datatype);
       consumed = total_len;
       break;
    }
@@ -4122,7 +4184,7 @@ dissect_cip_get_attribute_list_req(tvbuff_t *tvb, packet_info *pinfo, proto_tree
    /* Get attribute list request */
    if (tvb_reported_length_remaining(tvb, offset) < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Get Attribute List service");
+      expert_add_info(pinfo, item, &ei_mal_serv_gal);
       return;
    }
 
@@ -4145,7 +4207,7 @@ dissect_cip_get_attribute_list_req(tvbuff_t *tvb, packet_info *pinfo, proto_tree
       offset += 2;
       if ((tvb_reported_length_remaining(tvb, offset+2) < 2) && (i < att_count-1))
       {
-         expert_add_info_format(pinfo, att_list, PI_MALFORMED, PI_ERROR, "Get Attribute List attribute list count greater than packet size");
+         expert_add_info(pinfo, att_list, &ei_mal_serv_gal_count);
          break;
       }
    }
@@ -4164,7 +4226,7 @@ dissect_cip_set_attribute_list_req(tvbuff_t *tvb, packet_info *pinfo, proto_tree
    /* Get attribute list request */
    if (tvb_reported_length_remaining(tvb, offset) < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Set Attribute List service");
+      expert_add_info(pinfo, item, &ei_mal_serv_sal);
       return;
    }
 
@@ -4202,7 +4264,7 @@ dissect_cip_set_attribute_list_req(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 
       if ((tvb_reported_length_remaining(tvb, offset) < 2) && (i < att_count-1))
       {
-         expert_add_info_format(pinfo, att_list, PI_MALFORMED, PI_ERROR, "Set Attribute List attribute list count greater than packet size");
+         expert_add_info(pinfo, att_list, &ei_mal_serv_sal_count);
          break;
       }
    }
@@ -4226,20 +4288,20 @@ dissect_cip_multiple_service_packet_req(tvbuff_t *tvb, packet_info *pinfo, proto
    /* Ensure a rough sanity check */
    if (num_services*2 > tvb_reported_length_remaining(tvb, offset+2))
    {
-        expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "Multiple Service Packet too many services for packet");
+        expert_add_info(pinfo, item, &ei_mal_msp_services);
    }
    else
    {
        /* Add services */
-       cip_req_info = (cip_req_info_t*)p_get_proto_data( pinfo->fd, proto_cip );
+       cip_req_info = (cip_req_info_t*)p_get_proto_data( pinfo->fd, proto_cip, 0 );
        if ( cip_req_info )
        {
           if ( cip_req_info->pData == NULL )
           {
-             mr_mult_req_info = se_alloc(sizeof(mr_mult_req_info_t));
+             mr_mult_req_info = se_new(mr_mult_req_info_t);
              mr_mult_req_info->service = SC_MULT_SERV_PACK;
              mr_mult_req_info->num_services = num_services;
-             mr_mult_req_info->requests = se_alloc0(sizeof(cip_req_info_t)*num_services);
+             mr_mult_req_info->requests = (cip_req_info_t *)se_alloc0(sizeof(cip_req_info_t)*num_services);
              cip_req_info->pData = mr_mult_req_info;
           }
           else
@@ -4260,7 +4322,7 @@ dissect_cip_multiple_service_packet_req(tvbuff_t *tvb, packet_info *pinfo, proto
 
       if (tvb_reported_length_remaining(tvb, serv_offset) <= 0)
       {
-         expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "Multiple Service Packet service invalid offset");
+         expert_add_info(pinfo, item, &ei_mal_msp_inv_offset);
          continue;
       }
 
@@ -4284,7 +4346,7 @@ dissect_cip_multiple_service_packet_req(tvbuff_t *tvb, packet_info *pinfo, proto
           (serv_length <= 0) ||
           (prev_offset >= serv_offset))
       {
-         expert_add_info_format(pinfo, mult_serv_item, PI_MALFORMED, PI_WARN, "Multiple Service Packet service invalid offset");
+         expert_add_info(pinfo, mult_serv_item, &ei_mal_msp_inv_offset);
          prev_offset = serv_offset;
          continue;
       }
@@ -4421,7 +4483,7 @@ dissect_cip_get_attribute_list_rsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree
    /* Get attribute list request */
    if (tvb_reported_length_remaining(tvb, offset) < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Get Attribute List service");
+      expert_add_info(pinfo, item, &ei_mal_serv_gal);
       return;
    }
 
@@ -4468,7 +4530,7 @@ dissect_cip_get_attribute_list_rsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 
       if ((tvb_reported_length_remaining(tvb, offset) < 4) && (i < att_count-1))
       {
-         expert_add_info_format(pinfo, att_list, PI_MALFORMED, PI_ERROR, "Get Attribute List attribute list count greater than packet size");
+         expert_add_info(pinfo, att_list, &ei_mal_serv_gal_count);
          break;
       }
    }
@@ -4488,7 +4550,7 @@ dissect_cip_set_attribute_list_rsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree
    /* Get attribute list request */
    if (tvb_reported_length_remaining(tvb, offset) < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Set Attribute List service");
+      expert_add_info(pinfo, item, &ei_mal_serv_sal);
       return;
    }
 
@@ -4517,7 +4579,7 @@ dissect_cip_set_attribute_list_rsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree
       offset += 4;
       if ((tvb_reported_length_remaining(tvb, offset) < 4) && (i < att_count-1))
       {
-         expert_add_info_format(pinfo, att_list, PI_MALFORMED, PI_ERROR, "Set Attribute List attribute list count greater than packet size");
+         expert_add_info(pinfo, att_list, &ei_mal_serv_sal_count);
          break;
       }
    }
@@ -4555,7 +4617,7 @@ dissect_cip_multiple_service_packet_rsp(tvbuff_t *tvb, packet_info *pinfo, proto
 
    if (tvb_reported_length_remaining(tvb, offset) < 2)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Multiple Service Packet service missing Number of Services field");
+      expert_add_info(pinfo, item, &ei_mal_msp_missing_services);
       return;
    }
 
@@ -4564,11 +4626,11 @@ dissect_cip_multiple_service_packet_rsp(tvbuff_t *tvb, packet_info *pinfo, proto
 
    if (tvb_reported_length_remaining(tvb, offset+((num_services+1)*2)) <= 0)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Multiple Service Packet service too many response offsets for packet size");
+      expert_add_info(pinfo, item, &ei_mal_msp_resp_offset);
       return;
    }
 
-   cip_req_info = (cip_req_info_t*)p_get_proto_data( pinfo->fd, proto_cip );
+   cip_req_info = (cip_req_info_t*)p_get_proto_data( pinfo->fd, proto_cip, 0 );
    if ( cip_req_info )
    {
       mr_mult_req_info = (mr_mult_req_info_t*)cip_req_info->pData;
@@ -4591,7 +4653,7 @@ dissect_cip_multiple_service_packet_rsp(tvbuff_t *tvb, packet_info *pinfo, proto
 
       if (tvb_reported_length_remaining(tvb, serv_offset) <= 0)
       {
-         expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "Multiple Service Packet service invalid offset");
+         expert_add_info(pinfo, item, &ei_mal_msp_inv_offset);
          continue;
       }
 
@@ -4636,7 +4698,7 @@ dissect_cip_find_next_object_rsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 
    if (tvb_reported_length_remaining(tvb, offset) < 1)
    {
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Find Next Object service missing Number of List Members field");
+      expert_add_info(pinfo, item, &ei_mal_serv_find_next_object);
       return;
    }
 
@@ -4650,7 +4712,7 @@ dissect_cip_find_next_object_rsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 
       if ((tvb_reported_length_remaining(tvb, offset) < 2) && (i < num_instances-1))
       {
-         expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Find Next Object instance list count greater than packet size");
+         expert_add_info(pinfo, item, &ei_mal_serv_find_next_object_count);
          break;
       }
    }
@@ -4682,7 +4744,7 @@ dissect_cip_generic_service_rsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
       return tvb_length(tvb);
    }
 
-   preq_info = (cip_req_info_t*)p_get_proto_data(pinfo->fd, proto_cip);
+   preq_info = (cip_req_info_t*)p_get_proto_data(pinfo->fd, proto_cip, 0);
    if ((preq_info != NULL) &&
        (preq_info->ciaData != NULL))
    {
@@ -4888,7 +4950,7 @@ dissect_cip_cm_fwd_open_req(cip_req_info_t *preq_info, proto_tree *cmd_tree, tvb
    if (preq_info != NULL)
    {
       DISSECTOR_ASSERT(preq_info->connInfo == NULL);
-      preq_info->connInfo = se_alloc0(sizeof(cip_conn_info_t));
+      preq_info->connInfo = se_new0(cip_conn_info_t);
 
       preq_info->connInfo->ConnSerialNumber = ConnSerialNumber;
       preq_info->connInfo->VendorID = VendorID;
@@ -4910,6 +4972,8 @@ dissect_cip_cm_fwd_open_rsp_success(cip_req_info_t *preq_info, proto_tree *tree,
    unsigned char app_rep_size;
    guint32 O2TConnID, T2OConnID, DeviceSerialNumber;
    guint16 ConnSerialNumber, VendorID;
+   proto_item *ti;
+   proto_tree *pid_tree, *safety_tree;
 
    /* Display originator to target connection ID */
    O2TConnID = tvb_get_letohl( tvb, offset );
@@ -4946,7 +5010,43 @@ dissect_cip_cm_fwd_open_rsp_success(cip_req_info_t *preq_info, proto_tree *tree,
    /* Display the Reserved byte */
    proto_tree_add_item(tree, hf_cip_reserved8, tvb, offset+25, 1, ENC_LITTLE_ENDIAN );
    if (app_rep_size > 0)
-      proto_tree_add_item(tree, hf_cip_cm_app_reply_data, tvb, offset+26, app_rep_size, ENC_NA );
+   {
+      if ((preq_info == NULL) || (preq_info->connInfo == NULL) || 
+          (preq_info->connInfo->safety.safety_seg == FALSE))
+      {
+         proto_tree_add_item(tree, hf_cip_cm_app_reply_data, tvb, offset+26, app_rep_size, ENC_NA );
+      }
+      else if (preq_info->connInfo->safety.format == CIP_SAFETY_BASE_FORMAT)
+      {
+         ti = proto_tree_add_text( tree, tvb, offset+28, 10, "Safety Application Reply Data");
+         safety_tree = proto_item_add_subtree( ti, ett_cip_cm_safety ); 
+         proto_tree_add_item( safety_tree, hf_cip_cm_consumer_number, tvb, offset+26, 2, ENC_LITTLE_ENDIAN);
+         ti = proto_tree_add_text( safety_tree, tvb, offset+28, 8, "PID/CID");
+         pid_tree = proto_item_add_subtree( ti, ett_cip_cm_pid );
+         proto_tree_add_item( pid_tree, hf_cip_cm_targ_vendor_id, tvb, offset+28, 2, ENC_LITTLE_ENDIAN);         
+         proto_tree_add_item( pid_tree, hf_cip_cm_targ_dev_serial_num, tvb, offset+30, 4, ENC_LITTLE_ENDIAN);
+         proto_tree_add_item( pid_tree, hf_cip_cm_targ_conn_serial_num, tvb, offset+34, 2, ENC_LITTLE_ENDIAN);
+
+         if (app_rep_size > 10)
+            proto_tree_add_item(tree, hf_cip_cm_app_reply_data, tvb, offset+36, app_rep_size-10, ENC_NA );
+      }
+      else if (preq_info->connInfo->safety.format == CIP_SAFETY_EXTENDED_FORMAT)
+      {
+         ti = proto_tree_add_text( tree, tvb, offset+28, 14, "Safety Application Reply Data");
+         safety_tree = proto_item_add_subtree( ti, ett_cip_cm_safety ); 
+         proto_tree_add_item( safety_tree, hf_cip_cm_consumer_number, tvb, offset+26, 2, ENC_LITTLE_ENDIAN);
+         ti = proto_tree_add_text( safety_tree, tvb, offset+28, 12, "PID/CID");
+         pid_tree = proto_item_add_subtree( ti, ett_cip_cm_pid );
+         proto_tree_add_item( pid_tree, hf_cip_cm_targ_vendor_id, tvb, offset+28, 2, ENC_LITTLE_ENDIAN);         
+         proto_tree_add_item( pid_tree, hf_cip_cm_targ_dev_serial_num, tvb, offset+30, 4, ENC_LITTLE_ENDIAN);
+         proto_tree_add_item( pid_tree, hf_cip_cm_targ_conn_serial_num, tvb, offset+34, 2, ENC_LITTLE_ENDIAN);
+         proto_tree_add_item( pid_tree, hf_cip_cm_initial_timestamp, tvb, offset+36, 2, ENC_LITTLE_ENDIAN);
+         proto_tree_add_item( pid_tree, hf_cip_cm_initial_rollover, tvb, offset+38, 2, ENC_LITTLE_ENDIAN);
+
+         if (app_rep_size > 14)
+            proto_tree_add_item(tree, hf_cip_cm_app_reply_data, tvb, offset+40, app_rep_size-14, ENC_NA );
+      }
+   }
 
    /* See if we've captured the ForwardOpen request.  If so some of the conversation data has already been
       populated and we just need to update it. */
@@ -4987,7 +5087,7 @@ dissect_cip_cm_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
 
    /* Special handling for Unconnected send response. If successful, embedded service code is sent.
     * If failed, it can be either an Unconnected send response or the embedded service code response. */
-   preq_info = (cip_req_info_t*)p_get_proto_data( pinfo->fd, proto_cip );
+   preq_info = (cip_req_info_t*)p_get_proto_data( pinfo->fd, proto_cip, 0 );
    if (  preq_info != NULL && ( service & 0x80 )
       && preq_info->bService == SC_CM_UNCON_SEND
       )
@@ -5016,9 +5116,9 @@ dissect_cip_cm_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
             tvbuff_t *next_tvb;
             void *p_save_proto_data;
 
-            p_save_proto_data = p_get_proto_data( pinfo->fd, proto_cip );
-            p_remove_proto_data(pinfo->fd, proto_cip);
-            p_add_proto_data(pinfo->fd, proto_cip, pembedded_req_info );
+            p_save_proto_data = p_get_proto_data( pinfo->fd, proto_cip, 0 );
+            p_remove_proto_data(pinfo->fd, proto_cip, 0);
+            p_add_proto_data(pinfo->fd, proto_cip, 0, pembedded_req_info );
 
             proto_tree_add_text( item_tree, NULL, 0, 0, "(Service: Unconnected Send (Response))" );
             next_tvb = tvb_new_subset(tvb, offset, item_length, item_length);
@@ -5027,8 +5127,8 @@ dissect_cip_cm_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
             else
                call_dissector( cip_class_generic_handle, next_tvb, pinfo, item_tree );
 
-            p_remove_proto_data(pinfo->fd, proto_cip);
-            p_add_proto_data(pinfo->fd, proto_cip, p_save_proto_data);
+            p_remove_proto_data(pinfo->fd, proto_cip, 0);
+            p_add_proto_data(pinfo->fd, proto_cip, 0, p_save_proto_data);
             return;
          }
       }
@@ -5085,7 +5185,7 @@ dissect_cip_cm_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
             case CM_ES_RPI_NOT_ACCEPTABLE:
                if (add_stat_size < 3)
                {
-                  expert_add_info_format(pinfo, status_item, PI_MALFORMED, PI_WARN, "RPI not acceptable - missing extended data");
+                  expert_add_info(pinfo, status_item, &ei_mal_rpi_no_data);
                }
                else
                {
@@ -5100,7 +5200,7 @@ dissect_cip_cm_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
             case CM_ES_INVALID_CONFIGURATION_SIZE:
                if (add_stat_size < 1)
                {
-                  expert_add_info_format(pinfo, status_item, PI_MALFORMED, PI_WARN, "Invalid configuration size - missing size field");
+                  expert_add_info(pinfo, status_item, &ei_mal_inv_config_size);
                }
                else
                {
@@ -5110,7 +5210,7 @@ dissect_cip_cm_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
             case CM_ES_INVALID_OT_SIZE:
                if (add_stat_size < 1)
                {
-                  expert_add_info_format(pinfo, status_item, PI_MALFORMED, PI_WARN, "Invalid O->T size - missing size field");
+                  expert_add_info(pinfo, status_item, &ei_mal_ot_size);
                }
                else
                {
@@ -5120,7 +5220,7 @@ dissect_cip_cm_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
             case CM_ES_INVALID_TO_SIZE:
                if (add_stat_size < 1)
                {
-                  expert_add_info_format(pinfo, status_item, PI_MALFORMED, PI_WARN, "Invalid T->O size - missing size field");
+                  expert_add_info(pinfo, status_item, &ei_mal_to_size);
                }
                else
                {
@@ -5321,13 +5421,13 @@ dissect_cip_cm_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
             col_append_str( pinfo->cinfo, COL_INFO, ": ");
 
             next_tvb = tvb_new_subset(tvb, offset+2+req_path_size+4, msg_req_siz, msg_req_siz);
-            preq_info = p_get_proto_data( pinfo->fd, proto_cip );
+            preq_info = (cip_req_info_t *)p_get_proto_data( pinfo->fd, proto_cip, 0 );
             pembedded_req_info = NULL;
             if ( preq_info )
             {
                if ( preq_info->pData == NULL )
                {
-                  pembedded_req_info = (cip_req_info_t*)se_alloc0(sizeof(cip_req_info_t));
+                  pembedded_req_info = se_new0(cip_req_info_t);
                   preq_info->pData = pembedded_req_info;
                }
                else
@@ -5483,14 +5583,14 @@ dissect_cip_mb_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
                   next_tvb = tvb_new_subset( tvb, offset+4+add_stat_size, item_length-4-add_stat_size, item_length-4-add_stat_size);
 
                   /* keep packet context */
-                  request_info = ep_alloc(sizeof(modbus_request_info_t));
+                  request_info = ep_new(modbus_request_info_t);
                   request_info->packet_type = RESPONSE_PACKET;
                   request_info->register_addr_type = MBTCP_PREF_REGISTER_ADDR_RAW;
                   request_info->register_format = MBTCP_PREF_REGISTER_FORMAT_UINT16;
-                  p_add_proto_data(pinfo->fd, proto_modbus, request_info);
+                  p_add_proto_data(pinfo->fd, proto_modbus, 0, request_info);
 
                   call_dissector(modbus_handle, next_tvb, pinfo, cmd_data_tree);
-                  p_remove_proto_data(pinfo->fd, proto_modbus);
+                  p_remove_proto_data(pinfo->fd, proto_modbus, 0);
                }
                break;
 
@@ -5573,14 +5673,14 @@ dissect_cip_mb_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item_
                next_tvb = tvb_new_subset( tvb, offset+2+req_path_size, item_length-req_path_size-2, item_length-req_path_size-2);
 
                /* keep packet context */
-               request_info = ep_alloc(sizeof(modbus_request_info_t));
+               request_info = ep_new(modbus_request_info_t);
                request_info->packet_type = QUERY_PACKET;
                request_info->register_addr_type = MBTCP_PREF_REGISTER_ADDR_RAW;
                request_info->register_format = MBTCP_PREF_REGISTER_FORMAT_UINT16;
-               p_add_proto_data(pinfo->fd, proto_modbus, request_info);
+               p_add_proto_data(pinfo->fd, proto_modbus, 0, request_info);
 
                call_dissector(modbus_handle, next_tvb, pinfo, cmd_data_tree);
-               p_remove_proto_data(pinfo->fd, proto_modbus);
+               p_remove_proto_data(pinfo->fd, proto_modbus, 0);
             }
             break;
 
@@ -5817,7 +5917,7 @@ dissect_cip_cco_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, int item
    /* Add Service code */
    proto_tree_add_item(rrsc_tree, hf_cip_cco_sc, tvb, offset, 1, ENC_LITTLE_ENDIAN );
 
-   preq_info = (cip_req_info_t*)p_get_proto_data(pinfo->fd, proto_cip);
+   preq_info = (cip_req_info_t*)p_get_proto_data(pinfo->fd, proto_cip, 0);
    if ((preq_info != NULL) &&
        (preq_info->ciaData != NULL))
    {
@@ -5978,7 +6078,7 @@ dissect_class_cco_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
       if (service & 0x80)
       {
          /* Service response */
-         preq_info = (cip_req_info_t*)p_get_proto_data(pinfo->fd, proto_cip);
+         preq_info = (cip_req_info_t*)p_get_proto_data(pinfo->fd, proto_cip, 0);
          if ((preq_info != NULL) &&
              (preq_info->dissector == dissector_get_uint_handle( subdissector_class_table, CI_CLS_CCO)))
          {
@@ -6049,9 +6149,9 @@ dissect_cip_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, packet_info 
    dissector_handle_t dissector;
    gint service_index;
 
-   p_save_proto_data = p_get_proto_data(pinfo->fd, proto_cip);
-   p_remove_proto_data(pinfo->fd, proto_cip);
-   p_add_proto_data(pinfo->fd, proto_cip, preq_info);
+   p_save_proto_data = p_get_proto_data(pinfo->fd, proto_cip, 0);
+   p_remove_proto_data(pinfo->fd, proto_cip, 0);
+   p_add_proto_data(pinfo->fd, proto_cip, 0, preq_info);
 
    /* Create display subtree for the protocol */
    ti = proto_tree_add_item(item_tree, proto_cip, tvb, 0, -1, ENC_NA);
@@ -6118,7 +6218,7 @@ dissect_cip_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, packet_info 
          {
             tvbuff_t* tvbIOI;
 
-            tvbIOI = tvb_new_real_data( preq_info->pIOI, preq_info->IOILen * 2, preq_info->IOILen * 2);
+            tvbIOI = tvb_new_real_data((const guint8 *)preq_info->pIOI, preq_info->IOILen * 2, preq_info->IOILen * 2);
             if ( tvbIOI )
             {
                pi = proto_tree_add_text( cip_tree, NULL, 0, 0, "Request Path Size: %d (words)", preq_info->IOILen );
@@ -6128,7 +6228,7 @@ dissect_cip_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, packet_info 
                pi = proto_tree_add_text(cip_tree, NULL, 0, 0, "Request Path: ");
                PROTO_ITEM_SET_GENERATED(pi);
 
-               preq_info->ciaData = se_alloc(sizeof(cip_simple_request_info_t));
+               preq_info->ciaData = se_new(cip_simple_request_info_t);
                dissect_epath( tvbIOI, pinfo, pi, 0, preq_info->IOILen*2, TRUE, FALSE, preq_info->ciaData, NULL);
                tvb_free(tvbIOI);
             }
@@ -6136,7 +6236,7 @@ dissect_cip_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, packet_info 
       }
 
       /* Check to see if service is 'generic' */
-      match_strval_idx((service & 0x7F), cip_sc_vals, &service_index);
+      try_val_to_str_idx((service & 0x7F), cip_sc_vals, &service_index);
       if (service_index >= 0)
       {
           /* See if object dissector wants to override generic service handling */
@@ -6167,7 +6267,7 @@ dissect_cip_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, packet_info 
       pi = proto_tree_add_text(cip_tree, tvb, offset+2, req_path_size*2, "Request Path: ");
       if (preq_info)
       {
-         preq_info->ciaData = se_alloc(sizeof(cip_simple_request_info_t));
+         preq_info->ciaData = se_new(cip_simple_request_info_t);
          dissect_epath( tvb, pinfo, pi, offset+2, req_path_size*2, FALSE, FALSE, preq_info->ciaData, NULL);
          memcpy(&path_info, preq_info->ciaData, sizeof(cip_simple_request_info_t));
       }
@@ -6182,7 +6282,7 @@ dissect_cip_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, packet_info 
          preq_info->dissector = NULL;
       dissector = NULL;
 
-      /* The class ID should already be extracted if its available */
+      /* The class ID should already be extracted if it's available */
       if (path_info.iClass != 0xFFFFFFFF)
       {
          dissector = dissector_get_uint_handle( subdissector_class_table, path_info.iClass);
@@ -6212,7 +6312,7 @@ dissect_cip_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, packet_info 
       }
 
       /* Check to see if service is 'generic' */
-      match_strval_idx(service, cip_sc_vals, &service_index);
+      try_val_to_str_idx(service, cip_sc_vals, &service_index);
       if (service_index >= 0)
       {
           /* See if object dissector wants to override generic service handling */
@@ -6231,8 +6331,8 @@ dissect_cip_data( proto_tree *item_tree, tvbuff_t *tvb, int offset, packet_info 
       }
    } /* End of if-else( request ) */
 
-   p_remove_proto_data(pinfo->fd, proto_cip);
-   p_add_proto_data(pinfo->fd, proto_cip, p_save_proto_data);
+   p_remove_proto_data(pinfo->fd, proto_cip, 0);
+   p_add_proto_data(pinfo->fd, proto_cip, 0, p_save_proto_data);
 
 } /* End of dissect_cip_data() */
 
@@ -6249,14 +6349,14 @@ dissect_cip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
    col_clear(pinfo->cinfo, COL_INFO);
 
    /* Each CIP request received by ENIP gets a unique ID */
-   enip_info = (enip_request_info_t*)p_get_proto_data(pinfo->fd, proto_enip);
+   enip_info = (enip_request_info_t*)p_get_proto_data(pinfo->fd, proto_enip, 0);
 
    if ( enip_info )
    {
       preq_info = enip_info->cip_info;
       if ( preq_info == NULL )
       {
-         preq_info = se_alloc0( sizeof( cip_req_info_t ) );
+         preq_info = se_new0(cip_req_info_t);
          enip_info->cip_info = preq_info;
       }
       dissect_cip_data( tree, tvb, 0, pinfo, enip_info->cip_info );
@@ -6290,7 +6390,6 @@ proto_register_cip(void)
 
       { &hf_cip_path_segment, { "Path Segment", "cip.path_segment", FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},
       { &hf_cip_path_segment_type, { "Path Segment Type", "cip.path_segment.type", FT_UINT8, BASE_DEC, VALS(cip_path_seg_vals), CI_SEGMENT_TYPE_MASK, NULL, HFILL }},
-      { &hf_cip_port_segment, { "Port Segment", "cip.port_segment", FT_UINT8, BASE_HEX, NULL, CI_SEGMENT_TYPE_MASK, NULL, HFILL }},
       { &hf_cip_port_ex_link_addr, { "Extended Link Address", "cip.ex_linkaddress", FT_BOOLEAN, 8, TFS(&tfs_true_false), CI_PORT_SEG_EX_LINK_ADDRESS, NULL, HFILL }},
       { &hf_cip_port, { "Port", "cip.port", FT_UINT8, BASE_DEC, NULL, CI_PORT_SEG_PORT_ID_MASK, "Port Identifier", HFILL }},
       { &hf_cip_link_address_byte, { "Link Address", "cip.linkaddress", FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
@@ -6313,7 +6412,6 @@ proto_register_cip(void)
       { &hf_cip_conpoint8, { "Connection Point", "cip.connpoint", FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},
       { &hf_cip_conpoint16, { "Connection Point", "cip.connpoint", FT_UINT16, BASE_HEX, NULL, 0, NULL, HFILL }},
       { &hf_cip_conpoint32, { "Connection Point", "cip.connpoint", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }},
-      { &hf_cip_ekey, { "Electronic Key Segment", "cip.ekey", FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},
       { &hf_cip_ekey_format, { "Key Format", "cip.ekey.format", FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},
       { &hf_cip_ekey_vendor, { "Vendor ID", "cip.ekey.vendor", FT_UINT16, BASE_HEX|BASE_EXT_STRING, &cip_vendor_vals_ext, 0, NULL, HFILL }},
       { &hf_cip_ekey_devtype, { "Device Type", "cip.ekey.devtype", FT_UINT16, BASE_DEC|BASE_EXT_STRING, &cip_devtype_vals_ext, 0, NULL, HFILL }},
@@ -6365,14 +6463,13 @@ proto_register_cip(void)
       { &hf_cip_seg_safety_init_timestamp, { "Initial Timestamp", "cip.safety_segment.init_timestamp", FT_UINT16, BASE_HEX, NULL, 0, NULL, HFILL }},
       { &hf_cip_seg_safety_init_rollover, { "Initial Rollover Value", "cip.safety_segment.init_rollover", FT_UINT16, BASE_HEX, NULL, 0, NULL, HFILL }},
       { &hf_cip_seg_safety_data, { "Safety Data", "cip.safety_segment.data", FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
-
-      { &hf_cip_vendor, { "Vendor ID", "cip.vendor", FT_UINT16, BASE_HEX|BASE_EXT_STRING, &cip_vendor_vals_ext, 0, NULL, HFILL }},
-      { &hf_cip_devtype, { "Device Type", "cip.devtype", FT_UINT16, BASE_DEC|BASE_EXT_STRING, &cip_devtype_vals_ext, 0, NULL, HFILL }},
       { &hf_cip_class_rev, { "Class Revision", "cip.class.rev", FT_UINT16, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_cip_class_max_inst32, { "Max Instance", "cip.class.max_inst", FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_cip_class_num_inst32, { "Number of Instances", "cip.class.num_inst", FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_cip_reserved8, { "Reserved", "cip.reserved", FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},
+#if 0
       { &hf_cip_reserved16, { "Reserved", "cip.reserved", FT_UINT16, BASE_HEX, NULL, 0, NULL, HFILL }},
+#endif
       { &hf_cip_reserved24, { "Reserved", "cip.reserved", FT_UINT24, BASE_HEX, NULL, 0, NULL, HFILL }},
       { &hf_cip_pad8, { "Pad Byte", "cip.pad", FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},
 
@@ -6514,7 +6611,9 @@ proto_register_cip(void)
       { &hf_time_sync_port_phys_addr_info_port_num, { "Port Number", "cip.time_sync.port_phys_addr_info.port_number", FT_UINT16, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_time_sync_port_phys_addr_info_phys_proto, { "Physical Protocol", "cip.time_sync.port_profile_id_info.phys_proto", FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
       { &hf_time_sync_port_phys_addr_info_addr_size, { "Size of Address", "cip.time_sync.port_phys_addr_info.addr_size", FT_UINT16, BASE_DEC, NULL, 0, NULL, HFILL }},
+#if 0
       { &hf_time_sync_port_phys_addr_info_phys_addr, { "Port Physical Address", "cip.time_sync.port_profile_id_info.phys_addr", FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
+#endif
       { &hf_time_sync_port_proto_addr_info_num_ports, { "Number of Ports", "cip.time_sync.port_proto_addr_info.num_ports", FT_UINT16, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_time_sync_port_proto_addr_info_port_num, { "Port Number", "cip.time_sync.port_proto_addr_info.port_number", FT_UINT16, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_time_sync_port_proto_addr_info_network_proto, { "Network Protocol", "cip.time_sync.port_proto_addr_info.network_proto", FT_UINT16, BASE_DEC, VALS(cip_time_sync_network_protocol_vals), 0, NULL, HFILL }},
@@ -6552,6 +6651,12 @@ proto_register_cip(void)
       { &hf_cip_cm_to_api, { "T->O API", "cip.cm.toapi", FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_cip_cm_app_reply_size, { "Application Reply Size", "cip.cm.app_reply_size", FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_cip_cm_app_reply_data , { "Application Reply", "cip.cm.app_reply_data", FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
+      { &hf_cip_cm_consumer_number, { "Consumer Number", "cip.cm.consumer_number", FT_UINT16, BASE_DEC, NULL, 0, NULL, HFILL }},
+      { &hf_cip_cm_targ_vendor_id, { "Target Vendor ID", "cip.cm.targ_vendor", FT_UINT16, BASE_HEX|BASE_EXT_STRING, &cip_vendor_vals_ext, 0, NULL, HFILL }},
+      { &hf_cip_cm_targ_dev_serial_num, { "Target Device Serial Number", "cip.cm.targ_dev_serial_num", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }},
+      { &hf_cip_cm_targ_conn_serial_num, { "Target Connection Serial Number", "cip.cm.targ_conn_serial_num", FT_UINT16, BASE_HEX, NULL, 0, NULL, HFILL }},
+      { &hf_cip_cm_initial_timestamp, { "Initial Timestamp", "cip.cm.initial_timestamp", FT_UINT16, BASE_DEC, NULL, 0, NULL, HFILL }},
+      { &hf_cip_cm_initial_rollover, { "Initial Rollover Value", "cip.cm.initial_rollover", FT_UINT16, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_cip_cm_remain_path_size, { "Remaining Path Size", "cip.cm.remain_path_size", FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_cip_cm_msg_req_size, { "Message Request Size", "cip.cm.msg_req_size", FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
       { &hf_cip_cm_route_path_size, { "Route Path Size", "cip.cm.route_path_size", FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
@@ -6712,7 +6817,9 @@ proto_register_cip(void)
       &ett_cm_ncp,
       &ett_cm_cmd_data,
       &ett_cm_ttt,
-      &ett_cm_add_status_item
+      &ett_cm_add_status_item,
+      &ett_cip_cm_pid,
+      &ett_cip_cm_safety
    };
 
    static gint *ett_mb[] = {
@@ -6734,6 +6841,64 @@ proto_register_cip(void)
       &ett_cco_ttt,
     };
 
+   static ei_register_info ei[] = {
+      { &ei_mal_identity_revision, { "cip.malformed.id.revision", PI_MALFORMED, PI_ERROR, "Malformed Identity revision", EXPFILL }},
+      { &ei_mal_msg_rout_num_classes, { "cip.malformed.msg_rout.num_classes", PI_MALFORMED, PI_ERROR, "Malformed Message Router Attribute 1", EXPFILL }},
+      { &ei_mal_time_sync_gm_clock, { "cip.malformed.time_sync.gm_clock", PI_MALFORMED, PI_ERROR, "Malformed Grandmaster clock info", EXPFILL }},
+      { &ei_mal_time_sync_parent_clock, { "cip.malformed.time_sync.parent_clock", PI_MALFORMED, PI_ERROR, "Malformed Parent clock info", EXPFILL }},
+      { &ei_mal_time_sync_local_clock, { "cip.malformed.time_sync.local_clock", PI_MALFORMED, PI_ERROR, "Malformed Local clock info", EXPFILL }},
+      { &ei_mal_time_sync_port_state_info, { "cip.malformed.time_sync.port_state_info", PI_MALFORMED, PI_ERROR, "Malformed Port State Info", EXPFILL }},
+      { &ei_mal_time_sync_port_state_info_ports, { "cip.malformed.time_sync.port_state_info.ports", PI_MALFORMED, PI_ERROR, "Malformed Port State Info - too many ports", EXPFILL }},
+      { &ei_mal_time_sync_port_enable_cfg, { "cip.malformed.time_sync.port_enable_cfg", PI_MALFORMED, PI_ERROR, "Malformed Port Enable Cfg", EXPFILL }},
+      { &ei_mal_time_sync_port_enable_cfg_ports, { "cip.malformed.time_sync.port_enable_cfg.ports", PI_MALFORMED, PI_ERROR, "Malformed Port Enable Cfg - too many ports", EXPFILL }},
+      { &ei_mal_time_sync_port_log_announce, { "cip.malformed.time_sync.port_log_announce", PI_MALFORMED, PI_ERROR, "Malformed Port Log Announcement Interval Cfg", EXPFILL }},
+      { &ei_mal_time_sync_port_log_announce_ports, { "cip.malformed.time_sync.port_log_announce.ports", PI_MALFORMED, PI_ERROR, "Malformed Port Log Announcement Interval Cfg - too many ports", EXPFILL }},
+      { &ei_mal_time_sync_port_log_sync, { "cip.malformed.time_sync.port_log_sync", PI_MALFORMED, PI_ERROR, "Malformed Port Log Sync Interval Cfg", EXPFILL }},
+      { &ei_mal_time_sync_port_log_sync_ports, { "cip.malformed.time_sync.port_log_sync.ports", PI_MALFORMED, PI_ERROR, "Malformed Port Log Sync Interval Cfg - too many ports", EXPFILL }},
+      { &ei_mal_time_sync_clock_type, { "cip.malformed.time_sync.clock_type", PI_MALFORMED, PI_ERROR, "Malformed Clock Type", EXPFILL }},
+      { &ei_mal_time_sync_manufacture_id, { "cip.malformed.time_sync.manufacture_id", PI_MALFORMED, PI_ERROR, "Malformed Manufacture Identity", EXPFILL }},
+      { &ei_mal_time_sync_prod_desc, { "cip.malformed.time_sync.prod_desc", PI_MALFORMED, PI_ERROR, "Malformed Product Description", EXPFILL }},
+      { &ei_mal_time_sync_prod_desc_64, { "cip.malformed.time_sync.prod_desc.limit_64", PI_PROTOCOL, PI_WARN, "Product Description limited to 64 characters", EXPFILL }},
+      { &ei_mal_time_sync_prod_desc_size, { "cip.malformed.time_sync.prod_desc.size", PI_MALFORMED, PI_ERROR, "Malformed Product Description - invalid size", EXPFILL }},
+      { &ei_mal_time_sync_revision_data, { "cip.malformed.time_sync.revision_data", PI_MALFORMED, PI_ERROR, "Malformed Revision Data", EXPFILL }},
+      { &ei_mal_time_sync_revision_data_32, { "cip.malformed.time_sync.revision_data.limit_32", PI_PROTOCOL, PI_WARN, "Revision Data limited to 32 characters", EXPFILL }},
+      { &ei_mal_time_sync_revision_data_size, { "cip.malformed.time_sync.revision_data.size", PI_MALFORMED, PI_ERROR, "Malformed Revision Data - invalid size", EXPFILL }},
+      { &ei_mal_time_sync_user_desc, { "cip.malformed.time_sync.user_desc", PI_MALFORMED, PI_ERROR, "Malformed User Description", EXPFILL }},
+      { &ei_mal_time_sync_user_desc_128, { "cip.malformed.time_sync.user_desc.limit_128", PI_PROTOCOL, PI_WARN, "User Description limited to 128 characters", EXPFILL }},
+      { &ei_mal_time_sync_user_desc_size, { "cip.malformed.time_sync.user_desc.size", PI_MALFORMED, PI_ERROR, "Malformed User Description - invalid size", EXPFILL }},
+      { &ei_mal_time_sync_port_profile_id_info, { "cip.malformed.time_sync.port_profile_id_info", PI_MALFORMED, PI_ERROR, "Malformed Port Profile Identity Info", EXPFILL }},
+      { &ei_mal_time_sync_port_profile_id_info_ports, { "cip.malformed.time_sync.port_profile_id_info.ports", PI_MALFORMED, PI_ERROR, "Malformed Port Profile Identity Info - too many ports", EXPFILL }},
+      { &ei_mal_time_sync_port_phys_addr_info, { "cip.malformed.time_sync.port_phys_addr_info", PI_MALFORMED, PI_ERROR, "Malformed Port Physical Address Info", EXPFILL }},
+      { &ei_mal_time_sync_port_phys_addr_info_ports, { "cip.malformed.time_sync.port_phys_addr_info.ports", PI_MALFORMED, PI_ERROR, "Malformed Port Physical Address Info - too many ports", EXPFILL }},
+      { &ei_mal_time_sync_port_proto_addr_info, { "cip.malformed.time_sync.port_proto_addr_info", PI_MALFORMED, PI_ERROR, "Malformed Port Protocol Address Info", EXPFILL }},
+      { &ei_mal_time_sync_port_proto_addr_info_ports, { "cip.malformed.time_sync.port_proto_addr_info.ports", PI_MALFORMED, PI_ERROR, "Malformed Port Protocol Address Info - too many ports", EXPFILL }},
+      { &ei_mal_time_sync_sys_time_and_offset, { "cip.malformed.time_sync.sys_time_and_offset", PI_MALFORMED, PI_ERROR, "Malformed System Time and Offset", EXPFILL }},
+      { &ei_proto_log_seg_format, { "cip.unsupported.log_seg_format", PI_PROTOCOL, PI_WARN, "Unsupported Logical Segment Format", EXPFILL }},
+      { &ei_mal_incomplete_epath, { "cip.malformed.incomplete_epath", PI_MALFORMED, PI_ERROR, "Incomplete EPATH", EXPFILL }},
+      { &ei_proto_electronic_key_format, { "cip.unsupported.electronic_key_format", PI_PROTOCOL, PI_WARN, "Unsupported Electronic Key Format", EXPFILL }},
+      { &ei_proto_special_segment_format, { "cip.unsupported.special_segment_format", PI_PROTOCOL, PI_WARN, "Unsupported Special Segment Format", EXPFILL }},
+      { &ei_proto_log_seg_type, { "cip.unsupported.log_seg_type", PI_PROTOCOL, PI_WARN, "Unsupported Logical Segment Type", EXPFILL }},
+      { &ei_proto_log_sub_seg_type, { "cip.unsupported.log_sub_seg_type", PI_PROTOCOL, PI_WARN, "Unsupported Sub-Segment Type", EXPFILL }},
+      { &ei_proto_seg_type, { "cip.unsupported.seg_type", PI_PROTOCOL, PI_WARN, "Unsupported Segment Type", EXPFILL }},
+      { &ei_proto_unsupported_datatype, { "cip.unsupported.datatype", PI_PROTOCOL, PI_WARN, "Unsupported Datatype", EXPFILL }},
+      { &ei_mal_serv_gal, { "cip.malformed.get_attribute_list", PI_MALFORMED, PI_ERROR, "Malformed Get Attribute List service", EXPFILL }},
+      { &ei_mal_serv_gal_count, { "cip.malformed.get_attribute_list.count", PI_MALFORMED, PI_ERROR, "Malformed Get Attribute List attribute list count greater than packet size", EXPFILL }},
+      { &ei_mal_serv_sal, { "cip.malformed.set_attribute_list", PI_MALFORMED, PI_ERROR, "Malformed Set Attribute List service", EXPFILL }},
+      { &ei_mal_serv_sal_count, { "cip.malformed.set_attribute_list.count", PI_MALFORMED, PI_ERROR, "Malformed Set Attribute List attribute list count greater than packet size", EXPFILL }},
+      { &ei_mal_msp_services, { "cip.malformed.msp.services", PI_MALFORMED, PI_WARN, "Multiple Service Packet too many services for packet", EXPFILL }},
+      { &ei_mal_msp_inv_offset, { "cip.malformed.msp.inv_offset", PI_MALFORMED, PI_WARN, "Multiple Service Packet service invalid offset", EXPFILL }},
+      { &ei_mal_msp_missing_services, { "cip.malformed.msp.missing_services", PI_MALFORMED, PI_ERROR, "Multiple Service Packet service missing Number of Services field", EXPFILL }},
+      { &ei_mal_msp_resp_offset, { "cip.malformed.msp.resp_offset", PI_MALFORMED, PI_ERROR, "Multiple Service Packet service too many response offsets for packet size", EXPFILL }},
+      { &ei_mal_serv_find_next_object, { "cip.malformed.find_next_object", PI_MALFORMED, PI_ERROR, "Find Next Object service missing Number of List Members field", EXPFILL }},
+      { &ei_mal_serv_find_next_object_count, { "cip.malformed.find_next_object.count", PI_MALFORMED, PI_ERROR, "Find Next Object instance list count greater than packet size", EXPFILL }},
+      { &ei_mal_rpi_no_data, { "cip.malformed.rpi_no_data", PI_MALFORMED, PI_WARN, "RPI not acceptable - missing extended data", EXPFILL }},
+      { &ei_mal_inv_config_size, { "cip.malformed.inv_config_size", PI_MALFORMED, PI_WARN, "Invalid configuration size - missing size field", EXPFILL }},
+      { &ei_mal_ot_size, { "cip.malformed.ot_size", PI_MALFORMED, PI_WARN, "Invalid O->T size - missing size field", EXPFILL }},
+      { &ei_mal_to_size, { "cip.malformed.to_size", PI_MALFORMED, PI_WARN, "Invalid T->O size - missing size field", EXPFILL }},
+   };
+
+   expert_module_t* expert_cip;
+
    /* Register the protocol name and description */
    proto_cip = proto_register_protocol("Common Industrial Protocol",
        "CIP", "cip");
@@ -6741,6 +6906,10 @@ proto_register_cip(void)
    /* Required function calls to register the header fields and subtrees used */
    proto_register_field_array(proto_cip, hf, array_length(hf));
    proto_register_subtree_array(ett, array_length(ett));
+
+   expert_cip = expert_register_protocol(proto_cip);
+   expert_register_field_array(expert_cip, ei, array_length(ei));
+
    subdissector_class_table = register_dissector_table("cip.class.iface",
       "CIP Class Interface Handle", FT_UINT32, BASE_HEX);
    subdissector_symbol_table = register_dissector_table("cip.data_segment.iface",

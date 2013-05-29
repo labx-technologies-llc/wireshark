@@ -151,7 +151,7 @@ struct visual_read_info
 /* Additional information for writing Visual files */
 struct visual_write_info
 {
-    unsigned start_time;        /* Capture start time in seconds */
+    guint start_time;        /* Capture start time in seconds */
     int     index_table_index;  /* Index of the next index entry */
     int     index_table_size;   /* Allocated size of the index table */
     guint32 * index_table;      /* File offsets for the packets */
@@ -188,7 +188,7 @@ int visual_open(wtap *wth, int *err, gchar **err_info)
     if (bytes_read != sizeof magic)
     {
         *err = file_error(wth->fh, err_info);
-        if (*err != 0)
+        if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
             return -1;
         return 0;
     }
@@ -203,9 +203,9 @@ int visual_open(wtap *wth, int *err, gchar **err_info)
     if (bytes_read != sizeof vfile_hdr)
     {
         *err = file_error(wth->fh, err_info);
-        if (*err != 0)
-            return -1;
-        return 0;
+        if (*err == 0)
+            *err = WTAP_ERR_SHORT_READ;
+        return -1;
     }
 
     /* Verify the file version is known */
@@ -684,10 +684,8 @@ gboolean visual_dump_open(wtap_dumper *wdh, int *err)
     /* All of the fields in the file header aren't known yet so
        just skip over it for now.  It will be created after all
        of the packets have been written. */
-    if (fseek(wdh->fh, CAPTUREFILE_HEADER_SIZE, SEEK_SET) == -1) {
-	*err = errno;
+    if (wtap_dump_file_seek(wdh, CAPTUREFILE_HEADER_SIZE, SEEK_SET, err) == -1) 
 	return FALSE;
-    }
 
     return TRUE;
 }
@@ -702,7 +700,7 @@ static gboolean visual_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
     struct visual_write_info * visual = (struct visual_write_info *)wdh->priv;
     struct visual_pkt_hdr vpkt_hdr;
     size_t hdr_size = sizeof vpkt_hdr;
-    unsigned delta_msec;
+    guint delta_msec;
     guint32 packet_status;
 
     /* If the visual structure was never allocated then nothing useful
@@ -834,7 +832,8 @@ static gboolean visual_dump_close(wtap_dumper *wdh, int *err)
     }
 
     /* Write the magic number at the start of the file. */
-    fseek(wdh->fh, 0, SEEK_SET);
+    if (wtap_dump_file_seek(wdh, 0, SEEK_SET, err) == -1)
+	return FALSE;
     magicp = visual_magic;
     magic_size = sizeof visual_magic;
     if (!wtap_dump_file_write(wdh, magicp, magic_size, err))

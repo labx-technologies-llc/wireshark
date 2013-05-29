@@ -43,6 +43,9 @@
 
 #include "packet-bfd.h"
 
+void proto_register_bfd(void);
+void proto_reg_handoff_bfd(void);
+
 #define UDP_PORT_BFD_1HOP_CONTROL 3784 /* draft-katz-ward-bfd-v4v6-1hop-00.txt */
 #define UDP_PORT_BFD_MULTIHOP_CONTROL 4784 /* draft-ietf-bfd-multihop-05.txt */
 
@@ -130,7 +133,7 @@ static gint proto_bfd = -1;
 static gint hf_bfd_version = -1;
 static gint hf_bfd_diag = -1;
 static gint hf_bfd_sta = -1;
-static gint hf_bfd_flags = -1;
+/* static gint hf_bfd_flags = -1; */
 static gint hf_bfd_flags_h = -1;
 static gint hf_bfd_flags_p = -1;
 static gint hf_bfd_flags_f = -1;
@@ -159,11 +162,14 @@ static gint ett_bfd = -1;
 static gint ett_bfd_flags = -1;
 static gint ett_bfd_auth = -1;
 
+static expert_field ei_bfd_auth_len_invalid = EI_INIT;
+static expert_field ei_bfd_auth_no_data = EI_INIT;
+
 static gint hf_mep_type = -1;
 static gint hf_mep_len = -1;
 static gint hf_mep_global_id = -1;
 static gint hf_mep_node_id = -1;
-static gint hf_mep_interface_no = -1;
+/* static gint hf_mep_interface_no = -1; */
 static gint hf_mep_tunnel_no = -1;
 static gint hf_mep_lsp_no = -1;
 static gint hf_mep_ac_id = -1;
@@ -356,7 +362,7 @@ dissect_bfd_authentication(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                              "Length of authentication is invalid (%d)", auth_len);
                     proto_item_append_text(auth_item, ": Invalid Authentication Section");
                 }
-                expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_WARN,
+                expert_add_info_format_text(pinfo, ti, &ei_bfd_auth_len_invalid,
                         "Length of authentication section is invalid for Authentication Type: %s",
                         val_to_str(auth_type, bfd_control_auth_type_values, "Unknown Authentication Type (%d)") );
             }
@@ -562,13 +568,9 @@ dissect_bfd_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         if (bfd_length >= 28) {
             dissect_bfd_authentication(tvb, pinfo, bfd_tree);
         } else {
-            proto_item *ti = NULL;
-            if (tree) {
-                ti = proto_tree_add_text(bfd_tree, tvb, 24, bfd_length-24,
+            proto_item *ti = proto_tree_add_text(bfd_tree, tvb, 24, bfd_length-24,
                                          "Authentication: Length of the BFD frame is invalid (%d)", bfd_length);
-            }
-            expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_WARN,
-                                   "Authentication flag is set in a BFD packet, but no authentication data is present");
+            expert_add_info(pinfo, ti, &ei_bfd_auth_no_data);
         }
     }
 
@@ -701,11 +703,13 @@ proto_register_bfd(void)
             FT_UINT8, BASE_HEX, VALS(bfd_control_sta_values), 0xc0,
             "The BFD state as seen by the transmitting system", HFILL }
         },
+#if 0
         { &hf_bfd_flags,
           { "Message Flags", "bfd.flags",
             FT_UINT8, BASE_HEX, NULL, 0xf0,
             NULL, HFILL }
         },
+#endif
         { &hf_bfd_flags_h,
           { "I hear you", "bfd.flags.h",
             FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0x80,
@@ -838,11 +842,13 @@ proto_register_bfd(void)
             FT_IPv4, BASE_NONE, NULL , 0x0,
             "MPLS-TP Node Identifier", HFILL }
         },
+#if 0
         { &hf_mep_interface_no,
           { "Interface  Number", "bfd.mep.interface.no",
             FT_UINT32, BASE_DEC, NULL , 0x0,
             "MPLS-TP Interface Number", HFILL }
         },
+#endif
         { &hf_mep_tunnel_no,
           { "Tunnel Number", "bfd.mep.tunnel.no",
             FT_UINT16, BASE_DEC, NULL , 0x0,
@@ -887,6 +893,13 @@ proto_register_bfd(void)
         &ett_bfd_auth
     };
 
+    static ei_register_info ei[] = {
+        { &ei_bfd_auth_len_invalid, { "bfd.auth.len.invalid", PI_MALFORMED, PI_WARN, "Length of authentication section is invalid", EXPFILL }},
+        { &ei_bfd_auth_no_data, { "bfd.auth.no_data", PI_MALFORMED, PI_WARN, "Authentication flag is set in a BFD packet, but no authentication data is present", EXPFILL }},
+    };
+
+    expert_module_t* expert_bfd;
+
     /* Register the protocol name and description */
     proto_bfd = proto_register_protocol("Bidirectional Forwarding Detection Control Message",
                                         "BFD Control",
@@ -896,6 +909,8 @@ proto_register_bfd(void)
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_bfd, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_bfd = expert_register_protocol(proto_bfd);
+    expert_register_field_array(expert_bfd, ei, array_length(ei));
 }
 
 void

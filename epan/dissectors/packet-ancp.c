@@ -69,6 +69,9 @@
             _ofst += (4 - ((_len) % 4)); \
     } while(0)
 
+void proto_register_ancp(void);
+void proto_reg_handoff_ancp(void);
+
 static int hf_ancp_len = -1;
 static int hf_ancp_ver = -1;
 static int hf_ancp_mtype = -1;
@@ -557,7 +560,7 @@ dissect_ancp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "ANCP");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    ancp_info = ep_alloc(sizeof(struct ancp_tap_t));
+    ancp_info = ep_new(struct ancp_tap_t);
     ancp_info->ancp_mtype   = 0;
     ancp_info->ancp_adjcode = 0;
 

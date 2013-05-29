@@ -49,6 +49,9 @@
 #include <epan/expert.h>
 #include <epan/afn.h>
 
+void proto_register_dns(void);
+void proto_reg_handoff_dns(void);
+
 static int proto_dns = -1;
 static int hf_dns_length = -1;
 static int hf_dns_flags = -1;
@@ -198,6 +201,8 @@ static gint ett_nsec3_flags = -1;
 static gint ett_t_key_flags = -1;
 static gint ett_t_key = -1;
 static gint ett_dns_mac = -1;
+
+static expert_field ei_dns_rr_opt_bad_length = EI_INIT;
 
 static dissector_table_t dns_tsig_dissector_table=NULL;
 
@@ -625,7 +630,7 @@ dns_type_name (guint type)
   return val_to_str(type, dns_types, "Unknown (%u)");
 }
 
-static char *
+static const char *
 dns_type_description (guint type)
 {
   static const char *type_names[] = {
@@ -827,7 +832,7 @@ expand_dns_name(tvbuff_t *tvb, int offset, int max_len, int dns_data_offset,
          * to put the dissector into a loop.  Instead we throw an exception */
 
   maxname=MAXDNAME;
-  np=ep_alloc(maxname);
+  np=(guchar *)ep_alloc(maxname);
   *name=np;
 
   maxname--;   /* reserve space for the trailing '\0' */
@@ -2386,8 +2391,7 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
             cur_offset += 1;
 
             if (optlen-4 > 16) {
-              expert_add_info_format(pinfo, rropt, PI_MALFORMED, PI_ERROR,
-                  "Length too long for any type of IP address.");
+              expert_add_info(pinfo, rropt, &ei_dns_rr_opt_bad_length);
               /* Avoid stack-smashing which occurs otherwise with the
                * following tvb_memcpy. */
               optlen = 20;
@@ -3130,9 +3134,9 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
           goto bad_rr;
         }
         if (afamily == 1 && afdpart_len <= 4) {
-          addr_copy = se_alloc0(4);
+          addr_copy = (guint8 *)se_alloc0(4);
         } else if (afamily == 2 && afdpart_len <= 16) {
-          addr_copy = se_alloc0(16);
+          addr_copy = (guint8 *)se_alloc0(16);
         } else {
           goto bad_rr;
         }
@@ -3626,10 +3630,8 @@ dissect_dns_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
       proto_tree_add_item(field_tree, hf_dns_flags_authenticated,
                 tvb, offset + DNS_FLAGS, 2, ENC_BIG_ENDIAN);
     } else if (flags & F_AUTHENTIC) {
-      proto_item *pi = proto_tree_add_item(field_tree, hf_dns_flags_ad,
+      proto_tree_add_item(field_tree, hf_dns_flags_ad,
                                  tvb, offset + DNS_FLAGS, 2, ENC_BIG_ENDIAN);
-      expert_add_info_format(pinfo, pi, PI_SECURITY, PI_WARN,
-        "AD bit set in DNS Query");
     }
     proto_tree_add_item(field_tree, hf_dns_flags_checkdisable,
                 tvb, offset + DNS_FLAGS, 2, ENC_BIG_ENDIAN);
@@ -4532,6 +4534,11 @@ proto_register_dns(void)
         NULL, HFILL }}
 
   };
+
+  static ei_register_info ei[] = {
+     { &ei_dns_rr_opt_bad_length, { "dns.rr.opt.bad_length", PI_MALFORMED, PI_ERROR, "Length too long for any type of IP address.", EXPFILL }},
+  };
+
   static gint *ett[] = {
     &ett_dns,
     &ett_dns_qd,
@@ -4546,10 +4553,13 @@ proto_register_dns(void)
     &ett_dns_mac,
   };
   module_t *dns_module;
+  expert_module_t* expert_dns;
 
   proto_dns = proto_register_protocol("Domain Name Service", "DNS", "dns");
   proto_register_field_array(proto_dns, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_dns = expert_register_protocol(proto_dns);
+  expert_register_field_array(expert_dns, ei, array_length(ei));
 
   /* Set default ports */
   range_convert_str(&global_dns_tcp_port_range, DEFAULT_DNS_PORT_RANGE, MAX_TCP_PORT);

@@ -22,6 +22,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 -include Custom.make
+
 SUBDIRS = $(_CUSTOM_SUBDIRS_) \
 	asn1 \
 	docsis \
@@ -43,6 +44,7 @@ plugindir = @plugindir@
 EXTRA_DIST = \
 	$(_CUSTOM_EXTRA_DIST_) \
 	plugins.vcproj \
+	Makefile.common.inc \
 	Makefile.nmake \
 	Custom.make.example \
 	Custom.m4.example \

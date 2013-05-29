@@ -29,6 +29,8 @@
 #ifndef __PACKET_SCSI_SBC_H_
 #define __PACKET_SCSI_SBC_H_
 
+#include "ws_symbol_export.h"
+
 /* SBC Commands */
 #define SCSI_SBC_FORMATUNIT             0x04
 #define SCSI_SBC_LOCKUNLKCACHE10        0x36
@@ -49,6 +51,7 @@
 #define SCSI_SBC_REBUILD32              0x7F
 #define SCSI_SBC_REGENERATE16           0x82
 #define SCSI_SBC_REGENERATE32           0x7F
+#define SCSI_SBC_SANITIZE               0x48
 #define SCSI_SBC_SEEK10                 0x2B
 #define SCSI_SBC_SETLIMITS10            0x33
 #define SCSI_SBC_SETLIMITS12            0xB3
@@ -94,6 +97,6 @@ void dissect_sbc_readcapacity10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tr
 
 extern int hf_scsi_sbc_opcode;
 extern scsi_cdb_table_t scsi_sbc_table[256];
-WS_VAR_IMPORT const value_string scsi_sbc_vals[];
+WS_DLL_PUBLIC const value_string scsi_sbc_vals[];
 
 #endif

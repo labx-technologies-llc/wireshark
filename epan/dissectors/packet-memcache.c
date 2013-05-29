@@ -54,7 +54,7 @@
 #define PSNAME "MEMCACHE"
 #define PFNAME "memcache"
 
-#define MEMCACHE_PORT         11211
+#define MEMCACHE_DEFAULT_RANGE  "11211"
 #define MEMCACHE_HEADER_LEN   24
 
 /* Magic Byte */
@@ -110,6 +110,13 @@
 #define DT_RAW_BYTES          0x00
 
 static int proto_memcache = -1;
+
+void proto_reg_handoff_memcache(void);
+
+static range_t *memcache_tcp_port_range = NULL;
+static range_t *memcache_udp_port_range = NULL;
+static dissector_handle_t memcache_tcp_handle;
+static dissector_handle_t memcache_udp_handle;
 
 static int hf_magic = -1;
 static int hf_opcode = -1;
@@ -523,7 +530,7 @@ dissect_memcache (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   ti = proto_tree_add_item (memcache_tree, hf_magic, tvb, offset, 1, ENC_BIG_ENDIAN);
   offset += 1;
 
-  if (match_strval (magic, magic_vals) == NULL) {
+  if (try_val_to_str (magic, magic_vals) == NULL) {
     expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "Unknown magic byte: %d", magic);
   }
 
@@ -531,7 +538,7 @@ dissect_memcache (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   ti = proto_tree_add_item (memcache_tree, hf_opcode, tvb, offset, 1, ENC_BIG_ENDIAN);
   offset += 1;
 
-  if (match_strval (opcode, opcode_vals) == NULL) {
+  if (try_val_to_str (opcode, opcode_vals) == NULL) {
     expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "Unknown opcode: %d", opcode);
   }
 
@@ -873,7 +880,7 @@ dissect_memcache_message (tvbuff_t *tvb, int offset, packet_info *pinfo, proto_t
   memcache_tree = proto_item_add_subtree (memcache_item, ett_memcache);
 
   /* Process the packet data. The first line is expected to be a
-   * header. If its not a header then we don't dissect.
+   * header. If it's not a header then we don't dissect.
    * At this point, we already know if it is a request or a
    * response.
    */
@@ -1538,7 +1545,7 @@ memcache_request_dissector (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     offset += (int) (next_token - line);
     line = next_token;
 
-    /* check if its expiration or noreply */
+    /* check if it's expiration or noreply */
     tokenlen = get_token_len (line, lineend, &next_token);
     if (tokenlen == 0) {
       return offset; /* neither expiration nor noreply; CRLF */
@@ -1609,7 +1616,7 @@ memcache_request_dissector (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     break;
 
   case OP_FLUSH:
-    /* check if its expiration or noreply */
+    /* check if it's expiration or noreply */
     tokenlen = get_token_len (line, lineend, &next_token);
     if (tokenlen == 0) {
       return offset; /* neither expiration nor noreply; CRLF */
@@ -1908,7 +1915,7 @@ dissect_memcache_tcp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   magic = tvb_get_guint8 (tvb, offset);
 
-  if (match_strval (magic, magic_vals) != NULL) {
+  if (try_val_to_str (magic, magic_vals) != NULL) {
     tcp_dissect_pdus (tvb, pinfo, tree, memcache_desegment_body, 12,
                       get_memcache_pdu_len, dissect_memcache);
   } else {
@@ -1925,7 +1932,7 @@ dissect_memcache_udp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   magic = tvb_get_guint8 (tvb, offset);
 
-  if (match_strval (magic, magic_vals) != NULL) {
+  if (try_val_to_str (magic, magic_vals) != NULL) {
     dissect_memcache (tvb, pinfo, tree);
   } else {
     dissect_memcache_message (tvb, 0, pinfo, tree);
@@ -2121,7 +2128,7 @@ proto_register_memcache (void)
   proto_register_subtree_array (ett, array_length (ett));
 
   /* Register our configuration options */
-  memcache_module = prefs_register_protocol (proto_memcache, NULL);
+  memcache_module = prefs_register_protocol (proto_memcache, proto_reg_handoff_memcache);
 
   prefs_register_bool_preference (memcache_module, "desegment_headers",
                                  "Reassemble MEMCACHE headers spanning multiple TCP segments",
@@ -2138,20 +2145,62 @@ proto_register_memcache (void)
                                   " To use this option, you must also enable \"Allow subdissectors"
                                   " to reassemble TCP streams\" in the TCP protocol settings.",
                                   &memcache_desegment_body);
+
+  range_convert_str(&memcache_tcp_port_range, MEMCACHE_DEFAULT_RANGE, 65535);
+  range_convert_str(&memcache_udp_port_range, MEMCACHE_DEFAULT_RANGE, 65535);
+
+  prefs_register_range_preference(memcache_module, "tcp.ports", \
+                                  "MEMCACHE TCP Port range", \
+                                  "MEMCACHE TCP Port range", \
+                                  &memcache_tcp_port_range, \
+                                  65535);
+  prefs_register_range_preference(memcache_module, "udp.ports", \
+                                  "MEMCACHE UDP Port range", \
+                                  "MEMCACHE UDP Port range", \
+                                  &memcache_udp_port_range, \
+                                  65535);
 }
+
+static void range_delete_tcp_port_callback(guint32 port) {
+  dissector_delete_uint("tcp.port", port, memcache_tcp_handle);
+}
+
+static void range_delete_udp_port_callback(guint32 port) {
+  dissector_delete_uint("udp.port", port, memcache_udp_handle);
+}
+
+static void range_add_tcp_port_callback(guint32 port) {
+  dissector_add_uint("tcp.port", port, memcache_tcp_handle);
+}
+
+static void range_add_udp_port_callback(guint32 port) {
+  dissector_add_uint("udp.port", port, memcache_udp_handle);
+}
+
 
 /* Register the tcp and udp memcache dissectors. */
 void
 proto_reg_handoff_memcache (void)
 {
-  dissector_handle_t memcache_tcp_handle;
-  dissector_handle_t memcache_udp_handle;
+  static range_t *orig_memcache_tcp_port_range = NULL;
+  static range_t *orig_memcache_udp_port_range = NULL;
+  static gboolean initialized = FALSE;
 
-  memcache_tcp_handle = find_dissector ("memcache.tcp");
-  memcache_udp_handle = find_dissector ("memcache.udp");
+  if (!initialized) {
+    memcache_tcp_handle = find_dissector("memcache.tcp");
+    memcache_udp_handle = find_dissector("memcache.udp");
+    initialized = TRUE;
+  } else {
+    range_foreach(orig_memcache_tcp_port_range, range_delete_tcp_port_callback);
+    range_foreach(orig_memcache_udp_port_range, range_delete_udp_port_callback);
+    g_free(orig_memcache_tcp_port_range);
+    g_free(orig_memcache_udp_port_range);
+  }
 
-  dissector_add_uint ("tcp.port", MEMCACHE_PORT, memcache_tcp_handle);
-  dissector_add_uint ("udp.port", MEMCACHE_PORT, memcache_udp_handle);
+  orig_memcache_tcp_port_range = range_copy(memcache_tcp_port_range);
+  orig_memcache_udp_port_range = range_copy(memcache_udp_port_range);
+  range_foreach(orig_memcache_tcp_port_range, range_add_tcp_port_callback);
+  range_foreach(orig_memcache_udp_port_range, range_add_udp_port_callback);
 }
 
 /*

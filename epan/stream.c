@@ -156,7 +156,7 @@ static stream_t *new_stream( stream_key_t *key )
 {
     stream_t *val;
 
-    val = se_alloc(sizeof(stream_t));
+    val = se_new(stream_t);
     val -> key = key;
     val -> pdu_counter = 0;
     val -> current_pdu = NULL;
@@ -173,7 +173,7 @@ static stream_t *stream_hash_insert_circ( const struct circuit *circuit, int p2p
 {
     stream_key_t *key;
 
-    key = se_alloc(sizeof(stream_key_t));
+    key = se_new(stream_key_t);
     key->is_circuit = TRUE;
     key->circ.circuit = circuit;
     key->p2p_dir = p2p_dir;
@@ -185,7 +185,7 @@ static stream_t *stream_hash_insert_conv( const struct conversation *conv, int p
 {
     stream_key_t *key;
 
-    key = se_alloc(sizeof(stream_key_t));
+    key = se_new(stream_key_t);
     key->is_circuit = FALSE;
     key->circ.conv = conv;
     key->p2p_dir = p2p_dir;
@@ -216,7 +216,7 @@ static void stream_init_pdu_data(void)
 static stream_pdu_t *stream_new_pdu(stream_t *stream)
 {
     stream_pdu_t *pdu;
-    pdu = se_alloc(sizeof(stream_pdu_t));
+    pdu = se_new(stream_pdu_t);
     pdu -> fd_head = NULL;
     pdu -> pdu_number = stream -> pdu_counter++;
     pdu -> id = pdu_counter++;
@@ -283,7 +283,7 @@ static stream_pdu_fragment_t *fragment_hash_lookup( const stream_t *stream, guin
     key.stream = stream;
     key.framenum = framenum;
     key.offset = offset;
-    val = g_hash_table_lookup(fragment_hash, &key);
+    val = (stream_pdu_fragment_t *)g_hash_table_lookup(fragment_hash, &key);
 
     return val;
 }
@@ -296,12 +296,12 @@ static stream_pdu_fragment_t *fragment_hash_insert( const stream_t *stream, guin
     fragment_key_t *key;
     stream_pdu_fragment_t *val;
 
-    key = se_alloc(sizeof(fragment_key_t));
+    key = se_new(fragment_key_t);
     key->stream = stream;
     key->framenum = framenum;
     key->offset = offset;
 
-    val = se_alloc(sizeof(stream_pdu_fragment_t));
+    val = se_new(stream_pdu_fragment_t);
     val->len = length;
     val->pdu = NULL;
     val->final_fragment = FALSE;
@@ -312,9 +312,8 @@ static stream_pdu_fragment_t *fragment_hash_insert( const stream_t *stream, guin
 
 /*****************************************************************************/
 
-/* fragmentation hash tables */
-static GHashTable *stream_fragment_table = NULL;
-static GHashTable *stream_reassembled_table = NULL;
+/* reassembly table */
+static reassembly_table stream_reassembly_table;
 
 /* Initialise a new stream. Call this when you first identify a distinct
  * stream. */
@@ -378,8 +377,8 @@ void stream_init( void )
     init_fragment_hash();
     stream_init_pdu_data();
 
-    fragment_table_init(&stream_fragment_table);
-    reassembled_table_init(&stream_reassembled_table);
+    reassembly_table_init(&stream_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 /*****************************************************************************/
@@ -410,8 +409,8 @@ stream_pdu_fragment_t *stream_add_frag( stream_t *stream, guint32 framenum, guin
     }
 
     /* add it to the reassembly tables */
-    fd_head = fragment_add_seq_next(tvb, 0, pinfo, pdu->id,
-                                    stream_fragment_table, stream_reassembled_table,
+    fd_head = fragment_add_seq_next(&stream_reassembly_table,
+                                    tvb, 0, pinfo, pdu->id, NULL,
                                     tvb_reported_length(tvb), more_frags);
     /* add it to our hash */
     frag_data = fragment_hash_insert( stream, framenum, offset, tvb_reported_length(tvb));

@@ -130,7 +130,7 @@ decompress_sigcomp_message(tvbuff_t *bytecode_tvb, tvbuff_t *message_tvb, packet
 {
 	tvbuff_t	*decomp_tvb;
 	/* UDVM memory must be initialised to zero */
-	guint8		*buff = ep_alloc0(UDVM_MEMORY_SIZE);
+	guint8		*buff = (guint8 *)ep_alloc0(UDVM_MEMORY_SIZE);
 	char		string[2];
 	guint8		*out_buff;		/* Largest allowed size for a message is UDVM_MEMORY_SIZE = 65536 */
 	guint32		i = 0;
@@ -316,11 +316,10 @@ decompress_sigcomp_message(tvbuff_t *bytecode_tvb, tvbuff_t *message_tvb, packet
 
 	}
 	/* Largest allowed size for a message is UDVM_MEMORY_SIZE = 65536  */
-	out_buff = g_malloc(UDVM_MEMORY_SIZE);
+	out_buff = (guint8 *)g_malloc(UDVM_MEMORY_SIZE);
 	/* Start executing code */
 	current_address = udvm_start_ip;
 	input_address = 0;
-	operand_address = 0;
 
 	proto_tree_add_text(udvm_tree, bytecode_tvb, offset, 1,"UDVM EXECUTION STARTED at Address: %u Message size %u",
 		current_address, msg_end);
@@ -788,7 +787,6 @@ execute_next_instruction:
 				"Addr: %u ## SORT-ASCENDING(11) (start, n, k))",
 				current_address);
 		}
-		operand_address = current_address + 1;
 		proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Execution of this instruction is NOT implemented");
 		/*
 		 * 	used_udvm_cycles =  1 + k * (ceiling(log2(k)) + n)
@@ -801,7 +799,6 @@ execute_next_instruction:
 				"Addr: %u ## SORT-DESCENDING(12) (start, n, k))",
 				current_address);
 		}
-		operand_address = current_address + 1;
 		proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Execution of this instruction is NOT implemented");
 		/*
 		 * 	used_udvm_cycles =  1 + k * (ceiling(log2(k)) + n)
@@ -836,7 +833,6 @@ execute_next_instruction:
 			proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Addr: %u      $destination %u",
 				operand_address, ref_destination);
 		}
-		current_address = next_operand_address;
 		used_udvm_cycles = used_udvm_cycles + length;
 
 		n = 0;
@@ -1496,7 +1492,7 @@ execute_next_instruction:
 		operand_address = current_address + 1;
 		/* @address */
 		 /* operand_value = (memory_address_of_instruction + D) modulo 2^16 */
-		next_operand_address = decode_udvm_address_operand(buff,operand_address, &at_address, current_address);
+		/*next_operand_address = */decode_udvm_address_operand(buff,operand_address, &at_address, current_address);
 		if (show_instr_detail_level == 2 ){
 			proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Addr: %u      @Address %u",
 				operand_address, at_address);
@@ -1560,7 +1556,7 @@ execute_next_instruction:
 
 		/* @address_3 */
 		 /* operand_value = (memory_address_of_instruction + D) modulo 2^16 */
-		next_operand_address = decode_udvm_multitype_operand(buff, operand_address, &at_address_3);
+		/*next_operand_address = */decode_udvm_multitype_operand(buff, operand_address, &at_address_3);
 		at_address_3 = ( current_address + at_address_3) & 0xffff;
 		if (show_instr_detail_level == 2 ){
 			proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Addr: %u      @Address %u",
@@ -2630,7 +2626,7 @@ execute_next_instruction:
 		 * %state_retention_priority
 		 */
 		operand_address = next_operand_address;
-		next_operand_address = decode_udvm_multitype_operand(buff, operand_address, &state_retention_priority);
+		/*next_operand_address =*/ decode_udvm_multitype_operand(buff, operand_address, &state_retention_priority);
 		if (show_instr_detail_level == 2 ){
 			proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Addr: %u      state_retention_priority %u",
 				operand_address, state_retention_priority);
@@ -2641,7 +2637,6 @@ execute_next_instruction:
 				"Addr: %u ## END-MESSAGE (requested_feedback_location=%u, returned_parameters_location=%u, state_length=%u, state_address=%u, state_instruction=%u, minimum_access_length=%u, state_retention_priority=%u)",
 				current_address, requested_feedback_location, returned_parameters_location, state_length, state_address, state_instruction, minimum_access_length,state_retention_priority);
 		}
-		current_address = next_operand_address;
 		/* TODO: This isn't currently totaly correct as END_INSTRUCTION might not create state */
 		no_of_state_create++;
 		if ( no_of_state_create > 4 ){
@@ -2666,7 +2661,7 @@ execute_next_instruction:
 			byte_copy_left = buff[64] << 8;
 			byte_copy_left = byte_copy_left | buff[65];
 			while ( n < no_of_state_create + 1 ){
-				sha1buff = g_malloc(state_length_buff[n]+8);
+				sha1buff = (guint8 *)g_malloc(state_length_buff[n]+8);
 				sha1buff[0] = state_length_buff[n] >> 8;
 				sha1buff[1] = state_length_buff[n] & 0xff;
 				sha1buff[2] = state_address_buff[n] >> 8;

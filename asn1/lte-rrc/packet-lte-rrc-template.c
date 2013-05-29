@@ -1,8 +1,9 @@
 /* packet-lte-rrc-template.c
  * Routines for Evolved Universal Terrestrial Radio Access (E-UTRA);
  * Radio Resource Control (RRC) protocol specification
- * (3GPP TS 36.331 V11.1.0 Release 11) packet dissection
+ * (3GPP TS 36.331 V11.3.0 Release 11) packet dissection
  * Copyright 2008, Vincent Helfre
+ * Copyright 2009-2013, Pascal Quantin
  *
  * $Id$
  *
@@ -33,11 +34,12 @@
 #include <epan/asn1.h>
 #include <epan/expert.h>
 
-#include "packet-ber.h"
 #include "packet-per.h"
 #include "packet-rrc.h"
 #include "packet-gsm_a_common.h"
 #include "packet-lpp.h"
+#include "packet-gsm_map.h"
+#include "packet-cell_broadcast.h"
 
 #define PNAME  "LTE Radio Resource Control (RRC) protocol"
 #define PSNAME "LTE RRC"
@@ -51,6 +53,14 @@ static dissector_handle_t gsm_rlcmac_dl_handle = NULL;
 static guint32 lte_rrc_rat_type_value = -1;
 static guint32 lte_rrc_ho_target_rat_type_value = -1;
 static gint lte_rrc_si_or_psi_geran_val = -1;
+static guint32 lte_rrc_etws_cmas_dcs_key = -1;
+
+static GHashTable *lte_rrc_etws_cmas_dcs_hash = NULL;
+
+/* Keep track of where/how the System Info value has changed */
+static GHashTable *lte_rrc_system_info_value_changed_hash = NULL;
+static guint8     system_info_value_current;
+static gboolean   system_info_value_current_set;
 
 /* Include constants */
 #include "packet-lte-rrc-val.h"
@@ -156,6 +166,14 @@ static int hf_lte_rrc_eutra_cap_feat_group_ind_129 = -1;
 static int hf_lte_rrc_eutra_cap_feat_group_ind_130 = -1;
 static int hf_lte_rrc_eutra_cap_feat_group_ind_131 = -1;
 static int hf_lte_rrc_eutra_cap_feat_group_ind_132 = -1;
+static int hf_lte_rrc_serialNumber_gs = -1;
+static int hf_lte_rrc_serialNumber_msg_code = -1;
+static int hf_lte_rrc_serialNumber_upd_nb = -1;
+static int hf_lte_rrc_warningType_value = -1;
+static int hf_lte_rrc_warningType_emergency_user_alert = -1;
+static int hf_lte_rrc_warningType_popup = -1;
+static int hf_lte_rrc_warningMessageSegment_nb_pages = -1;
+static int hf_lte_rrc_warningMessageSegment_decoded_page = -1;
 
 /* Initialize the subtree pointers */
 static int ett_lte_rrc = -1;
@@ -165,12 +183,16 @@ static int ett_lte_rrc = -1;
 static gint ett_lte_rrc_featureGroupIndicators = -1;
 static gint ett_lte_rrc_featureGroupIndRel9Add = -1;
 static gint ett_lte_rrc_featureGroupIndRel10 = -1;
-static gint ett_lte_rrc_neighCellConfig = -1;
 static gint ett_lte_rrc_absTimeInfo = -1;
 static gint ett_lte_rrc_nas_SecurityParam = -1;
 static gint ett_lte_rrc_targetRAT_MessageContainer = -1;
 static gint ett_lte_rrc_siPsiSibContainer = -1;
 static gint ett_lte_rrc_dedicatedInfoNAS = -1;
+static gint ett_lte_rrc_timeInfo = -1;
+static gint ett_lte_rrc_serialNumber = -1;
+static gint ett_lte_rrc_warningType = -1;
+static gint ett_lte_rrc_dataCodingScheme = -1;
+static gint ett_lte_rrc_warningMessageSegment = -1;
 
 /* Forward declarations */
 static int dissect_DL_DCCH_Message_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_);
@@ -178,8 +200,8 @@ static int dissect_UECapabilityInformation_PDU(tvbuff_t *tvb _U_, packet_info *p
 int dissect_lte_rrc_UE_EUTRA_Capability_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_);
 
 static const true_false_string lte_rrc_eutra_cap_feat_group_ind_1_val = {
-  "Intra-subframe freq hopping for PUSCH scheduled by UL grant; DCI format 3a; PDSCH transmission mode 5; Aperiodic CQI/PMI/RI report on PUSCH: Mode 2-0 & 2-2 - Supported",
-  "Intra-subframe freq hopping for PUSCH scheduled by UL grant; DCI format 3a; PDSCH transmission mode 5; Aperiodic CQI/PMI/RI report on PUSCH: Mode 2-0 & 2-2 - Not supported"
+  "Intra-subframe freq hopping for PUSCH scheduled by UL grant; DCI format 3a; Aperiodic CQI/PMI/RI report on PUSCH: Mode 2-0 & 2-2 - Supported",
+  "Intra-subframe freq hopping for PUSCH scheduled by UL grant; DCI format 3a; Aperiodic CQI/PMI/RI report on PUSCH: Mode 2-0 & 2-2 - Not supported"
 };
 static const true_false_string lte_rrc_eutra_cap_feat_group_ind_2_val = {
   "Simultaneous CQI & ACK/NACK on PUCCH (format 2a/2b); Absolute TPC command for PUSCH; Resource alloc type 1 for PDSCH; Periodic CQI/PMI/RI report on PUCCH: Mode 2-0 & 2-1 - Supported",
@@ -298,8 +320,8 @@ static const true_false_string lte_rrc_eutra_cap_feat_group_ind_30_val = {
   "Handover between FDD and TDD - Not supported"
 };
 static const true_false_string lte_rrc_eutra_cap_feat_group_ind_31_val = {
-  "Undefined - Supported",
-  "Undefined - Not supported"
+  "Mechanisms defined for cells broadcasting multi band information - Supported",
+  "Mechanisms defined for cells broadcasting multi band information - Not supported"
 };
 static const true_false_string lte_rrc_eutra_cap_feat_group_ind_32_val = {
   "Undefined - Supported",
@@ -338,8 +360,8 @@ static const true_false_string lte_rrc_eutra_cap_feat_group_ind_40_val = {
   "EUTRA RRC_CONNECTED to UTRA TDD CELL_DCH CS handover - Not supported"
 };
 static const true_false_string lte_rrc_eutra_cap_feat_group_ind_41_val = {
-  "Undefined - Supported",
-  "Undefined - Not supported"
+  "Measurement reporting event: Event B1 - Neighbour > threshold for UTRAN FDD - Supported",
+  "Measurement reporting event: Event B1 - Neighbour > threshold for UTRAN FDD - Not supported"
 };
 static const true_false_string lte_rrc_eutra_cap_feat_group_ind_42_val = {
   "Undefined - Supported",
@@ -627,6 +649,12 @@ static const value_string lte_rrc_q_RxLevMinOffset_vals[] = {
   { 8, "16dB"},
   { 0, NULL}
 };
+
+static void
+lte_rrc_timeConnFailure_r10_fmt(gchar *s, guint32 v)
+{
+  g_snprintf(s, ITEM_LABEL_LENGTH, "%ums (%u)", 100*v, v);
+}
 
 static const value_string lte_rrc_utra_q_RxLevMin_vals[] = {
   { -60, "-119dBm"},
@@ -1672,6 +1700,237 @@ static const true_false_string lte_rrc_duration_val = {
   "single"
 };
 
+static const value_string lte_rrc_daylightSavingTime_vals[] = {
+  { 0, "No adjustment for Daylight Saving Time"},
+  { 1, "+1 hour adjustment for Daylight Saving Time"},
+  { 2, "+2 hours adjustment for Daylight Saving Time"},
+  { 3, "Reserved"},
+  { 0, NULL},
+};
+
+static const value_string lte_rrc_neighCellConfig_vals[] = {
+  { 0, "Not all neighbour cells have the same MBSFN subframe allocation as serving cell"},
+  { 1, "No MBSFN subframes are present in all neighbour cells"},
+  { 2, "The MBSFN subframe allocations of all neighbour cells are identical to or subsets of that in the serving cell"},
+  { 3, "Different UL/DL allocation in neighbouring cells for TDD compared to the serving cell"},
+  { 0, NULL},
+};
+
+static const value_string lte_rrc_messageIdentifier_vals[] = {
+  { 0x1100, "ETWS Identifier for earthquake warning message"},
+  { 0x1101, "ETWS Identifier for tsunami warning message"},
+  { 0x1102, "ETWS Identifier for earthquake and tsunami combined warning message"},
+  { 0x1103, "ETWS Identifier for test message"},
+  { 0x1104, "ETWS Identifier for messages related to other emergency types"},
+  { 0x1105, "ETWS Identifier for future extension"},
+  { 0x1106, "ETWS Identifier for future extension"},
+  { 0x1107, "ETWS Identifier for future extension"},
+  { 0x1112, "CMAS Identifier for CMAS Presidential Level Alerts"},
+  { 0x1113, "CMAS Identifier for CMAS Extreme Alerts with Severity of Extreme, Urgency of Immediate, and Certainty of Observed"},
+  { 0x1114, "CMAS Identifier for CMAS Extreme Alerts with Severity of Extreme, Urgency of Immediate, and Certainty of Likely"},
+  { 0x1115, "CMAS Identifier for CMAS Severe Alerts with Severity of Extreme, Urgency of Expected, and Certainty of Observed"},
+  { 0x1116, "CMAS Identifier for CMAS Severe Alerts with Severity of Extreme, Urgency of Expected, and Certainty of Likely"},
+  { 0x1117, "CMAS Identifier for CMAS Severe Alerts with Severity of Severe, Urgency of Immediate, and Certainty of Observed"},
+  { 0x1118, "CMAS Identifier for CMAS Severe Alerts with Severity of Severe, Urgency of Immediate, and Certainty of Likely"},
+  { 0x1119, "CMAS Identifier for CMAS Severe Alerts with Severity of Severe, Urgency of Expected, and Certainty of Observed"},
+  { 0x111a, "CMAS Identifier for CMAS Severe Alerts with Severity of Severe, Urgency of Expected, and Certainty of Likely"},
+  { 0x111b, "CMAS Identifier for Child Abduction Emergency (or Amber Alert)"},
+  { 0x111c, "CMAS Identifier for the Required Monthly Test"},
+  { 0x111d, "CMAS Identifier for CMAS Exercise"},
+  { 0x111e, "CMAS Identifier for operator defined use"},
+  { 0x111f, "CMAS Identifier for CMAS Presidential Level Alerts for additional languages"},
+  { 0x1120, "CMAS Identifier for CMAS Extreme Alerts with Severity of Extreme, Urgency of Immediate, and Certainty of Observed for additional languages"},
+  { 0x1121, "CMAS Identifier for CMAS Extreme Alerts with Severity of Extreme, Urgency of Immediate, and Certainty of Likely for additional languages"},
+  { 0x1122, "CMAS Identifier for CMAS Severe Alerts with Severity of Extreme, Urgency of Expected, and Certainty of Observed for additional languages"},
+  { 0x1123, "CMAS Identifier for CMAS Severe Alerts with Severity of Extreme, Urgency of Expected, and Certainty of Likely for additional languages"},
+  { 0x1124, "CMAS Identifier for CMAS Severe Alerts with Severity of Severe, Urgency of Immediate, and Certainty of Observed for additional languages"},
+  { 0x1125, "CMAS Identifier for CMAS Severe Alerts with Severity of Severe, Urgency of Immediate, and Certainty of Likely for additional languages"},
+  { 0x1126, "CMAS Identifier for CMAS Severe Alerts with Severity of Severe, Urgency of Expected, and Certainty of Observed for additional languages"},
+  { 0x1127, "CMAS Identifier for CMAS Severe Alerts with Severity of Severe, Urgency of Expected, and Certainty of Likely for additional languages"},
+  { 0x1128, "CMAS Identifier for Child Abduction Emergency (or Amber Alert) for additional languages"},
+  { 0x1129, "CMAS Identifier for the Required Monthly Test for additional languages"},
+  { 0x112a, "CMAS Identifier for CMAS Exercise for additional languages"},
+  { 0x112b, "CMAS Identifier for operator defined use for additional languages"},
+  {      0, NULL},
+};
+static value_string_ext lte_rrc_messageIdentifier_vals_ext = VALUE_STRING_EXT_INIT(lte_rrc_messageIdentifier_vals);
+
+static const value_string lte_rrc_serialNumber_gs_vals[] = {
+  { 0, "Display mode immediate, cell wide"},
+  { 1, "Display mode normal, PLMN wide"},
+  { 2, "Display mode normal, tracking area wide"},
+  { 3, "Display mode normal, cell wide"},
+  { 0, NULL},
+};
+
+static const value_string lte_rrc_warningType_vals[] = {
+  { 0, "Earthquake"},
+  { 1, "Tsunami"},
+  { 2, "Earthquake and Tsunami"},
+  { 3, "Test"},
+  { 4, "Other"},
+  { 0, NULL},
+};
+
+static void
+lte_rrc_localTimeOffset_fmt(gchar *s, guint32 v)
+{
+  gint32 time_offset = (gint32) v;
+
+  g_snprintf(s, ITEM_LABEL_LENGTH, "UTC time %c %dhr %dmin (%d)",
+             (time_offset < 0) ? '-':'+', abs(time_offset) >> 2,
+             (abs(time_offset) & 0x03) * 15, time_offset);
+}
+
+static void
+dissect_lte_rrc_warningMessageSegment(tvbuff_t *warning_msg_seg_tvb, proto_tree *tree, packet_info *pinfo, guint8 dataCodingScheme)
+{
+  guint32 offset;
+  guint8 nb_of_pages, length, *str;
+  proto_item *ti;
+  tvbuff_t *cb_data_page_tvb, *cb_data_tvb;
+  int i;
+
+  nb_of_pages = tvb_get_guint8(warning_msg_seg_tvb, 0);
+  ti = proto_tree_add_uint(tree, hf_lte_rrc_warningMessageSegment_nb_pages, warning_msg_seg_tvb, 0, 1, nb_of_pages);
+  if (nb_of_pages > 15) {
+    expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR,
+                           "Number of pages should be <=15 (found %u)", nb_of_pages);
+    nb_of_pages = 15;
+  }
+  for (i = 0, offset = 1; i < nb_of_pages; i++) {
+    length = tvb_get_guint8(warning_msg_seg_tvb, offset+82);
+    cb_data_page_tvb = tvb_new_subset(warning_msg_seg_tvb, offset, length, length);
+    cb_data_tvb = dissect_cbs_data(dataCodingScheme, cb_data_page_tvb, tree, pinfo, 0);
+    if (cb_data_tvb) {
+      str = tvb_get_ephemeral_string(cb_data_tvb, 0, tvb_length(cb_data_tvb));
+      proto_tree_add_string_format(tree, hf_lte_rrc_warningMessageSegment_decoded_page, warning_msg_seg_tvb, offset, 83,
+                                   str, "Decoded Page %u: %s", i+1, str);
+    }
+    offset += 83;
+  }
+}
+
+static void
+dissect_lte_rrc_featureGroupIndicators(tvbuff_t *featureGroupIndicators_tvb, asn1_ctx_t *actx)
+{
+  proto_tree *subtree;
+
+  subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_featureGroupIndicators);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_1, featureGroupIndicators_tvb, 0, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_2, featureGroupIndicators_tvb, 1, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_3, featureGroupIndicators_tvb, 2, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_4, featureGroupIndicators_tvb, 3, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_5, featureGroupIndicators_tvb, 4, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_6, featureGroupIndicators_tvb, 5, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_7, featureGroupIndicators_tvb, 6, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_8, featureGroupIndicators_tvb, 7, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_9, featureGroupIndicators_tvb, 8, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_10, featureGroupIndicators_tvb, 9, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_11, featureGroupIndicators_tvb, 10, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_12, featureGroupIndicators_tvb, 11, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_13, featureGroupIndicators_tvb, 12, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_14, featureGroupIndicators_tvb, 13, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_15, featureGroupIndicators_tvb, 14, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_16, featureGroupIndicators_tvb, 15, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_17, featureGroupIndicators_tvb, 16, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_18, featureGroupIndicators_tvb, 17, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_19, featureGroupIndicators_tvb, 18, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_20, featureGroupIndicators_tvb, 19, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_21, featureGroupIndicators_tvb, 20, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_22, featureGroupIndicators_tvb, 21, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_23, featureGroupIndicators_tvb, 22, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_24, featureGroupIndicators_tvb, 23, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_25, featureGroupIndicators_tvb, 24, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_26, featureGroupIndicators_tvb, 25, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_27, featureGroupIndicators_tvb, 26, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_28, featureGroupIndicators_tvb, 27, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_29, featureGroupIndicators_tvb, 28, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_30, featureGroupIndicators_tvb, 29, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_31, featureGroupIndicators_tvb, 30, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_32, featureGroupIndicators_tvb, 31, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_lte_rrc_featureGroupIndRel10(tvbuff_t *featureGroupIndRel10_tvb, asn1_ctx_t *actx)
+{
+  proto_tree *subtree;
+
+  subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_featureGroupIndRel10);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_101, featureGroupIndRel10_tvb, 0, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_102, featureGroupIndRel10_tvb, 1, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_103, featureGroupIndRel10_tvb, 2, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_104, featureGroupIndRel10_tvb, 3, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_105, featureGroupIndRel10_tvb, 4, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_106, featureGroupIndRel10_tvb, 5, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_107, featureGroupIndRel10_tvb, 6, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_108, featureGroupIndRel10_tvb, 7, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_109, featureGroupIndRel10_tvb, 8, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_110, featureGroupIndRel10_tvb, 9, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_111, featureGroupIndRel10_tvb, 10, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_112, featureGroupIndRel10_tvb, 11, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_113, featureGroupIndRel10_tvb, 12, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_114, featureGroupIndRel10_tvb, 13, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_115, featureGroupIndRel10_tvb, 14, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_116, featureGroupIndRel10_tvb, 15, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_117, featureGroupIndRel10_tvb, 16, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_118, featureGroupIndRel10_tvb, 17, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_119, featureGroupIndRel10_tvb, 18, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_120, featureGroupIndRel10_tvb, 19, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_121, featureGroupIndRel10_tvb, 20, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_122, featureGroupIndRel10_tvb, 21, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_123, featureGroupIndRel10_tvb, 22, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_124, featureGroupIndRel10_tvb, 23, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_125, featureGroupIndRel10_tvb, 24, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_126, featureGroupIndRel10_tvb, 25, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_127, featureGroupIndRel10_tvb, 26, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_128, featureGroupIndRel10_tvb, 27, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_129, featureGroupIndRel10_tvb, 28, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_130, featureGroupIndRel10_tvb, 29, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_131, featureGroupIndRel10_tvb, 30, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_132, featureGroupIndRel10_tvb, 31, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_lte_rrc_featureGroupIndRel9Add(tvbuff_t *featureGroupIndRel9Add_tvb, asn1_ctx_t *actx)
+{
+  proto_tree *subtree;
+
+  subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_featureGroupIndRel9Add);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_33, featureGroupIndRel9Add_tvb, 0, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_34, featureGroupIndRel9Add_tvb, 1, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_35, featureGroupIndRel9Add_tvb, 2, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_36, featureGroupIndRel9Add_tvb, 3, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_37, featureGroupIndRel9Add_tvb, 4, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_38, featureGroupIndRel9Add_tvb, 5, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_39, featureGroupIndRel9Add_tvb, 6, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_40, featureGroupIndRel9Add_tvb, 7, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_41, featureGroupIndRel9Add_tvb, 8, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_42, featureGroupIndRel9Add_tvb, 9, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_43, featureGroupIndRel9Add_tvb, 10, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_44, featureGroupIndRel9Add_tvb, 11, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_45, featureGroupIndRel9Add_tvb, 12, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_46, featureGroupIndRel9Add_tvb, 13, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_47, featureGroupIndRel9Add_tvb, 14, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_48, featureGroupIndRel9Add_tvb, 15, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_49, featureGroupIndRel9Add_tvb, 16, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_50, featureGroupIndRel9Add_tvb, 17, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_51, featureGroupIndRel9Add_tvb, 18, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_52, featureGroupIndRel9Add_tvb, 19, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_53, featureGroupIndRel9Add_tvb, 20, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_54, featureGroupIndRel9Add_tvb, 21, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_55, featureGroupIndRel9Add_tvb, 22, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_56, featureGroupIndRel9Add_tvb, 23, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_57, featureGroupIndRel9Add_tvb, 24, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_58, featureGroupIndRel9Add_tvb, 25, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_59, featureGroupIndRel9Add_tvb, 26, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_60, featureGroupIndRel9Add_tvb, 27, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_61, featureGroupIndRel9Add_tvb, 28, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_62, featureGroupIndRel9Add_tvb, 29, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_63, featureGroupIndRel9Add_tvb, 30, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(subtree, hf_lte_rrc_eutra_cap_feat_group_ind_64, featureGroupIndRel9Add_tvb, 31, 1, ENC_BIG_ENDIAN);
+}
+
 #include "packet-lte-rrc-fn.c"
 
 static void
@@ -1764,11 +2023,11 @@ dissect_lte_rrc_BCCH_DL_SCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "LTE RRC DL_SCH");
   col_clear(pinfo->cinfo, COL_INFO);
 
-  if (tree) {
-    ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
-    lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
-    dissect_BCCH_DL_SCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
-  }
+  /* Dissect regardless of whether tree is set, so that we can track whether
+     systemInfoValue has changed */
+  ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
+  lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
+  dissect_BCCH_DL_SCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
 }
 
 static void
@@ -1801,6 +2060,20 @@ dissect_lte_rrc_MCCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
     dissect_MCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
   }
+}
+
+static void
+lte_rrc_init_protocol(void)
+{
+  if (lte_rrc_etws_cmas_dcs_hash) {
+    g_hash_table_destroy(lte_rrc_etws_cmas_dcs_hash);
+  }
+  if (lte_rrc_system_info_value_changed_hash) {
+    g_hash_table_destroy(lte_rrc_system_info_value_changed_hash);
+  }
+
+  lte_rrc_etws_cmas_dcs_hash = g_hash_table_new(g_direct_hash, g_direct_equal);
+  lte_rrc_system_info_value_changed_hash = g_hash_table_new(g_direct_hash, g_direct_equal);
 }
 
 /*--- proto_register_rrc -------------------------------------------*/
@@ -2195,6 +2468,38 @@ void proto_register_lte_rrc(void) {
       { "Indicator 132", "lte-rrc.eutra_cap_feat_group_ind_132",
         FT_BOOLEAN, BASE_NONE, TFS(&lte_rrc_eutra_cap_feat_group_ind_132_val), 0,
         "EUTRA Feature Group Indicator 132", HFILL }},
+    { &hf_lte_rrc_serialNumber_gs,
+      { "Geographical Scope", "lte-rrc.serialNumber.gs",
+        FT_UINT16, BASE_DEC, VALS(lte_rrc_serialNumber_gs_vals), 0xc000,
+        NULL, HFILL }},
+    { &hf_lte_rrc_serialNumber_msg_code,
+      { "Message Code", "lte-rrc.serialNumber.msg_code",
+        FT_UINT16, BASE_DEC, NULL, 0x3ff0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_serialNumber_upd_nb,
+      { "Update Number", "lte-rrc.serialNumber.upd_nb",
+        FT_UINT16, BASE_DEC, NULL, 0x000f,
+        NULL, HFILL }},
+    { &hf_lte_rrc_warningType_value,
+      { "Warning Type Value", "lte-rrc.warningType.value",
+        FT_UINT16, BASE_DEC, VALS(lte_rrc_warningType_vals), 0xfe00,
+        NULL, HFILL }},
+    { &hf_lte_rrc_warningType_emergency_user_alert,
+      { "Emergency User Alert", "lte-rrc.warningType.emergency_user_alert",
+        FT_BOOLEAN, 16, TFS(&tfs_yes_no), 0x0100,
+        NULL, HFILL }},
+    { &hf_lte_rrc_warningType_popup,
+      { "Popup", "lte-rrc.warningType.popup",
+        FT_BOOLEAN, 16, TFS(&tfs_yes_no), 0x0080,
+        NULL, HFILL }},
+    { &hf_lte_rrc_warningMessageSegment_nb_pages,
+      { "Number of Pages", "lte-rrc.warningMessageSegment.nb_pages",
+        FT_UINT8, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_warningMessageSegment_decoded_page,
+      { "Decoded Page", "lte-rrc.warningMessageSegment.decoded_page",
+        FT_STRING, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
   };
 
   /* List of subtrees */
@@ -2205,12 +2510,16 @@ void proto_register_lte_rrc(void) {
     &ett_lte_rrc_featureGroupIndicators,
     &ett_lte_rrc_featureGroupIndRel9Add,
     &ett_lte_rrc_featureGroupIndRel10,
-    &ett_lte_rrc_neighCellConfig,
     &ett_lte_rrc_absTimeInfo,
     &ett_lte_rrc_nas_SecurityParam,
     &ett_lte_rrc_targetRAT_MessageContainer,
     &ett_lte_rrc_siPsiSibContainer,
-    &ett_lte_rrc_dedicatedInfoNAS
+    &ett_lte_rrc_dedicatedInfoNAS,
+    &ett_lte_rrc_timeInfo,
+    &ett_lte_rrc_serialNumber,
+    &ett_lte_rrc_warningType,
+    &ett_lte_rrc_dataCodingScheme,
+    &ett_lte_rrc_warningMessageSegment
   };
 
 
@@ -2234,6 +2543,7 @@ void proto_register_lte_rrc(void) {
   /* Register the dissectors defined in lte-rrc.conf */
 #include "packet-lte-rrc-dis-reg.c"
 
+  register_init_routine(&lte_rrc_init_protocol);
 }
 
 

@@ -94,7 +94,7 @@ static int hf_ncp_completion_code = -1;
 static int hf_ncp_connection_status = -1;
 static int hf_ncp_slot = -1;
 static int hf_ncp_control_code = -1;
-static int hf_ncp_fragment_handle = -1;
+/* static int hf_ncp_fragment_handle = -1; */
 static int hf_lip_echo = -1;
 static int hf_ncp_burst_command = -1;
 static int hf_ncp_burst_file_handle = -1;
@@ -110,9 +110,6 @@ static struct novell_tap ncp_tap;
 static struct ncp_common_header     header;
 static struct ncp_common_header    *ncp_hdr;
 
-/* Tables for reassembly of fragments. */
-GHashTable *nds_fragment_table = NULL;
-GHashTable *nds_reassembled_table = NULL;
 dissector_handle_t nds_data_handle;
 
 /* desegmentation of NCP over TCP */
@@ -263,12 +260,12 @@ mncp_hash_insert(conversation_t *conversation, guint32 nwconnection, guint8 nwta
     /* Now remember the request, so we can find it if we later
        a reply to it. Track by conversation, connection, and task number.
        in NetWare these values determine each unique session */
-    key = se_alloc(sizeof(mncp_rhash_key));
+    key = se_new(mncp_rhash_key);
     key->conversation = conversation;
     key->nwconnection = nwconnection;
     key->nwtask = nwtask;
 
-    value = se_alloc(sizeof(mncp_rhash_value));
+    value = se_new(mncp_rhash_value);
 
     g_hash_table_insert(mncp_rhash, key, value);
 
@@ -290,7 +287,7 @@ mncp_hash_lookup(conversation_t *conversation, guint32 nwconnection, guint8 nwta
     key.nwconnection = nwconnection;
     key.nwtask = nwtask;
 
-    return g_hash_table_lookup(mncp_rhash, &key);
+    return (mncp_rhash_value *)g_hash_table_lookup(mncp_rhash, &key);
 }
 
 /*
@@ -352,9 +349,9 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
             commhdr += 4;
         }
         /* Check to see if this is a valid offset, otherwise increment for packet signature */
-        if (match_strval(tvb_get_ntohs(tvb, commhdr), ncp_type_vals)==NULL) {
+        if (try_val_to_str(tvb_get_ntohs(tvb, commhdr), ncp_type_vals)==NULL) {
             /* Check to see if we have a valid type after packet signature length */
-            if (match_strval(tvb_get_ntohs(tvb, commhdr+8), ncp_type_vals)!=NULL) {
+            if (try_val_to_str(tvb_get_ntohs(tvb, commhdr+8), ncp_type_vals)!=NULL) {
                 proto_tree_add_item(ncp_tree, hf_ncp_ip_packetsig, tvb, commhdr, 8, ENC_NA);
                 commhdr += 8;
             }
@@ -1022,10 +1019,12 @@ proto_register_ncp(void)
           { "Control Code",                     "ncp.control_code",
             FT_UINT8, BASE_DEC, NULL, 0x0,
             NULL, HFILL }},
+#if 0
         { &hf_ncp_fragment_handle,
           { "Fragment Handle",                  "ncp.fragger_hndl",
             FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL }},
+#endif
         { &hf_lip_echo,
           { "Large Internet Packet Echo",       "ncp.lip_echo",
             FT_STRING, BASE_NONE, NULL, 0x0,

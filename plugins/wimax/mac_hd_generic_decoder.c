@@ -87,7 +87,7 @@ static gint extended_subheader_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_
 static gint arq_feedback_payload_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_item *parent_item);
 
 /* Static variables */
-static GHashTable *payload_frag_table = NULL;
+static reassembly_table payload_reassembly_table;
 
 gint proto_mac_header_generic_decoder = -1;
 static gint ett_mac_header_generic_decoder = -1;
@@ -265,7 +265,7 @@ static const value_string fast_fb_types[] =
 
 /* Extended sub-headers */
 /* DL sub-header types */
-enum
+typedef enum
 {
 SDU_SN,
 DL_SLEEP_CONTROL,
@@ -273,7 +273,7 @@ FEEDBACK_REQ,
 SN_REQ,
 PDU_SN_SHORT_DL,
 PDU_SN_LONG_DL
-} DL_EXT_SUBHEADER;
+} DL_EXT_SUBHEADER_e;
 
 static const value_string dl_ext_sub_header_type[] =
 {
@@ -324,14 +324,14 @@ static const value_string uiuc_values[] =
 };
 
 /* UL sub-header types */
-enum
+typedef enum
 {
 MIMO_MODE_FEEDBACK,
 UL_TX_POWER_REPORT,
 MINI_FEEDBACK,
 PDU_SN_SHORT_UL,
 PDU_SN_LONG_UL
-} UL_EXT_SUBHEADER;
+} UL_EXT_SUBHEADER_e;
 
 static const value_string ul_ext_sub_header_type[] =
 {
@@ -503,7 +503,7 @@ static gint hf_mac_header_generic_fast_fb_subhd_fb_type = -1;
 #define GRANT_MGMT_SUBHEADER_EXT_FLI_MASK         0x0010	/*0x0800*/
 #define GRANT_MGMT_SUBHEADER_EXT_FL_MASK          0x000F	/*0xF000*/
 
-enum
+typedef enum
 {
 	SCHEDULE_SERVICE_TYPE_RSVD,
 	SCHEDULE_SERVICE_TYPE_UNDEFINED,
@@ -512,7 +512,7 @@ enum
 	SCHEDULE_SERVICE_TYPE_RTPS,
 	SCHEDULE_SERVICE_TYPE_EXT_RTPS,
 	SCHEDULE_SERVICE_TYPE_UGS
-} SCHEDULE_SERVICE_TYPE;
+} SCHEDULE_SERVICE_TYPE_e;
 
 static gint hf_mac_header_generic_grant_mgmt_ugs_tree 		= -1;
 static gint hf_mac_header_generic_grant_mgmt_subhd_ugs_si 	= -1;
@@ -598,7 +598,8 @@ void wimax_defragment_init(void)
 {
 	gint i;
 
-	fragment_table_init(&payload_frag_table);
+	reassembly_table_init(&payload_reassembly_table,
+	    &addresses_reassembly_table_functions);
 
 	/* Init fragmentation variables. */
 	for (i = 0; i < MAX_CID; i++)
@@ -703,9 +704,9 @@ void dissect_mac_header_generic_decoder(tvbuff_t *tvb, packet_info *pinfo, proto
 	static guint8 frag_number[MAX_CID];
 	static guint cid_list[MAX_CID];
 	static guint cid_base;
-	static char *reassem_str = "Reassembled Data transport PDU (%u bytes)";
-	static char *data_str = "Data transport PDU (%u bytes)";
-	char *str_ptr;
+	static const char reassem_str[] = "Reassembled Data transport PDU (%u bytes)";
+	static const char data_str[] = "Data transport PDU (%u bytes)";
+	const char *str_ptr;
 	gint length, i, cid_index;
 	guint tvb_len, ret_length, ubyte, new_tvb_len;
 	guint new_payload_len = 0;
@@ -819,7 +820,7 @@ void dissect_mac_header_generic_decoder(tvbuff_t *tvb, packet_info *pinfo, proto
 			{
 				if (length >= (gint)sizeof(mac_crc))
 				{
-					length -= sizeof(mac_crc);
+					length -= (int)sizeof(mac_crc);
 				}
 			}
 			generic_item = proto_tree_add_protocol_format(tree, proto_mac_header_generic_decoder, tvb, offset, length, "Encrypted PDU (%u bytes)", length);
@@ -986,7 +987,7 @@ void dissect_mac_header_generic_decoder(tvbuff_t *tvb, packet_info *pinfo, proto
 				proto_tree_add_protocol_format(tree, proto_mac_header_generic_decoder, tvb, offset, length, "Error - the frame is too short (%u bytes)", length);
 				return;
 			}
-			length -= sizeof(mac_crc);
+			length -= (int)sizeof(mac_crc);
 		}
 		while (length > 0)
 		{
@@ -1029,10 +1030,10 @@ void dissect_mac_header_generic_decoder(tvbuff_t *tvb, packet_info *pinfo, proto
 				while (pinfo->fd->num > cid_adj_array_size)
 				{
 					cid_adj_array_size += 1024;
-					cid_adj_array = g_realloc(cid_adj_array, sizeof(guint) * cid_adj_array_size);
-					frag_num_array = g_realloc(frag_num_array, sizeof(guint8) * cid_adj_array_size);
+					cid_adj_array = (guint *)g_realloc(cid_adj_array, (int)sizeof(guint) * cid_adj_array_size);
+					frag_num_array = (guint8 *)g_realloc(frag_num_array, (int)sizeof(guint8) * cid_adj_array_size);
 					/* Clear the added memory */
-					memset(&cid_adj_array[cid_adj_array_size - 1024], 0, sizeof(guint) * 1024);
+					memset(&cid_adj_array[cid_adj_array_size - 1024], 0, (int)sizeof(guint) * 1024);
 				}
 				if (first_gmh)
 				{
@@ -1073,7 +1074,7 @@ void dissect_mac_header_generic_decoder(tvbuff_t *tvb, packet_info *pinfo, proto
 				/* Use dl_src and dl_dst in defrag. */
 				pinfo->src = pinfo->dl_src;
 				pinfo->dst = pinfo->dl_dst;
-				payload_frag = fragment_add_seq(tvb, offset, pinfo, cid, payload_frag_table, frag_number[cid_index], frag_len, ((frag_type==LAST_FRAG)?0:1));
+				payload_frag = fragment_add_seq(&payload_reassembly_table, tvb, offset, pinfo, cid, NULL, frag_number[cid_index], frag_len, ((frag_type==LAST_FRAG)?0:1), 0);
 				/* Restore address pointers. */
 				pinfo->src = save_src;
 				pinfo->dst = save_dst;
@@ -1220,11 +1221,11 @@ check_crc:
 			/* check the length */
 			if (MIN(tvb_len, tvb_reported_length(tvb)) >= mac_len)
 			{	/* get the CRC */
-				mac_crc = tvb_get_ntohl(tvb, mac_len - sizeof(mac_crc));
+				mac_crc = tvb_get_ntohl(tvb, mac_len - (int)sizeof(mac_crc));
 				/* calculate the CRC */
-        	    calculated_crc = wimax_mac_calc_crc32(tvb_get_ptr(tvb, 0, mac_len - sizeof(mac_crc)), mac_len - sizeof(mac_crc));
+        	    calculated_crc = wimax_mac_calc_crc32(tvb_get_ptr(tvb, 0, mac_len - (int)sizeof(mac_crc)), mac_len - (int)sizeof(mac_crc));
 				/* display the CRC */
-				generic_item = proto_tree_add_item(tree, hf_mac_header_generic_crc, tvb, mac_len - sizeof(mac_crc), sizeof(mac_crc), ENC_BIG_ENDIAN);
+				generic_item = proto_tree_add_item(tree, hf_mac_header_generic_crc, tvb, mac_len - (int)sizeof(mac_crc), (int)sizeof(mac_crc), ENC_BIG_ENDIAN);
 				if (mac_crc != calculated_crc)
 				{
 			    		proto_item_append_text(generic_item, " - incorrect! (should be: 0x%x)", calculated_crc);

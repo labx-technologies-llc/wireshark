@@ -25,20 +25,22 @@
 #ifndef MPA_H
 #define MPA_H 1
 
+#include "ws_symbol_export.h"
+
 struct mpa {
-	unsigned emphasis   :2;
-	unsigned original   :1;
-	unsigned copyright  :1;
-	unsigned modeext    :2;
-	unsigned mode       :2;
-	unsigned private    :1;
-	unsigned padding    :1;
-	unsigned frequency  :2;
-	unsigned bitrate    :4;
-	unsigned protection :1;
-	unsigned layer      :2;
-	unsigned version    :2;
-	unsigned sync       :11;
+	unsigned int emphasis   :2;
+	unsigned int original   :1;
+	unsigned int copyright  :1;
+	unsigned int modeext    :2;
+	unsigned int mode       :2;
+	unsigned int priv       :1;
+	unsigned int padding    :1;
+	unsigned int frequency  :2;
+	unsigned int bitrate    :4;
+	unsigned int protection :1;
+	unsigned int layer      :2;
+	unsigned int version    :2;
+	unsigned int sync       :11;
 };
 
 #define MPA_UNMARSHAL_SYNC(n)       ((n) >> 21 & 0x7ff)
@@ -63,7 +65,7 @@ struct mpa {
 	(mpa)->bitrate    = MPA_UNMARSHAL_BITRATE(n);    \
 	(mpa)->frequency  = MPA_UNMARSHAL_FREQUENCY(n);  \
 	(mpa)->padding    = MPA_UNMARSHAL_PADDING(n);    \
-	(mpa)->private    = MPA_UNMARSHAL_PRIVATE(n);    \
+	(mpa)->priv       = MPA_UNMARSHAL_PRIVATE(n);    \
 	(mpa)->mode       = MPA_UNMARSHAL_MODE(n);       \
 	(mpa)->modeext    = MPA_UNMARSHAL_MODEEXT(n);    \
 	(mpa)->copyright  = MPA_UNMARSHAL_COPYRIGHT(n);  \
@@ -71,12 +73,18 @@ struct mpa {
 	(mpa)->emphasis   = MPA_UNMARSHAL_EMPHASIS(n);   \
 	} while (0)
 
+WS_DLL_PUBLIC
 int mpa_version(const struct mpa *);
+WS_DLL_PUBLIC
 int mpa_layer(const struct mpa *);
-unsigned mpa_samples(const struct mpa *);
-unsigned mpa_bitrate(const struct mpa *);
-unsigned mpa_frequency(const struct mpa *);
-unsigned mpa_padding(const struct mpa *);
+WS_DLL_PUBLIC
+unsigned int mpa_samples(const struct mpa *);
+WS_DLL_PUBLIC
+unsigned int mpa_bitrate(const struct mpa *);
+WS_DLL_PUBLIC
+unsigned int mpa_frequency(const struct mpa *);
+WS_DLL_PUBLIC
+unsigned int mpa_padding(const struct mpa *);
 
 #define MPA_DATA_BYTES(mpa) (mpa_bitrate(mpa) * mpa_samples(mpa) \
 		/ mpa_frequency(mpa) / 8)

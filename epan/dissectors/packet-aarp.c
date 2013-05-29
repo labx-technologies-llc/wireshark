@@ -28,8 +28,12 @@
 
 #include <epan/packet.h>
 #include <epan/strutil.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/etypes.h>
+
+/* Forward declarations */
+void proto_register_aarp(void);
+void proto_reg_handoff_aarp(void);
 
 static int proto_aarp = -1;
 static int hf_aarp_hard_type = -1;
@@ -105,13 +109,13 @@ tvb_atalkid_to_str(tvbuff_t *tvb, gint offset)
   gint node;
   gchar *cur;
 
-  cur=(gchar *)ep_alloc(16);
+  cur=(gchar *)wmem_alloc(wmem_packet_scope(), 16);
   node=tvb_get_guint8(tvb, offset)<<8|tvb_get_guint8(tvb, offset+1);
   g_snprintf(cur, 16, "%d.%d",node,tvb_get_guint8(tvb, offset+2));
   return cur;
 }
 
-static gchar *
+static const gchar *
 tvb_aarphrdaddr_to_str(tvbuff_t *tvb, gint offset, int ad_len, guint16 type)
 {
   if (AARP_HW_IS_ETHER(type, ad_len)) {
@@ -151,7 +155,7 @@ dissect_aarp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   proto_item  *ti;
   const gchar *op_str;
   int         sha_offset, spa_offset, tha_offset, tpa_offset;
-  gchar       *sha_str, *spa_str, /* *tha_str, */ *tpa_str;
+  const gchar *sha_str, *spa_str, /* *tha_str, */ *tpa_str;
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "AARP");
   col_clear(pinfo->cinfo, COL_INFO);
@@ -196,7 +200,7 @@ dissect_aarp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   }
 
   if (tree) {
-    if ((op_str = match_strval(ar_op, op_vals)))
+    if ((op_str = try_val_to_str(ar_op, op_vals)))
       ti = proto_tree_add_protocol_format(tree, proto_aarp, tvb, 0,
 				      MIN_AARP_HEADER_SIZE + 2*ar_hln +
 				      2*ar_pln, "AppleTalk Address Resolution Protocol (%s)", op_str);

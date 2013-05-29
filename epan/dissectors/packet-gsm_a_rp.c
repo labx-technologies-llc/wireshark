@@ -55,15 +55,28 @@ static const value_string gsm_rp_msg_strings[] = {
 	{ 0, NULL }
 };
 
-const value_string gsm_rp_elem_strings[] = {
+typedef enum
+{
+	/* Short Message Service Information Elements [5] 8.2 */
+	DE_RP_MESSAGE_REF,				/* RP-Message Reference */
+	DE_RP_ORIG_ADDR,				/* RP-Originator Address */
+	DE_RP_DEST_ADDR,				/* RP-Destination Address */
+	DE_RP_USER_DATA,				/* RP-User Data */
+	DE_RP_CAUSE,					/* RP-Cause */
+	DE_RP_NONE							/* NONE */
+}
+rp_elem_idx_t;
+
+static const value_string gsm_rp_elem_strings[] = {
 	/* Short Message Service RP Information Elements [5] 8.2 */
-	{ 0x00,	"RP-Message Reference" },
-	{ 0x00,	"RP-Originator Address" },
-	{ 0x00,	"RP-Destination Address" },
-	{ 0x00,	"RP-User Data" },
-	{ 0x00,	"RP-Cause" },
+	{ DE_RP_MESSAGE_REF,	"RP-Message Reference" },
+	{ DE_RP_ORIG_ADDR,	"RP-Originator Address" },
+	{ DE_RP_DEST_ADDR,	"RP-Destination Address" },
+	{ DE_RP_USER_DATA,	"RP-User Data" },
+	{ DE_RP_CAUSE,	"RP-Cause" },
 	{ 0, NULL }
 };
+value_string_ext gsm_rp_elem_strings_ext = VALUE_STRING_EXT_INIT(gsm_rp_elem_strings);
 
 /* Initialize the protocol and registered fields */
 static int proto_a_rp = -1;
@@ -79,18 +92,6 @@ static char a_bigbuf[1024];
 static dissector_table_t sms_dissector_table;	/* SMS TPDU */
 
 static proto_tree *g_tree;
-
-typedef enum
-{
-	/* Short Message Service Information Elements [5] 8.2 */
-	DE_RP_MESSAGE_REF,				/* RP-Message Reference */
-	DE_RP_ORIG_ADDR,				/* RP-Originator Address */
-	DE_RP_DEST_ADDR,				/* RP-Destination Address */
-	DE_RP_USER_DATA,				/* RP-User Data */
-	DE_RP_CAUSE,					/* RP-Cause */
-	DE_RP_NONE							/* NONE */
-}
-rp_elem_idx_t;
 
 #define	NUM_GSM_RP_ELEM (sizeof(gsm_rp_elem_strings)/sizeof(value_string))
 gint ett_gsm_rp_elem[NUM_GSM_RP_ELEM];
@@ -447,15 +448,6 @@ dissect_rp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_append_str(pinfo->cinfo, COL_INFO, "(RP) ");
 
-	/*
-	 * In the interest of speed, if "tree" is NULL, don't do any work
-	 * not necessary to generate protocol tree items.
-	 */
-	if (!tree)
-	{
-		return;
-	}
-
 	offset = 0;
 	saved_offset = offset;
 
@@ -468,7 +460,7 @@ dissect_rp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 */
 	oct = tvb_get_guint8(tvb, offset++);
 
-	str = match_strval_idx((guint32) oct, gsm_rp_msg_strings, &idx);
+	str = try_val_to_str_idx((guint32) oct, gsm_rp_msg_strings, &idx);
 
 	/*
 	 * create the protocol tree

@@ -64,9 +64,11 @@ static guint8 crc8_table[256] = {
     0x84, 0x51, 0xFB, 0x2E, 0x7A, 0xAF, 0x05, 0xD0, 0xAD, 0x78, 0xD2, 0x07, 0x53, 0x86, 0x2C, 0xF9
 };
 
+
 static dissector_handle_t ip_handle;
 static dissector_handle_t ipv6_handle;
 
+void proto_register_dvb_s2_modeadapt(void);
 void proto_reg_handoff_dvb_s2_modeadapt(void);
 
 /* preferences */
@@ -519,11 +521,11 @@ static const true_false_string tfs_gse_ss = {
 #define DVB_S2_GSE_HDR_LABELTYPE_MASK   0x3000
 #define DVB_S2_GSE_HDR_LABELTYPE_POS1   13
 #define DVB_S2_GSE_HDR_LABELTYPE_POS2   12
-static const value_string gse_labletype[] = {
+static const value_string gse_labeltype[] = {
     {0, "6 byte"},
     {1, "3 byte"},
     {2, "0 byte (Broadcast)"},
-    {3, "re-use last lable"},
+    {3, "re-use last label"},
     {0, NULL}
 };
 
@@ -543,7 +545,7 @@ static const range_string gse_proto_str[] = {
 #define DVB_S2_GSE_CRC32_LEN            4
 
 /* *** helper functions *** */
-gboolean check_crc8(tvbuff_t *p, guint8 len, guint8 offset, guint8 received_fcs)
+static gboolean check_crc8(tvbuff_t *p, guint8 len, guint8 offset, guint8 received_fcs)
 {
     int    i;
     guint8 crc = 0, tmp;
@@ -1017,9 +1019,9 @@ void proto_register_dvb_s2_modeadapt(void)
                 "Stop Indicator", HFILL}
         },
         {&hf_dvb_s2_gse_hdr_labeltype, {
-                "Lable Type", "dvb-s2_gse.hdr.labletype",
-                FT_UINT16, BASE_HEX, VALS(gse_labletype), DVB_S2_GSE_HDR_LABELTYPE_MASK,
-                "Lable Type Indicator", HFILL}
+                "Label Type", "dvb-s2_gse.hdr.labeltype",
+                FT_UINT16, BASE_HEX, VALS(gse_labeltype), DVB_S2_GSE_HDR_LABELTYPE_MASK,
+                "Label Type Indicator", HFILL}
         },
         {&hf_dvb_s2_gse_hdr_length, {
                 "Length", "dvb-s2_gse.hdr.length",

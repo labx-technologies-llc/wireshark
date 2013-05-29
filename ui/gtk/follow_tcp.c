@@ -65,13 +65,14 @@
 #include "ui/gtk/font_utils.h"
 #include "ui/gtk/help_dlg.h"
 #include "ui/gtk/follow_stream.h"
+#include "ws_symbol_export.h"
 
 #ifdef HAVE_LIBZ
 #include <zlib.h>
 #endif
 
 /* With MSVC and a libwireshark.dll, we need a special declaration. */
-WS_VAR_IMPORT FILE *data_out_file;
+WS_DLL_PUBLIC FILE *data_out_file;
 
 static void
 follow_redraw(gpointer data, gpointer user_data _U_)
@@ -167,7 +168,7 @@ follow_tcp_stream_cb(GtkWidget * w _U_, gpointer data _U_)
 	}
 
 	/* Set the display filter entry accordingly */
-	filter_cm = g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY);
+	filter_cm = (GtkWidget *)g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY);
 	filter_te = gtk_bin_get_child(GTK_BIN(filter_cm));
 
 	/* needed in follow_filter_out_stream(), is there a better way? */
@@ -315,20 +316,23 @@ follow_tcp_stream_cb(GtkWidget * w _U_, gpointer data _U_)
 
 #ifdef HAVE_LIBZ
 static char *
-sgetline(char *str, int *next) {
+sgetline(char *str, int *next)
+{
   char *end;
 
   end = strstr(str, "\r\n");
   if (!end) {
+    *next = (int)strlen(str);
     return NULL;
   }
   *end = '\0';
-  *next = end-str+2;
+  *next = (int)(end-str+2);
   return str;
 }
 
 static gboolean
-parse_http_header(char *data, size_t len, size_t *content_start) {
+parse_http_header(char *data, size_t len, size_t *content_start)
+{
   char *tmp, *copy, *line;
   size_t pos = 0;
   int next_line = 0;
@@ -352,7 +356,7 @@ parse_http_header(char *data, size_t len, size_t *content_start) {
   }
 
   /* skip HTTP... line*/
-  line = sgetline(tmp, &next_line);
+  /*line = */sgetline(tmp, &next_line);
 
   tmp += next_line;
   pos += next_line;
@@ -408,7 +412,7 @@ parse_http_header(char *data, size_t len, size_t *content_start) {
  * correctly but get extra blank lines very other line when printed.
  */
 frs_return_t
-	follow_read_tcp_stream(follow_info_t *follow_info,
+follow_read_tcp_stream(follow_info_t *follow_info,
 	gboolean (*print_line_fcn_p)(char *, size_t, gboolean, void *),
 	void *arg)
 {
@@ -425,12 +429,14 @@ frs_return_t
 	guint32		*global_pos;
 	gboolean		skip;
 	char                buffer[FLT_BUF_SIZE+1]; /* +1 to fix ws bug 1043 */
-	char                outbuffer[FLT_BUF_SIZE+1];
 	size_t              nchars;
 	frs_return_t        frs_return;
+#ifdef HAVE_LIBZ
+	char                outbuffer[FLT_BUF_SIZE+1];
 	z_stream            strm;
 	gboolean            gunzip = FALSE;
 	int                 ret;
+#endif
 
 
 	iplen = (follow_info->is_ipv6) ? 16 : 4;
@@ -525,7 +531,7 @@ frs_return_t
 
 			if (gunzip) {
 				strm.next_in = buffer;
-				strm.avail_in = nchars;
+				strm.avail_in = (int)nchars;
 				do {
 					strm.next_out = outbuffer;
 					strm.avail_out = FLT_BUF_SIZE;

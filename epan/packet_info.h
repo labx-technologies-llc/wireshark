@@ -28,7 +28,6 @@
 #include "frame_data.h"
 #include "tvbuff.h"
 #include "address.h"
-#include "wmem/wmem.h"
 
 /* Also defined in wiretap/wtap.h */
 #define P2P_DIR_UNKNOWN	-1
@@ -183,6 +182,8 @@ typedef struct _packet_info {
                                        */
   void    *private_data;		/**< pointer to data passed from one dissector to another */
   GHashTable *private_table;	/**< a hash table passed from one dissector to another */
+
+  guint8 curr_layer_num;       /**< The current "depth" or layer number in the current frame */
   /* TODO: Use emem_strbuf_t instead */
   GString *layer_names; 		/**< layers of each protocol */
   guint16 link_number;
@@ -214,7 +215,7 @@ typedef struct _packet_info {
 
   GSList *frame_end_routines;
 
-  wmem_allocator_t *pool;      /**< Memory pool scoped to the pinfo struct */
+  struct _wmem_allocator_t *pool;      /**< Memory pool scoped to the pinfo struct */
 } packet_info;
 
 /**< For old code that hasn't yet been changed. */

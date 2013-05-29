@@ -30,8 +30,6 @@
 #include <epan/epan_dissect.h>
 #include <epan/dissectors/packet-ber.h>
 
-#include "ui/simple_dialog.h"
-
 #include "ui/gtk/decode_as_dlg.h"
 #include "ui/gtk/dlg_utils.h"
 #include "ui/gtk/gui_utils.h"
@@ -62,7 +60,7 @@ decode_ber(GtkWidget *notebook_pg)
     GtkTreeIter        iter;
 
     syntax = NULL;
-    list = g_object_get_data(G_OBJECT(notebook_pg), E_PAGE_LIST);
+    list = (GtkWidget *)g_object_get_data(G_OBJECT(notebook_pg), E_PAGE_LIST);
 
     if (requested_action == E_DECODE_NO)
 	gtk_tree_selection_unselect_all(gtk_tree_view_get_selection(GTK_TREE_VIEW(list)));
@@ -93,7 +91,7 @@ decode_ber(GtkWidget *notebook_pg)
 static void
 decode_ber_add_to_list(gpointer key, gpointer value, gpointer user_data)
 {
-    decode_add_to_list("ASN.1", key, value, user_data);
+    decode_add_to_list("ASN.1", (gchar *)key, value, user_data);
 }
 
 
@@ -121,8 +119,8 @@ decode_ber_add_page (packet_info *pinfo _U_)
     /* create page content */
     page_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5, FALSE);
     g_object_set_data(G_OBJECT(page_hb), E_PAGE_ACTION, decode_ber);
-    g_object_set_data(G_OBJECT(page_hb), E_PAGE_TABLE, "ASN.1");
-    g_object_set_data(G_OBJECT(page_hb), E_PAGE_TITLE, "ASN.1");
+    g_object_set_data(G_OBJECT(page_hb), E_PAGE_TABLE, (gpointer)"ASN.1");
+    g_object_set_data(G_OBJECT(page_hb), E_PAGE_TITLE, (gpointer)"ASN.1");
 
     info_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 5, FALSE);
     gtk_box_pack_start(GTK_BOX(page_hb), info_vb, TRUE, TRUE, 0);

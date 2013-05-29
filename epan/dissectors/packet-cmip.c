@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-cmip.c                                                              */
 /* ../../tools/asn2wrs.py -b -p cmip -c ./cmip.cnf -s ./packet-cmip-template -D . -O ../../epan/dissectors CMIP-1.asn CMIP-A-ABORT-Information.asn CMIP-A-ASSOCIATE-Information.asn ../x721/Attribute-ASN1Module.asn ../ros/Remote-Operations-Information-Objects.asn ../ros/Remote-Operations-Generic-ROS-PDUs.asn */
 
@@ -46,6 +46,9 @@
 #define PNAME  "X711 CMIP"
 #define PSNAME "CMIP"
 #define PFNAME "cmip"
+
+void proto_register_cmip(void);
+void proto_reg_handoff_cmip(void);
 
 /* XXX some stuff we need until we can get rid of it */
 #include "packet-ses.h"
@@ -342,7 +345,7 @@ static int hf_cmip_T_daysOfWeek_friday = -1;
 static int hf_cmip_T_daysOfWeek_saturday = -1;
 
 /*--- End of included file: packet-cmip-hf.c ---*/
-#line 57 "../../asn1/cmip/packet-cmip-template.c"
+#line 60 "../../asn1/cmip/packet-cmip-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_cmip = -1;
@@ -472,7 +475,7 @@ static gint ett_cmip_T_modificationList = -1;
 static gint ett_cmip_T_modificationList_item = -1;
 
 /*--- End of included file: packet-cmip-ett.c ---*/
-#line 61 "../../asn1/cmip/packet-cmip-template.c"
+#line 64 "../../asn1/cmip/packet-cmip-template.c"
 
 static guint32 opcode;
 
@@ -531,7 +534,7 @@ static const value_string cmip_error_code_vals[] = {
 
 
 /*--- End of included file: packet-cmip-table.c ---*/
-#line 68 "../../asn1/cmip/packet-cmip-template.c"
+#line 71 "../../asn1/cmip/packet-cmip-template.c"
 
 static int opcode_type;
 #define OPCODE_INVOKE        1
@@ -643,7 +646,7 @@ static const char *objectclass_identifier_id;
 #define noInvokeId                     NULL
 
 /*--- End of included file: packet-cmip-val.h ---*/
-#line 91 "../../asn1/cmip/packet-cmip-template.c"
+#line 94 "../../asn1/cmip/packet-cmip-template.c"
 
 /*--- Included file: packet-cmip-fn.c ---*/
 #line 1 "../../asn1/cmip/packet-cmip-fn.c"
@@ -4378,7 +4381,7 @@ static void dissect_WeekMask_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, prot
 
 
 /*--- End of included file: packet-cmip-fn.c ---*/
-#line 92 "../../asn1/cmip/packet-cmip-template.c"
+#line 95 "../../asn1/cmip/packet-cmip-template.c"
 
 
 
@@ -4476,7 +4479,7 @@ void proto_register_cmip(void) {
 /*--- Included file: packet-cmip-hfarr.c ---*/
 #line 1 "../../asn1/cmip/packet-cmip-hfarr.c"
     { &hf_cmip_BaseManagedObjectId_PDU,
-      { "BaseManagedObjectId", "cmip.BaseManagedObjectId",
+      { "BaseManagedObjectId", "cmip.BaseManagedObjectId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_EventTypeId_PDU,
@@ -4656,11 +4659,11 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_SecurityAlarmDetector_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_ServiceProvider_PDU,
-      { "ServiceProvider", "cmip.ServiceProvider",
+      { "ServiceProvider", "cmip.ServiceProvider_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_ServiceUser_PDU,
-      { "ServiceUser", "cmip.ServiceUser",
+      { "ServiceUser", "cmip.ServiceUser_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_SimpleNameType_PDU,
@@ -4700,7 +4703,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_SystemTitle_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_ThresholdInfo_PDU,
-      { "ThresholdInfo", "cmip.ThresholdInfo",
+      { "ThresholdInfo", "cmip.ThresholdInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_TrendIndication_PDU,
@@ -4736,7 +4739,7 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_cmip_actionErroractionErrorInfo,
-      { "actionErrorInfo", "cmip.actionErrorInfo",
+      { "actionErrorInfo", "cmip.actionErrorInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionErrorInfo_errorStatus,
@@ -4760,15 +4763,15 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_InvalidArgumentValue_vals), 0,
         "InvalidArgumentValue", HFILL }},
     { &hf_cmip_actionInfoArg,
-      { "actionInfoArg", "cmip.actionInfoArg",
+      { "actionInfoArg", "cmip.actionInfoArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionReplyInfo,
-      { "actionReplyInfo", "cmip.actionReplyInfo",
+      { "actionReplyInfo", "cmip.actionReplyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionReply,
-      { "actionReply", "cmip.actionReply",
+      { "actionReply", "cmip.actionReply_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionTypeId_globalForm,
@@ -4784,7 +4787,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_AttributeId_vals), 0,
         "AttributeId", HFILL }},
     { &hf_cmip_value,
-      { "value", "cmip.value",
+      { "value", "cmip.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValue", HFILL }},
     { &hf_cmip_attributeError_errorStatus,
@@ -4800,7 +4803,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_AttributeId_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_attributeValue,
-      { "attributeValue", "cmip.attributeValue",
+      { "attributeValue", "cmip.attributeValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_attributeId_globalForm,
@@ -4820,7 +4823,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_attributeValueAssertionvalue,
-      { "value", "cmip.value",
+      { "value", "cmip.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_attributeValueAssertionvalue", HFILL }},
     { &hf_cmip_baseManagedObjectClass,
@@ -4876,7 +4879,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         "ObjectInstance", HFILL }},
     { &hf_cmip_accessControl,
-      { "accessControl", "cmip.accessControl",
+      { "accessControl", "cmip.accessControl_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_referenceObjectInstance,
@@ -4888,7 +4891,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Attribute", HFILL }},
     { &hf_cmip_attributeList_item,
-      { "Attribute", "cmip.Attribute",
+      { "Attribute", "cmip.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_deleteErrorInfo,
@@ -4900,7 +4903,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_EventTypeId_vals), 0,
         "EventTypeId", HFILL }},
     { &hf_cmip_eventReplyInfo,
-      { "eventReplyInfo", "cmip.eventReplyInfo",
+      { "eventReplyInfo", "cmip.eventReplyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_eventTime,
@@ -4908,11 +4911,11 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_cmip_eventReportArgumenteventInfo,
-      { "eventInfo", "cmip.eventInfo",
+      { "eventInfo", "cmip.eventInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EventReportArgumentEventInfo", HFILL }},
     { &hf_cmip_eventReply,
-      { "eventReply", "cmip.eventReply",
+      { "eventReply", "cmip.eventReply_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_eventTypeId_globalForm,
@@ -4920,7 +4923,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "T_eventTypeId_globalForm", HFILL }},
     { &hf_cmip_equality,
-      { "equality", "cmip.equality",
+      { "equality", "cmip.equality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_substrings,
@@ -4932,23 +4935,23 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_T_substrings_item_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_initialString,
-      { "initialString", "cmip.initialString",
+      { "initialString", "cmip.initialString_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_anyString,
-      { "anyString", "cmip.anyString",
+      { "anyString", "cmip.anyString_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_finalString,
-      { "finalString", "cmip.finalString",
+      { "finalString", "cmip.finalString_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_greaterOrEqual,
-      { "greaterOrEqual", "cmip.greaterOrEqual",
+      { "greaterOrEqual", "cmip.greaterOrEqual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_lessOrEqual,
-      { "lessOrEqual", "cmip.lessOrEqual",
+      { "lessOrEqual", "cmip.lessOrEqual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_filterItempresent,
@@ -4956,23 +4959,23 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_AttributeId_vals), 0,
         "AttributeId", HFILL }},
     { &hf_cmip_subsetOf,
-      { "subsetOf", "cmip.subsetOf",
+      { "subsetOf", "cmip.subsetOf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_supersetOf,
-      { "supersetOf", "cmip.supersetOf",
+      { "supersetOf", "cmip.supersetOf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_nonNullSetIntersection,
-      { "nonNullSetIntersection", "cmip.nonNullSetIntersection",
+      { "nonNullSetIntersection", "cmip.nonNullSetIntersection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_attributeIdError,
-      { "attributeIdError", "cmip.attributeIdError",
+      { "attributeIdError", "cmip.attributeIdError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_attribute,
-      { "attribute", "cmip.attribute",
+      { "attribute", "cmip.attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_getInfoList,
@@ -4984,59 +4987,59 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_GetInfoStatus_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_actionValue,
-      { "actionValue", "cmip.actionValue",
+      { "actionValue", "cmip.actionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ActionInfo", HFILL }},
     { &hf_cmip_eventValue,
-      { "eventValue", "cmip.eventValue",
+      { "eventValue", "cmip.eventValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_eventInfo,
-      { "eventInfo", "cmip.eventInfo",
+      { "eventInfo", "cmip.eventInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_getResult,
-      { "getResult", "cmip.getResult",
+      { "getResult", "cmip.getResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_getListError,
-      { "getListError", "cmip.getListError",
+      { "getListError", "cmip.getListError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_setResult,
-      { "setResult", "cmip.setResult",
+      { "setResult", "cmip.setResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_setListError,
-      { "setListError", "cmip.setListError",
+      { "setListError", "cmip.setListError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionResult,
-      { "actionResult", "cmip.actionResult",
+      { "actionResult", "cmip.actionResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_processingFailure,
-      { "processingFailure", "cmip.processingFailure",
+      { "processingFailure", "cmip.processingFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_deleteResult,
-      { "deleteResult", "cmip.deleteResult",
+      { "deleteResult", "cmip.deleteResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionError,
-      { "actionError", "cmip.actionError",
+      { "actionError", "cmip.actionError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_deleteError,
-      { "deleteError", "cmip.deleteError",
+      { "deleteError", "cmip.deleteError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionId,
-      { "actionId", "cmip.actionId",
+      { "actionId", "cmip.actionId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_eventId,
-      { "eventId", "cmip.eventId",
+      { "eventId", "cmip.eventId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_objectClass_globalForm,
@@ -5060,7 +5063,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RDNSequence", HFILL }},
     { &hf_cmip_specificErrorInfo,
-      { "specificErrorInfo", "cmip.specificErrorInfo",
+      { "specificErrorInfo", "cmip.specificErrorInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_RDNSequence_item,
@@ -5068,7 +5071,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_RelativeDistinguishedName_item,
-      { "AttributeValueAssertion", "cmip.AttributeValueAssertion",
+      { "AttributeValueAssertion", "cmip.AttributeValueAssertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_namedNumbers,
@@ -5084,7 +5087,7 @@ void proto_register_cmip(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_cmip_attributeError,
-      { "attributeError", "cmip.attributeError",
+      { "attributeError", "cmip.attributeError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_setInfoList,
@@ -5100,7 +5103,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_errorInfo,
-      { "errorInfo", "cmip.errorInfo",
+      { "errorInfo", "cmip.errorInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_abortSource,
@@ -5108,7 +5111,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_CMIPAbortSource_vals), 0,
         "CMIPAbortSource", HFILL }},
     { &hf_cmip_userInfo,
-      { "userInfo", "cmip.userInfo",
+      { "userInfo", "cmip.userInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_cmip_protocolVersion,
@@ -5120,11 +5123,11 @@ void proto_register_cmip(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_cmipUserInfoaccessControl,
-      { "accessControl", "cmip.accessControl",
+      { "accessControl", "cmip.accessControl_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_cmip_AdditionalInformation_item,
-      { "ManagementExtension", "cmip.ManagementExtension",
+      { "ManagementExtension", "cmip.ManagementExtension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_Allomorphs_item,
@@ -5136,19 +5139,19 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_AttributeId_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_AttributeList_item,
-      { "Attribute", "cmip.Attribute",
+      { "Attribute", "cmip.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_AttributeValueChangeDefinition_item,
-      { "AttributeValueChangeDefinition item", "cmip.AttributeValueChangeDefinition_item",
+      { "AttributeValueChangeDefinition item", "cmip.AttributeValueChangeDefinition_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_oldAttributeValue,
-      { "oldAttributeValue", "cmip.oldAttributeValue",
+      { "oldAttributeValue", "cmip.oldAttributeValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_newAttributeValue,
-      { "newAttributeValue", "cmip.newAttributeValue",
+      { "newAttributeValue", "cmip.newAttributeValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_AlarmStatus_item,
@@ -5168,7 +5171,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         "ObjectInstance", HFILL }},
     { &hf_cmip_noObject,
-      { "noObject", "cmip.noObject",
+      { "noObject", "cmip.noObject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_CapacityAlarmThreshold_item,
@@ -5180,7 +5183,7 @@ void proto_register_cmip(void) {
         FT_INT32, BASE_DEC, VALS(cmip_ControlStatus_item_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_CorrelatedNotifications_item,
-      { "CorrelatedNotifications item", "cmip.CorrelatedNotifications_item",
+      { "CorrelatedNotifications item", "cmip.CorrelatedNotifications_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_correlatedNotifications,
@@ -5212,15 +5215,15 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_IntervalsOfDay_item,
-      { "IntervalsOfDay item", "cmip.IntervalsOfDay_item",
+      { "IntervalsOfDay item", "cmip.IntervalsOfDay_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_intervalStart,
-      { "intervalStart", "cmip.intervalStart",
+      { "intervalStart", "cmip.intervalStart_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Time24", HFILL }},
     { &hf_cmip_intervalEnd,
-      { "intervalEnd", "cmip.intervalEnd",
+      { "intervalEnd", "cmip.intervalEnd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Time24", HFILL }},
     { &hf_cmip_managementExtensionidentifier,
@@ -5232,11 +5235,11 @@ void proto_register_cmip(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_cmip_information,
-      { "information", "cmip.information",
+      { "information", "cmip.information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_MonitoredAttributes_item,
-      { "Attribute", "cmip.Attribute",
+      { "Attribute", "cmip.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_integer,
@@ -5252,7 +5255,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_cmip_PrioritisedObject_item,
-      { "PrioritisedObject item", "cmip.PrioritisedObject_item",
+      { "PrioritisedObject item", "cmip.PrioritisedObject_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_object,
@@ -5292,7 +5295,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "T_serviceUseridentifier", HFILL }},
     { &hf_cmip_details,
-      { "details", "cmip.details",
+      { "details", "cmip.details_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_number,
@@ -5320,11 +5323,11 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_cmip_continual,
-      { "continual", "cmip.continual",
+      { "continual", "cmip.continual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_SupportedFeatures_item,
-      { "SupportedFeatures item", "cmip.SupportedFeatures_item",
+      { "SupportedFeatures item", "cmip.SupportedFeatures_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_featureIdentifier,
@@ -5332,7 +5335,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_featureInfo,
-      { "featureInfo", "cmip.featureInfo",
+      { "featureInfo", "cmip.featureInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_name,
@@ -5340,7 +5343,7 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GraphicString", HFILL }},
     { &hf_cmip_nothing,
-      { "nothing", "cmip.nothing",
+      { "nothing", "cmip.nothing_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_oid,
@@ -5372,7 +5375,7 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_cmip_up,
-      { "up", "cmip.up",
+      { "up", "cmip.up_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_high,
@@ -5384,11 +5387,11 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObservedValue_vals), 0,
         "ObservedValue", HFILL }},
     { &hf_cmip_down,
-      { "down", "cmip.down",
+      { "down", "cmip.down_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_WeekMask_item,
-      { "WeekMask item", "cmip.WeekMask_item",
+      { "WeekMask item", "cmip.WeekMask_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_daysOfWeek,
@@ -5408,19 +5411,19 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_cmip_invoke,
-      { "invoke", "cmip.invoke",
+      { "invoke", "cmip.invoke_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_returnResult,
-      { "returnResult", "cmip.returnResult",
+      { "returnResult", "cmip.returnResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_returnError,
-      { "returnError", "cmip.returnError",
+      { "returnError", "cmip.returnError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_reject,
-      { "reject", "cmip.reject",
+      { "reject", "cmip.reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_invokeId,
@@ -5436,7 +5439,7 @@ void proto_register_cmip(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "T_linkedIdPresent", HFILL }},
     { &hf_cmip_absent,
-      { "absent", "cmip.absent",
+      { "absent", "cmip.absent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_opcode,
@@ -5444,15 +5447,15 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_Code_vals), 0,
         "Code", HFILL }},
     { &hf_cmip_argument,
-      { "argument", "cmip.argument",
+      { "argument", "cmip.argument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InvokeArgument", HFILL }},
     { &hf_cmip_result,
-      { "result", "cmip.result",
+      { "result", "cmip.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_resultArgument,
-      { "result", "cmip.result",
+      { "result", "cmip.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ResultArgument", HFILL }},
     { &hf_cmip_errcode,
@@ -5460,7 +5463,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_Code_vals), 0,
         "Code", HFILL }},
     { &hf_cmip_parameter,
-      { "parameter", "cmip.parameter",
+      { "parameter", "cmip.parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_problem,
@@ -5492,7 +5495,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_CMISSync_vals), 0,
         "CMISSync", HFILL }},
     { &hf_cmip_actionInfo,
-      { "actionInfo", "cmip.actionInfo",
+      { "actionInfo", "cmip.actionInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_attributeIdList,
@@ -5508,11 +5511,11 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_modificationList_item,
-      { "modificationList item", "cmip.modificationList_item",
+      { "modificationList item", "cmip.modificationList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_modificationList_item", HFILL }},
     { &hf_cmip_attributevalue,
-      { "attributeValue", "cmip.attributeValue",
+      { "attributeValue", "cmip.attributeValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_InvokeId_present,
@@ -5577,7 +5580,7 @@ void proto_register_cmip(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-cmip-hfarr.c ---*/
-#line 186 "../../asn1/cmip/packet-cmip-template.c"
+#line 189 "../../asn1/cmip/packet-cmip-template.c"
   };
 
   /* List of subtrees */
@@ -5709,7 +5712,7 @@ void proto_register_cmip(void) {
     &ett_cmip_T_modificationList_item,
 
 /*--- End of included file: packet-cmip-ettarr.c ---*/
-#line 192 "../../asn1/cmip/packet-cmip-template.c"
+#line 195 "../../asn1/cmip/packet-cmip-template.c"
   };
 
   /* Register protocol */
@@ -5794,7 +5797,7 @@ void proto_register_cmip(void) {
 
 
 /*--- End of included file: packet-cmip-dis-tab.c ---*/
-#line 201 "../../asn1/cmip/packet-cmip-template.c"
+#line 204 "../../asn1/cmip/packet-cmip-template.c"
     oid_add_from_string("discriminatorId(1)","2.9.3.2.7.1");
 
   attribute_id_dissector_table = register_dissector_table("cmip.attribute_id", "CMIP Attribute Id", FT_UINT32, BASE_DEC);

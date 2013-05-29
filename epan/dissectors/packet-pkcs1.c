@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pkcs1.c                                                             */
 /* ../../tools/asn2wrs.py -b -p pkcs1 -c ./pkcs1.cnf -s ./packet-pkcs1-template -D . -O ../../epan/dissectors PKIXAlgs-2009.asn */
 
@@ -383,11 +383,11 @@ void proto_register_pkcs1(void) {
 /*--- Included file: packet-pkcs1-hfarr.c ---*/
 #line 1 "../../asn1/pkcs1/packet-pkcs1-hfarr.c"
     { &hf_pkcs1_DSA_Params_PDU,
-      { "DSA-Params", "pkcs1.DSA_Params",
+      { "DSA-Params", "pkcs1.DSA_Params_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_DomainParameters_PDU,
-      { "DomainParameters", "pkcs1.DomainParameters",
+      { "DomainParameters", "pkcs1.DomainParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_KEA_Params_Id_PDU,
@@ -395,11 +395,11 @@ void proto_register_pkcs1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_HashAlgorithm_PDU,
-      { "HashAlgorithm", "pkcs1.HashAlgorithm",
+      { "HashAlgorithm", "pkcs1.HashAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_RSASSA_PSS_params_PDU,
-      { "RSASSA-PSS-params", "pkcs1.RSASSA_PSS_params",
+      { "RSASSA-PSS-params", "pkcs1.RSASSA_PSS_params_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_ECParameters_PDU,
@@ -443,7 +443,7 @@ void proto_register_pkcs1(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_pkcs1_digestAlgorithm,
-      { "digestAlgorithm", "pkcs1.digestAlgorithm",
+      { "digestAlgorithm", "pkcs1.digestAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DigestAlgorithmIdentifier", HFILL }},
     { &hf_pkcs1_digest,
@@ -467,7 +467,7 @@ void proto_register_pkcs1(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_pkcs1_validationParams,
-      { "validationParams", "pkcs1.validationParams",
+      { "validationParams", "pkcs1.validationParams_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_seed,
@@ -479,11 +479,11 @@ void proto_register_pkcs1(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_pkcs1_hashAlgorithm,
-      { "hashAlgorithm", "pkcs1.hashAlgorithm",
+      { "hashAlgorithm", "pkcs1.hashAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_maskGenAlgorithm,
-      { "maskGenAlgorithm", "pkcs1.maskGenAlgorithm",
+      { "maskGenAlgorithm", "pkcs1.maskGenAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_saltLength,

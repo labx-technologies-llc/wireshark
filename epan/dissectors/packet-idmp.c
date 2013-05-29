@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-idmp.c                                                              */
 /* ../../tools/asn2wrs.py -b -L -p idmp -c ./idmp.cnf -s ./packet-idmp-template -D . -O ../../epan/dissectors IDMProtocolSpecification.asn CommonProtocolSpecification.asn */
 
@@ -75,8 +75,7 @@ static int hf_idmp_final = -1;
 static int hf_idmp_length = -1;
 static int hf_idmp_PDU = -1;
 
-static GHashTable *idmp_segment_table     = NULL;
-static GHashTable *idmp_reassembled_table = NULL;
+static reassembly_table idmp_reassembly_table;
 
 static int hf_idmp_fragments = -1;
 static int hf_idmp_fragment = -1;
@@ -173,7 +172,7 @@ static int hf_idmp_present = -1;                  /* INTEGER */
 static int hf_idmp_absent = -1;                   /* NULL */
 
 /*--- End of included file: packet-idmp-hf.c ---*/
-#line 132 "../../asn1/idmp/packet-idmp-template.c"
+#line 131 "../../asn1/idmp/packet-idmp-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_idmp = -1;
@@ -192,7 +191,7 @@ static gint ett_idmp_Code = -1;
 static gint ett_idmp_InvokeId = -1;
 
 /*--- End of included file: packet-idmp-ett.c ---*/
-#line 136 "../../asn1/idmp/packet-idmp-template.c"
+#line 135 "../../asn1/idmp/packet-idmp-template.c"
 
 
 /*--- Included file: packet-idmp-fn.c ---*/
@@ -616,7 +615,7 @@ dissect_idmp_IDM_PDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
 
 
 /*--- End of included file: packet-idmp-fn.c ---*/
-#line 138 "../../asn1/idmp/packet-idmp-template.c"
+#line 137 "../../asn1/idmp/packet-idmp-template.c"
 
 void
 register_idmp_protocol_info(const char *oid, const ros_info_t *rinfo, int proto _U_, const char *name)
@@ -677,8 +676,8 @@ static void dissect_idmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_t
                             idmp_final ? "Final " : "" ,
                             idmp_length, plurality(idmp_length, "", "s"));
 
-        fd_head = fragment_add_seq_next(tvb, offset, pinfo, dst_ref,
-                                        idmp_segment_table, idmp_reassembled_table,
+        fd_head = fragment_add_seq_next(&idmp_reassembly_table, tvb, offset,
+                                        pinfo, dst_ref, NULL,
                                         idmp_length, !idmp_final);
 
         if(fd_head && fd_head->next) {
@@ -740,8 +739,8 @@ static void dissect_idmp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pare
 
 static void idmp_reassemble_init (void)
 {
-    fragment_table_init (&idmp_segment_table);
-    reassembled_table_init (&idmp_reassembled_table);
+    reassembly_table_init (&idmp_reassembly_table,
+                           &addresses_reassembly_table_functions);
 
     saved_protocolID = NULL;
 }
@@ -805,35 +804,35 @@ void proto_register_idmp(void)
 /*--- Included file: packet-idmp-hfarr.c ---*/
 #line 1 "../../asn1/idmp/packet-idmp-hfarr.c"
     { &hf_idmp_bind,
-      { "bind", "idmp.bind",
+      { "bind", "idmp.bind_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IdmBind", HFILL }},
     { &hf_idmp_bindResult,
-      { "bindResult", "idmp.bindResult",
+      { "bindResult", "idmp.bindResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IdmBindResult", HFILL }},
     { &hf_idmp_bindError,
-      { "bindError", "idmp.bindError",
+      { "bindError", "idmp.bindError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IdmBindError", HFILL }},
     { &hf_idmp_request,
-      { "request", "idmp.request",
+      { "request", "idmp.request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_idmp_idm_result,
-      { "result", "idmp.result",
+      { "result", "idmp.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IdmResult", HFILL }},
     { &hf_idmp_idm_error,
-      { "error", "idmp.error",
+      { "error", "idmp.error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_idmp_reject,
-      { "reject", "idmp.reject",
+      { "reject", "idmp.reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IdmReject", HFILL }},
     { &hf_idmp_unbind,
-      { "unbind", "idmp.unbind",
+      { "unbind", "idmp.unbind_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_idmp_abort,
@@ -841,7 +840,7 @@ void proto_register_idmp(void)
         FT_UINT32, BASE_DEC, VALS(idmp_Abort_vals), 0,
         NULL, HFILL }},
     { &hf_idmp_startTLS,
-      { "startTLS", "idmp.startTLS",
+      { "startTLS", "idmp.startTLS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_idmp_tLSResponse,
@@ -861,7 +860,7 @@ void proto_register_idmp(void)
         FT_UINT32, BASE_DEC, VALS(x509ce_GeneralName_vals), 0,
         "GeneralName", HFILL }},
     { &hf_idmp_bind_argument,
-      { "argument", "idmp.argument",
+      { "argument", "idmp.argument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Bind_argument", HFILL }},
     { &hf_idmp_respondingAETitle,
@@ -869,11 +868,11 @@ void proto_register_idmp(void)
         FT_UINT32, BASE_DEC, VALS(x509ce_GeneralName_vals), 0,
         "GeneralName", HFILL }},
     { &hf_idmp_bind_result,
-      { "result", "idmp.result",
+      { "result", "idmp.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Bind_result", HFILL }},
     { &hf_idmp_bind_errcode,
-      { "errcode", "idmp.errcode",
+      { "errcode", "idmp.errcode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Bind_errcode", HFILL }},
     { &hf_idmp_aETitleError,
@@ -881,7 +880,7 @@ void proto_register_idmp(void)
         FT_UINT32, BASE_DEC, VALS(idmp_T_aETitleError_vals), 0,
         NULL, HFILL }},
     { &hf_idmp_bind_error,
-      { "error", "idmp.error",
+      { "error", "idmp.error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Bind_error", HFILL }},
     { &hf_idmp_invokeID,
@@ -893,7 +892,7 @@ void proto_register_idmp(void)
         FT_UINT32, BASE_DEC, VALS(idmp_Code_vals), 0,
         "Code", HFILL }},
     { &hf_idmp_argument,
-      { "argument", "idmp.argument",
+      { "argument", "idmp.argument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_idmp_idm_invokeID,
@@ -901,15 +900,15 @@ void proto_register_idmp(void)
         FT_UINT32, BASE_DEC, VALS(idmp_InvokeId_vals), 0,
         NULL, HFILL }},
     { &hf_idmp_result,
-      { "result", "idmp.result",
+      { "result", "idmp.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_idmp_errcode,
-      { "errcode", "idmp.errcode",
+      { "errcode", "idmp.errcode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_idmp_error,
-      { "error", "idmp.error",
+      { "error", "idmp.error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_idmp_reason,
@@ -929,12 +928,12 @@ void proto_register_idmp(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_idmp_absent,
-      { "absent", "idmp.absent",
+      { "absent", "idmp.absent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 
 /*--- End of included file: packet-idmp-hfarr.c ---*/
-#line 323 "../../asn1/idmp/packet-idmp-template.c"
+#line 322 "../../asn1/idmp/packet-idmp-template.c"
     };
 
     /* List of subtrees */
@@ -957,7 +956,7 @@ void proto_register_idmp(void)
     &ett_idmp_InvokeId,
 
 /*--- End of included file: packet-idmp-ettarr.c ---*/
-#line 331 "../../asn1/idmp/packet-idmp-template.c"
+#line 330 "../../asn1/idmp/packet-idmp-template.c"
     };
     module_t *idmp_module;
 

@@ -207,11 +207,11 @@ check_xdlc_control(tvbuff_t *tvb, int offset,
 		u_modifier_short_vals_resp = modifier_short_vals_resp;
 	control = tvb_get_guint8(tvb, offset);
 	if (is_response) {
-		if (match_strval(control & XDLC_U_MODIFIER_MASK,
+		if (try_val_to_str(control & XDLC_U_MODIFIER_MASK,
 		    u_modifier_short_vals_resp) == NULL)
 			return FALSE;	/* unknown modifier */
 	} else {
-		if (match_strval(control & XDLC_U_MODIFIER_MASK,
+		if (try_val_to_str(control & XDLC_U_MODIFIER_MASK,
 		    u_modifier_short_vals_cmd) == NULL)
 			return FALSE;	/* unknown modifier */
 	}
@@ -244,7 +244,7 @@ dissect_xdlc_control(tvbuff_t *tvb, int offset, packet_info *pinfo,
     const gchar *frame_type = NULL;
     const gchar *modifier;
 
-    info=ep_alloc(80);
+    info=(char *)ep_alloc(80);
     switch (tvb_get_guint8(tvb, offset) & 0x03) {
 
     case XDLC_S:

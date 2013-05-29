@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-tetra.c                                                             */
 /* ../../tools/asn2wrs.py -u -p tetra -c ./tetra.cnf -s ./packet-tetra-template -D . -O ../../epan/dissectors tetra.asn */
 
@@ -96,6 +96,7 @@ static int hf_tetra_AACH_PDU = -1;                /* AACH */
 static int hf_tetra_BSCH_PDU = -1;                /* BSCH */
 static int hf_tetra_BNCH_PDU = -1;                /* BNCH */
 static int hf_tetra_MAC_ACCESS_PDU = -1;          /* MAC_ACCESS */
+static int hf_tetra_MAC_DATA_PDU = -1;            /* MAC_DATA */
 static int hf_tetra_MAC_FRAG_PDU = -1;            /* MAC_FRAG */
 static int hf_tetra_MAC_FRAG120_PDU = -1;         /* MAC_FRAG120 */
 static int hf_tetra_MAC_END_UPLINK_PDU = -1;      /* MAC_END_UPLINK */
@@ -145,7 +146,7 @@ static int hf_tetra_odd_multiframe = -1;          /* TS_COMMON_FRAMES */
 static int hf_tetra_access_a_code = -1;           /* Default_Code_A */
 static int hf_tetra_extend_service = -1;          /* Extended_Services_Broadcast */
 static int hf_tetra_la = -1;                      /* INTEGER_0_16383 */
-static int hf_tetra_subscriber_class = -1;        /* INTEGER_0_65535 */
+static int hf_tetra_subscriber_class = -1;        /* Subscriber_class */
 static int hf_tetra_registriation = -1;           /* INTEGER_0_1 */
 static int hf_tetra_de_registration = -1;         /* INTEGER_0_1 */
 static int hf_tetra_priority_cell = -1;           /* INTEGER_0_1 */
@@ -241,6 +242,9 @@ static int hf_tetra_capacityRequest = -1;         /* FRAG */
 static int hf_tetra_tm_sdu_01 = -1;               /* U_LLC_PDU */
 static int hf_tetra_frag = -1;                    /* Frag1 */
 static int hf_tetra_reservation_requirement = -1;  /* SLOT_APPLY */
+static int hf_tetra_lengthIndicationOrCapacityRequest_01 = -1;  /* T_lengthIndicationOrCapacityRequest_01 */
+static int hf_tetra_lengthIndication_01 = -1;     /* LengthIndicationMacData */
+static int hf_tetra_capacityRequest_01 = -1;      /* FRAG6 */
 static int hf_tetra_sub_type = -1;                /* INTEGER_0_1 */
 static int hf_tetra_tm_sdu_02 = -1;               /* BIT_STRING_SIZE_264 */
 static int hf_tetra_tm_sdu_03 = -1;               /* BIT_STRING_SIZE_120 */
@@ -252,7 +256,7 @@ static int hf_tetra_lengthInd_ReservationReq_01 = -1;  /* T_lengthInd_Reservatio
 static int hf_tetra_lengthInd = -1;               /* LengthIndMacHu */
 static int hf_tetra_tm_sdu_06 = -1;               /* BIT_STRING_SIZE_85 */
 static int hf_tetra_position_of_grant = -1;       /* Position_Of_Grant */
-static int hf_tetra_lengthIndication_01 = -1;     /* LengthIndicationMacEndDl */
+static int hf_tetra_lengthIndication_02 = -1;     /* LengthIndicationMacEndDl */
 static int hf_tetra_slot_granting = -1;           /* T_slot_granting */
 static int hf_tetra_none = -1;                    /* NULL */
 static int hf_tetra_slot_granting_param = -1;     /* SlotGranting */
@@ -284,7 +288,7 @@ static int hf_tetra_channel_allocation_01 = -1;   /* T_channel_allocation_01 */
 static int hf_tetra_tm_sdu_08 = -1;               /* BIT_STRING_SIZE_111 */
 static int hf_tetra_encryption_mode = -1;         /* INTEGER_0_3 */
 static int hf_tetra_access_ack = -1;              /* T_access_ack */
-static int hf_tetra_lengthIndication_02 = -1;     /* LengthIndicationMacResource */
+static int hf_tetra_lengthIndication_03 = -1;     /* LengthIndicationMacResource */
 static int hf_tetra_address_01 = -1;              /* AddressMacResource */
 static int hf_tetra_power_control = -1;           /* T_power_control */
 static int hf_tetra_powerParameters = -1;         /* PowerControl */
@@ -429,8 +433,7 @@ static int hf_tetra_ssi_02 = -1;                  /* T_ssi */
 static int hf_tetra_ssi_03 = -1;                  /* OCTET_STRING_SIZE_3 */
 static int hf_tetra_address_extension = -1;       /* T_address_extension */
 static int hf_tetra_address_extension_01 = -1;    /* OCTET_STRING_SIZE_3 */
-static int hf_tetra_suscriber_class = -1;         /* T_suscriber_class */
-static int hf_tetra_suscriber_class_01 = -1;      /* INTEGER_0_32767 */
+static int hf_tetra_subscriber_class_01 = -1;     /* T_subscriber_class */
 static int hf_tetra_energy_saving_mode = -1;      /* T_energy_saving_mode */
 static int hf_tetra_energy_saving_mode_01 = -1;   /* INTEGER_0_7 */
 static int hf_tetra_scch_info = -1;               /* T_scch_info */
@@ -719,6 +722,9 @@ static gint ett_tetra_U_MLE_PDU = -1;
 static gint ett_tetra_ComplexSDU = -1;
 static gint ett_tetra_T_lengthIndicationOrCapacityRequest = -1;
 static gint ett_tetra_FRAG = -1;
+static gint ett_tetra_MAC_DATA = -1;
+static gint ett_tetra_T_lengthIndicationOrCapacityRequest_01 = -1;
+static gint ett_tetra_FRAG6 = -1;
 static gint ett_tetra_MAC_FRAG = -1;
 static gint ett_tetra_MAC_FRAG120 = -1;
 static gint ett_tetra_MAC_END_UPLINK = -1;
@@ -806,7 +812,7 @@ static gint ett_tetra_T_optional_elements_05 = -1;
 static gint ett_tetra_T_type2_parameters_03 = -1;
 static gint ett_tetra_T_ssi = -1;
 static gint ett_tetra_T_address_extension = -1;
-static gint ett_tetra_T_suscriber_class = -1;
+static gint ett_tetra_T_subscriber_class = -1;
 static gint ett_tetra_T_energy_saving_mode = -1;
 static gint ett_tetra_T_scch_info = -1;
 static gint ett_tetra_T_type3 = -1;
@@ -2024,6 +2030,16 @@ dissect_tetra_T_optional_params(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 }
 
 
+
+static int
+dissect_tetra_Subscriber_class(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     16, 16, FALSE, NULL);
+
+  return offset;
+}
+
+
 static const per_sequence_t BNCH_sequence[] = {
   { &hf_tetra_pdu_type      , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_3 },
   { &hf_tetra_broadcast_type, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_3 },
@@ -2040,7 +2056,7 @@ static const per_sequence_t BNCH_sequence[] = {
   { &hf_tetra_hyperframe_or_cck, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_hyperframe_or_cck },
   { &hf_tetra_optional_params, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_optional_params },
   { &hf_tetra_la            , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_16383 },
-  { &hf_tetra_subscriber_class, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_65535 },
+  { &hf_tetra_subscriber_class, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_Subscriber_class },
   { &hf_tetra_registriation , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_1 },
   { &hf_tetra_de_registration, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_1 },
   { &hf_tetra_priority_cell , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_1 },
@@ -2524,7 +2540,7 @@ static const per_sequence_t U_LOCATION_UPDATE_DEMAND_sequence[] = {
 
 static int
 dissect_tetra_U_LOCATION_UPDATE_DEMAND(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 102 "../../asn1/tetra/tetra.cnf"
+#line 99 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_LOCATION_UPDATE_DEMAND, U_LOCATION_UPDATE_DEMAND_sequence);
 
@@ -2559,7 +2575,7 @@ static const per_sequence_t U_MM_STATUS_sequence[] = {
 
 static int
 dissect_tetra_U_MM_STATUS(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 233 "../../asn1/tetra/tetra.cnf"
+#line 230 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_MM_STATUS, U_MM_STATUS_sequence);
 
@@ -2786,7 +2802,7 @@ static const per_sequence_t U_ATTACH_DETACH_GROUP_IDENTITY_sequence[] = {
 
 static int
 dissect_tetra_U_ATTACH_DETACH_GROUP_IDENTITY(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 243 "../../asn1/tetra/tetra.cnf"
+#line 240 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_ATTACH_DETACH_GROUP_IDENTITY, U_ATTACH_DETACH_GROUP_IDENTITY_sequence);
 
@@ -2881,7 +2897,7 @@ static const per_sequence_t U_ATTACH_DETACH_GROUP_IDENTITY_ACK_sequence[] = {
 
 static int
 dissect_tetra_U_ATTACH_DETACH_GROUP_IDENTITY_ACK(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 248 "../../asn1/tetra/tetra.cnf"
+#line 245 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_ATTACH_DETACH_GROUP_IDENTITY_ACK, U_ATTACH_DETACH_GROUP_IDENTITY_ACK_sequence);
 
@@ -3173,7 +3189,7 @@ static const per_sequence_t U_ALERT_sequence[] = {
 
 static int
 dissect_tetra_U_ALERT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 182 "../../asn1/tetra/tetra.cnf"
+#line 179 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_ALERT, U_ALERT_sequence);
 
@@ -3291,7 +3307,7 @@ static const per_sequence_t U_CONNECT_sequence[] = {
 
 static int
 dissect_tetra_U_CONNECT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 187 "../../asn1/tetra/tetra.cnf"
+#line 184 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_CONNECT, U_CONNECT_sequence);
 
@@ -3379,7 +3395,7 @@ static const per_sequence_t U_DISCONNECT_sequence[] = {
 
 static int
 dissect_tetra_U_DISCONNECT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 192 "../../asn1/tetra/tetra.cnf"
+#line 189 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_DISCONNECT, U_DISCONNECT_sequence);
 
@@ -3413,7 +3429,7 @@ static const per_sequence_t U_RELEASE_sequence[] = {
 
 static int
 dissect_tetra_U_RELEASE(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 79 "../../asn1/tetra/tetra.cnf"
+#line 76 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_RELEASE, U_RELEASE_sequence);
 
@@ -3588,7 +3604,7 @@ static const per_sequence_t U_SETUP_sequence[] = {
 
 static int
 dissect_tetra_U_SETUP(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 202 "../../asn1/tetra/tetra.cnf"
+#line 199 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_SETUP, U_SETUP_sequence);
 
@@ -3644,7 +3660,7 @@ static const per_sequence_t U_STATUS_sequence[] = {
 
 static int
 dissect_tetra_U_STATUS(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 207 "../../asn1/tetra/tetra.cnf"
+#line 204 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_STATUS, U_STATUS_sequence);
 
@@ -3721,7 +3737,7 @@ static const per_sequence_t U_TX_CEASED_sequence[] = {
 
 static int
 dissect_tetra_U_TX_CEASED(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 227 "../../asn1/tetra/tetra.cnf"
+#line 224 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_TX_CEASED, U_TX_CEASED_sequence);
 
@@ -3801,7 +3817,7 @@ static const per_sequence_t U_TX_DEMAND_sequence[] = {
 
 static int
 dissect_tetra_U_TX_DEMAND(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 222 "../../asn1/tetra/tetra.cnf"
+#line 219 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_TX_DEMAND, U_TX_DEMAND_sequence);
 
@@ -3890,7 +3906,7 @@ static const per_sequence_t U_CALL_RESTORE_sequence[] = {
 
 static int
 dissect_tetra_U_CALL_RESTORE(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 217 "../../asn1/tetra/tetra.cnf"
+#line 214 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_CALL_RESTORE, U_CALL_RESTORE_sequence);
 
@@ -3992,7 +4008,7 @@ static const per_sequence_t U_SDS_DATA_sequence[] = {
 
 static int
 dissect_tetra_U_SDS_DATA(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 212 "../../asn1/tetra/tetra.cnf"
+#line 209 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_U_SDS_DATA, U_SDS_DATA_sequence);
 
@@ -4656,6 +4672,141 @@ static int
 dissect_tetra_MAC_ACCESS(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_MAC_ACCESS, MAC_ACCESS_sequence);
+
+  return offset;
+}
+
+
+static const value_string tetra_LengthIndicationMacData_vals[] = {
+  {   0, "null" },
+  {   1, "reserved-1" },
+  {   2, "reserved-2" },
+  {   3, "bits-24" },
+  {   4, "bits-32" },
+  {   5, "bits-40" },
+  {   6, "bits-48" },
+  {   7, "bits-56" },
+  {   8, "bits-64" },
+  {   9, "bits-72" },
+  {  10, "bits-80" },
+  {  11, "bits-88" },
+  {  12, "bits-96" },
+  {  13, "bits-104" },
+  {  14, "bits-112" },
+  {  15, "bits-120" },
+  {  16, "bits-128" },
+  {  17, "bits-136" },
+  {  18, "bits-144" },
+  {  19, "bits-152" },
+  {  20, "bits-160" },
+  {  21, "bits-168" },
+  {  22, "bits-176" },
+  {  23, "bits-184" },
+  {  24, "bits-192" },
+  {  25, "bits-200" },
+  {  26, "bits-208" },
+  {  27, "bits-216" },
+  {  28, "bits-224" },
+  {  29, "bits-232" },
+  {  30, "bits-240" },
+  {  31, "bits-248" },
+  {  32, "bits-256" },
+  {  33, "bits-264" },
+  {  34, "bits-272" },
+  {  35, "reserved-35" },
+  {  36, "reserved-36" },
+  {  37, "reserved-37" },
+  {  38, "reserved-38" },
+  {  39, "reserved-39" },
+  {  40, "reserved-40" },
+  {  41, "reserved-41" },
+  {  42, "reserved-42" },
+  {  43, "reserved-43" },
+  {  44, "reserved-44" },
+  {  45, "reserved-45" },
+  {  46, "reserved-46" },
+  {  47, "reserved-47" },
+  {  48, "reserved-48" },
+  {  49, "reserved-49" },
+  {  50, "reserved-50" },
+  {  51, "reserved-51" },
+  {  52, "reserved-52" },
+  {  53, "reserved-53" },
+  {  54, "reserved-54" },
+  {  55, "reserved-55" },
+  {  56, "reserved-56" },
+  {  57, "reserved-57" },
+  {  58, "reserved-58" },
+  {  59, "reserved-59" },
+  {  60, "reserved-60" },
+  {  61, "reserved-61" },
+  {  62, "second-halfslot-stolen" },
+  {  63, "start-frag" },
+  { 0, NULL }
+};
+
+
+static int
+dissect_tetra_LengthIndicationMacData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
+                                     64, NULL, FALSE, 0, NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t FRAG6_sequence[] = {
+  { &hf_tetra_frag          , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_Frag1 },
+  { &hf_tetra_reservation_requirement, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_SLOT_APPLY },
+  { &hf_tetra_reserved_01   , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_1 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_tetra_FRAG6(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_tetra_FRAG6, FRAG6_sequence);
+
+  return offset;
+}
+
+
+static const value_string tetra_T_lengthIndicationOrCapacityRequest_01_vals[] = {
+  {   0, "lengthIndication" },
+  {   1, "capacityRequest" },
+  { 0, NULL }
+};
+
+static const per_choice_t T_lengthIndicationOrCapacityRequest_01_choice[] = {
+  {   0, &hf_tetra_lengthIndication_01, ASN1_NO_EXTENSIONS     , dissect_tetra_LengthIndicationMacData },
+  {   1, &hf_tetra_capacityRequest_01, ASN1_NO_EXTENSIONS     , dissect_tetra_FRAG6 },
+  { 0, NULL, 0, NULL }
+};
+
+static int
+dissect_tetra_T_lengthIndicationOrCapacityRequest_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
+                                 ett_tetra_T_lengthIndicationOrCapacityRequest_01, T_lengthIndicationOrCapacityRequest_01_choice,
+                                 NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t MAC_DATA_sequence[] = {
+  { &hf_tetra_pdu_type      , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_3 },
+  { &hf_tetra_fill_bit_indication, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_Fill_Bit_Indication },
+  { &hf_tetra_encrypted_flag, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_Encrypted_Flag },
+  { &hf_tetra_address       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_Address },
+  { &hf_tetra_lengthIndicationOrCapacityRequest_01, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_lengthIndicationOrCapacityRequest_01 },
+  { &hf_tetra_tm_sdu_01     , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_U_LLC_PDU },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_tetra_MAC_DATA(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_tetra_MAC_DATA, MAC_DATA_sequence);
 
   return offset;
 }
@@ -5374,7 +5525,7 @@ static const per_sequence_t MAC_END_DOWNLINK_sequence[] = {
   { &hf_tetra_sub_type      , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_1 },
   { &hf_tetra_fill_bit_indication, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_Fill_Bit_Indication },
   { &hf_tetra_position_of_grant, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_Position_Of_Grant },
-  { &hf_tetra_lengthIndication_01, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_LengthIndicationMacEndDl },
+  { &hf_tetra_lengthIndication_02, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_LengthIndicationMacEndDl },
   { &hf_tetra_slot_granting , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_slot_granting },
   { &hf_tetra_channel_allocation, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_channel_allocation },
   { &hf_tetra_tm_sdu_07     , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_BIT_STRING_SIZE_255 },
@@ -5448,7 +5599,7 @@ static const per_sequence_t MAC_END_DOWN111_sequence[] = {
   { &hf_tetra_pdu_type_02   , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_7 },
   { &hf_tetra_fill_bit_ind  , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_BOOLEAN },
   { &hf_tetra_position_of_grant_01, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_1 },
-  { &hf_tetra_lengthIndication_01, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_LengthIndicationMacEndDl },
+  { &hf_tetra_lengthIndication_02, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_LengthIndicationMacEndDl },
   { &hf_tetra_slot_granting_01, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_slot_granting_01 },
   { &hf_tetra_channel_allocation_01, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_channel_allocation_01 },
   { &hf_tetra_tm_sdu_08     , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_BIT_STRING_SIZE_111 },
@@ -5698,32 +5849,22 @@ dissect_tetra_T_address_extension(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 }
 
 
-
-static int
-dissect_tetra_INTEGER_0_32767(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 32767U, NULL, FALSE);
-
-  return offset;
-}
-
-
-static const value_string tetra_T_suscriber_class_vals[] = {
+static const value_string tetra_T_subscriber_class_vals[] = {
   {   0, "none" },
-  {   1, "suscriber-class" },
+  {   1, "subscriber-class" },
   { 0, NULL }
 };
 
-static const per_choice_t T_suscriber_class_choice[] = {
+static const per_choice_t T_subscriber_class_choice[] = {
   {   0, &hf_tetra_none          , ASN1_NO_EXTENSIONS     , dissect_tetra_NULL },
-  {   1, &hf_tetra_suscriber_class_01, ASN1_NO_EXTENSIONS     , dissect_tetra_INTEGER_0_32767 },
+  {   1, &hf_tetra_subscriber_class, ASN1_NO_EXTENSIONS     , dissect_tetra_Subscriber_class },
   { 0, NULL, 0, NULL }
 };
 
 static int
-dissect_tetra_T_suscriber_class(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_tetra_T_subscriber_class(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
-                                 ett_tetra_T_suscriber_class, T_suscriber_class_choice,
+                                 ett_tetra_T_subscriber_class, T_subscriber_class_choice,
                                  NULL);
 
   return offset;
@@ -5929,7 +6070,7 @@ dissect_tetra_T_type3(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 static const per_sequence_t T_type2_parameters_03_sequence[] = {
   { &hf_tetra_ssi_02        , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_ssi },
   { &hf_tetra_address_extension, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_address_extension },
-  { &hf_tetra_suscriber_class, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_suscriber_class },
+  { &hf_tetra_subscriber_class_01, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_subscriber_class },
   { &hf_tetra_energy_saving_mode, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_energy_saving_mode },
   { &hf_tetra_scch_info     , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_scch_info },
   { &hf_tetra_type3         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_type3 },
@@ -5975,7 +6116,7 @@ static const per_sequence_t D_LOCATION_UPDATE_ACCEPT_sequence[] = {
 
 static int
 dissect_tetra_D_LOCATION_UPDATE_ACCEPT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 108 "../../asn1/tetra/tetra.cnf"
+#line 105 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_LOCATION_UPDATE_ACCEPT, D_LOCATION_UPDATE_ACCEPT_sequence);
 
@@ -5995,7 +6136,7 @@ static const per_sequence_t D_LOCATION_UPDATE_REJECT_sequence[] = {
 
 static int
 dissect_tetra_D_LOCATION_UPDATE_REJECT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 253 "../../asn1/tetra/tetra.cnf"
+#line 250 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_LOCATION_UPDATE_REJECT, D_LOCATION_UPDATE_REJECT_sequence);
 
@@ -6214,7 +6355,7 @@ static const per_sequence_t D_ATTACH_DETACH_GROUP_IDENTITY_sequence[] = {
 
 static int
 dissect_tetra_D_ATTACH_DETACH_GROUP_IDENTITY(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 258 "../../asn1/tetra/tetra.cnf"
+#line 255 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_ATTACH_DETACH_GROUP_IDENTITY, D_ATTACH_DETACH_GROUP_IDENTITY_sequence);
 
@@ -6309,7 +6450,7 @@ static const per_sequence_t D_ATTACH_DETACH_GROUP_IDENTITY_ACK_sequence[] = {
 
 static int
 dissect_tetra_D_ATTACH_DETACH_GROUP_IDENTITY_ACK(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 263 "../../asn1/tetra/tetra.cnf"
+#line 260 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_ATTACH_DETACH_GROUP_IDENTITY_ACK, D_ATTACH_DETACH_GROUP_IDENTITY_ACK_sequence);
 
@@ -6327,7 +6468,7 @@ static const per_sequence_t D_MM_STATUS_sequence[] = {
 
 static int
 dissect_tetra_D_MM_STATUS(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 238 "../../asn1/tetra/tetra.cnf"
+#line 235 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_MM_STATUS, D_MM_STATUS_sequence);
 
@@ -6520,7 +6661,7 @@ static const per_sequence_t D_ALERT_sequence[] = {
 
 static int
 dissect_tetra_D_ALERT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 134 "../../asn1/tetra/tetra.cnf"
+#line 131 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_ALERT, D_ALERT_sequence);
 
@@ -6669,7 +6810,7 @@ static const per_sequence_t D_CALL_PROCEEDING_sequence[] = {
 
 static int
 dissect_tetra_D_CALL_PROCEEDING(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 91 "../../asn1/tetra/tetra.cnf"
+#line 88 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_CALL_PROCEEDING, D_CALL_PROCEEDING_sequence);
 
@@ -6860,7 +7001,7 @@ static const per_sequence_t D_CONNECT_sequence[] = {
 
 static int
 dissect_tetra_D_CONNECT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 114 "../../asn1/tetra/tetra.cnf"
+#line 111 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_CONNECT, D_CONNECT_sequence);
 
@@ -6963,7 +7104,7 @@ static const per_sequence_t D_CONNECT_ACK_sequence[] = {
 
 static int
 dissect_tetra_D_CONNECT_ACK(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 119 "../../asn1/tetra/tetra.cnf"
+#line 116 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_CONNECT_ACK, D_CONNECT_ACK_sequence);
 
@@ -6982,7 +7123,7 @@ static const per_sequence_t D_DISCONNECT_sequence[] = {
 
 static int
 dissect_tetra_D_DISCONNECT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 129 "../../asn1/tetra/tetra.cnf"
+#line 126 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_DISCONNECT, D_DISCONNECT_sequence);
 
@@ -7002,7 +7143,7 @@ static const per_sequence_t D_INFO_sequence[] = {
 
 static int
 dissect_tetra_D_INFO(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 124 "../../asn1/tetra/tetra.cnf"
+#line 121 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_INFO, D_INFO_sequence);
 
@@ -7103,7 +7244,7 @@ static const per_sequence_t D_RELEASE_sequence[] = {
 
 static int
 dissect_tetra_D_RELEASE(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 84 "../../asn1/tetra/tetra.cnf"
+#line 81 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_RELEASE, D_RELEASE_sequence);
 
@@ -7249,7 +7390,7 @@ static const per_sequence_t D_SETUP_sequence[] = {
 
 static int
 dissect_tetra_D_SETUP(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 96 "../../asn1/tetra/tetra.cnf"
+#line 93 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_SETUP, D_SETUP_sequence);
 
@@ -7304,7 +7445,7 @@ static const per_sequence_t D_STATUS_sequence[] = {
 
 static int
 dissect_tetra_D_STATUS(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 145 "../../asn1/tetra/tetra.cnf"
+#line 142 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_STATUS, D_STATUS_sequence);
 
@@ -7405,7 +7546,7 @@ static const per_sequence_t D_TX_CEASED_sequence[] = {
 
 static int
 dissect_tetra_D_TX_CEASED(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 139 "../../asn1/tetra/tetra.cnf"
+#line 136 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_TX_CEASED, D_TX_CEASED_sequence);
 
@@ -7425,7 +7566,7 @@ static const per_sequence_t D_TX_CONTINUE_sequence[] = {
 
 static int
 dissect_tetra_D_TX_CONTINUE(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 150 "../../asn1/tetra/tetra.cnf"
+#line 147 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_TX_CONTINUE, D_TX_CONTINUE_sequence);
 
@@ -7447,7 +7588,7 @@ static const per_sequence_t D_TX_GRANTED_sequence[] = {
 
 static int
 dissect_tetra_D_TX_GRANTED(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 155 "../../asn1/tetra/tetra.cnf"
+#line 152 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_TX_GRANTED, D_TX_GRANTED_sequence);
 
@@ -7467,7 +7608,7 @@ static const per_sequence_t D_TX_WAIT_sequence[] = {
 
 static int
 dissect_tetra_D_TX_WAIT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 161 "../../asn1/tetra/tetra.cnf"
+#line 158 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_TX_WAIT, D_TX_WAIT_sequence);
 
@@ -7697,7 +7838,7 @@ static const per_sequence_t D_CALL_RESTORE_sequence[] = {
 
 static int
 dissect_tetra_D_CALL_RESTORE(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 166 "../../asn1/tetra/tetra.cnf"
+#line 163 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_CALL_RESTORE, D_CALL_RESTORE_sequence);
 
@@ -7778,7 +7919,7 @@ static const per_sequence_t D_SDS_DATA_sequence[] = {
 
 static int
 dissect_tetra_D_SDS_DATA(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 171 "../../asn1/tetra/tetra.cnf"
+#line 168 "../../asn1/tetra/tetra.cnf"
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_tetra_D_SDS_DATA, D_SDS_DATA_sequence);
 
@@ -8483,7 +8624,7 @@ static const per_sequence_t MAC_RESOURCE_sequence[] = {
   { &hf_tetra_position_of_grant, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_Position_Of_Grant },
   { &hf_tetra_encryption_mode, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_INTEGER_0_3 },
   { &hf_tetra_access_ack    , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_T_access_ack },
-  { &hf_tetra_lengthIndication_02, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_LengthIndicationMacResource },
+  { &hf_tetra_lengthIndication_03, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_LengthIndicationMacResource },
   { &hf_tetra_address_01    , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_tetra_AddressMacResource },
   { NULL, 0, 0, NULL }
 };
@@ -8578,6 +8719,11 @@ static void dissect_MAC_ACCESS_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, pr
   asn1_ctx_t asn1_ctx;
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, pinfo);
   dissect_tetra_MAC_ACCESS(tvb, 0, &asn1_ctx, tree, hf_tetra_MAC_ACCESS_PDU);
+}
+static void dissect_MAC_DATA_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_) {
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, pinfo);
+  dissect_tetra_MAC_DATA(tvb, 0, &asn1_ctx, tree, hf_tetra_MAC_DATA_PDU);
 }
 static void dissect_MAC_FRAG_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_) {
   asn1_ctx_t asn1_ctx;
@@ -8769,7 +8915,10 @@ void tetra_dissect_pdu(int channel_type, int dir, tvbuff_t *pdu, proto_tree *tre
 		p = tvb_get_guint8(pdu, 0);
 		switch(p >> 6) {
 		case 0:
-			dissect_MAC_RESOURCE_PDU(pdu, pinfo, tetra_sub_tree );
+			if (dir == TETRA_DOWNLINK)
+				dissect_MAC_RESOURCE_PDU(pdu, pinfo, tetra_sub_tree );
+			else
+				dissect_MAC_DATA_PDU(pdu, pinfo, tetra_sub_tree );
 			break;
 		case 1: /* MAC-FRAG or MAC-END */
 			if((p >> 5) == 3) {
@@ -8815,9 +8964,11 @@ void tetra_dissect_pdu(int channel_type, int dir, tvbuff_t *pdu, proto_tree *tre
 		}
 		break;
 	case TETRA_CHAN_BSCH:
+		col_append_sep_str(pinfo->cinfo, COL_INFO, NULL, "BSCH");
 		dissect_BSCH_PDU(pdu, pinfo, tetra_sub_tree );
 		break;
 	case TETRA_CHAN_BNCH:
+		col_append_sep_str(pinfo->cinfo, COL_INFO, NULL, "BNCH");
 		dissect_BNCH_PDU(pdu, pinfo, tetra_sub_tree );
 		break;
 	case TETRA_CHAN_STCH:
@@ -8839,6 +8990,9 @@ void tetra_dissect_pdu(int channel_type, int dir, tvbuff_t *pdu, proto_tree *tre
 			dissect_MAC_ACCESS_DEFINE_PDU(pdu, pinfo, tetra_sub_tree );
 			break;
 		}
+		break;
+	case TETRA_CHAN_TCH_F:
+		col_append_sep_str(pinfo->cinfo, COL_INFO, NULL, "Voice");
 		break;
 	}
 }
@@ -8952,7 +9106,7 @@ dissect_tetra(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree *tetra_tree = NULL;
 	proto_tree *tetra_header_tree = NULL;
 	guint16 type = 0;
-	guint16 carriernumber = -1;
+	guint8 carriernumber = -1;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTO_TAG_tetra);
 	/* Clear out stuff in the info column */
@@ -8966,54 +9120,47 @@ dissect_tetra(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if(include_carrier_number) {
 		carriernumber = tvb_get_guint8(tvb, 1);
-		carriernumber |= 0xff00;
 	}
 
 
 	switch(type) {
 	case 1:
 		if(include_carrier_number)
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d tetra-UNITDATA-REQ, Carrier: %d",
-					pinfo->srcport, pinfo->destport, carriernumber);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Tetra-UNITDATA-REQ, Carrier: %d",
+					carriernumber);
 		else
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d tetra-UNITDATA-REQ",
-					pinfo->srcport, pinfo->destport);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Tetra-UNITDATA-REQ");
 		break;
 	case 2:
 		if(include_carrier_number)
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d tetra-UNITDATA-IND, Carrier: %d",
-					pinfo->srcport, pinfo->destport, carriernumber);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Tetra-UNITDATA-IND, Carrier: %d",
+					carriernumber);
 		else
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d tetra-UNITDATA-IND",
-					pinfo->srcport, pinfo->destport);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Tetra-UNITDATA-IND");
 		break;
 	case 3:
 		if(include_carrier_number)
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d MAC-Timer, Carrier: %d",
-					pinfo->srcport, pinfo->destport, carriernumber);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "MAC-Timer, Carrier: %d",
+					carriernumber);
 		else
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d MAC-Timer",
-					pinfo->srcport, pinfo->destport);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "MAC-Timer");
 		break;
 	case 127:
 		if(include_carrier_number)
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d tetra-UNITDATA-IND Done, Carrier: %d",
-					pinfo->srcport, pinfo->destport, carriernumber);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Tetra-UNITDATA-IND Done, Carrier: %d",
+					carriernumber);
 		else
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d tetra-UNITDATA-IND Done",
-					pinfo->srcport, pinfo->destport);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Tetra-UNITDATA-IND Done");
 		break;
 	case 128:
 		if(include_carrier_number)
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d tetra-UNITDATA-REQ Done, Carrier: %d",
-					pinfo->srcport, pinfo->destport, carriernumber);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Tetra-UNITDATA-REQ Done, Carrier: %d",
+					carriernumber);
 	  else
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d tetra-UNITDATA-REQ Done",
-					pinfo->srcport, pinfo->destport);
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Tetra-UNITDATA-REQ Done");
 		break;
 	default:
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%d > %d Unknown command: %d",
-				pinfo->srcport, pinfo->destport, type);
+		col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown command: %d", type);
 		break;
 	}
 
@@ -9118,7 +9265,7 @@ void proto_register_tetra (void)
 		{ "RvSteR", "tetra.rvster", FT_UINT16, BASE_HEX, NULL, 0x0,
 		 "Receive Status Register", HFILL }},
 		{ &hf_tetra_carriernumber,
-		{ "Carrier Number", "tetra.carrier", FT_UINT16, BASE_HEX, NULL, 0x0,
+		{ "Carrier Number", "tetra.carrier", FT_UINT8, BASE_DEC, NULL, 0x0,
 		 NULL, HFILL }},
 		{ &hf_tetra_rxchannel1,
 		{ "Channel 1", "tetra.rxchannel1", FT_UINT8, BASE_DEC, VALS(recvchanneltypenames), 0x0,
@@ -9146,55 +9293,59 @@ void proto_register_tetra (void)
 /*--- Included file: packet-tetra-hfarr.c ---*/
 #line 1 "../../asn1/tetra/packet-tetra-hfarr.c"
     { &hf_tetra_AACH_PDU,
-      { "AACH", "tetra.AACH",
+      { "AACH", "tetra.AACH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_BSCH_PDU,
-      { "BSCH", "tetra.BSCH",
+      { "BSCH", "tetra.BSCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_BNCH_PDU,
-      { "BNCH", "tetra.BNCH",
+      { "BNCH", "tetra.BNCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_ACCESS_PDU,
-      { "MAC-ACCESS", "tetra.MAC_ACCESS",
+      { "MAC-ACCESS", "tetra.MAC_ACCESS_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_tetra_MAC_DATA_PDU,
+      { "MAC-DATA", "tetra.MAC_DATA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_FRAG_PDU,
-      { "MAC-FRAG", "tetra.MAC_FRAG",
+      { "MAC-FRAG", "tetra.MAC_FRAG_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_FRAG120_PDU,
-      { "MAC-FRAG120", "tetra.MAC_FRAG120",
+      { "MAC-FRAG120", "tetra.MAC_FRAG120_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_END_UPLINK_PDU,
-      { "MAC-END-UPLINK", "tetra.MAC_END_UPLINK",
+      { "MAC-END-UPLINK", "tetra.MAC_END_UPLINK_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_END_UP114_PDU,
-      { "MAC-END-UP114", "tetra.MAC_END_UP114",
+      { "MAC-END-UP114", "tetra.MAC_END_UP114_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_END_HU_PDU,
-      { "MAC-END-HU", "tetra.MAC_END_HU",
+      { "MAC-END-HU", "tetra.MAC_END_HU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_END_DOWNLINK_PDU,
-      { "MAC-END-DOWNLINK", "tetra.MAC_END_DOWNLINK",
+      { "MAC-END-DOWNLINK", "tetra.MAC_END_DOWNLINK_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_END_DOWN111_PDU,
-      { "MAC-END-DOWN111", "tetra.MAC_END_DOWN111",
+      { "MAC-END-DOWN111", "tetra.MAC_END_DOWN111_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_RESOURCE_PDU,
-      { "MAC-RESOURCE", "tetra.MAC_RESOURCE",
+      { "MAC-RESOURCE", "tetra.MAC_RESOURCE_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_MAC_ACCESS_DEFINE_PDU,
-      { "MAC-ACCESS-DEFINE", "tetra.MAC_ACCESS_DEFINE",
+      { "MAC-ACCESS-DEFINE", "tetra.MAC_ACCESS_DEFINE_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_function,
@@ -9250,7 +9401,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_Reserved_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_tm_sdu,
-      { "tm-sdu", "tetra.tm_sdu",
+      { "tm-sdu", "tetra.tm_sdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MLE_Sync", HFILL }},
     { &hf_tetra_mcc,
@@ -9338,19 +9489,19 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_params_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_even_multiframe,
-      { "even-multiframe", "tetra.even_multiframe",
+      { "even-multiframe", "tetra.even_multiframe_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TS_COMMON_FRAMES", HFILL }},
     { &hf_tetra_odd_multiframe,
-      { "odd-multiframe", "tetra.odd_multiframe",
+      { "odd-multiframe", "tetra.odd_multiframe_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TS_COMMON_FRAMES", HFILL }},
     { &hf_tetra_access_a_code,
-      { "access-a-code", "tetra.access_a_code",
+      { "access-a-code", "tetra.access_a_code_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Default_Code_A", HFILL }},
     { &hf_tetra_extend_service,
-      { "extend-service", "tetra.extend_service",
+      { "extend-service", "tetra.extend_service_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Extended_Services_Broadcast", HFILL }},
     { &hf_tetra_la,
@@ -9359,8 +9510,8 @@ void proto_register_tetra (void)
         "INTEGER_0_16383", HFILL }},
     { &hf_tetra_subscriber_class,
       { "subscriber-class", "tetra.subscriber_class",
-        FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_0_65535", HFILL }},
+        FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
     { &hf_tetra_registriation,
       { "registriation", "tetra.registriation",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -9522,7 +9673,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_section_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_present_1,
-      { "present-1", "tetra.present_1",
+      { "present-1", "tetra.present_1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PRESENT1", HFILL }},
     { &hf_tetra_present_2,
@@ -9582,7 +9733,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_U_LLC_PDU_vals), 0,
         "U_LLC_PDU", HFILL }},
     { &hf_tetra_sdu2,
-      { "sdu2", "tetra.sdu2",
+      { "sdu2", "tetra.sdu2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ComplexSDU", HFILL }},
     { &hf_tetra_ssi,
@@ -9602,11 +9753,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_16777215", HFILL }},
     { &hf_tetra_bl_adata,
-      { "bl-adata", "tetra.bl_adata",
+      { "bl-adata", "tetra.bl_adata_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "U_BL_ADATA", HFILL }},
     { &hf_tetra_bl_data,
-      { "bl-data", "tetra.bl_data",
+      { "bl-data", "tetra.bl_data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "U_BL_DATA", HFILL }},
     { &hf_tetra_bl_udata,
@@ -9614,55 +9765,55 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_U_MLE_PDU_vals), 0,
         "U_MLE_PDU", HFILL }},
     { &hf_tetra_bl_ack,
-      { "bl-ack", "tetra.bl_ack",
+      { "bl-ack", "tetra.bl_ack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "U_BL_ACK", HFILL }},
     { &hf_tetra_bl_adata_fcs,
-      { "bl-adata-fcs", "tetra.bl_adata_fcs",
+      { "bl-adata-fcs", "tetra.bl_adata_fcs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "U_BL_ADATA_FCS", HFILL }},
     { &hf_tetra_bl_data_fcs,
-      { "bl-data-fcs", "tetra.bl_data_fcs",
+      { "bl-data-fcs", "tetra.bl_data_fcs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "U_BL_DATA_FCS", HFILL }},
     { &hf_tetra_bl_udata_fcs,
-      { "bl-udata-fcs", "tetra.bl_udata_fcs",
+      { "bl-udata-fcs", "tetra.bl_udata_fcs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "U_MLE_PDU_FCS", HFILL }},
     { &hf_tetra_bl_ack_fcs,
-      { "bl-ack-fcs", "tetra.bl_ack_fcs",
+      { "bl-ack-fcs", "tetra.bl_ack_fcs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "U_BL_ACK_FCS", HFILL }},
     { &hf_tetra_al_setup,
-      { "al-setup", "tetra.al_setup",
+      { "al-setup", "tetra.al_setup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_al_data,
-      { "al-data", "tetra.al_data",
+      { "al-data", "tetra.al_data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_al_udata,
-      { "al-udata", "tetra.al_udata",
+      { "al-udata", "tetra.al_udata_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_al_ack,
-      { "al-ack", "tetra.al_ack",
+      { "al-ack", "tetra.al_ack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_al_reconnect,
-      { "al-reconnect", "tetra.al_reconnect",
+      { "al-reconnect", "tetra.al_reconnect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_reserve1,
-      { "reserve1", "tetra.reserve1",
+      { "reserve1", "tetra.reserve1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_reserve2,
-      { "reserve2", "tetra.reserve2",
+      { "reserve2", "tetra.reserve2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_al_disc,
-      { "al-disc", "tetra.al_disc",
+      { "al-disc", "tetra.al_disc_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_nr,
@@ -9686,7 +9837,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1", HFILL }},
     { &hf_tetra_u_mle_reserved1,
-      { "u-mle-reserved1", "tetra.u_mle_reserved1",
+      { "u-mle-reserved1", "tetra.u_mle_reserved1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_mm,
@@ -9698,11 +9849,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_U_CMCE_PDU_vals), 0,
         "U_CMCE_PDU", HFILL }},
     { &hf_tetra_u_mle_reserved2,
-      { "u-mle-reserved2", "tetra.u_mle_reserved2",
+      { "u-mle-reserved2", "tetra.u_mle_reserved2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_sndcp,
-      { "sndcp", "tetra.sndcp",
+      { "sndcp", "tetra.sndcp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_mle,
@@ -9710,11 +9861,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_UMLE_PDU_vals), 0,
         "UMLE_PDU", HFILL }},
     { &hf_tetra_tetra_management_entity_protocol,
-      { "tetra-management-entity-protocol", "tetra.tetra_management_entity_protocol",
+      { "tetra-management-entity-protocol", "tetra.tetra_management_entity_protocol_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_mle_reserved3,
-      { "u-mle-reserved3", "tetra.u_mle_reserved3",
+      { "u-mle-reserved3", "tetra.u_mle_reserved3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_lengthIndicationOrCapacityRequest,
@@ -9726,7 +9877,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_LengthIndication_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_capacityRequest,
-      { "capacityRequest", "tetra.capacityRequest",
+      { "capacityRequest", "tetra.capacityRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "FRAG", HFILL }},
     { &hf_tetra_tm_sdu_01,
@@ -9741,6 +9892,18 @@ void proto_register_tetra (void)
       { "reservation-requirement", "tetra.reservation_requirement",
         FT_UINT32, BASE_DEC, VALS(tetra_SLOT_APPLY_vals), 0,
         "SLOT_APPLY", HFILL }},
+    { &hf_tetra_lengthIndicationOrCapacityRequest_01,
+      { "lengthIndicationOrCapacityRequest", "tetra.lengthIndicationOrCapacityRequest",
+        FT_UINT32, BASE_DEC, VALS(tetra_T_lengthIndicationOrCapacityRequest_01_vals), 0,
+        "T_lengthIndicationOrCapacityRequest_01", HFILL }},
+    { &hf_tetra_lengthIndication_01,
+      { "lengthIndication", "tetra.lengthIndication",
+        FT_UINT32, BASE_DEC, VALS(tetra_LengthIndicationMacData_vals), 0,
+        "LengthIndicationMacData", HFILL }},
+    { &hf_tetra_capacityRequest_01,
+      { "capacityRequest", "tetra.capacityRequest_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "FRAG6", HFILL }},
     { &hf_tetra_sub_type,
       { "sub-type", "tetra.sub_type",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -9785,7 +9948,7 @@ void proto_register_tetra (void)
       { "position-of-grant", "tetra.position_of_grant",
         FT_UINT32, BASE_DEC, VALS(tetra_Position_Of_Grant_vals), 0,
         NULL, HFILL }},
-    { &hf_tetra_lengthIndication_01,
+    { &hf_tetra_lengthIndication_02,
       { "lengthIndication", "tetra.lengthIndication",
         FT_UINT32, BASE_DEC, VALS(tetra_LengthIndicationMacEndDl_vals), 0,
         "LengthIndicationMacEndDl", HFILL }},
@@ -9794,11 +9957,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_slot_granting_vals), 0,
         "T_slot_granting", HFILL }},
     { &hf_tetra_none,
-      { "none", "tetra.none",
+      { "none", "tetra.none_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_slot_granting_param,
-      { "slot-granting-param", "tetra.slot_granting_param",
+      { "slot-granting-param", "tetra.slot_granting_param_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SlotGranting", HFILL }},
     { &hf_tetra_channel_allocation,
@@ -9806,7 +9969,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_channel_allocation_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_channel_allocation_element,
-      { "channel-allocation-element", "tetra.channel_allocation_element",
+      { "channel-allocation-element", "tetra.channel_allocation_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChannelAllocation", HFILL }},
     { &hf_tetra_tm_sdu_07,
@@ -9850,7 +10013,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_extend_carrier_flag_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_extended,
-      { "extended", "tetra.extended",
+      { "extended", "tetra.extended_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Extended_carrier_flag", HFILL }},
     { &hf_tetra_monitoring_pattern,
@@ -9862,15 +10025,15 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_Monitoring_pattern_vals), 0,
         "Monitoring_pattern", HFILL }},
     { &hf_tetra_none1,
-      { "none1", "tetra.none1",
+      { "none1", "tetra.none1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_none2,
-      { "none2", "tetra.none2",
+      { "none2", "tetra.none2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_none3,
-      { "none3", "tetra.none3",
+      { "none3", "tetra.none3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_offset_01,
@@ -9913,7 +10076,7 @@ void proto_register_tetra (void)
       { "access-ack", "tetra.access_ack",
         FT_UINT32, BASE_DEC, VALS(tetra_T_access_ack_vals), 0,
         NULL, HFILL }},
-    { &hf_tetra_lengthIndication_02,
+    { &hf_tetra_lengthIndication_03,
       { "lengthIndication", "tetra.lengthIndication",
         FT_UINT32, BASE_DEC, VALS(tetra_LengthIndicationMacResource_vals), 0,
         "LengthIndicationMacResource", HFILL }},
@@ -9942,39 +10105,39 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_D_LLC_PDU_vals), 0,
         "D_LLC_PDU", HFILL }},
     { &hf_tetra_null_pdu,
-      { "null-pdu", "tetra.null_pdu",
+      { "null-pdu", "tetra.null_pdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_ssi_01,
-      { "ssi", "tetra.ssi",
+      { "ssi", "tetra.ssi_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SSI_NEED", HFILL }},
     { &hf_tetra_eventLabel_01,
-      { "eventLabel", "tetra.eventLabel",
+      { "eventLabel", "tetra.eventLabel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EVENT_NEED", HFILL }},
     { &hf_tetra_ussi_01,
-      { "ussi", "tetra.ussi",
+      { "ussi", "tetra.ussi_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "USSI_NEED", HFILL }},
     { &hf_tetra_smi_01,
-      { "smi", "tetra.smi",
+      { "smi", "tetra.smi_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMI_NEED", HFILL }},
     { &hf_tetra_ssi_eventLabel,
-      { "ssi-eventLabel", "tetra.ssi_eventLabel",
+      { "ssi-eventLabel", "tetra.ssi_eventLabel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SSI_EVENT_NEED", HFILL }},
     { &hf_tetra_ssi_usage_maker,
-      { "ssi-usage-maker", "tetra.ssi_usage_maker",
+      { "ssi-usage-maker", "tetra.ssi_usage_maker_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SSI_USAGE_NEED", HFILL }},
     { &hf_tetra_smi_eventLabel,
-      { "smi-eventLabel", "tetra.smi_eventLabel",
+      { "smi-eventLabel", "tetra.smi_eventLabel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SMI_EVENT_NEED", HFILL }},
     { &hf_tetra_other,
-      { "other", "tetra.other",
+      { "other", "tetra.other_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTHER_DATA", HFILL }},
     { &hf_tetra_eventlabel,
@@ -10038,7 +10201,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_33554431", HFILL }},
     { &hf_tetra_reserved_03,
-      { "reserved", "tetra.reserved",
+      { "reserved", "tetra.reserved_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_filler_bits,
@@ -10046,11 +10209,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
     { &hf_tetra_bl_adata_01,
-      { "bl-adata", "tetra.bl_adata",
+      { "bl-adata", "tetra.bl_adata_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "D_BL_ADATA", HFILL }},
     { &hf_tetra_bl_data_01,
-      { "bl-data", "tetra.bl_data",
+      { "bl-data", "tetra.bl_data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "D_BL_DATA", HFILL }},
     { &hf_tetra_bl_udata_01,
@@ -10058,23 +10221,23 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_D_MLE_PDU_vals), 0,
         "D_MLE_PDU", HFILL }},
     { &hf_tetra_bl_ack_01,
-      { "bl-ack", "tetra.bl_ack",
+      { "bl-ack", "tetra.bl_ack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "D_BL_ACK", HFILL }},
     { &hf_tetra_bl_adata_fcs_01,
-      { "bl-adata-fcs", "tetra.bl_adata_fcs",
+      { "bl-adata-fcs", "tetra.bl_adata_fcs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "D_BL_ADATA_FCS", HFILL }},
     { &hf_tetra_bl_data_fcs_01,
-      { "bl-data-fcs", "tetra.bl_data_fcs",
+      { "bl-data-fcs", "tetra.bl_data_fcs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "D_BL_DATA_FCS", HFILL }},
     { &hf_tetra_bl_udata_fcs_01,
-      { "bl-udata-fcs", "tetra.bl_udata_fcs",
+      { "bl-udata-fcs", "tetra.bl_udata_fcs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "D_MLE_PDU_FCS", HFILL }},
     { &hf_tetra_bl_ack_fcs_01,
-      { "bl-ack-fcs", "tetra.bl_ack_fcs",
+      { "bl-ack-fcs", "tetra.bl_ack_fcs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "D_BL_ACK_FCS", HFILL }},
     { &hf_tetra_tl_sdu_01,
@@ -10098,67 +10261,67 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_DMLE_PDU_vals), 0,
         "DMLE_PDU", HFILL }},
     { &hf_tetra_u_prepare,
-      { "u-prepare", "tetra.u_prepare",
+      { "u-prepare", "tetra.u_prepare_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_umle_reserved1,
-      { "umle-reserved1", "tetra.umle_reserved1",
+      { "umle-reserved1", "tetra.umle_reserved1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_umle_reserved2,
-      { "umle-reserved2", "tetra.umle_reserved2",
+      { "umle-reserved2", "tetra.umle_reserved2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_umle_reserved3,
-      { "umle-reserved3", "tetra.umle_reserved3",
+      { "umle-reserved3", "tetra.umle_reserved3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_restore,
-      { "u-restore", "tetra.u_restore",
+      { "u-restore", "tetra.u_restore_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_umle_reserved4,
-      { "umle-reserved4", "tetra.umle_reserved4",
+      { "umle-reserved4", "tetra.umle_reserved4_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_umle_reserved5,
-      { "umle-reserved5", "tetra.umle_reserved5",
+      { "umle-reserved5", "tetra.umle_reserved5_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_umle_reserved6,
-      { "umle-reserved6", "tetra.umle_reserved6",
+      { "umle-reserved6", "tetra.umle_reserved6_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_new_cell,
-      { "d-new-cell", "tetra.d_new_cell",
+      { "d-new-cell", "tetra.d_new_cell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_prepare_fail,
-      { "d-prepare-fail", "tetra.d_prepare_fail",
+      { "d-prepare-fail", "tetra.d_prepare_fail_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_nwrk_broadcast,
-      { "d-nwrk-broadcast", "tetra.d_nwrk_broadcast",
+      { "d-nwrk-broadcast", "tetra.d_nwrk_broadcast_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "D_NWRK_BRDADCAST", HFILL }},
     { &hf_tetra_dmle_reserved1,
-      { "dmle-reserved1", "tetra.dmle_reserved1",
+      { "dmle-reserved1", "tetra.dmle_reserved1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_restore_ack,
-      { "d-restore-ack", "tetra.d_restore_ack",
+      { "d-restore-ack", "tetra.d_restore_ack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_restore_fail,
-      { "d-restore-fail", "tetra.d_restore_fail",
+      { "d-restore-fail", "tetra.d_restore_fail_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_dmle_reserved2,
-      { "dmle-reserved2", "tetra.dmle_reserved2",
+      { "dmle-reserved2", "tetra.dmle_reserved2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_dmle_reserved3,
-      { "dmle-reserved3", "tetra.dmle_reserved3",
+      { "dmle-reserved3", "tetra.dmle_reserved3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_optional_elements,
@@ -10166,11 +10329,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_no_type2,
-      { "no-type2", "tetra.no_type2",
+      { "no-type2", "tetra.no_type2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_type2_parameters,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_cell_number,
@@ -10190,7 +10353,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_01_vals), 0,
         "T_optional_elements_01", HFILL }},
     { &hf_tetra_type2_parameters_01,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_01", HFILL }},
     { &hf_tetra_mcc_01,
@@ -10230,7 +10393,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_04_vals), 0,
         "T_optional_elements_04", HFILL }},
     { &hf_tetra_type2_parameters_02,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_02", HFILL }},
     { &hf_tetra_tetra_network_time,
@@ -10238,7 +10401,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_tetra_network_time_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_tetra_network_time_01,
-      { "tetra-network-time", "tetra.tetra_network_time",
+      { "tetra-network-time", "tetra.tetra_network_time_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_number_of_neighbour_cells,
@@ -10270,131 +10433,131 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Authentication,
-      { "u-Authentication", "tetra.u_Authentication",
+      { "u-Authentication", "tetra.u_Authentication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Itsi_Detach,
-      { "u-Itsi-Detach", "tetra.u_Itsi_Detach",
+      { "u-Itsi-Detach", "tetra.u_Itsi_Detach_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Location_Update_Demand,
-      { "u-Location-Update-Demand", "tetra.u_Location_Update_Demand",
+      { "u-Location-Update-Demand", "tetra.u_Location_Update_Demand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_MM_Status,
-      { "u-MM-Status", "tetra.u_MM_Status",
+      { "u-MM-Status", "tetra.u_MM_Status_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_MM_reserved1,
-      { "u-MM-reserved1", "tetra.u_MM_reserved1",
+      { "u-MM-reserved1", "tetra.u_MM_reserved1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_WK,
-      { "u-WK", "tetra.u_WK",
+      { "u-WK", "tetra.u_WK_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_MM_reserved3,
-      { "u-MM-reserved3", "tetra.u_MM_reserved3",
+      { "u-MM-reserved3", "tetra.u_MM_reserved3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Attach_Detach_Group_Identity,
-      { "u-Attach-Detach-Group-Identity", "tetra.u_Attach_Detach_Group_Identity",
+      { "u-Attach-Detach-Group-Identity", "tetra.u_Attach_Detach_Group_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Attach_Detach_Group_Identity_Ack,
-      { "u-Attach-Detach-Group-Identity-Ack", "tetra.u_Attach_Detach_Group_Identity_Ack",
+      { "u-Attach-Detach-Group-Identity-Ack", "tetra.u_Attach_Detach_Group_Identity_Ack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_TEI_Provide,
-      { "u-TEI-Provide", "tetra.u_TEI_Provide",
+      { "u-TEI-Provide", "tetra.u_TEI_Provide_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_MM_reserved6,
-      { "u-MM-reserved6", "tetra.u_MM_reserved6",
+      { "u-MM-reserved6", "tetra.u_MM_reserved6_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Disabled_Status,
-      { "u-Disabled-Status", "tetra.u_Disabled_Status",
+      { "u-Disabled-Status", "tetra.u_Disabled_Status_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_MM_reserved7,
-      { "u-MM-reserved7", "tetra.u_MM_reserved7",
+      { "u-MM-reserved7", "tetra.u_MM_reserved7_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_MM_reserved8,
-      { "u-MM-reserved8", "tetra.u_MM_reserved8",
+      { "u-MM-reserved8", "tetra.u_MM_reserved8_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_MM_reserved9,
-      { "u-MM-reserved9", "tetra.u_MM_reserved9",
+      { "u-MM-reserved9", "tetra.u_MM_reserved9_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_MM_Function_Not_Support,
-      { "u-MM-Function-Not-Support", "tetra.u_MM_Function_Not_Support",
+      { "u-MM-Function-Not-Support", "tetra.u_MM_Function_Not_Support_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Otar,
-      { "d-Otar", "tetra.d_Otar",
+      { "d-Otar", "tetra.d_Otar_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Authentication,
-      { "d-Authentication", "tetra.d_Authentication",
+      { "d-Authentication", "tetra.d_Authentication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Authentication_Reject,
-      { "d-Authentication-Reject", "tetra.d_Authentication_Reject",
+      { "d-Authentication-Reject", "tetra.d_Authentication_Reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Disable,
-      { "d-Disable", "tetra.d_Disable",
+      { "d-Disable", "tetra.d_Disable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Enable,
-      { "d-Enable", "tetra.d_Enable",
+      { "d-Enable", "tetra.d_Enable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Location_Update_Accept,
-      { "d-Location-Update-Accept", "tetra.d_Location_Update_Accept",
+      { "d-Location-Update-Accept", "tetra.d_Location_Update_Accept_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Location_Update_Command,
-      { "d-Location-Update-Command", "tetra.d_Location_Update_Command",
+      { "d-Location-Update-Command", "tetra.d_Location_Update_Command_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Location_Update_Reject,
-      { "d-Location-Update-Reject", "tetra.d_Location_Update_Reject",
+      { "d-Location-Update-Reject", "tetra.d_Location_Update_Reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_MM_reserved2,
-      { "d-MM-reserved2", "tetra.d_MM_reserved2",
+      { "d-MM-reserved2", "tetra.d_MM_reserved2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Location_Update_Proceeding,
-      { "d-Location-Update-Proceeding", "tetra.d_Location_Update_Proceeding",
+      { "d-Location-Update-Proceeding", "tetra.d_Location_Update_Proceeding_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Attach_Detach_Group_Identity,
-      { "d-Attach-Detach-Group-Identity", "tetra.d_Attach_Detach_Group_Identity",
+      { "d-Attach-Detach-Group-Identity", "tetra.d_Attach_Detach_Group_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Attach_Detach_Group_Identity_Ack,
-      { "d-Attach-Detach-Group-Identity-Ack", "tetra.d_Attach_Detach_Group_Identity_Ack",
+      { "d-Attach-Detach-Group-Identity-Ack", "tetra.d_Attach_Detach_Group_Identity_Ack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_MM_Status,
-      { "d-MM-Status", "tetra.d_MM_Status",
+      { "d-MM-Status", "tetra.d_MM_Status_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_MM_reserved5,
-      { "d-MM-reserved5", "tetra.d_MM_reserved5",
+      { "d-MM-reserved5", "tetra.d_MM_reserved5_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_MM_reserved6,
-      { "d-MM-reserved6", "tetra.d_MM_reserved6",
+      { "d-MM-reserved6", "tetra.d_MM_reserved6_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_MM_Function_Not_Support,
-      { "d-MM-Function-Not-Support", "tetra.d_MM_Function_Not_Support",
+      { "d-MM-Function-Not-Support", "tetra.d_MM_Function_Not_Support_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_attach_detach_identifiet,
@@ -10402,7 +10565,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_attach_detach_identifiet_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_attach,
-      { "attach", "tetra.attach",
+      { "attach", "tetra.attach_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_lifetime,
@@ -10414,7 +10577,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
     { &hf_tetra_detach,
-      { "detach", "tetra.detach",
+      { "detach", "tetra.detach_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_detach_downlike,
@@ -10430,7 +10593,7 @@ void proto_register_tetra (void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING_SIZE_3", HFILL }},
     { &hf_tetra_gssi_extension,
-      { "gssi-extension", "tetra.gssi_extension",
+      { "gssi-extension", "tetra.gssi_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_extension,
@@ -10446,11 +10609,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_attach_detach_identifiet_01_vals), 0,
         "T_attach_detach_identifiet_01", HFILL }},
     { &hf_tetra_attach_01,
-      { "attach", "tetra.attach",
+      { "attach", "tetra.attach_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_attach_01", HFILL }},
     { &hf_tetra_detach_01,
-      { "detach", "tetra.detach",
+      { "detach", "tetra.detach_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_detach_01", HFILL }},
     { &hf_tetra_detach_uplike,
@@ -10462,7 +10625,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_address_type_01_vals), 0,
         "T_address_type_01", HFILL }},
     { &hf_tetra_gssi_extension_01,
-      { "gssi-extension", "tetra.gssi_extension",
+      { "gssi-extension", "tetra.gssi_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_gssi_extension_01", HFILL }},
     { &hf_tetra_location_update_type,
@@ -10474,7 +10637,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_05_vals), 0,
         "T_optional_elements_05", HFILL }},
     { &hf_tetra_type2_parameters_03,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_03", HFILL }},
     { &hf_tetra_ssi_02,
@@ -10493,14 +10656,10 @@ void proto_register_tetra (void)
       { "address-extension", "tetra.address_extension",
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING_SIZE_3", HFILL }},
-    { &hf_tetra_suscriber_class,
-      { "suscriber-class", "tetra.suscriber_class",
-        FT_UINT32, BASE_DEC, VALS(tetra_T_suscriber_class_vals), 0,
+    { &hf_tetra_subscriber_class_01,
+      { "subscriber-class", "tetra.subscriber_class",
+        FT_UINT32, BASE_DEC, VALS(tetra_T_subscriber_class_vals), 0,
         NULL, HFILL }},
-    { &hf_tetra_suscriber_class_01,
-      { "suscriber-class", "tetra.suscriber_class",
-        FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_0_32767", HFILL }},
     { &hf_tetra_energy_saving_mode,
       { "energy-saving-mode", "tetra.energy_saving_mode",
         FT_UINT32, BASE_DEC, VALS(tetra_T_energy_saving_mode_vals), 0,
@@ -10522,11 +10681,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_type3_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_no_type3,
-      { "no-type3", "tetra.no_type3",
+      { "no-type3", "tetra.no_type3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_type3_elements,
-      { "type3-elements", "tetra.type3_elements",
+      { "type3-elements", "tetra.type3_elements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_type2_existance,
@@ -10598,71 +10757,71 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_tetra_u_Alert,
-      { "u-Alert", "tetra.u_Alert",
+      { "u-Alert", "tetra.u_Alert_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_reserved1,
-      { "reserved1", "tetra.reserved1",
+      { "reserved1", "tetra.reserved1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Connect,
-      { "u-Connect", "tetra.u_Connect",
+      { "u-Connect", "tetra.u_Connect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_reserved2,
-      { "reserved2", "tetra.reserved2",
+      { "reserved2", "tetra.reserved2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Disconnect,
-      { "u-Disconnect", "tetra.u_Disconnect",
+      { "u-Disconnect", "tetra.u_Disconnect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Info,
-      { "u-Info", "tetra.u_Info",
+      { "u-Info", "tetra.u_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Release,
-      { "u-Release", "tetra.u_Release",
+      { "u-Release", "tetra.u_Release_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Setup,
-      { "u-Setup", "tetra.u_Setup",
+      { "u-Setup", "tetra.u_Setup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Status,
-      { "u-Status", "tetra.u_Status",
+      { "u-Status", "tetra.u_Status_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Tx_Ceased,
-      { "u-Tx-Ceased", "tetra.u_Tx_Ceased",
+      { "u-Tx-Ceased", "tetra.u_Tx_Ceased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Tx_Demand,
-      { "u-Tx-Demand", "tetra.u_Tx_Demand",
+      { "u-Tx-Demand", "tetra.u_Tx_Demand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_reserved3,
-      { "reserved3", "tetra.reserved3",
+      { "reserved3", "tetra.reserved3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_reserved4,
-      { "reserved4", "tetra.reserved4",
+      { "reserved4", "tetra.reserved4_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_reserved5,
-      { "reserved5", "tetra.reserved5",
+      { "reserved5", "tetra.reserved5_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Call_Restore,
-      { "u-Call-Restore", "tetra.u_Call_Restore",
+      { "u-Call-Restore", "tetra.u_Call_Restore_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_SDS_Data,
-      { "u-SDS-Data", "tetra.u_SDS_Data",
+      { "u-SDS-Data", "tetra.u_SDS_Data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_u_Facility,
-      { "u-Facility", "tetra.u_Facility",
+      { "u-Facility", "tetra.u_Facility_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_call_identifier,
@@ -10734,71 +10893,71 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1", HFILL }},
     { &hf_tetra_d_Alert,
-      { "d-Alert", "tetra.d_Alert",
+      { "d-Alert", "tetra.d_Alert_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Call_Proceeding,
-      { "d-Call-Proceeding", "tetra.d_Call_Proceeding",
+      { "d-Call-Proceeding", "tetra.d_Call_Proceeding_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Connect,
-      { "d-Connect", "tetra.d_Connect",
+      { "d-Connect", "tetra.d_Connect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Connect_Ack,
-      { "d-Connect-Ack", "tetra.d_Connect_Ack",
+      { "d-Connect-Ack", "tetra.d_Connect_Ack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Disconnect,
-      { "d-Disconnect", "tetra.d_Disconnect",
+      { "d-Disconnect", "tetra.d_Disconnect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Info,
-      { "d-Info", "tetra.d_Info",
+      { "d-Info", "tetra.d_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Release,
-      { "d-Release", "tetra.d_Release",
+      { "d-Release", "tetra.d_Release_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Setup,
-      { "d-Setup", "tetra.d_Setup",
+      { "d-Setup", "tetra.d_Setup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Status,
-      { "d-Status", "tetra.d_Status",
+      { "d-Status", "tetra.d_Status_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Tx_Ceased,
-      { "d-Tx-Ceased", "tetra.d_Tx_Ceased",
+      { "d-Tx-Ceased", "tetra.d_Tx_Ceased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Tx_Continue,
-      { "d-Tx-Continue", "tetra.d_Tx_Continue",
+      { "d-Tx-Continue", "tetra.d_Tx_Continue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Tx_Granted,
-      { "d-Tx-Granted", "tetra.d_Tx_Granted",
+      { "d-Tx-Granted", "tetra.d_Tx_Granted_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Tx_Wait,
-      { "d-Tx-Wait", "tetra.d_Tx_Wait",
+      { "d-Tx-Wait", "tetra.d_Tx_Wait_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Tx_Interrupt,
-      { "d-Tx-Interrupt", "tetra.d_Tx_Interrupt",
+      { "d-Tx-Interrupt", "tetra.d_Tx_Interrupt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Call_Restore,
-      { "d-Call-Restore", "tetra.d_Call_Restore",
+      { "d-Call-Restore", "tetra.d_Call_Restore_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_SDS_Data,
-      { "d-SDS-Data", "tetra.d_SDS_Data",
+      { "d-SDS-Data", "tetra.d_SDS_Data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_d_Facility,
-      { "d-Facility", "tetra.d_Facility",
+      { "d-Facility", "tetra.d_Facility_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_calling_party_type_identifier,
@@ -10850,7 +11009,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_cipher_control_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_no_cipher,
-      { "no-cipher", "tetra.no_cipher",
+      { "no-cipher", "tetra.no_cipher_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_ciphering_parameters,
@@ -10862,7 +11021,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_06_vals), 0,
         "T_optional_elements_06", HFILL }},
     { &hf_tetra_type2_parameters_04,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_04", HFILL }},
     { &hf_tetra_class_of_MS,
@@ -10898,7 +11057,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_type3_01_vals), 0,
         "T_type3_01", HFILL }},
     { &hf_tetra_type3_elements_01,
-      { "type3-elements", "tetra.type3_elements",
+      { "type3-elements", "tetra.type3_elements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type3_elements_01", HFILL }},
     { &hf_tetra_group_identity_location_demand,
@@ -10942,7 +11101,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_07_vals), 0,
         "T_optional_elements_07", HFILL }},
     { &hf_tetra_type2_element,
-      { "type2-element", "tetra.type2_element",
+      { "type2-element", "tetra.type2_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_type3_02,
@@ -10950,7 +11109,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_type3_02_vals), 0,
         "T_type3_02", HFILL }},
     { &hf_tetra_type3_elements_02,
-      { "type3-elements", "tetra.type3_elements",
+      { "type3-elements", "tetra.type3_elements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type3_elements_02", HFILL }},
     { &hf_tetra_length,
@@ -10962,7 +11121,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_tetra_group_identity_uplink_02,
-      { "group-identity-uplink", "tetra.group_identity_uplink",
+      { "group-identity-uplink", "tetra.group_identity_uplink_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_group_identity_ack_type,
@@ -10974,7 +11133,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_08_vals), 0,
         "T_optional_elements_08", HFILL }},
     { &hf_tetra_type2_element_01,
-      { "type2-element", "tetra.type2_element",
+      { "type2-element", "tetra.type2_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_element_01", HFILL }},
     { &hf_tetra_type3_03,
@@ -10982,7 +11141,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_type3_03_vals), 0,
         "T_type3_03", HFILL }},
     { &hf_tetra_type3_elements_03,
-      { "type3-elements", "tetra.type3_elements",
+      { "type3-elements", "tetra.type3_elements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type3_elements_03", HFILL }},
     { &hf_tetra_hook_method_selection,
@@ -10994,7 +11153,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_simple_duplex_selection_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_basic_service_information,
-      { "basic-service-information", "tetra.basic_service_information",
+      { "basic-service-information", "tetra.basic_service_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_request_transmit_send_data,
@@ -11018,7 +11177,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_09_vals), 0,
         "T_optional_elements_09", HFILL }},
     { &hf_tetra_type2_parameters_05,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_05", HFILL }},
     { &hf_tetra_external_subscriber_number,
@@ -11034,7 +11193,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_prop_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_prop_01,
-      { "prop", "tetra.prop",
+      { "prop", "tetra.prop_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Proprietary", HFILL }},
     { &hf_tetra_circuit_mode,
@@ -11066,7 +11225,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_10_vals), 0,
         "T_optional_elements_10", HFILL }},
     { &hf_tetra_type2_parameters_06,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_06", HFILL }},
     { &hf_tetra_basic_service_information_01,
@@ -11086,7 +11245,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_11_vals), 0,
         "T_optional_elements_11", HFILL }},
     { &hf_tetra_type2_parameters_07,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_07", HFILL }},
     { &hf_tetra_basic_service_information_02,
@@ -11102,7 +11261,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_12_vals), 0,
         "T_optional_elements_12", HFILL }},
     { &hf_tetra_type2_parameters_08,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_08", HFILL }},
     { &hf_tetra_prop_04,
@@ -11122,7 +11281,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_13_vals), 0,
         "T_optional_elements_13", HFILL }},
     { &hf_tetra_type2_parameters_09,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_09", HFILL }},
     { &hf_tetra_prop_05,
@@ -11134,7 +11293,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_14_vals), 0,
         "T_optional_elements_14", HFILL }},
     { &hf_tetra_type2_parameters_10,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_10", HFILL }},
     { &hf_tetra_prop_06,
@@ -11154,7 +11313,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_15_vals), 0,
         "T_optional_elements_15", HFILL }},
     { &hf_tetra_type2_parameters_11,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_11", HFILL }},
     { &hf_tetra_prop_07,
@@ -11182,7 +11341,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_16_vals), 0,
         "T_optional_elements_16", HFILL }},
     { &hf_tetra_type2_parameters_12,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_12", HFILL }},
     { &hf_tetra_calling_party_address,
@@ -11218,7 +11377,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_17_vals), 0,
         "T_optional_elements_17", HFILL }},
     { &hf_tetra_type2_parameters_13,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_13", HFILL }},
     { &hf_tetra_basic_service_information_03,
@@ -11258,7 +11417,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_18_vals), 0,
         "T_optional_elements_18", HFILL }},
     { &hf_tetra_type2_parameters_14,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_14", HFILL }},
     { &hf_tetra_basic_service_infomation,
@@ -11266,7 +11425,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_basic_service_infomation_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_basic_service_infomation_01,
-      { "basic-service-infomation", "tetra.basic_service_infomation",
+      { "basic-service-infomation", "tetra.basic_service_infomation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Basic_service_information", HFILL }},
     { &hf_tetra_notification_indicator_02,
@@ -11294,7 +11453,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_19_vals), 0,
         "T_optional_elements_19", HFILL }},
     { &hf_tetra_type2_parameters_15,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_15", HFILL }},
     { &hf_tetra_call_priority_01,
@@ -11326,7 +11485,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_20_vals), 0,
         "T_optional_elements_20", HFILL }},
     { &hf_tetra_type2_parameters_16,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_16", HFILL }},
     { &hf_tetra_notification_indicator_04,
@@ -11342,7 +11501,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_21_vals), 0,
         "T_optional_elements_21", HFILL }},
     { &hf_tetra_type2_parameters_17,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_17", HFILL }},
     { &hf_tetra_notification_indicator_05,
@@ -11362,7 +11521,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_22_vals), 0,
         "T_optional_elements_22", HFILL }},
     { &hf_tetra_type2_parameters_18,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_18", HFILL }},
     { &hf_tetra_new_call_identifier,
@@ -11390,7 +11549,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_modify_vals), 0,
         NULL, HFILL }},
     { &hf_tetra_modify_01,
-      { "modify", "tetra.modify",
+      { "modify", "tetra.modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Modify_type", HFILL }},
     { &hf_tetra_notification_indicator_06,
@@ -11406,7 +11565,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_23_vals), 0,
         "T_optional_elements_23", HFILL }},
     { &hf_tetra_type2_parameters_19,
-      { "type2-parameters", "tetra.type2_parameters",
+      { "type2-parameters", "tetra.type2_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_parameters_19", HFILL }},
     { &hf_tetra_notification_indicator_07,
@@ -11426,7 +11585,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_24_vals), 0,
         "T_optional_elements_24", HFILL }},
     { &hf_tetra_type2_element_02,
-      { "type2-element", "tetra.type2_element",
+      { "type2-element", "tetra.type2_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_element_02", HFILL }},
     { &hf_tetra_type3_04,
@@ -11434,11 +11593,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_type3_04_vals), 0,
         "T_type3_04", HFILL }},
     { &hf_tetra_type3_elements_04,
-      { "type3-elements", "tetra.type3_elements",
+      { "type3-elements", "tetra.type3_elements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type3_elements_04", HFILL }},
     { &hf_tetra_group_identity_downlink_02,
-      { "group-identity-downlink", "tetra.group_identity_downlink",
+      { "group-identity-downlink", "tetra.group_identity_downlink_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_group_identity_attach_detach_accept,
@@ -11450,7 +11609,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_optional_elements_25_vals), 0,
         "T_optional_elements_25", HFILL }},
     { &hf_tetra_type2_element_03,
-      { "type2-element", "tetra.type2_element",
+      { "type2-element", "tetra.type2_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type2_element_03", HFILL }},
     { &hf_tetra_type3_05,
@@ -11458,7 +11617,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_type3_05_vals), 0,
         "T_type3_05", HFILL }},
     { &hf_tetra_type3_elements_05,
-      { "type3-elements", "tetra.type3_elements",
+      { "type3-elements", "tetra.type3_elements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_type3_elements_05", HFILL }},
     { &hf_tetra_called_party_sna,
@@ -11470,7 +11629,7 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_16777215", HFILL }},
     { &hf_tetra_called_party_ssi_extention,
-      { "called-party-ssi-extention", "tetra.called_party_ssi_extention",
+      { "called-party-ssi-extention", "tetra.called_party_ssi_extention_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_tetra_called_party_extention,
@@ -11482,11 +11641,11 @@ void proto_register_tetra (void)
         FT_UINT32, BASE_DEC, VALS(tetra_T_data_01_vals), 0,
         "T_data_01", HFILL }},
     { &hf_tetra_element1,
-      { "element1", "tetra.element1",
+      { "element1", "tetra.element1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Type1", HFILL }},
     { &hf_tetra_element,
-      { "element", "tetra.element",
+      { "element", "tetra.element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Type2", HFILL }},
     { &hf_tetra_proprietary_element_owner,
@@ -11503,7 +11662,7 @@ void proto_register_tetra (void)
         "T_simplex_duplex_selection_05", HFILL }},
 
 /*--- End of included file: packet-tetra-hfarr.c ---*/
-#line 612 "../../asn1/tetra/packet-tetra-template.c"
+#line 613 "../../asn1/tetra/packet-tetra-template.c"
  	};
 
 	/* List of subtrees */
@@ -11539,6 +11698,9 @@ void proto_register_tetra (void)
     &ett_tetra_ComplexSDU,
     &ett_tetra_T_lengthIndicationOrCapacityRequest,
     &ett_tetra_FRAG,
+    &ett_tetra_MAC_DATA,
+    &ett_tetra_T_lengthIndicationOrCapacityRequest_01,
+    &ett_tetra_FRAG6,
     &ett_tetra_MAC_FRAG,
     &ett_tetra_MAC_FRAG120,
     &ett_tetra_MAC_END_UPLINK,
@@ -11626,7 +11788,7 @@ void proto_register_tetra (void)
     &ett_tetra_T_type2_parameters_03,
     &ett_tetra_T_ssi,
     &ett_tetra_T_address_extension,
-    &ett_tetra_T_suscriber_class,
+    &ett_tetra_T_subscriber_class,
     &ett_tetra_T_energy_saving_mode,
     &ett_tetra_T_scch_info,
     &ett_tetra_T_type3,
@@ -11785,7 +11947,7 @@ void proto_register_tetra (void)
     &ett_tetra_Modify_type,
 
 /*--- End of included file: packet-tetra-ettarr.c ---*/
-#line 622 "../../asn1/tetra/packet-tetra-template.c"
+#line 623 "../../asn1/tetra/packet-tetra-template.c"
 	};
 
 	/* execute protocol initialization only once */

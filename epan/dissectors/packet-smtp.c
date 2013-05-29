@@ -44,7 +44,7 @@
 #include <epan/dissectors/packet-ssl.h>
 
 /* RFC 2821 */
-#define TCP_PORT_SMTP 25
+#define TCP_PORT_SMTP      25
 #define TCP_PORT_SSL_SMTP 465
 
 /* RFC 4409 */
@@ -81,13 +81,12 @@ static int ett_smtp_cmdresp = -1;
 static gint ett_smtp_data_fragment = -1;
 static gint ett_smtp_data_fragments = -1;
 
-static gboolean stmp_decryption_enabled  = FALSE;
+static gboolean    stmp_decryption_enabled     = FALSE;
 /* desegmentation of SMTP command and response lines */
-static gboolean smtp_desegment = TRUE;
-static gboolean smtp_data_desegment = TRUE;
+static gboolean    smtp_desegment              = TRUE;
+static gboolean    smtp_data_desegment         = TRUE;
 
-static GHashTable *smtp_data_segment_table = NULL;
-static GHashTable *smtp_data_reassembled_table = NULL;
+static reassembly_table smtp_data_reassembly_table;
 
 static const fragment_items smtp_data_frag_items = {
   /* Fragment subtrees */
@@ -114,6 +113,7 @@ static const fragment_items smtp_data_frag_items = {
 
 static  dissector_handle_t ssl_handle;
 static  dissector_handle_t imf_handle;
+static  dissector_handle_t ntlmssp_handle;
 
 /*
  * A CMD is an SMTP command, MESSAGE is the message portion, and EOM is the
@@ -145,24 +145,37 @@ typedef enum {
   SMTP_AUTH_STATE_USERNAME_RSP,       /* Received username response from client */
   SMTP_AUTH_STATE_PASSWORD_REQ,       /* Received password request from server */
   SMTP_AUTH_STATE_PASSWORD_RSP,       /* Received password request from server */
+  SMTP_AUTH_STATE_PLAIN_START_REQ,    /* Received AUTH PLAIN command from client*/
+  SMTP_AUTH_STATE_PLAIN_CRED_REQ,     /* Received AUTH PLAIN command including creds from client*/
+  SMTP_AUTH_STATE_PLAIN_REQ,          /* Received AUTH PLAIN request from server */
+  SMTP_AUTH_STATE_PLAIN_RSP,          /* Received AUTH PLAIN response from client */
+  SMTP_AUTH_STATE_NTLM_REQ,           /* Received ntlm negotiate request from client */
+  SMTP_AUTH_STATE_NTLM_CHALLANGE,     /* Received ntlm challange request from server */
+  SMTP_AUTH_STATE_NTLM_RSP,           /* Received ntlm auth request from client */
   SMTP_AUTH_STATE_SUCCESS,            /* Password received, authentication successful, start decoding */
   SMTP_AUTH_STATE_FAILED,             /* authentication failed, no decoding */
 } smtp_auth_state_t;
 
 struct smtp_session_state {
-  smtp_state_t smtp_state;    /* Current state */
-  smtp_auth_state_t auth_state;  /* Current authentication state */
+  smtp_state_t smtp_state;      /* Current state */
+  smtp_auth_state_t auth_state; /* Current authentication state */
   /* Values that need to be saved because state machine can't be used during tree dissection */
-  guint32  first_auth_frame;  /* First frame involving authentication. */
-  guint32  username_frame;    /* Frame containing client username */
-  guint32  password_frame;    /* Frame containing client password */
-  guint32  last_auth_frame;   /* Last frame involving authentication. */
-  gboolean crlf_seen;         /* Have we seen a CRLF on the end of a packet */
-  gboolean data_seen;         /* Have we seen a DATA command yet */
-  guint32  msg_read_len;      /* Length of BDAT message read so far */
-  guint32  msg_tot_len;       /* Total length of BDAT message */
-  gboolean msg_last;          /* Is this the last BDAT chunk */
-  guint32  last_nontls_frame; /* last non-TLS frame; 0 if not known or no TLS */
+  guint32  first_auth_frame;    /* First frame involving authentication. */
+  guint32  username_frame;      /* Frame containing client username */
+  guint32  password_frame;      /* Frame containing client password */
+  guint32  last_auth_frame;     /* Last frame involving authentication. */
+  gboolean crlf_seen;           /* Have we seen a CRLF on the end of a packet */
+  gboolean data_seen;           /* Have we seen a DATA command yet */
+  guint32  msg_read_len;        /* Length of BDAT message read so far */
+  guint32  msg_tot_len;         /* Total length of BDAT message */
+  gboolean msg_last;            /* Is this the last BDAT chunk */
+  guint32  last_nontls_frame;   /* last non-TLS frame; 0 if not known or no TLS */
+  guint32  username_cmd_frame;  /* AUTH command contains username */
+  guint32  user_pass_cmd_frame; /* AUTH command contains username and password */
+  guint32  user_pass_frame;     /* Frame contains username and password */
+  guint32  ntlm_req_frame;      /* Frame containing NTLM request */
+  guint32  ntlm_cha_frame;      /* Frame containing NTLM challange. */
+  guint32  ntlm_rsp_frame;      /* Frame containing NTLM response. */
 };
 
 /*
@@ -218,7 +231,7 @@ static const value_string response_codes_vs[] = {
   { 554, "Transaction failed" },
   { 0, NULL }
 };
-
+static value_string_ext response_codes_vs_ext = VALUE_STRING_EXT_INIT(response_codes_vs);
 
 static gboolean
 line_is_smtp_command(const guchar *command, int commandlen)
@@ -281,28 +294,82 @@ dissect_smtp_data(tvbuff_t *tvb, int offset, proto_tree *smtp_tree)
 }
 
 static void
+dissect_ntlm_auth(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+                  const char *line)
+{
+    tvbuff_t *ntlm_tvb;
+
+    ntlm_tvb = base64_to_tvb(tvb, line);
+    if(tvb_strneql(ntlm_tvb, 0, "NTLMSSP", 7) == 0) {
+      add_new_data_source(pinfo, ntlm_tvb, "NTLMSSP Data");
+      call_dissector(ntlmssp_handle, ntlm_tvb, pinfo, tree);
+    }
+}
+
+static void
+decode_plain_auth(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
+                  gint a_offset, int a_linelen)
+{
+  gint                       returncode;
+  gint                       length_user1;
+  gint                       length_user2;
+  gint                       length_pass;
+  guint8                    *decrypt   = NULL;
+
+  decrypt = tvb_get_ephemeral_string(tvb, a_offset, a_linelen);
+  if (stmp_decryption_enabled) {
+    returncode = (gint)epan_base64_decode(decrypt);
+    if (returncode) {
+      length_user1 = (gint)strlen(decrypt);
+      if (returncode >= (length_user1 + 1)) {
+        length_user2 = (gint)strlen(decrypt + length_user1 + 1);
+        proto_tree_add_string(tree, hf_smtp_username, tvb,
+                              a_offset, a_linelen, decrypt + length_user1 + 1);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "User: %s", decrypt + length_user1 + 1);
+
+        if (returncode >= (length_user1 + 1 + length_user2 + 1)) {
+          length_pass = (gint)strlen(decrypt + length_user1 + length_user2 + 2);
+          proto_tree_add_string(tree, hf_smtp_password, tvb,
+                                a_offset, length_pass, decrypt + length_user1 + length_user2 + 2);
+          col_append_str(pinfo->cinfo, COL_INFO, " ");
+          col_append_fstr(pinfo->cinfo, COL_INFO, " Pass: %s", decrypt + length_user1 + length_user2 + 2);
+        }
+      }
+    }
+  }
+  else {
+    proto_tree_add_string(tree, hf_smtp_username, tvb,
+                          a_offset, a_linelen, decrypt);
+    proto_tree_add_string(tree, hf_smtp_password, tvb,
+                          a_offset, a_linelen, decrypt);
+    col_append_str(pinfo->cinfo, COL_INFO, decrypt);
+  }
+}
+
+static void
 dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
   struct smtp_proto_data    *spd_frame_data;
   proto_tree                *smtp_tree = NULL;
-  proto_tree                *cmdresp_tree;
+  proto_tree                *cmdresp_tree = NULL;
   proto_item                *ti, *hidden_item;
-  int                       offset = 0;
-  int                       request = 0;
+  int                        offset    = 0;
+  int                        request   = 0;
   conversation_t            *conversation;
   struct smtp_session_state *session_state;
   const guchar              *line, *linep, *lineend;
-  guint32                   code;
-  int                       linelen = 0;
-  gint                      length_remaining;
-  gboolean                  eom_seen = FALSE;
-  gint                      next_offset;
-  gint                      loffset = 0;
-  int                       cmdlen;
-  fragment_data             *frag_msg = NULL;
+  guint32                    code;
+  int                        linelen   = 0;
+  gint                       length_remaining;
+  gboolean                   eom_seen  = FALSE;
+  gint                       next_offset;
+  gint                       loffset   = 0;
+  int                        cmdlen;
+  fragment_data             *frag_msg  = NULL;
   tvbuff_t                  *next_tvb;
-  guint8                    *decrypt = NULL;
-  guint8                    line_code[3];
+  guint8                    *decrypt   = NULL;
+  guint8                    *base64_string   = NULL;
+  guint8                     line_code[3];
 
   /* As there is no guarantee that we will only see frames in the
    * the SMTP conversation once, and that we will see them in
@@ -331,24 +398,25 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   /*
    * Is there a request structure attached to this conversation?
    */
-  session_state = conversation_get_proto_data(conversation, proto_smtp);
+  session_state = (struct smtp_session_state *)conversation_get_proto_data(conversation, proto_smtp);
   if (!session_state) {
     /*
      * No - create one and attach it.
      */
-    session_state = wmem_alloc(wmem_file_scope(), sizeof(struct smtp_session_state));
-    session_state->smtp_state = SMTP_STATE_READING_CMDS;
-    session_state->auth_state = SMTP_AUTH_STATE_NONE;
-    session_state->first_auth_frame = 0;
-    session_state->last_auth_frame = 0;
-    session_state->username_frame = 0;
-    session_state->password_frame = 0;
-    session_state->crlf_seen = FALSE;
-    session_state->data_seen = FALSE;
-    session_state->msg_read_len = 0;
-    session_state->msg_tot_len = 0;
-    session_state->msg_last = TRUE;
+    session_state                    = (struct smtp_session_state *)wmem_alloc(wmem_file_scope(), sizeof(struct smtp_session_state));
+    session_state->smtp_state        = SMTP_STATE_READING_CMDS;
+    session_state->auth_state        = SMTP_AUTH_STATE_NONE;
+    session_state->first_auth_frame  = 0;
+    session_state->last_auth_frame   = 0;
+    session_state->username_frame    = 0;
+    session_state->password_frame    = 0;
+    session_state->crlf_seen         = FALSE;
+    session_state->data_seen         = FALSE;
+    session_state->msg_read_len      = 0;
+    session_state->msg_tot_len       = 0;
+    session_state->msg_last          = TRUE;
     session_state->last_nontls_frame = 0;
+    session_state->username_cmd_frame = 0;
 
     conversation_add_proto_data(conversation, proto_smtp, session_state);
   }
@@ -362,7 +430,7 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint32 save_last_nontls_frame;
 
     /* This is TLS, not raw SMTP. TLS can desegment */
-    save_can_desegment = pinfo->can_desegment;
+    save_can_desegment   = pinfo->can_desegment;
     pinfo->can_desegment = pinfo->saved_can_desegment;
 
     /* Make sure the SSL dissector will not be called again after decryption */
@@ -382,24 +450,24 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   /*
    * Is there any data attached to this frame?
    */
-  spd_frame_data = p_get_proto_data(pinfo->fd, proto_smtp);
+  spd_frame_data = (struct smtp_proto_data *)p_get_proto_data(pinfo->fd, proto_smtp, 0);
 
   if (!spd_frame_data) {
 
     /*
      * No frame data.
      */
-    if(request) {
+    if (request) {
 
       /*
        * Create a frame data structure and attach it to the packet.
        */
-      spd_frame_data = wmem_alloc0(wmem_file_scope(), sizeof(struct smtp_proto_data));
+      spd_frame_data = (struct smtp_proto_data *)wmem_alloc0(wmem_file_scope(), sizeof(struct smtp_proto_data));
 
       spd_frame_data->conversation_id = conversation->index;
       spd_frame_data->more_frags = TRUE;
 
-      p_add_proto_data(pinfo->fd, proto_smtp, spd_frame_data);
+      p_add_proto_data(pinfo->fd, proto_smtp, 0, spd_frame_data);
 
     }
 
@@ -442,7 +510,7 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         /*
          * The order of these is important ... We want to avoid
          * cases where there is a CRLF at the end of a packet and a
-         * .CRLF at the begining of the same packet.
+         * .CRLF at the beginning of the same packet.
          */
         if ((session_state->crlf_seen && tvb_strneql(tvb, loffset, ".\r\n", 3) == 0) ||
             tvb_strneql(tvb, loffset, "\r\n.\r\n", 5) == 0)
@@ -550,7 +618,7 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                */
               guint32 msg_len;
 
-              msg_len = strtoul (line+5, NULL, 10);
+              msg_len = (guint32)strtoul (line+5, NULL, 10);
 
               spd_frame_data->pdu_type = SMTP_PDU_CMD;
               session_state->data_seen = TRUE;
@@ -579,16 +647,52 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
               } else {
                 session_state->msg_last = FALSE;
               }
-            } else if (g_ascii_strncasecmp(line, "AUTH", 4) == 0) {
+            } else if ((g_ascii_strncasecmp(line, "AUTH LOGIN", 10) == 0) && (linelen <= 11)) {
               /*
-               * DATA command.
-               * This is a command, but everything that comes after it,
-               * until an EOM, is data.
+               * AUTH LOGIN command.
+               * Username is in a seperate frame
                */
-              spd_frame_data->pdu_type = SMTP_PDU_CMD;
-              session_state->smtp_state = SMTP_STATE_READING_CMDS;
-              session_state->auth_state = SMTP_AUTH_STATE_START;
+              spd_frame_data->pdu_type        = SMTP_PDU_CMD;
+              session_state->smtp_state       = SMTP_STATE_READING_CMDS;
+              session_state->auth_state       = SMTP_AUTH_STATE_START;
               session_state->first_auth_frame = pinfo->fd->num;
+            } else if ((g_ascii_strncasecmp(line, "AUTH LOGIN", 10) == 0) && (linelen > 11)) {
+              /*
+               * AUTH LOGIN command.
+               * Username follows the 'AUTH LOGIN' string
+               */
+              spd_frame_data->pdu_type        = SMTP_PDU_CMD;
+              session_state->smtp_state       = SMTP_STATE_READING_CMDS;
+              session_state->auth_state       = SMTP_AUTH_STATE_USERNAME_RSP;
+              session_state->first_auth_frame = pinfo->fd->num;
+              session_state->username_cmd_frame = pinfo->fd->num;
+            } else if ((g_ascii_strncasecmp(line, "AUTH PLAIN", 10) == 0) && (linelen <= 11)) {
+              /*
+               * AUTH PLAIN command.
+               * Username and Password is in one seperate frame
+               */
+              spd_frame_data->pdu_type        = SMTP_PDU_CMD;
+              session_state->smtp_state       = SMTP_STATE_READING_CMDS;
+              session_state->auth_state       = SMTP_AUTH_STATE_PLAIN_START_REQ;
+              session_state->first_auth_frame = pinfo->fd->num;
+            } else if ((g_ascii_strncasecmp(line, "AUTH PLAIN", 10) == 0) && (linelen > 11)) {
+              /*
+               * AUTH PLAIN command.
+               * Username and Password follows the 'AUTH PLAIN' string
+               */
+              spd_frame_data->pdu_type        = SMTP_PDU_CMD;
+              session_state->smtp_state       = SMTP_STATE_READING_CMDS;
+              session_state->auth_state       = SMTP_AUTH_STATE_PLAIN_CRED_REQ;
+              session_state->first_auth_frame = pinfo->fd->num;
+              session_state->user_pass_cmd_frame = pinfo->fd->num;
+            } else if ((g_ascii_strncasecmp(line, "AUTH NTLM", 9) == 0) && (linelen > 10)) {
+              /*
+               * AUTH NTLM command with nlmssp request
+               */
+              spd_frame_data->pdu_type        = SMTP_PDU_CMD;
+              session_state->smtp_state       = SMTP_STATE_READING_CMDS;
+              session_state->auth_state       = SMTP_AUTH_STATE_NTLM_REQ;
+              session_state->ntlm_req_frame = pinfo->fd->num;
             } else if (g_ascii_strncasecmp(line, "STARTTLS", 8) == 0) {
               /*
                * STARTTLS command.
@@ -609,6 +713,12 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
           } else if (session_state->auth_state == SMTP_AUTH_STATE_PASSWORD_REQ) {
               session_state->auth_state = SMTP_AUTH_STATE_PASSWORD_RSP;
               session_state->password_frame = pinfo->fd->num;
+          } else if (session_state->auth_state == SMTP_AUTH_STATE_PLAIN_REQ) {
+              session_state->auth_state = SMTP_AUTH_STATE_PLAIN_RSP;
+              session_state->user_pass_frame = pinfo->fd->num;
+          } else if (session_state->auth_state == SMTP_AUTH_STATE_NTLM_CHALLANGE) {
+              session_state->auth_state = SMTP_AUTH_STATE_NTLM_RSP;
+              session_state->ntlm_rsp_frame = pinfo->fd->num;
           }
           else {
 
@@ -664,8 +774,8 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         plurality (length_remaining, "", "s"));
 
       if (smtp_data_desegment) {
-        frag_msg = fragment_add_seq_next(tvb, 0, pinfo, spd_frame_data->conversation_id,
-                                         smtp_data_segment_table, smtp_data_reassembled_table,
+        frag_msg = fragment_add_seq_next(&smtp_data_reassembly_table, tvb, 0,
+                                         pinfo, spd_frame_data->conversation_id, NULL,
                                          tvb_length(tvb), spd_frame_data->more_frags);
       } else {
         /*
@@ -692,13 +802,13 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       if (smtp_data_desegment) {
         /* add final data segment */
         if (loffset)
-          fragment_add_seq_next(tvb, 0, pinfo, spd_frame_data->conversation_id,
-                                smtp_data_segment_table, smtp_data_reassembled_table,
+          fragment_add_seq_next(&smtp_data_reassembly_table, tvb, 0,
+                                pinfo, spd_frame_data->conversation_id, NULL,
                                 loffset, spd_frame_data->more_frags);
 
         /* terminate the desegmentation */
-        frag_msg = fragment_end_seq_next (pinfo, spd_frame_data->conversation_id, smtp_data_segment_table,
-                                          smtp_data_reassembled_table);
+        frag_msg = fragment_end_seq_next(&smtp_data_reassembly_table,
+                                         pinfo, spd_frame_data->conversation_id, NULL);
       }
       break;
 
@@ -720,7 +830,7 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         linelen = tvb_find_line_end(tvb, loffset, -1, &next_offset, FALSE);
 
         /* Column Info */
-        if(loffset == offset)
+        if (loffset == offset)
             col_append_str(pinfo->cinfo, COL_INFO, "C: ");
         else
             col_append_str(pinfo->cinfo, COL_INFO, " | ");
@@ -742,7 +852,7 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             }
             proto_tree_add_string(smtp_tree, hf_smtp_username, tvb,
                                   loffset, linelen, decrypt);
-            col_append_str(pinfo->cinfo, COL_INFO, decrypt);
+            col_append_fstr(pinfo->cinfo, COL_INFO, "User: %s", decrypt);
         } else if (session_state->password_frame == pinfo->fd->num) {
             if (decrypt == NULL) {
                 /* This line wasn't already decrypted through the state machine */
@@ -756,9 +866,30 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             }
             proto_tree_add_string(smtp_tree, hf_smtp_password, tvb,
                                   loffset, linelen, decrypt);
-            col_append_str(pinfo->cinfo, COL_INFO, decrypt);
+            col_append_fstr(pinfo->cinfo, COL_INFO, "Pass: %s", decrypt);
+        } else if (session_state->ntlm_rsp_frame == pinfo->fd->num) {
+            decrypt = tvb_get_ephemeral_string(tvb, loffset, linelen);
+            if (stmp_decryption_enabled) {
+              if (epan_base64_decode(decrypt) == 0) {
+                /* Go back to the original string */
+                decrypt = tvb_get_ephemeral_string(tvb, loffset, linelen);
+                col_append_str(pinfo->cinfo, COL_INFO, decrypt);
+                proto_tree_add_item(smtp_tree, hf_smtp_command_line, tvb,
+                                    loffset, linelen, ENC_ASCII|ENC_NA);
+              }
+              else {
+                base64_string = tvb_get_ephemeral_string(tvb, loffset, linelen);
+                dissect_ntlm_auth(tvb, pinfo, smtp_tree, base64_string);
+              }
+            }
+            else {
+              col_append_str(pinfo->cinfo, COL_INFO, decrypt);
+              proto_tree_add_item(smtp_tree, hf_smtp_command_line, tvb,
+                                  loffset, linelen, ENC_ASCII|ENC_NA);
+            }
+        } else if (session_state->user_pass_frame == pinfo->fd->num) {
+            decode_plain_auth(tvb, pinfo, smtp_tree, loffset, linelen);
         } else {
-            col_append_str(pinfo->cinfo, COL_INFO, tvb_get_ephemeral_string(tvb, loffset, linelen));
 
           if (linelen >= 4)
             cmdlen = 4;
@@ -774,15 +905,66 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
           proto_tree_add_item(cmdresp_tree, hf_smtp_req_command, tvb,
                             loffset, cmdlen, ENC_ASCII|ENC_NA);
-          if (linelen > 5) {
+
+          if ((linelen > 5) && (session_state->username_cmd_frame == pinfo->fd->num) ) {
             proto_tree_add_item(cmdresp_tree, hf_smtp_req_parameter, tvb,
                               loffset + 5, linelen - 5, ENC_ASCII|ENC_NA);
+
+            if (decrypt == NULL) {
+                /* This line wasn't already decrypted through the state machine */
+                 decrypt = tvb_get_ephemeral_string(tvb, loffset + 11, linelen - 11);
+                 if (stmp_decryption_enabled) {
+                   if (epan_base64_decode(decrypt) == 0) {
+                       /* Go back to the original string */
+                       decrypt = tvb_get_ephemeral_string(tvb, loffset + 11, linelen - 11);
+                   }
+                 }
+            }
+            proto_tree_add_string(cmdresp_tree, hf_smtp_username, tvb, loffset + 11, linelen - 11, decrypt);
+            col_append_str(pinfo->cinfo, COL_INFO, tvb_get_ephemeral_string(tvb, loffset, 11));
+            col_append_fstr(pinfo->cinfo, COL_INFO, "User: %s", decrypt);
+          }
+          else if ((linelen > 5) && (session_state->ntlm_req_frame == pinfo->fd->num) ) {
+            proto_tree_add_item(cmdresp_tree, hf_smtp_req_parameter, tvb,
+                              loffset + 5, linelen - 5, ENC_ASCII|ENC_NA);
+            decrypt = tvb_get_ephemeral_string(tvb, loffset + 10, linelen - 10);
+            if (stmp_decryption_enabled) {
+              if (epan_base64_decode(decrypt) == 0) {
+                  /* Go back to the original string */
+                  decrypt = tvb_get_ephemeral_string(tvb, loffset + 10, linelen - 10);
+                  col_append_str(pinfo->cinfo, COL_INFO, tvb_get_ephemeral_string(tvb, loffset, 10));
+                  col_append_str(pinfo->cinfo, COL_INFO, decrypt);
+              }
+              else {
+                base64_string = tvb_get_ephemeral_string(tvb, loffset + 10, linelen - 10);
+                col_append_str(pinfo->cinfo, COL_INFO, tvb_get_ephemeral_string(tvb, loffset, 10));
+                dissect_ntlm_auth(tvb, pinfo, cmdresp_tree, base64_string);
+              }
+            }
+            else {
+              col_append_str(pinfo->cinfo, COL_INFO, tvb_get_ephemeral_string(tvb, loffset, 10));
+              col_append_str(pinfo->cinfo, COL_INFO, decrypt);
+            }
+          }
+          else if ((linelen > 5) && (session_state->user_pass_cmd_frame == pinfo->fd->num) ) {
+            proto_tree_add_item(cmdresp_tree, hf_smtp_req_parameter, tvb,
+                              loffset + 5, linelen - 5, ENC_ASCII|ENC_NA);
+            col_append_str(pinfo->cinfo, COL_INFO, tvb_get_ephemeral_string(tvb, loffset, 11));
+            decode_plain_auth(tvb, pinfo, cmdresp_tree, loffset + 11, linelen - 11);
+          }
+          else if (linelen > 5) {
+            proto_tree_add_item(cmdresp_tree, hf_smtp_req_parameter, tvb,
+                              loffset + 5, linelen - 5, ENC_ASCII|ENC_NA);
+            col_append_str(pinfo->cinfo, COL_INFO, tvb_get_ephemeral_string(tvb, loffset, linelen));
+          }
+          else {
+            col_append_str(pinfo->cinfo, COL_INFO, tvb_get_ephemeral_string(tvb, loffset, linelen));
           }
 
           if (smtp_data_desegment && !spd_frame_data->more_frags) {
             /* terminate the desegmentation */
-            frag_msg = fragment_end_seq_next (pinfo, spd_frame_data->conversation_id, smtp_data_segment_table,
-                                              smtp_data_reassembled_table);
+            frag_msg = fragment_end_seq_next(&smtp_data_reassembly_table,
+                                             pinfo, spd_frame_data->conversation_id, NULL);
           }
         }
         /*
@@ -796,7 +978,7 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       next_tvb = process_reassembled_data(tvb, offset, pinfo, "Reassembled SMTP",
                                           frag_msg, &smtp_data_frag_items, NULL, smtp_tree);
       if (next_tvb) {
-        /* XXX: this is presumptious - we may have negotiated something else */
+        /* XXX: this is presumptuous - we may have negotiated something else */
         if (imf_handle) {
           call_dissector(imf_handle, next_tvb, pinfo, tree);
         } else {
@@ -878,16 +1060,32 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 case SMTP_AUTH_STATE_USERNAME_RSP:
                     session_state->auth_state = SMTP_AUTH_STATE_PASSWORD_REQ;
                     break;
+                case SMTP_AUTH_STATE_PLAIN_REQ:
+                    session_state->auth_state = SMTP_AUTH_STATE_PLAIN_RSP;
+                    break;
+                case SMTP_AUTH_STATE_PLAIN_START_REQ:
+                    session_state->auth_state = SMTP_AUTH_STATE_PLAIN_REQ;
+                    break;
+                case SMTP_AUTH_STATE_NTLM_REQ:
+                    session_state->auth_state = SMTP_AUTH_STATE_NTLM_CHALLANGE;
+                    break;
                 case SMTP_AUTH_STATE_NONE:
                 case SMTP_AUTH_STATE_USERNAME_REQ:
                 case SMTP_AUTH_STATE_PASSWORD_REQ:
                 case SMTP_AUTH_STATE_PASSWORD_RSP:
+                case SMTP_AUTH_STATE_PLAIN_RSP:
+                case SMTP_AUTH_STATE_PLAIN_CRED_REQ:
+                case SMTP_AUTH_STATE_NTLM_RSP:
+                case SMTP_AUTH_STATE_NTLM_CHALLANGE:
                 case SMTP_AUTH_STATE_SUCCESS:
                 case SMTP_AUTH_STATE_FAILED:
                     /* ignore */
                     break;
                 }
-            } else if (session_state->auth_state == SMTP_AUTH_STATE_PASSWORD_RSP) {
+            } else if ((session_state->auth_state == SMTP_AUTH_STATE_PASSWORD_RSP) ||
+                       ( session_state->auth_state == SMTP_AUTH_STATE_PLAIN_RSP) ||
+                       ( session_state->auth_state == SMTP_AUTH_STATE_NTLM_RSP) ||
+                       ( session_state->auth_state == SMTP_AUTH_STATE_PLAIN_CRED_REQ) ) {
                 if (code == 235) {
                   session_state->auth_state = SMTP_AUTH_STATE_SUCCESS;
                 } else {
@@ -907,10 +1105,19 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 if ((stmp_decryption_enabled) && (code == 334)) {
                     decrypt = tvb_get_ephemeral_string(tvb, offset + 4, linelen - 4);
                     if (epan_base64_decode(decrypt) > 0) {
+                      if (g_ascii_strncasecmp(decrypt, "NTLMSSP", 7) == 0) {
+                        base64_string = tvb_get_ephemeral_string(tvb, loffset + 4, linelen - 4);
+                        col_append_fstr(pinfo->cinfo, COL_INFO, "%d ", code);
+                        proto_tree_add_string(cmdresp_tree, hf_smtp_rsp_parameter, tvb,
+                                          offset + 4, linelen - 4, (const char*)base64_string);
+                        dissect_ntlm_auth(tvb, pinfo, cmdresp_tree, base64_string);
+                      }
+                      else {
                         proto_tree_add_string(cmdresp_tree, hf_smtp_rsp_parameter, tvb,
                                           offset + 4, linelen - 4, (const char*)decrypt);
 
                         col_append_fstr(pinfo->cinfo, COL_INFO, "%d %s", code, decrypt);
+                      }
                     } else {
                         decrypt = NULL;
                     }
@@ -920,7 +1127,8 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     proto_tree_add_item(cmdresp_tree, hf_smtp_rsp_parameter, tvb,
                                       offset + 4, linelen - 4, ENC_ASCII|ENC_NA);
 
-                    col_append_fstr(pinfo->cinfo, COL_INFO, "%d %s", code, tvb_get_ephemeral_string(tvb, offset + 4, linelen - 4));
+                    col_append_fstr(pinfo->cinfo, COL_INFO, "%d %s", code,
+                                    tvb_get_ephemeral_string(tvb, offset + 4, linelen - 4));
                 }
             } else {
                col_append_str(pinfo->cinfo, COL_INFO, tvb_get_ephemeral_string(tvb, offset, linelen));
@@ -936,10 +1144,11 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 }
 
-static void smtp_data_reassemble_init (void)
+static void
+smtp_data_reassemble_init (void)
 {
-        fragment_table_init (&smtp_data_segment_table);
-        reassembled_table_init (&smtp_data_reassembled_table);
+  reassembly_table_init(&smtp_data_reassembly_table,
+                        &addresses_ports_reassembly_table_functions);
 }
 
 
@@ -979,7 +1188,7 @@ proto_register_smtp(void)
 
     { &hf_smtp_rsp_code,
       { "Response code", "smtp.response.code",
-        FT_UINT32, BASE_DEC, VALS(response_codes_vs), 0x0, NULL, HFILL }},
+        FT_UINT32, BASE_DEC|BASE_EXT_STRING, &response_codes_vs_ext, 0x0, NULL, HFILL }},
 
     { &hf_smtp_rsp_parameter,
       { "Response parameter", "smtp.rsp.parameter",
@@ -1057,23 +1266,23 @@ proto_register_smtp(void)
   /* Preferences */
   smtp_module = prefs_register_protocol(proto_smtp, NULL);
   prefs_register_bool_preference(smtp_module, "desegment_lines",
-    "Reassemble SMTP command and response lines\nspanning multiple TCP segments",
-    "Whether the SMTP dissector should reassemble command and response lines"
-    " spanning multiple TCP segments. To use this option, you must also enable "
-    "\"Allow subdissectors to reassemble TCP streams\" in the TCP protocol settings.",
-    &smtp_desegment);
+                                 "Reassemble SMTP command and response lines\nspanning multiple TCP segments",
+                                 "Whether the SMTP dissector should reassemble command and response lines"
+                                 " spanning multiple TCP segments. To use this option, you must also enable "
+                                 "\"Allow subdissectors to reassemble TCP streams\" in the TCP protocol settings.",
+                                 &smtp_desegment);
 
   prefs_register_bool_preference(smtp_module, "desegment_data",
-    "Reassemble SMTP DATA commands spanning multiple TCP segments",
-    "Whether the SMTP dissector should reassemble DATA command and lines"
-    " spanning multiple TCP segments. To use this option, you must also enable "
-    "\"Allow subdissectors to reassemble TCP streams\" in the TCP protocol settings.",
-    &smtp_data_desegment);
+                                 "Reassemble SMTP DATA commands spanning multiple TCP segments",
+                                 "Whether the SMTP dissector should reassemble DATA command and lines"
+                                 " spanning multiple TCP segments. To use this option, you must also enable "
+                                 "\"Allow subdissectors to reassemble TCP streams\" in the TCP protocol settings.",
+                                 &smtp_data_desegment);
 
   prefs_register_bool_preference(smtp_module, "decryption",
-    "Decrypt AUTH parameters",
-    "Whether the SMTP dissector should cecrypt AUTH parameters",
-    &stmp_decryption_enabled);
+                                 "Decrypt AUTH parameters",
+                                 "Whether the SMTP dissector should decrypt AUTH parameters",
+                                 &stmp_decryption_enabled);
 }
 
 /* The registration hand-off routine */
@@ -1092,4 +1301,20 @@ proto_reg_handoff_smtp(void)
 
   /* find the SSL dissector */
   ssl_handle = find_dissector("ssl");
+
+  /* find the NTLM dissector */
+  ntlmssp_handle = find_dissector("ntlmssp");
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true
+ */

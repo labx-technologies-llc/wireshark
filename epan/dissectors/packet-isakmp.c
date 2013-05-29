@@ -59,7 +59,7 @@
 #include <epan/expert.h>
 
 #ifdef HAVE_LIBGCRYPT
-#include <gcrypt.h>
+#include <wsutil/wsgcrypt.h>
 #include <epan/strutil.h>
 #include <epan/uat.h>
 #endif
@@ -370,8 +370,7 @@ static gint ett_isakmp_decrypted_payloads = -1;
 
 static dissector_handle_t eap_handle = NULL;
 
-static GHashTable *isakmp_fragment_table = NULL;
-static GHashTable *isakmp_reassembled_table = NULL;
+static reassembly_table isakmp_reassembly_table;
 
 static const fragment_items isakmp_frag_items = {
   /* Fragment subtrees */
@@ -1513,7 +1512,7 @@ static const value_string rohc_attr_type[] = {
   { 0,	NULL },
 };
 
-#define ISAKMP_HDR_SIZE (sizeof(struct isakmp_hdr) + (2 * COOKIE_SIZE))
+#define ISAKMP_HDR_SIZE ((int)sizeof(struct isakmp_hdr) + (2 * COOKIE_SIZE))
 
 
 #ifdef HAVE_LIBGCRYPT
@@ -1797,7 +1796,7 @@ decrypt_payload(tvbuff_t *tvb, packet_info *pinfo, const guint8 *buf, guint buf_
       return NULL;
     if (decr->iv_list == NULL) {
       /* First packet */
-      ivd = g_malloc(sizeof(iv_data_t));
+      ivd = (iv_data_t *)g_malloc(sizeof(iv_data_t));
       ivd->frame_num = pinfo->fd->num;
       ivd->iv_len = digest_size;
       decr->last_message_id = hdr->message_id;
@@ -1810,7 +1809,7 @@ decrypt_payload(tvbuff_t *tvb, packet_info *pinfo, const guint8 *buf, guint buf_
       iv_len = ivd->iv_len;
       memcpy(iv, ivd->iv, iv_len);
     } else if (decr->last_cbc_len >= cbc_block_size) {
-      ivd = g_malloc(sizeof(iv_data_t));
+      ivd = (iv_data_t *)g_malloc(sizeof(iv_data_t));
       ivd->frame_num = pinfo->fd->num;
       if (hdr->message_id != decr->last_message_id) {
 	if (decr->last_p1_cbc_len == 0) {
@@ -1846,7 +1845,7 @@ decrypt_payload(tvbuff_t *tvb, packet_info *pinfo, const guint8 *buf, guint buf_
   if (gcry_cipher_setkey(decr_ctx, decr->secret, decr->secret_len))
     return NULL;
 
-  decrypted_data = g_malloc(buf_len);
+  decrypted_data = (guint8 *)g_malloc(buf_len);
 
   if (gcry_cipher_decrypt(decr_ctx, decrypted_data, buf_len, buf, buf_len) != GPG_ERR_NO_ERROR) {
     g_free(decrypted_data);
@@ -2734,8 +2733,8 @@ dissect_isakmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     decr = (decrypt_data_t*) g_hash_table_lookup(isakmp_hash, i_cookie);
 
     if (! decr) {
-      ic_key = g_slice_alloc(COOKIE_SIZE);
-      decr   = g_slice_alloc(sizeof(decrypt_data_t));
+      ic_key = (guint8 *)g_slice_alloc(COOKIE_SIZE);
+      decr   = (decrypt_data_t *)g_slice_alloc(sizeof(decrypt_data_t));
       memcpy(ic_key, i_cookie, COOKIE_SIZE);
       memset(decr, 0, sizeof(decrypt_data_t));
       SET_ADDRESS(&decr->initiator, AT_NONE, 0, NULL);
@@ -2765,11 +2764,11 @@ dissect_isakmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     hash_key.spii_len = COOKIE_SIZE;
     hash_key.spir_len = COOKIE_SIZE;
 
-    ike_sa_data = g_hash_table_lookup(ikev2_key_hash, &hash_key);
+    ike_sa_data = (ikev2_uat_data_t *)g_hash_table_lookup(ikev2_key_hash, &hash_key);
     if (ike_sa_data) {
       guint8 initiator_flag;
       initiator_flag = hdr.flags & I_FLAG;
-      ikev2_dec_data = ep_alloc(sizeof(ikev2_decrypt_data_t));
+      ikev2_dec_data = ep_new(ikev2_decrypt_data_t);
       ikev2_dec_data->encr_key = initiator_flag ? ike_sa_data->sk_ei : ike_sa_data->sk_er;
       ikev2_dec_data->auth_key = initiator_flag ? ike_sa_data->sk_ai : ike_sa_data->sk_ar;
       ikev2_dec_data->encr_spec = ike_sa_data->encr_spec;
@@ -3586,11 +3585,11 @@ _U_
 
 #ifdef HAVE_LIBGCRYPT
   if (decr && decr->gi_len == 0 && ADDRESSES_EQUAL(&decr->initiator, &pinfo->src)) {
-    decr->gi = g_malloc(length);
+    decr->gi = (gchar *)g_malloc(length);
     tvb_memcpy(tvb, decr->gi, offset, length);
     decr->gi_len = length;
   } else if (decr && decr->gr_len == 0 && !ADDRESSES_EQUAL(&decr->initiator, &pinfo->src)) {
-    decr->gr = g_malloc(length);
+    decr->gr = (gchar *)g_malloc(length);
     tvb_memcpy(tvb, decr->gr, offset, length);
     decr->gr_len = length;
   }
@@ -3814,10 +3813,10 @@ dissect_cisco_fragmentation(tvbuff_t *tvb, int offset, int length, proto_tree *t
 
     save_fragmented = pinfo->fragmented;
     pinfo->fragmented = TRUE;
-    frag_msg = fragment_add_seq_check(tvb, offset, pinfo,
+    frag_msg = fragment_add_seq_check(&isakmp_reassembly_table, tvb, offset,
+                                      pinfo,
                                       12345,                    /*FIXME:  Fragmented packet id, guint16, somehow get CKY here */
-                                      isakmp_fragment_table,    /* list of message fragments */
-                                      isakmp_reassembled_table, /* list of reassembled messages */
+                                      NULL,
                                       seq-1,                    /* fragment sequence number, starting from 0 */
                                       tvb_length_remaining(tvb, offset), /* fragment length - to the end */
                                       last);                    /* More fragments? */
@@ -4615,7 +4614,7 @@ dissect_enc(tvbuff_t *tvb,
     if (iv_len) {
       iv_item = proto_tree_add_item(tree, hf_isakmp_enc_iv, tvb, offset, iv_len, ENC_NA);
       proto_item_append_text(iv_item, " (%d bytes)", iv_len);
-      iv = ep_tvb_memdup(tvb, offset, iv_len);
+      iv = (guchar *)ep_tvb_memdup(tvb, offset, iv_len);
 
       offset += iv_len;
     }
@@ -4625,7 +4624,7 @@ dissect_enc(tvbuff_t *tvb,
      */
     encr_data_item = proto_tree_add_item(tree, hf_isakmp_enc_data, tvb, offset, encr_data_len, ENC_NA);
     proto_item_append_text(encr_data_item, " (%d bytes)",encr_data_len);
-    encr_data = ep_tvb_memdup(tvb, offset, encr_data_len);
+    encr_data = (guchar *)ep_tvb_memdup(tvb, offset, encr_data_len);
     offset += encr_data_len;
 
     /*
@@ -4652,7 +4651,7 @@ dissect_enc(tvbuff_t *tvb,
         }
 
         /* Calculate hash over the bytes from the beginning of the ISAKMP header to the right before the ICD. */
-        entire_message = ep_tvb_memdup(tvb, 0, offset);
+        entire_message = (guchar *)ep_tvb_memdup(tvb, 0, offset);
         gcry_md_write(md_hd, entire_message, offset);
         md = gcry_md_read(md_hd, 0);
         md_len = gcry_md_get_algo_dlen(key_info->auth_spec->gcry_alg);
@@ -4804,7 +4803,7 @@ isakmp_hash_func(gconstpointer c) {
   guint   val = 0, keychunk, i;
 
   /* XOR our icookie down to the size of a guint */
-  for (i = 0; i < COOKIE_SIZE - (COOKIE_SIZE % sizeof(keychunk)); i += sizeof(keychunk)) {
+  for (i = 0; i < COOKIE_SIZE - (COOKIE_SIZE % (guint)sizeof(keychunk)); i += (guint)sizeof(keychunk)) {
     memcpy(&keychunk, &i_cookie[i], sizeof(keychunk));
     val ^= keychunk;
   }
@@ -4826,11 +4825,11 @@ static guint ikev2_key_hash_func(gconstpointer k) {
   guint hash = 0, keychunk, i;
 
   /* XOR our icookie down to the size of a guint */
-  for (i = 0; i < key->spii_len - (key->spii_len % sizeof(keychunk)); i += sizeof(keychunk)) {
+  for (i = 0; i < key->spii_len - (key->spii_len % (guint)sizeof(keychunk)); i += (guint)sizeof(keychunk)) {
     memcpy(&keychunk, &key->spii[i], sizeof(keychunk));
     hash ^= keychunk;
   }
-  for (i = 0; i < key->spir_len - (key->spir_len % sizeof(keychunk)); i += sizeof(keychunk)) {
+  for (i = 0; i < key->spir_len - (key->spir_len % (guint)sizeof(keychunk)); i += (guint)sizeof(keychunk)) {
     memcpy(&keychunk, &key->spir[i], sizeof(keychunk));
     hash ^= keychunk;
   }
@@ -4839,7 +4838,8 @@ static guint ikev2_key_hash_func(gconstpointer k) {
 }
 
 static gint ikev2_key_equal_func(gconstpointer k1, gconstpointer k2) {
-  const ikev2_uat_data_key_t *key1 = k1, *key2 = k2;
+  const ikev2_uat_data_key_t *key1 = (const ikev2_uat_data_key_t *)k1; 
+  const ikev2_uat_data_key_t *key2 = (const ikev2_uat_data_key_t *)k2;
   if (key1->spii_len != key2->spii_len) return 0;
   if (key1->spir_len != key2->spir_len) return 0;
   if (memcmp(key1->spii, key2->spii, key1->spii_len) != 0) return 0;
@@ -4853,8 +4853,8 @@ static gint ikev2_key_equal_func(gconstpointer k1, gconstpointer k2) {
 static gboolean
 free_cookie(gpointer key_arg, gpointer value, gpointer user_data _U_)
 {
-  guint8 *ic_key = key_arg;
-  decrypt_data_t *decr = value;
+  guint8 *ic_key = (guint8 *)key_arg;
+  decrypt_data_t *decr = (decrypt_data_t *)value;
 
   g_slice_free1(COOKIE_SIZE, ic_key);
   g_slice_free1(sizeof(decrypt_data_t), decr);
@@ -4869,8 +4869,8 @@ isakmp_init_protocol(void) {
   decrypt_data_t *decr;
   guint8   *ic_key;
 #endif /* HAVE_LIBGCRYPT */
-  fragment_table_init(&isakmp_fragment_table);
-  reassembled_table_init(&isakmp_reassembled_table);
+  reassembly_table_init(&isakmp_reassembly_table,
+                        &addresses_reassembly_table_functions);
 
 #ifdef HAVE_LIBGCRYPT
   if (isakmp_hash) {
@@ -4880,8 +4880,8 @@ isakmp_init_protocol(void) {
   isakmp_hash = g_hash_table_new(isakmp_hash_func, isakmp_equal_func);
 
   for (i = 0; i < num_ikev1_uat_data; i++) {
-      ic_key = g_slice_alloc(COOKIE_SIZE);
-      decr   = g_slice_alloc(sizeof(decrypt_data_t));
+      ic_key = (guint8 *)g_slice_alloc(COOKIE_SIZE);
+      decr   = (decrypt_data_t *)g_slice_alloc(sizeof(decrypt_data_t));
       memcpy(ic_key, ikev1_uat_data[i].icookie, COOKIE_SIZE);
       memset(decr, 0, sizeof(decrypt_data_t));
 
@@ -4915,7 +4915,7 @@ UAT_BUFFER_CB_DEF(ikev1_users, icookie, ikev1_uat_data_key_t, icookie, icookie_l
 UAT_BUFFER_CB_DEF(ikev1_users, key, ikev1_uat_data_key_t, key, key_len)
 
 static void ikev1_uat_data_update_cb(void* p, const char** err) {
-  ikev1_uat_data_key_t *ud = p;
+  ikev1_uat_data_key_t *ud = (ikev1_uat_data_key_t *)p;
 
   if (ud->icookie_len != COOKIE_SIZE) {
     *err = ep_strdup_printf("Length of Initiator's COOKIE must be %d octets (%d hex characters).", COOKIE_SIZE, COOKIE_SIZE * 2);
@@ -4938,13 +4938,13 @@ UAT_BUFFER_CB_DEF(ikev2_users, spii, ikev2_uat_data_t, key.spii, key.spii_len)
 UAT_BUFFER_CB_DEF(ikev2_users, spir, ikev2_uat_data_t, key.spir, key.spir_len)
 UAT_BUFFER_CB_DEF(ikev2_users, sk_ei, ikev2_uat_data_t, sk_ei, sk_ei_len)
 UAT_BUFFER_CB_DEF(ikev2_users, sk_er, ikev2_uat_data_t, sk_er, sk_er_len)
-UAT_VS_DEF(ikev2_users, encr_alg, ikev2_uat_data_t, IKEV2_ENCR_3DES, IKEV2_ENCR_3DES_STR)
+UAT_VS_DEF(ikev2_users, encr_alg, ikev2_uat_data_t, guint, IKEV2_ENCR_3DES, IKEV2_ENCR_3DES_STR)
 UAT_BUFFER_CB_DEF(ikev2_users, sk_ai, ikev2_uat_data_t, sk_ai, sk_ai_len)
 UAT_BUFFER_CB_DEF(ikev2_users, sk_ar, ikev2_uat_data_t, sk_ar, sk_ar_len)
-UAT_VS_DEF(ikev2_users, auth_alg, ikev2_uat_data_t, IKEV2_AUTH_HMAC_SHA1_96, IKEV2_AUTH_HMAC_SHA1_96_STR)
+UAT_VS_DEF(ikev2_users, auth_alg, ikev2_uat_data_t, guint, IKEV2_AUTH_HMAC_SHA1_96, IKEV2_AUTH_HMAC_SHA1_96_STR)
 
 static void ikev2_uat_data_update_cb(void* p, const char** err) {
-  ikev2_uat_data_t *ud = p;
+  ikev2_uat_data_t *ud = (ikev2_uat_data_t *)p;
 
   if (ud->key.spii_len != COOKIE_SIZE) {
     *err = ep_strdup_printf("Length of Initiator's SPI must be %d octets (%d hex characters).", COOKIE_SIZE, COOKIE_SIZE * 2);
@@ -6119,7 +6119,7 @@ proto_register_isakmp(void)
       sizeof(ikev1_uat_data_key_t),
       "ikev1_decryption_table",
       TRUE,
-      (void*)&ikev1_uat_data,
+      (void**)&ikev1_uat_data,
       &num_ikev1_uat_data,
       UAT_AFFECTS_DISSECTION, /* affects dissection of packets, but not set of named fields */
       "ChIKEv1DecryptionSection",
@@ -6139,7 +6139,7 @@ proto_register_isakmp(void)
       sizeof(ikev2_uat_data_t),
       "ikev2_decryption_table",
       TRUE,
-      (void*)&ikev2_uat_data,
+      (void**)&ikev2_uat_data,
       &num_ikev2_uat_data,
       UAT_AFFECTS_DISSECTION, /* affects dissection of packets, but not set of named fields */
       "ChIKEv2DecryptionSection",

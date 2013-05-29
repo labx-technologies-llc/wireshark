@@ -157,6 +157,52 @@ button_press_handler(GtkWidget *widget, GdkEvent *event, gpointer data _U_)
 	return FALSE;
 }
 
+/* Returns dynamically allocated memory, must be freed by caller after use */
+static char*
+create_packet_window_title(void)
+{
+	GString *title;
+	char *ret;
+	int i;
+
+	title = g_string_new("");
+
+	/*
+	 * Build title of window by getting column data constructed when the
+	 * frame was dissected.
+	 */
+	for (i = 0; i < cfile.cinfo.num_cols; ++i) {
+		g_string_append(title, cfile.cinfo.col_data[i]);
+		g_string_append_c(title, ' ');
+	}
+
+	ret = title->str;
+
+	g_string_free(title, FALSE);
+
+	return ret;
+}
+
+static void
+redissect_packet_window(gpointer object, gpointer user_data _U_)
+{
+	struct PacketWinData *DataPtr = (struct PacketWinData *)object;
+	char *title;
+
+	/* XXX, can be optimized? */
+	proto_tree_draw(NULL, DataPtr->tree_view);
+	epan_dissect_cleanup(&(DataPtr->edt));
+	epan_dissect_init(&(DataPtr->edt), TRUE, TRUE);
+	epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, DataPtr->pd, DataPtr->frame, NULL);
+	add_byte_views(&(DataPtr->edt), DataPtr->tree_view, DataPtr->bv_nb_ptr);
+	proto_tree_draw(DataPtr->edt.tree, DataPtr->tree_view);
+
+	/* update the window title */
+	title = create_packet_window_title();
+	gtk_window_set_title(GTK_WINDOW(DataPtr->main), title);
+	g_free(title);
+}
+
 #ifdef WANT_PACKET_EDITOR
 static field_info *
 proto_finfo_find(proto_tree *tree, field_info *old_finfo)
@@ -479,7 +525,7 @@ new_finfo_window(GtkWidget *w, struct FieldinfoWinData *DataPtr)
 
 	GtkWidget *dialog = gtk_dialog_new_with_buttons("Editing finfo: ....",
 			GTK_WINDOW(w),
-			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+			(GtkDialogFlags) (GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT),
 			GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
 			GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT,
 			NULL);
@@ -551,7 +597,7 @@ new_finfo_window(GtkWidget *w, struct FieldinfoWinData *DataPtr)
 	} else if (finfo_type == FT_STRING || finfo_type == FT_STRINGZ) {
 		fvalue_edit = gtk_entry_new();
 		gtk_entry_set_max_length(GTK_ENTRY(fvalue_edit), finfo->length);
-		gtk_entry_set_text(GTK_ENTRY(fvalue_edit), fvalue_get(&finfo->value));
+		gtk_entry_set_text(GTK_ENTRY(fvalue_edit), (const gchar*) fvalue_get(&finfo->value));
 		g_signal_connect(fvalue_edit, "changed", G_CALLBACK(finfo_string_changed), DataPtr);
 
 	} else if (finfo_type == FT_BOOLEAN) {
@@ -560,7 +606,7 @@ new_finfo_window(GtkWidget *w, struct FieldinfoWinData *DataPtr)
 		g_signal_connect(fvalue_edit, "toggled", G_CALLBACK(finfo_boolean_changed), DataPtr);
 
 	} else if (finfo_type == FT_IPv4) {
-		guint32 net_addr = ipv4_get_net_order_addr(fvalue_get(&finfo->value));
+		guint32 net_addr = ipv4_get_net_order_addr((ipv4_addr *)fvalue_get(&finfo->value));
 #if GTK_CHECK_VERSION(3,0,0)
 		GtkAdjustment *adj;
 #else
@@ -668,7 +714,7 @@ edit_pkt_tree_row_activated_cb(GtkTreeView *tree_view, GtkTreePath *path, GtkTre
 
 		data.frame = DataPtr->frame;
 		data.phdr  = DataPtr->phdr;
-		data.pd = g_memdup(DataPtr->pd, DataPtr->frame->cap_len);
+		data.pd = (guint8 *) g_memdup(DataPtr->pd, DataPtr->frame->cap_len);
 		data.start_offset = (int) (finfo->ds_tvb->real_data - DataPtr->pd);
 
 		data.finfo = finfo;
@@ -804,17 +850,11 @@ edit_pkt_win_key_pressed_cb(GtkWidget *win _U_, GdkEventKey *event, gpointer use
 
 	/* redissect if changed */
 	if (data.val != -1) {
-		/* XXX, can be optimized? */
-		proto_tree_draw(NULL, DataPtr->tree_view);
-		epan_dissect_cleanup(&(DataPtr->edt));
-		epan_dissect_init(&(DataPtr->edt), TRUE, TRUE);
-		epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, DataPtr->pd, DataPtr->frame, NULL);
-		add_byte_views(&(DataPtr->edt), DataPtr->tree_view, DataPtr->bv_nb_ptr);
-		proto_tree_draw(DataPtr->edt.tree, DataPtr->tree_view);
+		redissect_packet_window(DataPtr, NULL);
 	}
 
 	for (src_le = DataPtr->edt.pi.data_src; src_le != NULL; src_le = src_le->next) {
-		const struct data_source *src = src_le->data;
+		const struct data_source *src = (const struct data_source *)src_le->data;
 		tvbuff_t *tvb = get_data_source_tvb(src);
 
 		if (tvb && tvb->real_data == DataPtr->pd) {
@@ -838,7 +878,7 @@ static void
 edit_pkt_destroy_new_window(GObject *object _U_, gpointer user_data)
 {
 	/* like destroy_new_window, but without freeding DataPtr->pd */
-	struct PacketWinData *DataPtr = user_data;
+	struct PacketWinData *DataPtr = (struct PacketWinData *)user_data;
 
 	detail_windows = g_list_remove(detail_windows, DataPtr);
 	proto_tree_draw(NULL, DataPtr->tree_view);
@@ -866,24 +906,50 @@ static void modifed_frame_data_free(gpointer data) {
 
 #endif /* WANT_PACKET_EDITOR */
 
-void new_packet_window(GtkWidget *w _U_, gboolean editable _U_)
+void new_packet_window(GtkWidget *w _U_, gboolean reference, gboolean editable _U_)
 {
-#define NewWinTitleLen 1000
-	char Title[NewWinTitleLen] = "";
-	const char *TextPtr;
+	char  *title;
 	GtkWidget *main_w, *main_vbox, *pane,
-		*tree_view, *tv_scrollw,
-		*bv_nb_ptr;
+		  *tree_view, *tv_scrollw,
+		  *bv_nb_ptr;
 	struct PacketWinData *DataPtr;
-	int i;
+	frame_data *fd;
+	
+	if(reference) {
+		guint32            framenum;
+		header_field_info *hfinfo;
 
-	if (!cfile.current_frame) {
+		if (! cfile.finfo_selected) {
+			return;
+		}
+
+		hfinfo = cfile.finfo_selected->hfinfo;
+
+		g_assert(hfinfo);
+
+		if (hfinfo->type != FT_FRAMENUM) {
+			return;
+		}
+
+		framenum = fvalue_get_uinteger(&cfile.finfo_selected->value);
+
+		if (framenum == 0) {
+			return;
+		}
+
+		fd = frame_data_sequence_find(cfile.frames, framenum);
+	}
+	else {
+		fd = cfile.current_frame;
+	}
+
+	if (!fd) {
 		/* nothing has been captured so far */
 		return;
 	}
 
 	/* With the new packetlists "lazy columns" it's neccesary to reread the frame */
-	if (!cf_read_frame(&cfile, cfile.current_frame)) {
+	if (!cf_read_frame(&cfile, fd)) {
 		/* error reading the frame */
 		return;
 	}
@@ -891,9 +957,9 @@ void new_packet_window(GtkWidget *w _U_, gboolean editable _U_)
 	/* Allocate data structure to represent this window. */
 	DataPtr = (struct PacketWinData *) g_malloc(sizeof(struct PacketWinData));
 
-	DataPtr->frame = cfile.current_frame;
+	DataPtr->frame = fd;
 	DataPtr->phdr  = cfile.phdr;
-	DataPtr->pd = g_malloc(DataPtr->frame->cap_len);
+	DataPtr->pd = (guint8 *)g_malloc(DataPtr->frame->cap_len);
 	memcpy(DataPtr->pd, cfile.pd, DataPtr->frame->cap_len);
 
 	epan_dissect_init(&(DataPtr->edt), TRUE, TRUE);
@@ -901,19 +967,10 @@ void new_packet_window(GtkWidget *w _U_, gboolean editable _U_)
 			 DataPtr->frame, &cfile.cinfo);
 	epan_dissect_fill_in_columns(&(DataPtr->edt), FALSE, TRUE);
 
-	/*
-	 * Build title of window by getting column data constructed when the
-	 * frame was dissected.
-	 */
-	for (i = 0; i < cfile.cinfo.num_cols; ++i) {
-		TextPtr = cfile.cinfo.col_data[i];
-		if ((strlen(Title) + strlen(TextPtr)) < NewWinTitleLen - 1) {
-			g_strlcat(Title, TextPtr, NewWinTitleLen);
-			g_strlcat(Title, " ", NewWinTitleLen);
-		}
-	}
-
-	main_w = window_new(GTK_WINDOW_TOPLEVEL, Title);
+	/* update the window title */
+	title = create_packet_window_title();
+	main_w = window_new(GTK_WINDOW_TOPLEVEL, title);
+	g_free(title);
 	gtk_window_set_default_size(GTK_WINDOW(main_w), DEF_WIDTH, -1);
 
 	/* Container for paned windows  */
@@ -928,7 +985,7 @@ void new_packet_window(GtkWidget *w _U_, gboolean editable _U_)
 	gtk_widget_show(pane);
 
 	/* Tree view */
-	tv_scrollw = proto_tree_view_new(&prefs, &tree_view);
+	tv_scrollw = proto_tree_view_new(&tree_view);
 	gtk_paned_pack1(GTK_PANED(pane), tv_scrollw, TRUE, TRUE);
 	gtk_widget_set_size_request(tv_scrollw, -1, TV_SIZE);
 	gtk_widget_show(tv_scrollw);
@@ -972,7 +1029,7 @@ void new_packet_window(GtkWidget *w _U_, gboolean editable _U_)
 #ifdef WANT_PACKET_EDITOR
 	if (editable && DataPtr->frame->cap_len != 0) {
 		/* XXX, there's no Save button here, so lets assume packet is always edited */
-		modified_frame_data *mfd = g_malloc(sizeof(modified_frame_data));
+		modified_frame_data *mfd = (modified_frame_data *)g_malloc(sizeof(modified_frame_data));
 
 		mfd->pd = DataPtr->pd;
 		mfd->phdr = DataPtr->phdr;
@@ -985,10 +1042,16 @@ void new_packet_window(GtkWidget *w _U_, gboolean editable _U_)
 #endif
 }
 
+void
+redissect_all_packet_windows(void)
+{
+	g_list_foreach(detail_windows, redissect_packet_window, NULL);
+}
+
 static void
 destroy_new_window(GObject *object _U_, gpointer user_data)
 {
-	struct PacketWinData *DataPtr = user_data;
+	struct PacketWinData *DataPtr = (struct PacketWinData *)user_data;
 
 	detail_windows = g_list_remove(detail_windows, DataPtr);
 	proto_tree_draw(NULL, DataPtr->tree_view);
@@ -1110,3 +1173,16 @@ redraw_packet_bytes_packet_wins(void)
 {
 	g_list_foreach(detail_windows, redraw_packet_bytes_cb, NULL);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

@@ -82,7 +82,7 @@ static int tap_packet_cb_error_handler(lua_State* L) {
 
 
 static int lua_tap_packet(void *tapdata, packet_info *pinfo, epan_dissect_t *edt, const void *data) {
-    Listener tap = tapdata;
+    Listener tap = (Listener)tapdata;
     int retval = 0;
 
     if (tap->packet_ref == LUA_NOREF) return 0;
@@ -103,7 +103,7 @@ static int lua_tap_packet(void *tapdata, packet_info *pinfo, epan_dissect_t *edt
 
     lua_pinfo = pinfo;
     lua_tvb = edt->tvb;
-    lua_tree = g_malloc(sizeof(struct _wslua_treeitem));
+    lua_tree = (struct _wslua_treeitem *)g_malloc(sizeof(struct _wslua_treeitem));
     lua_tree->tree = edt->tree;
     lua_tree->item = NULL;
     lua_tree->expired = FALSE;
@@ -115,7 +115,7 @@ static int lua_tap_packet(void *tapdata, packet_info *pinfo, epan_dissect_t *edt
         case LUA_ERRRUN:
             break;
         case LUA_ERRMEM:
-            g_warning("Memory alloc error while calling listenet tap callback packet");
+            g_warning("Memory alloc error while calling listener tap callback packet");
             break;
         default:
             g_assert_not_reached();
@@ -139,7 +139,7 @@ static int tap_reset_cb_error_handler(lua_State* L) {
 }
 
 static void lua_tap_reset(void *tapdata) {
-    Listener tap = tapdata;
+    Listener tap = (Listener)tapdata;
 
     if (tap->init_ref == LUA_NOREF) return;
 
@@ -162,7 +162,7 @@ static void lua_tap_reset(void *tapdata) {
 }
 
 static void lua_tap_draw(void *tapdata) {
-    Listener tap = tapdata;
+    Listener tap = (Listener)tapdata;
     const gchar* error;
     if (tap->draw_ref == LUA_NOREF) return;
 
@@ -196,7 +196,7 @@ WSLUA_CONSTRUCTOR Listener_new(lua_State* L) {
     Listener tap;
     GString* error;
 
-    tap = g_malloc(sizeof(struct _wslua_tap));
+    tap = (Listener)g_malloc(sizeof(struct _wslua_tap));
 
     tap->name = g_strdup(tap_type);
     tap->filter = filter ? g_strdup(filter) : NULL;
@@ -239,7 +239,8 @@ WSLUA_METHOD Listener_remove(lua_State* L) {
     return 0;
 }
 
-WSLUA_METAMETHOD Listener_tostring(lua_State* L) {
+WSLUA_METAMETHOD Listener__tostring(lua_State* L) {
+    /* Generates a string of debug info for the tap listener */
     Listener tap = checkListener(L,1);
     gchar* str;
 
@@ -252,19 +253,20 @@ WSLUA_METAMETHOD Listener_tostring(lua_State* L) {
 }
 
 
-static int Listener_newindex(lua_State* L) {
+static int Listener__newindex(lua_State* L) {
     /* WSLUA_ATTRIBUTE Listener_packet WO A function that will be called once every packet matches the Listener listener filter.
 
-        function tap.packet(pinfo,tvb,userdata) ... end
+        function tap.packet(pinfo,tvb,tapinfo) ... end
+        Note: tapinfo is a table of info based on the Listener's type, or nil.
     */
-    /* WSLUA_ATTRIBUTE Listener_draw WO A function that will be called once every few seconds to redraw the gui objects
-                in tshark this funtion is called oly at the very end of the capture file.
+    /* WSLUA_ATTRIBUTE Listener_draw WO A function that will be called once every few seconds to redraw the gui objects;
+                in tshark this funtion is called only at the very end of the capture file.
 
-        function tap.draw(userdata) ... end
+        function tap.draw() ... end
     */
     /* WSLUA_ATTRIBUTE Listener_reset WO A function that will be called at the end of the capture run.
 
-        function tap.reset(userdata) ... end
+        function tap.reset() ... end
     */
     Listener tap = shiftListener(L,1);
     const gchar* idx = lua_shiftstring(L,1);
@@ -294,6 +296,10 @@ static int Listener_newindex(lua_State* L) {
     return 0;
 }
 
+static int Listener__gc(lua_State* L _U_) {
+    /* do NOT free Listener, it's never free'd */
+    return 0;
+}
 
 static const luaL_Reg Listener_methods[] = {
     {"new", Listener_new},
@@ -302,8 +308,8 @@ static const luaL_Reg Listener_methods[] = {
 };
 
 static const luaL_Reg Listener_meta[] = {
-    {"__tostring", Listener_tostring},
-    {"__newindex", Listener_newindex},
+    {"__tostring", Listener__tostring},
+    {"__newindex", Listener__newindex},
     { NULL, NULL }
 };
 

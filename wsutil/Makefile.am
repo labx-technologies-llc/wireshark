@@ -26,61 +26,45 @@ ACLOCAL_AMFLAGS = `../aclocal-flags`
 # linked into libwsutil.
 wsutil_optional_objects =
 
-# filters for symbols to be omitted from libwsutil.sym
-# symbols defined only on windows
-def_sym_filter_symbols = /^getenv_utf8/ || /^ws_stdio/ || /^ws_init_dll_search_path/ || /^ws_load_library/ || /^ws_module_open/ || /^utf_[168]*to[168]/ || /^arg_list_utf_16to8/ || /^npf_sys_is_running/
-
 if NEED_GETOPT_LO
 wsutil_optional_objects += @GETOPT_LO@
-else
-def_sym_filter_symbols += || /^getopt/ || /^optarg/ || /^optind/ || /^opterr/ || /^optopt/
 endif
  
 if NEED_INET_ATON_LO
 wsutil_optional_objects += @INET_ATON_LO@
-else
-def_sym_filter_symbols += || /^inet_aton/
 endif
  
 if NEED_INET_NTOP_LO
 wsutil_optional_objects += @INET_NTOP_LO@
-else
-def_sym_filter_symbols += || /^ws_inet_ntop/
 endif
  
 if NEED_INET_PTON_LO
 wsutil_optional_objects += @INET_PTON_LO@
-else
-def_sym_filter_symbols += || /^ws_inet_pton/
 endif
 
 if NEED_STRNCASECMP_LO
 wsutil_optional_objects += @STRNCASECMP_LO@
-else
-def_sym_filter_symbols += || /^strncasecmp/
 endif
 
 if NEED_STRPTIME_LO
 wsutil_optional_objects += @STRPTIME_LO@
-else
-def_sym_filter_symbols += || /^strptime/
 endif
-
-def_sym_filter_symbols += {next;};
 
 include ../Makefile.am.inc
 
 include Makefile.common
 
+AM_CFLAGS =-DWS_BUILD_DLL
+
 if HAVE_WARNINGS_AS_ERRORS
-AM_CFLAGS = -Werror
+AM_CFLAGS += -Werror
 endif
 
 lib_LTLIBRARIES = libwsutil.la
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-libwsutil_la_LDFLAGS = -version-info 0:0:0 -export-symbols libwsutil.sym @LDFLAGS_SHAREDLIB@
+libwsutil_la_LDFLAGS = -version-info 0:0:0 @LDFLAGS_SHAREDLIB@
 
-INCLUDES = -I$(srcdir)/..
+AM_CPPFLAGS = -I$(srcdir)/..
 
 libwsutil_la_SOURCES =		\
 	$(LIBWSUTIL_SRC)	\
@@ -100,26 +84,25 @@ EXTRA_libwsutil_la_SOURCES=	\
 	wsgetopt_int.h
 
 libwsutil_la_DEPENDENCIES=	\
-	$(wsutil_optional_objects) \
-	libwsutil.sym
+	$(wsutil_optional_objects)
 
 libwsutil_la_LIBADD =		\
 	@GLIB_LIBS@		\
 	$(wsutil_optional_objects)
 
 EXTRA_DIST =		\
+	CMakeLists.txt	\
 	Makefile.common	\
 	Makefile.nmake	\
 	file_util.c	\
 	file_util.h 	\
-	libwsutil.def	\
 	unicode-utils.c	\
-	unicode-utils.h
+	unicode-utils.h \
+	wsgcrypt.h
 
 CLEANFILES = \
 	libwsutil.a	\
 	libwsutil.la	\
-	libwsutil.sym	\
 	*~
 
 MAINTAINERCLEANFILES = \
@@ -128,11 +111,11 @@ MAINTAINERCLEANFILES = \
 # ABI compliance checker can be obtained from
 # http://ispras.linux-foundation.org/index.php/ABI_compliance_checker
 # Checked using version 1.21.12
-dumpabi: all abi-descriptor.xml
+dumpabi-libwsutil: all abi-descriptor.xml
 	rm -rf abi-check-headers abi_dumps .libs/*.abi.tar.gz
 	mkdir abi-check-headers
-	cp ../config.h *.h abi-check-headers/
-	abi-compliance-checker -l libwsutil -v1 `ls  .libs/libwsutil.so.?.?.?|sed 's/.*\.so\.//'` \
+	cp ../config.h ../ws_symbol_export.h *.h abi-check-headers/
+	abi-compliance-checker -l libwsutil -v1 `readlink .libs/libwsutil.so | sed 's/.*\.so\.//'` \
 		-relpath $(abs_srcdir) -dump-abi abi-descriptor.xml || \
 		cat logs/libwsutil/[0-9]*/log.txt
 	cp -f abi_dumps/libwsutil/libwsutil_* .libs/

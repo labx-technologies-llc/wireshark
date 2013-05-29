@@ -32,7 +32,7 @@
  * (ethernet type 0x8892) protocols.
  *
  * The context manager (CM) part is handling context information
- * (like establishing, ...) and is using DCE-RPC as it's underlying
+ * (like establishing, ...) and is using DCE-RPC as its underlying
  * protocol.
  *
  * The actual cyclic data transfer and acyclic notification uses the
@@ -41,7 +41,7 @@
  * There are some other related PROFINET protocols (e.g. PN-DCP, which is
  * handling addressing topics).
  *
- * Please note: the PROFINET CBA protocol is independant of the PN-IO protocol!
+ * Please note: the PROFINET CBA protocol is independent of the PN-IO protocol!
  */
 
 
@@ -101,7 +101,7 @@ static int hf_pn_io_cminitiator_activitytimeoutfactor = -1;
 static int hf_pn_io_cminitiator_udprtport = -1;
 static int hf_pn_io_station_name_length = -1;
 static int hf_pn_io_cminitiator_station_name = -1;
-static int hf_pn_io_responder_station_name = -1;
+/* static int hf_pn_io_responder_station_name = -1; */
 static int hf_pn_io_arproperties_StartupMode = -1;
 
 static int hf_pn_io_parameter_server_station_name = -1;
@@ -115,8 +115,8 @@ static int hf_pn_io_iocr_type = -1;
 static int hf_pn_io_iocr_reference = -1;
 static int hf_pn_io_iocr_SubframeOffset = -1;
 static int hf_pn_io_iocr_SubframeData =-1;
-static int hf_pn_io_iocr_txports_port = -1;
-static int hf_pn_io_iocr_txports_redundantport = -1;
+/* static int hf_pn_io_iocr_txports_port = -1; */
+/* static int hf_pn_io_iocr_txports_redundantport = -1; */
 static int hf_pn_io_sr_properties_Reserved_1 = -1;
 static int hf_pn_io_sr_properties_Reserved_2 = -1;
 static int hf_pn_io_RedundancyDataHoldFactor = -1;
@@ -239,7 +239,7 @@ static int hf_pn_io_control_block_properties = -1;
 static int hf_pn_io_control_block_properties_applready = -1;
 static int hf_pn_io_control_block_properties_applready0 = -1;
 
-static int hf_pn_io_AlarmSequenceNumber = -1;
+/* static int hf_pn_io_AlarmSequenceNumber = -1; */
 static int hf_pn_io_control_command_reserved = -1;
 static int hf_pn_io_SubmoduleListEntries = -1;
 static int hf_pn_io_error_code = -1;
@@ -459,23 +459,23 @@ static int hf_pn_io_green_period_begin_tx = -1;
 static int hf_pn_io_red_orange_period_begin_rx = -1;
 static int hf_pn_io_orange_period_begin_rx = -1;
 static int hf_pn_io_green_period_begin_rx = -1;
-static int hf_pn_io_tx_phase_assignment = -1;
+/* static int hf_pn_io_tx_phase_assignment = -1; */
 static int hf_pn_ir_tx_phase_assignment = -1;
 static int hf_pn_ir_rx_phase_assignment = -1;
 static int hf_pn_io_tx_phase_assignment_begin_value = -1;
 static int hf_pn_io_tx_phase_assignment_orange_begin = -1;
 static int hf_pn_io_tx_phase_assignment_end_reserved = -1;
 static int hf_pn_io_tx_phase_assignment_reserved = -1;
-static int hf_pn_io_rx_phase_assignment = -1;
+/* static int hf_pn_io_rx_phase_assignment = -1; */
 
 static int hf_pn_io_slot = -1;
 static int hf_pn_io_subslot = -1;
 static int hf_pn_io_number_of_slots = -1;
 static int hf_pn_io_number_of_subslots = -1;
 
-static int hf_pn_io_maintenance_required_drop_budget = -1;
-static int hf_pn_io_maintenance_demanded_drop_budget = -1;
-static int hf_pn_io_error_drop_budget = -1;
+/* static int hf_pn_io_maintenance_required_drop_budget = -1; */
+/* static int hf_pn_io_maintenance_demanded_drop_budget = -1; */
+/* static int hf_pn_io_error_drop_budget = -1; */
 
 static int hf_pn_io_maintenance_required_power_budget = -1;
 static int hf_pn_io_maintenance_demanded_power_budget = -1;
@@ -617,7 +617,7 @@ static int hf_pn_io_profidrive_param_format = -1;
 static int hf_pn_io_profidrive_param_no_of_values = -1;
 static int hf_pn_io_profidrive_param_value = -1;
 
-static int hf_pn_io_packedframe_SFCRC = -1;
+/* static int hf_pn_io_packedframe_SFCRC = -1; */
 static gint ett_pn_io = -1;
 static gint ett_pn_io_block = -1;
 static gint ett_pn_io_block_header = -1;
@@ -2652,7 +2652,7 @@ pnio_ar_find_by_aruuid(packet_info *pinfo _U_, e_uuid_t *aruuid)
 
     /* find pdev */
     for(ars = pnio_ars; ars != NULL; ars = g_list_next(ars)) {
-        ar = ars->data;
+        ar = (pnio_ar_t *)ars->data;
 
         if (memcmp(&ar->aruuid, aruuid, sizeof(e_uuid_t)) == 0) {
             return ar;
@@ -2669,7 +2669,7 @@ pnio_ar_new(e_uuid_t *aruuid)
     pnio_ar_t *ar;
 
 
-    ar = se_alloc0(sizeof(pnio_ar_t));
+    ar = (pnio_ar_t *)se_alloc0(sizeof(pnio_ar_t));
 
     memcpy(&ar->aruuid, aruuid, sizeof(e_uuid_t));
 
@@ -3233,14 +3233,14 @@ dissect_IandM0_block(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                     hf_pn_io_vendor_id_low, &u8VendorIDLow);
     /* c8[20] OrderID */
-    pOrderID = ep_alloc(20+1);
+    pOrderID = (char *)ep_alloc(20+1);
     tvb_memcpy(tvb, (guint8 *) pOrderID, offset, 20);
     pOrderID[20] = '\0';
     proto_tree_add_string (tree, hf_pn_io_order_id, tvb, offset, 20, pOrderID);
     offset += 20;
 
     /* c8[16] IM_Serial_Number */
-    pIMSerialNumber = ep_alloc(16+1);
+    pIMSerialNumber = (char *)ep_alloc(16+1);
     tvb_memcpy(tvb, (guint8 *) pIMSerialNumber, offset, 16);
     pIMSerialNumber[16] = '\0';
     proto_tree_add_string (tree, hf_pn_io_im_serial_number, tvb, offset, 16, pIMSerialNumber);
@@ -3298,14 +3298,14 @@ dissect_IandM1_block(tvbuff_t *tvb, int offset,
     }
 
     /* IM_Tag_Function [32] */
-    pTagFunction = ep_alloc(32+1);
+    pTagFunction = (char *)ep_alloc(32+1);
     tvb_memcpy(tvb, (guint8 *) pTagFunction, offset, 32);
     pTagFunction[32] = '\0';
     proto_tree_add_string (tree, hf_pn_io_im_tag_function, tvb, offset, 32, pTagFunction);
     offset += 32;
 
     /* IM_Tag_Location [22] */
-    pTagLocation = ep_alloc(22+1);
+    pTagLocation = (char *)ep_alloc(22+1);
     tvb_memcpy(tvb, (guint8 *) pTagLocation, offset, 22);
     pTagLocation[22] = '\0';
     proto_tree_add_string (tree, hf_pn_io_im_tag_location, tvb, offset, 22, pTagLocation);
@@ -3330,7 +3330,7 @@ dissect_IandM2_block(tvbuff_t *tvb, int offset,
     }
 
     /* IM_Date [16] */
-    pDate = ep_alloc(16+1);
+    pDate = (char *)ep_alloc(16+1);
     tvb_memcpy(tvb, (guint8 *) pDate, offset, 16);
     pDate[16] = '\0';
     proto_tree_add_string (tree, hf_pn_io_im_date, tvb, offset, 16, pDate);
@@ -3355,7 +3355,7 @@ dissect_IandM3_block(tvbuff_t *tvb, int offset,
     }
 
     /* IM_Descriptor [54] */
-    pDescriptor = ep_alloc(54+1);
+    pDescriptor = (char *)ep_alloc(54+1);
     tvb_memcpy(tvb, (guint8 *) pDescriptor, offset, 54);
     pDescriptor[54] = '\0';
     proto_tree_add_string (tree, hf_pn_io_im_descriptor, tvb, offset, 54, pDescriptor);
@@ -4313,7 +4313,7 @@ dissect_PDPortDataReal_block(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                         hf_pn_io_length_own_port_id, &u8LengthOwnPortID);
     /* OwnPortID */
-    pOwnPortID = ep_alloc(u8LengthOwnPortID+1);
+    pOwnPortID = (char *)ep_alloc(u8LengthOwnPortID+1);
     tvb_memcpy(tvb, (guint8 *) pOwnPortID, offset, u8LengthOwnPortID);
     pOwnPortID[u8LengthOwnPortID] = '\0';
     proto_tree_add_string (tree, hf_pn_io_own_port_id, tvb, offset, u8LengthOwnPortID, pOwnPortID);
@@ -4331,7 +4331,7 @@ dissect_PDPortDataReal_block(tvbuff_t *tvb, int offset,
         offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                             hf_pn_io_length_peer_port_id, &u8LengthPeerPortID);
         /* PeerPortID */
-        pPeerPortID = ep_alloc(u8LengthPeerPortID+1);
+        pPeerPortID = (char *)ep_alloc(u8LengthPeerPortID+1);
         tvb_memcpy(tvb, (guint8 *) pPeerPortID, offset, u8LengthPeerPortID);
         pPeerPortID[u8LengthPeerPortID] = '\0';
         proto_tree_add_string (tree, hf_pn_io_peer_port_id, tvb, offset, u8LengthPeerPortID, pPeerPortID);
@@ -4341,7 +4341,7 @@ dissect_PDPortDataReal_block(tvbuff_t *tvb, int offset,
         offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                             hf_pn_io_length_peer_chassis_id, &u8LengthPeerChassisID);
         /* PeerChassisID */
-        pPeerChassisID = ep_alloc(u8LengthPeerChassisID+1);
+        pPeerChassisID = (char *)ep_alloc(u8LengthPeerChassisID+1);
         tvb_memcpy(tvb, (guint8 *) pPeerChassisID, offset, u8LengthPeerChassisID);
         pPeerChassisID[u8LengthPeerChassisID] = '\0';
         proto_tree_add_string (tree, hf_pn_io_peer_chassis_id, tvb, offset, u8LengthPeerChassisID, pPeerChassisID);
@@ -4427,7 +4427,7 @@ dissect_PDInterfaceMrpDataAdjust_block(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                     hf_pn_io_mrp_length_domain_name, &u8LengthDomainName);
     /* MRP_DomainName */
-    pDomainName = ep_alloc(u8LengthDomainName+1);
+    pDomainName = (char *)ep_alloc(u8LengthDomainName+1);
     tvb_memcpy(tvb, (guint8 *) pDomainName, offset, u8LengthDomainName);
     pDomainName[u8LengthDomainName] = '\0';
     proto_tree_add_string (tree, hf_pn_io_mrp_domain_name, tvb, offset, u8LengthDomainName, pDomainName);
@@ -4475,7 +4475,7 @@ dissect_PDInterfaceMrpDataReal_block(tvbuff_t *tvb, int offset,
     int       endoffset = offset + u16BodyLength;
 
     /* added blockversion 1 */
-    if (u8BlockVersionHigh != 1 || u8BlockVersionLow > 1) {
+    if (u8BlockVersionHigh != 1 || u8BlockVersionLow > 2) {
         expert_add_info_format(pinfo, item, PI_UNDECODED, PI_WARN,
             "Block version %u.%u not implemented yet!", u8BlockVersionHigh, u8BlockVersionLow);
         return offset;
@@ -4483,43 +4483,43 @@ dissect_PDInterfaceMrpDataReal_block(tvbuff_t *tvb, int offset,
 
     if (u8BlockVersionLow < 2) /* dissect low versions 0 and 1 */
     {
-    /* Padding */
-    offset = dissect_pn_align4(tvb, offset, pinfo, tree);
+        /* Padding */
+        offset = dissect_pn_align4(tvb, offset, pinfo, tree);
 
-    /* MRP_DomainUUID */
-    offset = dissect_dcerpc_uuid_t(tvb, offset, pinfo, tree, drep,
-                        hf_pn_io_mrp_domain_uuid, &uuid);
-    /* MRP_Role */
-    offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
-                    hf_pn_io_mrp_role, &u16Role);
-
-    if (u8BlockVersionLow == 1) {
-        /* MRP_Version */
+        /* MRP_DomainUUID */
+        offset = dissect_dcerpc_uuid_t(tvb, offset, pinfo, tree, drep,
+                hf_pn_io_mrp_domain_uuid, &uuid);
+        /* MRP_Role */
         offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
-            hf_pn_io_mrp_version, &u16Version);
-    }
-    /* MRP_LengthDomainName */
-    offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
-                    hf_pn_io_mrp_length_domain_name, &u8LengthDomainName);
-    /* MRP_DomainName */
-    pDomainName = ep_alloc(u8LengthDomainName+1);
-    tvb_memcpy(tvb, (guint8 *) pDomainName, offset, u8LengthDomainName);
-    pDomainName[u8LengthDomainName] = '\0';
-    proto_tree_add_string (tree, hf_pn_io_mrp_domain_name, tvb, offset, u8LengthDomainName, pDomainName);
-    offset += u8LengthDomainName;
+                hf_pn_io_mrp_role, &u16Role);
 
-    if (u8BlockVersionLow == 0) {
-        /* MRP_Version */
-        offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
-            hf_pn_io_mrp_version, &u16Version);
-    }
-    /* Padding */
-    offset = dissect_pn_align4(tvb, offset, pinfo, tree);
+        if (u8BlockVersionLow == 1) {
+            /* MRP_Version */
+            offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
+                    hf_pn_io_mrp_version, &u16Version);
+        }
+        /* MRP_LengthDomainName */
+        offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
+                hf_pn_io_mrp_length_domain_name, &u8LengthDomainName);
+        /* MRP_DomainName */
+        pDomainName = (char *)ep_alloc(u8LengthDomainName+1);
+        tvb_memcpy(tvb, (guint8 *) pDomainName, offset, u8LengthDomainName);
+        pDomainName[u8LengthDomainName] = '\0';
+        proto_tree_add_string (tree, hf_pn_io_mrp_domain_name, tvb, offset, u8LengthDomainName, pDomainName);
+        offset += u8LengthDomainName;
+
+        if (u8BlockVersionLow == 0) {
+            /* MRP_Version */
+            offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
+                    hf_pn_io_mrp_version, &u16Version);
+        }
+        /* Padding */
+        offset = dissect_pn_align4(tvb, offset, pinfo, tree);
 
         while(endoffset > offset)
-    {
-        offset = dissect_a_block(tvb, offset, pinfo, tree, drep);
-    }
+        {
+            offset = dissect_a_block(tvb, offset, pinfo, tree, drep);
+        }
     }
     else if (u8BlockVersionLow == 2)
     {
@@ -4527,12 +4527,12 @@ dissect_PDInterfaceMrpDataReal_block(tvbuff_t *tvb, int offset,
         offset = dissect_pn_padding(tvb, offset, pinfo, tree, 1);
         /* Number of Mrp Instances */
         offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
-            hf_pn_io_mrp_instances, &u8NumberOfMrpInstances);
+                hf_pn_io_mrp_instances, &u8NumberOfMrpInstances);
         if (u8NumberOfMrpInstances > 0xf) {
             expert_add_info_format(pinfo, item, PI_UNDECODED, PI_WARN,
-                "Number of MrpInstances greater 0x0f is (0x%x)", u8NumberOfMrpInstances);
-    return offset;
-}
+                    "Number of MrpInstances greater 0x0f is (0x%x)", u8NumberOfMrpInstances);
+            return offset;
+        }
         while(u8NumberOfMrpInstances > 0)
         {
             offset = dissect_a_block(tvb, offset, pinfo, tree, drep);
@@ -4848,7 +4848,7 @@ dissect_CheckSyncDifference_block(tvbuff_t *tvb, int offset,
 
 
     proto_item_append_text(sub_item, "CheckSyncMode: SyncMaster:%d, CableDelay:%d",
-        (u16CheckSyncMode & 0x2) && 1, (u16CheckSyncMode & 0x1) && 1);
+        (u16CheckSyncMode >> 1) & 1, u16CheckSyncMode & 1);
 
     proto_item_append_text(item, " : SyncMaster:%d, CableDelay:%d",
         (u16CheckSyncMode >> 1) & 1, u16CheckSyncMode & 1);
@@ -5084,7 +5084,7 @@ dissect_CheckPeers_block(tvbuff_t *tvb, int offset,
         offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                             hf_pn_io_length_peer_port_id, &u8LengthPeerPortID);
         /* PeerPortID */
-        pPeerPortID = ep_alloc(u8LengthPeerPortID+1);
+        pPeerPortID = (char *)ep_alloc(u8LengthPeerPortID+1);
         tvb_memcpy(tvb, (guint8 *) pPeerPortID, offset, u8LengthPeerPortID);
         pPeerPortID[u8LengthPeerPortID] = '\0';
         proto_tree_add_string (tree, hf_pn_io_peer_port_id, tvb, offset, u8LengthPeerPortID, pPeerPortID);
@@ -5094,7 +5094,7 @@ dissect_CheckPeers_block(tvbuff_t *tvb, int offset,
         offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                             hf_pn_io_length_peer_chassis_id, &u8LengthPeerChassisID);
         /* PeerChassisID */
-        pPeerChassisID = ep_alloc(u8LengthPeerChassisID+1);
+        pPeerChassisID = (char *)ep_alloc(u8LengthPeerChassisID+1);
         tvb_memcpy(tvb, (guint8 *) pPeerChassisID, offset, u8LengthPeerChassisID);
         pPeerChassisID[u8LengthPeerChassisID] = '\0';
         proto_tree_add_string (tree, hf_pn_io_peer_chassis_id, tvb, offset, u8LengthPeerChassisID, pPeerChassisID);
@@ -5340,7 +5340,7 @@ dissect_MrpInstanceDataAdjust_block(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                     hf_pn_io_mrp_length_domain_name, &u8LengthDomainName);
     /* MRP_DomainName */
-    pDomainName = ep_alloc(u8LengthDomainName+1);
+    pDomainName = (char *)ep_alloc(u8LengthDomainName+1);
     tvb_memcpy(tvb, (guint8 *) pDomainName, offset, u8LengthDomainName);
     pDomainName[u8LengthDomainName] = '\0';
     proto_tree_add_string (tree, hf_pn_io_mrp_domain_name, tvb, offset, u8LengthDomainName, pDomainName);
@@ -5390,7 +5390,7 @@ dissect_MrpInstanceDataReal_block(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                     hf_pn_io_mrp_length_domain_name, &u8LengthDomainName);
     /* MRP_DomainName */
-    pDomainName = ep_alloc(u8LengthDomainName+1);
+    pDomainName = (char *)ep_alloc(u8LengthDomainName+1);
     tvb_memcpy(tvb, (guint8 *) pDomainName, offset, u8LengthDomainName);
     pDomainName[u8LengthDomainName] = '\0';
     proto_tree_add_string (tree, hf_pn_io_mrp_domain_name, tvb, offset, u8LengthDomainName, pDomainName);
@@ -5521,7 +5521,7 @@ dissect_PDInterfaceDataReal_block(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                         hf_pn_io_length_own_chassis_id, &u8LengthOwnChassisID);
     /* OwnChassisID */
-    pOwnChassisID = ep_alloc(u8LengthOwnChassisID+1);
+    pOwnChassisID = (char *)ep_alloc(u8LengthOwnChassisID+1);
     tvb_memcpy(tvb, (guint8 *) pOwnChassisID, offset, u8LengthOwnChassisID);
     pOwnChassisID[u8LengthOwnChassisID] = '\0';
     proto_tree_add_string (tree, hf_pn_io_own_chassis_id, tvb, offset, u8LengthOwnChassisID, pOwnChassisID);
@@ -5669,7 +5669,7 @@ dissect_PDSyncData_block(tvbuff_t *tvb, int offset,
         offset = dissect_dcerpc_uint8(tvb, offset, pinfo, tree, drep,
                             hf_pn_io_ptcp_length_subdomain_name, &u8LengthSubdomainName);
         /* PTCPSubdomainName */
-        pSubdomainName = ep_alloc(u8LengthSubdomainName+1);
+        pSubdomainName = (char *)ep_alloc(u8LengthSubdomainName+1);
         tvb_memcpy(tvb, (guint8 *) pSubdomainName, offset, u8LengthSubdomainName);
         pSubdomainName[u8LengthSubdomainName] = '\0';
         proto_tree_add_string (tree, hf_pn_io_ptcp_subdomain_name, tvb, offset, u8LengthSubdomainName, pSubdomainName);
@@ -6266,7 +6266,7 @@ dissect_ARData_block(tvbuff_t *tvb, int offset,
     /* BlockversionLow:  0 */
     if (u8BlockVersionLow == 0) {
     while (u16NumberOfARs--) {
-            ar_item = proto_tree_add_item(tree, hf_pn_io_ar_data, tvb, offset, 0, ENC_BIG_ENDIAN);
+            ar_item = proto_tree_add_item(tree, hf_pn_io_ar_data, tvb, offset, 0, ENC_NA);
             ar_tree = proto_item_add_subtree(ar_item, ett_pn_io_ar_data);
             u32ARDataStart = offset;
             offset = dissect_dcerpc_uuid_t(tvb, offset, pinfo, ar_tree, drep,
@@ -6279,7 +6279,7 @@ dissect_ARData_block(tvbuff_t *tvb, int offset,
                          hf_pn_io_cminitiator_objectuuid, &uuid);
             offset = dissect_dcerpc_uint16(tvb, offset, pinfo, ar_tree, drep,
                         hf_pn_io_station_name_length, &u16NameLength);
-        pStationName = ep_alloc(u16NameLength+1);
+        pStationName = (char *)ep_alloc(u16NameLength+1);
         tvb_memcpy(tvb, (guint8 *) pStationName, offset, u16NameLength);
         pStationName[u16NameLength] = '\0';
             proto_tree_add_string (ar_tree, hf_pn_io_cminitiator_station_name, tvb, offset, u16NameLength, pStationName);
@@ -6365,7 +6365,7 @@ dissect_ARData_block(tvbuff_t *tvb, int offset,
             offset = dissect_dcerpc_uint16(tvb, offset, pinfo, ar_tree, drep,
                         hf_pn_io_station_name_length, &u16NameLength);
         /* ParameterServerStationName */
-        pStationName = ep_alloc(u16NameLength+1);
+        pStationName = (char *)ep_alloc(u16NameLength+1);
         tvb_memcpy(tvb, (guint8 *) pStationName, offset, u16NameLength);
         pStationName[u16NameLength] = '\0';
             proto_tree_add_string (ar_tree, hf_pn_io_parameter_server_station_name, tvb, offset, u16NameLength, pStationName);
@@ -6410,7 +6410,7 @@ dissect_ARData_block(tvbuff_t *tvb, int offset,
             offset = dissect_dcerpc_uint16(tvb, offset, pinfo, ar_tree, drep, hf_pn_io_cmresponder_udprtport, &u16UDPRTPort);
             /* CMInitiatorStationName*/
             offset = dissect_dcerpc_uint16(tvb, offset, pinfo, ar_tree, drep, hf_pn_io_station_name_length, &u16NameLength);
-            pStationName = ep_alloc(u16NameLength+1);
+            pStationName = (char *)ep_alloc(u16NameLength+1);
             tvb_memcpy(tvb, (guint8 *) pStationName, offset, u16NameLength);
             pStationName[u16NameLength] = '\0';
             proto_tree_add_string (ar_tree, hf_pn_io_cminitiator_station_name, tvb, offset, u16NameLength, pStationName);
@@ -6422,7 +6422,7 @@ dissect_ARData_block(tvbuff_t *tvb, int offset,
             offset = dissect_dcerpc_uint16(tvb, offset, pinfo, ar_tree, drep, hf_pn_io_station_name_length, &u16NameLength);
             if (u16NameLength != 0) {
                 /* ParameterServerStationName */
-                pStationName = ep_alloc(u16NameLength+1);
+                pStationName = (char *)ep_alloc(u16NameLength+1);
                 tvb_memcpy(tvb, (guint8 *) pStationName, offset, u16NameLength);
                 pStationName[u16NameLength] = '\0';
                 proto_tree_add_string (ar_tree, hf_pn_io_parameter_server_station_name, tvb, offset, u16NameLength, pStationName);
@@ -6737,7 +6737,7 @@ dissect_ARFSUDataAdjust_block(tvbuff_t *tvb, int offset,
     return offset;
 }
 
-static char* decode_ARType_spezial(guint16 ARType, guint16 ARAccess)
+static const char* decode_ARType_spezial(guint16 ARType, guint16 ARAccess)
 {
     if (ARType == 0x0001)
         return ("IO Controller AR");
@@ -6816,7 +6816,7 @@ dissect_ARBlockReq_block(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
                         hf_pn_io_station_name_length, &u16NameLength);
 
-    pStationName = ep_alloc(u16NameLength+1);
+    pStationName = (char *)ep_alloc(u16NameLength+1);
     tvb_memcpy(tvb, (guint8 *) pStationName, offset, u16NameLength);
     pStationName[u16NameLength] = '\0';
     proto_tree_add_string (tree, hf_pn_io_cminitiator_station_name, tvb, offset, u16NameLength, pStationName);
@@ -7199,7 +7199,7 @@ dissect_ARServerBlock(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
                         hf_pn_io_station_name_length, &u16NameLength);
 
-    pStationName = ep_alloc(u16NameLength+1);
+    pStationName = (char *)ep_alloc(u16NameLength+1);
     tvb_memcpy(tvb, (guint8 *) pStationName, offset, u16NameLength);
     pStationName[u16NameLength] = '\0';
     proto_tree_add_string (tree, hf_pn_io_cminitiator_station_name, tvb, offset, u16NameLength, pStationName);
@@ -7297,7 +7297,7 @@ dissect_MCRBlockReq_block(tvbuff_t *tvb, int offset,
     offset = dissect_dcerpc_uint16(tvb, offset, pinfo, tree, drep,
                         hf_pn_io_station_name_length, &u16NameLength);
 
-    pStationName = ep_alloc(u16NameLength+1);
+    pStationName = (char *)ep_alloc(u16NameLength+1);
     tvb_memcpy(tvb, (guint8 *) pStationName, offset, u16NameLength);
     pStationName[u16NameLength] = '\0';
     proto_tree_add_string (tree, hf_pn_io_provider_station_name, tvb, offset, u16NameLength, pStationName);
@@ -9430,7 +9430,7 @@ pn_io_ar_conv_valid(packet_info *pinfo)
 static const gchar *
 pn_io_ar_conv_filter(packet_info *pinfo)
 {
-    pnio_ar_t *ar = pinfo->profinet_conv;
+    pnio_ar_t *ar = (pnio_ar_t *)pinfo->profinet_conv;
     char      *buf;
 
     if (pinfo->profinet_type != 10) {
@@ -9450,7 +9450,7 @@ pn_io_ar_conv_filter(packet_info *pinfo)
 static const gchar *
 pn_io_ar_conv_data_filter(packet_info *pinfo)
 {
-    pnio_ar_t *ar = pinfo->profinet_conv;
+    pnio_ar_t *ar = (pnio_ar_t *)pinfo->profinet_conv;
     char      *buf;
 
     if (pinfo->profinet_type != 10) {
@@ -9675,11 +9675,13 @@ proto_register_pn_io (void)
         FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
+#if 0
     { &hf_pn_io_responder_station_name,
       { "CMResponderrStationName", "pn_io.cmresponder_station_name",
         FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
     { &hf_pn_io_parameter_server_station_name,
       { "ParameterServerStationName", "pn_io.parameter_server_station_name",
         FT_STRING, BASE_NONE, NULL, 0x0,
@@ -9717,16 +9719,20 @@ proto_register_pn_io (void)
         FT_UINT16, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#if 0
     { &hf_pn_io_iocr_txports_port,
       { "IOCRTxPorts.Port", "pn_io.iocr_txports_port",
         FT_UINT8, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
+#if 0
     { &hf_pn_io_iocr_txports_redundantport,
       { "IOCRTxPorts.RedundantPort", "pn_io.iocr_txports_redundantport",
         FT_UINT8, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
 
     { &hf_pn_io_iocr_SubframeOffset,
       { "SubframeOffset", "pn_io.subframe_offset",
@@ -10254,11 +10260,13 @@ proto_register_pn_io (void)
         FT_UINT16, BASE_HEX, VALS(pn_io_control_properties_application_ready_vals), 0x0001,
         NULL, HFILL }
     },
+#if 0
     { &hf_pn_io_AlarmSequenceNumber,
       { "AlarmSequenceNumber", "pn_io.AlarmSequenceNumber",
         FT_UINT16, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
     { &hf_pn_io_SubmoduleListEntries,
       { "NumberOfEntries", "pn_io.SubmoduleListEntries",
         FT_UINT16, BASE_DEC, NULL, 0x0,
@@ -11300,11 +11308,13 @@ proto_register_pn_io (void)
         FT_UINT32, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#if 0
     { &hf_pn_io_tx_phase_assignment,
       { "TXPhaseAssignment", "pn_io.tx_phase_assignment",
         FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
     { &hf_pn_ir_tx_phase_assignment,
       { "TXPhaseAssignment", "pn_io.tx_phase_assignment_sub",
         FT_NONE, BASE_NONE, NULL, 0x0,
@@ -11335,11 +11345,13 @@ proto_register_pn_io (void)
         FT_NONE, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
+#if 0
     { &hf_pn_io_rx_phase_assignment,
       { "RXPhaseAssignment", "pn_io.rx_phase_assignment",
         FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
 
     { &hf_pn_io_slot,
       { "Slot", "pn_io.slot",
@@ -11362,21 +11374,27 @@ proto_register_pn_io (void)
         NULL, HFILL }
     },
 
+#if 0
     { &hf_pn_io_maintenance_required_drop_budget,
       { "MaintenanceRequiredDropBudget", "pn_io.maintenance_required_drop_budget",
         FT_UINT32, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
+#if 0
     { &hf_pn_io_maintenance_demanded_drop_budget,
       { "MaintenanceDemandedDropBudget", "pn_io.maintenance_demanded_drop_budget",
         FT_UINT32, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
+#if 0
     { &hf_pn_io_error_drop_budget,
       { "ErrorDropBudget", "pn_io.error_drop_budget",
         FT_UINT32, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#endif
 
     { &hf_pn_io_maintenance_required_power_budget,
       { "MaintenanceRequiredPowerBudget", "pn_io.maintenance_required_power_budget",
@@ -11992,11 +12010,13 @@ proto_register_pn_io (void)
         FT_UINT16, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     },
+#if 0
     { &hf_pn_io_packedframe_SFCRC,
       { "SFCRC16", "pn_io.packedframe.sfcrc",
         FT_UINT16, BASE_HEX, NULL, 0x0,
         NULL, HFILL }
     }
+#endif
     };
 
     static gint *ett[] = {

@@ -42,8 +42,7 @@
 
 static int proto_lapsat = -1;
 
-static GHashTable *lapsat_fragment_table = NULL;
-static GHashTable *lapsat_reassembled_table = NULL;
+static reassembly_table lapsat_reassembly_table;
 
 static dissector_table_t lapsat_sapi_dissector_table;
 
@@ -251,8 +250,8 @@ static const fragment_items lapsat_frag_items = {
 static void
 lapsat_defragment_init(void)
 {
-	fragment_table_init(&lapsat_fragment_table);
-	reassembled_table_init(&lapsat_reassembled_table);
+	reassembly_table_init(&lapsat_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 
@@ -269,7 +268,7 @@ dissect_control(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int is_
 	const char *frame_type;
 	char *info;
 
-	info = ep_alloc(80);
+	info = (char *)ep_alloc(80);
 
 	/* Grab complete control field */
 	ctl = tvb_get_ntohs(tvb, 1) >> 4;
@@ -506,7 +505,7 @@ dissect_lapsat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if ((plen + hlen) == tvb_length(tvb)) {
 		/* Need to integrate the last nibble */
-		guint8 *data = ep_alloc(plen);
+		guint8 *data = (guint8 *)ep_alloc(plen);
 		tvb_memcpy(tvb, data, hlen, plen);
 		data[plen-1] |= tvb_get_guint8(tvb, 2) << 4;
 		payload = tvb_new_child_real_data(tvb, data, plen, plen);
@@ -535,10 +534,11 @@ dissect_lapsat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		/* Fragment reconstruction helpers */
 		fd_m = fragment_add_seq_next(
-			payload, 0, pinfo,
+			&lapsat_reassembly_table,
+			payload, 0,
+			pinfo,
 			fragment_id,		/* To group fragments */
-			lapsat_fragment_table,
-			lapsat_reassembled_table,
+			NULL,
 			plen,
 			!!(addr & LAPSAT_SI)	/* More fragment ? */
 		);

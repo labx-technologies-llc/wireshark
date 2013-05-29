@@ -83,6 +83,9 @@ static const fragment_items nds_frag_items = {
     "segments"
 };
 
+/* Table for reassembly of fragments. */
+static reassembly_table nds_reassembly_table;
+
 #define NDS_TAG_NO_SUCH_ENTRY           0x00000000
 #define NDS_TAG_LOCAL_ENTRY             0x00000001
 #define NDS_TAG_REMOTE_ENTRY            0x00000002
@@ -191,32 +194,32 @@ static const fragment_items nds_frag_items = {
 #define IT_ATLAST                               24
 
 /* Iteration information flags */
-#define DSI_OUTPUT_FIELDS               0x00000001L
-#define DSI_ENTRY_ID                    0x00000002L
-#define DSI_ENTRY_FLAGS                 0x00000004L
-#define DSI_SUBORDINATE_COUNT           0x00000008L
-#define DSI_MODIFICATION_TIME           0x00000010L
-#define DSI_MODIFICATION_TIMESTAMP      0x00000020L
-#define DSI_CREATION_TIMESTAMP          0x00000040L
-#define DSI_PARTITION_ROOT_ID           0x00000080L
-#define DSI_PARENT_ID                   0x00000100L
-#define DSI_REVISION_COUNT              0x00000200L
-#define DSI_REPLICA_TYPE                0x00000400L
-#define DSI_BASE_CLASS                  0x00000800L
-#define DSI_ENTRY_RDN                   0x00001000L
-#define DSI_ENTRY_DN                    0x00002000L
-#define DSI_PARTITION_ROOT_DN           0x00004000L
-#define DSI_PARENT_DN                   0x00008000L
-#define DSI_PURGE_TIME                  0x00010000L
-#define DSI_DEREFERENCED_BASE_CLASS     0x00020000L
-#define DSI_REPLICA_NUMBER              0x00040000L
-#define DSI_REPLICA_STATE               0x00080000L
-#define DSI_FEDERATION_BOUNDARY         0x00100000L
-#define DSI_SCHEMA_BOUNDARY             0x00200000L
-#define DSI_FEDERATION_BOUNDARY_ID      0x00400000L
-#define DSI_SCHEMA_BOUNDARY_ID          0x00800000L
-#define DSI_CUR_SUBCOUNT                0x01000000L
-#define DSI_LOCAL_ENTRY_FLAGS           0x02000000L
+#define DSI_OUTPUT_FIELDS               0x00000001U
+#define DSI_ENTRY_ID                    0x00000002U
+#define DSI_ENTRY_FLAGS                 0x00000004U
+#define DSI_SUBORDINATE_COUNT           0x00000008U
+#define DSI_MODIFICATION_TIME           0x00000010U
+#define DSI_MODIFICATION_TIMESTAMP      0x00000020U
+#define DSI_CREATION_TIMESTAMP          0x00000040U
+#define DSI_PARTITION_ROOT_ID           0x00000080U
+#define DSI_PARENT_ID                   0x00000100U
+#define DSI_REVISION_COUNT              0x00000200U
+#define DSI_REPLICA_TYPE                0x00000400U
+#define DSI_BASE_CLASS                  0x00000800U
+#define DSI_ENTRY_RDN                   0x00001000U
+#define DSI_ENTRY_DN                    0x00002000U
+#define DSI_PARTITION_ROOT_DN           0x00004000U
+#define DSI_PARENT_DN                   0x00008000U
+#define DSI_PURGE_TIME                  0x00010000U
+#define DSI_DEREFERENCED_BASE_CLASS     0x00020000
+#define DSI_REPLICA_NUMBER              0x00040000
+#define DSI_REPLICA_STATE               0x00080000
+#define DSI_FEDERATION_BOUNDARY         0x00100000
+#define DSI_SCHEMA_BOUNDARY             0x00200000
+#define DSI_FEDERATION_BOUNDARY_ID      0x00400000
+#define DSI_SCHEMA_BOUNDARY_ID          0x00800000
+#define DSI_CUR_SUBCOUNT                0x01000000
+#define DSI_LOCAL_ENTRY_FLAGS           0x02000000
 
 static const value_string zensearchenum[] = {
     { 0, "[Root]" },
@@ -1695,8 +1698,8 @@ ncp_init_protocol(void)
     int i;
 
     /* fragment */
-    fragment_table_init(&nds_fragment_table);
-    reassembled_table_init(&nds_reassembled_table);
+    reassembly_table_init(&nds_reassembly_table,
+                          &addresses_reassembly_table_functions);
 
     for (i = 0; i < 99; i++) {
         frags[i].nds_frag = 0xfffffff0;
@@ -1744,12 +1747,12 @@ ncp_hash_insert(conversation_t *conversation, guint8 nw_sequence,
 
     /* Now remember the request, so we can find it if we later
        a reply to it. */
-    request_key = se_alloc(sizeof(ncp_req_hash_key));
+    request_key = se_new(ncp_req_hash_key);
     request_key->conversation = conversation;
 	/* Make sequence number unique */
     request_key->nw_sequence_long = (0x10000 + ((pkt_num/255)<<16)) | nw_sequence;
 
-    request_value = se_alloc(sizeof(ncp_req_hash_value));
+    request_value = se_new(ncp_req_hash_value);
     request_value->ncp_rec = ncp_rec;
     request_value->req_cond_results = NULL;
     request_value->req_nds_flags = 0;
@@ -1771,10 +1774,10 @@ ncp_eid_hash_insert(guint32 nw_eid)
 
     /* Now remember the request, so we can find it if we later
        a reply to it. */
-    request_eid_key = se_alloc(sizeof(ncp_req_eid_hash_key));
+    request_eid_key = se_new(ncp_req_eid_hash_key);
     request_eid_key->nw_eid = nw_eid;
 
-    request_eid_value = se_alloc(sizeof(ncp_req_eid_hash_value));
+    request_eid_value = se_new(ncp_req_eid_hash_value);
     g_strlcpy(request_eid_value->object_name, " ", 256);
 
     g_hash_table_insert(ncp_req_eid_hash, request_eid_key, request_eid_value);
@@ -1799,14 +1802,14 @@ ncp_hash_lookup(conversation_t *conversation, guint8 nw_sequence, guint32 pkt_nu
 	 * Loop through all the previous sequence numbers in the hash to see
 	 * if the original request packet can be found.
 	 */
-	temp_value = g_hash_table_lookup(ncp_req_hash, &request_key);
+	temp_value = (ncp_req_hash_value *)g_hash_table_lookup(ncp_req_hash, &request_key);
 	while(!temp_value)
 	{
        request_key.nw_sequence_long = request_key.nw_sequence_long-0x10000;
 	   if((request_key.nw_sequence_long & 0xffff0000) == 0){
 	        break;
 	   }  
-       temp_value = g_hash_table_lookup(ncp_req_hash, &request_key);
+       temp_value = (ncp_req_hash_value *)g_hash_table_lookup(ncp_req_hash, &request_key);
 	}
 	
     return temp_value;
@@ -1820,7 +1823,7 @@ ncp_eid_hash_lookup(conversation_t *conversation _U_, guint32 nw_eid)
 
     request_eid_key.nw_eid = nw_eid;
 
-    return g_hash_table_lookup(ncp_req_eid_hash, &request_eid_key);
+    return (ncp_req_eid_hash_value *)g_hash_table_lookup(ncp_req_eid_hash, &request_eid_key);
 }
 
 /* Does NCP func require a subfunction code? */
@@ -1909,7 +1912,7 @@ get_finfo_length(field_info *finfo)
 static char *
 get_finfo_value_string(field_info *finfo)
 {
-    return fvalue_get(&finfo->value);
+    return (char *)fvalue_get(&finfo->value);
 }
 #if 0
 static char *
@@ -2442,7 +2445,7 @@ get_string(tvbuff_t* tvb, guint offset, guint str_length)
         return "";
     }
 
-    dest_buf = ep_alloc(max_length + 1);
+    dest_buf = (char *)ep_alloc(max_length + 1);
     dest_buf[0] = '\0';
 
     for ( i = 0; i < (gint)str_length; i++ )
@@ -2849,7 +2852,7 @@ trap_for_expert_event(proto_tree *ncp_tree, packet_info *pinfo, const ncp_record
                 }
 
                 expert_add_info_format(pinfo, NULL, PI_REQUEST_CODE, PI_CHAT, "%s: %s, Rights:(%s)",
-                                       val_to_str((strtoul(oaction, NULL, 16) & 0xeb), open_create_mode_vals, "Unknown: %d"),
+                                       val_to_str((guint32)(strtoul(oaction, NULL, 16) & 0xeb), open_create_mode_vals, "Unknown: %d"),
                                        p_filename,
                                        val_to_str((atoi(p_rights) & 0x5f), ncp_rights_vals, "Unknown: %d"));
             }
@@ -7146,7 +7149,7 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
                 dissect_ncp_reply(tvb, pinfo, nw_connection, sequence, type, tree, ncp_tap);
                 return;
             }
-            p_add_proto_data(pinfo->fd, proto_ncp, (void*) request_value);
+            p_add_proto_data(pinfo->fd, proto_ncp, 0, (void*) request_value);
         }
         /* else... we haven't seen an NCP Request for that conversation and sequence. */
         else
@@ -7156,7 +7159,7 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
             }
     }
     else {
-        request_value = p_get_proto_data(pinfo->fd, proto_ncp);
+        request_value = (ncp_req_hash_value *)p_get_proto_data(pinfo->fd, proto_ncp, 0);
         if (!request_value) {
                 dissect_ncp_reply(tvb, pinfo, nw_connection, sequence, type, tree, ncp_tap);
                 return;
@@ -7236,7 +7239,7 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
                 frags[frag_count].nds_frag_version = request_value->nds_version;
                 frags[frag_count].nds_frag_flags = request_value->req_nds_flags;
                 frags[frag_count].nds_frag_prot_flags = request_value->req_nds_prot_flags;
-                fd_head = fragment_add_seq_next(tvb, 0, pinfo, tid, nds_fragment_table, nds_reassembled_table, len, request_value->nds_frag);
+                fd_head = fragment_add_seq_next(&nds_reassembly_table, tvb, 0, pinfo, tid, NULL, len, request_value->nds_frag);
                 frags[frag_count].sequence = sequence;
                 frags[frag_count].nds_length = 1;
             }
@@ -7248,7 +7251,7 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
                 if (!pinfo->fd->flags.visited)
                 {
                     if (sequence != frags[frag_count].sequence) {
-                        fd_head = fragment_add_seq_next(tvb, 16, pinfo, tid, nds_fragment_table, nds_reassembled_table, len-16, request_value->nds_frag);
+                        fd_head = fragment_add_seq_next(&nds_reassembly_table, tvb, 16, pinfo, tid, NULL, len-16, request_value->nds_frag);
                         frags[frag_count].sequence = sequence;
                     }
                     else
@@ -7261,7 +7264,7 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
                 }
                 else
                 {
-                    fd_head = fragment_add_seq_next(tvb, 16, pinfo, tid, nds_fragment_table, nds_reassembled_table, len-16, request_value->nds_frag);
+                    fd_head = fragment_add_seq_next(&nds_reassembly_table, tvb, 16, pinfo, tid, NULL, len-16, request_value->nds_frag);
                     frags[frag_count].sequence = sequence;
                 }
             }
@@ -7676,7 +7679,7 @@ dissect_ncp_request(tvbuff_t *tvb, packet_info *pinfo,
             gboolean    *results;
             dfilter_t   *dfilter;
 
-            results = se_alloc0(sizeof(gboolean)*NUM_REQ_CONDS);
+            results = (gboolean *)se_alloc0(sizeof(gboolean)*NUM_REQ_CONDS);
             needed = ncp_rec->req_cond_indexes;
 
             while (*needed != -1) {
@@ -7723,7 +7726,7 @@ dissect_ncp_request(tvbuff_t *tvb, packet_info *pinfo,
 
                 col_set_str(pinfo->cinfo, COL_INFO, "C ");
 
-                finfo = g_ptr_array_index(parray, 0);
+                finfo = (field_info *)g_ptr_array_index(parray, 0);
 
                 info_type = get_info_type((const gchar*) ncp_rec->req_info_str->first_string);
 
@@ -7761,7 +7764,7 @@ dissect_ncp_request(tvbuff_t *tvb, packet_info *pinfo,
             if (len > 1) {
                 for (i = 1; i < len; i++) {
                     non_uni_string[0]='\0';
-                    finfo = g_ptr_array_index(parray, i);
+                    finfo = (field_info *)g_ptr_array_index(parray, i);
                     info_type = get_info_type((const gchar*) ncp_rec->req_info_str->repeat_string);
 
                     if (info_type != 0) {    /* Is this  a string or not? */
@@ -8883,7 +8886,7 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
             if (request_value) {
                 ncp_rec = request_value->ncp_rec;
             }
-            p_add_proto_data(pinfo->fd, proto_ncp, (void*) request_value);
+            p_add_proto_data(pinfo->fd, proto_ncp, 0, (void*) request_value);
         }
         /* else... we haven't seen an NCP Request for that conversation
            and sequence.
@@ -8904,7 +8907,7 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
                 if (request_value) {
                     ncp_rec = request_value->ncp_rec;
                 }
-                p_add_proto_data(pinfo->fd, proto_ncp,
+                p_add_proto_data(pinfo->fd, proto_ncp, 0,
                                  (void*) request_value);
             }
             else {
@@ -8918,7 +8921,7 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
                     if (request_value) {
                         ncp_rec = request_value->ncp_rec;
                     }
-                    p_add_proto_data(pinfo->fd, proto_ncp,
+                    p_add_proto_data(pinfo->fd, proto_ncp, 0,
                                      (void*) request_value);
                 }
                 /* else... we haven't seen an NCP Request for that
@@ -10842,37 +10845,37 @@ dissect_nds_request(tvbuff_t *tvb, packet_info *pinfo,
             pvalues[4].hfname= hf_nds_rflags;
             pvalues[4].voffset = foffset;
             pvalues[4].bit1 = "Not Defined";
-            pvalues[4].bit1hfname = hf_bit1l1flagsl;
+            pvalues[4].bit1hfname = hf_bit1l1flagsh;
             pvalues[4].bit2 = "Not Defined";
-            pvalues[4].bit2hfname = hf_bit2l1flagsl;
+            pvalues[4].bit2hfname = hf_bit2l1flagsh;
             pvalues[4].bit3 = "Not Defined";
-            pvalues[4].bit3hfname = hf_bit3l1flagsl;
+            pvalues[4].bit3hfname = hf_bit3l1flagsh;
             pvalues[4].bit4 = "Not Defined";
-            pvalues[4].bit4hfname = hf_bit4l1flagsl;
+            pvalues[4].bit4hfname = hf_bit4l1flagsh;
             pvalues[4].bit5 = "Not Defined";
-            pvalues[4].bit5hfname = hf_bit5l1flagsl;
+            pvalues[4].bit5hfname = hf_bit5l1flagsh;
             pvalues[4].bit6 = "Not Defined";
-            pvalues[4].bit6hfname = hf_bit6l1flagsl;
+            pvalues[4].bit6hfname = hf_bit6l1flagsh;
             pvalues[4].bit7 = "Not Defined";
-            pvalues[4].bit7hfname = hf_bit7l1flagsl;
+            pvalues[4].bit7hfname = hf_bit7l1flagsh;
             pvalues[4].bit8 = "Not Defined";
-            pvalues[4].bit8hfname = hf_bit8l1flagsl;
+            pvalues[4].bit8hfname = hf_bit8l1flagsh;
             pvalues[4].bit9 = "Not Defined";
-            pvalues[4].bit9hfname = hf_bit9l1flagsl;
+            pvalues[4].bit9hfname = hf_bit9l1flagsh;
             pvalues[4].bit10 = "Not Defined";
-            pvalues[4].bit10hfname = hf_bit10l1flagsl;
+            pvalues[4].bit10hfname = hf_bit10l1flagsh;
             pvalues[4].bit11 = "Not Defined";
-            pvalues[4].bit11hfname = hf_bit11l1flagsl;
+            pvalues[4].bit11hfname = hf_bit11l1flagsh;
             pvalues[4].bit12 = "Not Defined";
-            pvalues[4].bit12hfname = hf_bit12l1flagsl;
+            pvalues[4].bit12hfname = hf_bit12l1flagsh;
             pvalues[4].bit13 = "Not Defined";
-            pvalues[4].bit13hfname = hf_bit13l1flagsl;
+            pvalues[4].bit13hfname = hf_bit13l1flagsh;
             pvalues[4].bit14 = "Not Defined";
-            pvalues[4].bit14hfname = hf_bit14l1flagsl;
+            pvalues[4].bit14hfname = hf_bit14l1flagsh;
             pvalues[4].bit15 = "Not Defined";
-            pvalues[4].bit15hfname = hf_bit15l1flagsl;
+            pvalues[4].bit15hfname = hf_bit15l1flagsh;
             pvalues[4].bit16 = "Not Defined";
-            pvalues[4].bit16hfname = hf_bit16l1flagsl;
+            pvalues[4].bit16hfname = hf_bit16l1flagsh;
             foffset = foffset+2;
             if(pvalues[0].vvalue == 1)
             {

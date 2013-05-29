@@ -39,13 +39,11 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
-#include "ui/simple_dialog.h"
 #include "capture_ui_utils.h"
 
 #include "capture_opts.h"
 #include "ringbuffer.h"
 #include "clopts_common.h"
-#include "console_io.h"
 #include "cmdarg_err.h"
 
 #include "capture_ifinfo.h"
@@ -56,9 +54,8 @@ static gboolean capture_opts_output_to_pipe(const char *save_file, gboolean *is_
 
 
 void
-capture_opts_init(capture_options *capture_opts, void *cf)
+capture_opts_init(capture_options *capture_opts)
 {
-  capture_opts->cf                              = cf;
   capture_opts->ifaces                          = g_array_new(FALSE, FALSE, sizeof(interface_options));
   capture_opts->all_ifaces                      = g_array_new(FALSE, FALSE, sizeof(interface_t));
   capture_opts->num_selected                    = 0;
@@ -70,7 +67,7 @@ capture_opts_init(capture_options *capture_opts, void *cf)
   capture_opts->default_options.linktype        = -1;
   capture_opts->default_options.promisc_mode    = TRUE;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-  capture_opts->default_options.buffer_size     = 1;                /* 1 MB */
+  capture_opts->default_options.buffer_size     = DEFAULT_CAPTURE_BUFFER_SIZE;
 #endif
   capture_opts->default_options.monitor_mode    = FALSE;
 #ifdef HAVE_PCAP_REMOTE
@@ -116,17 +113,7 @@ capture_opts_init(capture_options *capture_opts, void *cf)
   capture_opts->has_autostop_duration           = FALSE;
   capture_opts->autostop_duration               = 60;               /* 1 min */
 
-
-  capture_opts->fork_child                      = -1;               /* invalid process handle */
-#ifdef _WIN32
-  capture_opts->signal_pipe_write_fd            = -1;
-#endif
-  capture_opts->state                           = CAPTURE_STOPPED;
   capture_opts->output_to_pipe                  = FALSE;
-#ifndef _WIN32
-  capture_opts->owner                           = getuid();
-  capture_opts->group                           = getgid();
-#endif
 }
 
 
@@ -136,7 +123,6 @@ capture_opts_log(const char *log_domain, GLogLevelFlags log_level, capture_optio
     guint i;
 
     g_log(log_domain, log_level, "CAPTURE OPTIONS     :");
-    g_log(log_domain, log_level, "CFile               : %p", capture_opts->cf);
 
     for (i = 0; i < capture_opts->ifaces->len; i++) {
         interface_options interface_opts;
@@ -230,11 +216,6 @@ capture_opts_log(const char *log_domain, GLogLevelFlags log_level, capture_optio
     g_log(log_domain, log_level, "AutostopPackets (%u) : %u", capture_opts->has_autostop_packets, capture_opts->autostop_packets);
     g_log(log_domain, log_level, "AutostopFilesize(%u) : %u (KB)", capture_opts->has_autostop_filesize, capture_opts->autostop_filesize);
     g_log(log_domain, log_level, "AutostopDuration(%u) : %u", capture_opts->has_autostop_duration, capture_opts->autostop_duration);
-
-    g_log(log_domain, log_level, "ForkChild           : %d", capture_opts->fork_child);
-#ifdef _WIN32
-    g_log(log_domain, log_level, "SignalPipeWrite     : %d", capture_opts->signal_pipe_write_fd);
-#endif
 }
 
 /*
@@ -487,7 +468,7 @@ capture_opts_add_iface_opt(capture_options *capture_opts, const char *optarg_str
             }
             return 2;
         }
-        if_info = (if_info_t *)g_list_nth_data(if_list, adapter_index - 1);
+        if_info = (if_info_t *)g_list_nth_data(if_list, (int)(adapter_index - 1));
         if (if_info == NULL) {
             cmdarg_err("There is no interface with that adapter index");
             return 1;
@@ -518,7 +499,7 @@ capture_opts_add_iface_opt(capture_options *capture_opts, const char *optarg_str
          * the interface name, so that the user can try specifying an
          * interface explicitly for testing purposes.
          */
-        if_list = capture_interface_list(&err, &err_str);
+        if_list = capture_interface_list(&err, NULL);
         if (if_list != NULL) {
             /* try and do an exact match (case insensitive) */
             GList   *if_entry;
@@ -844,19 +825,19 @@ capture_opts_print_if_capabilities(if_capabilities_t *caps, char *name,
     data_link_info_t *data_link_info;
 
     if (caps->can_set_rfmon)
-        fprintf_stderr("Data link types of interface %s when %sin monitor mode (use option -y to set):\n",
-                       name, monitor_mode ? "" : "not ");
+        printf("Data link types of interface %s when %sin monitor mode (use option -y to set):\n",
+               name, monitor_mode ? "" : "not ");
     else
-        fprintf_stderr("Data link types of interface %s (use option -y to set):\n", name);
+        printf("Data link types of interface %s (use option -y to set):\n", name);
     for (lt_entry = caps->data_link_types; lt_entry != NULL;
          lt_entry = g_list_next(lt_entry)) {
         data_link_info = (data_link_info_t *)lt_entry->data;
-        fprintf_stderr("  %s", data_link_info->name);
+        printf("  %s", data_link_info->name);
         if (data_link_info->description != NULL)
-            fprintf_stderr(" (%s)", data_link_info->description);
+            printf(" (%s)", data_link_info->description);
         else
-            fprintf_stderr(" (not supported)");
-        fprintf_stderr("\n");
+            printf(" (not supported)");
+        printf("\n");
     }
 }
 
@@ -872,17 +853,17 @@ capture_opts_print_interfaces(GList *if_list)
     for (if_entry = g_list_first(if_list); if_entry != NULL;
          if_entry = g_list_next(if_entry)) {
         if_info = (if_info_t *)if_entry->data;
-        fprintf_stderr("%d. %s", i++, if_info->name);
+        printf("%d. %s", i++, if_info->name);
 
         /* Print the interface friendly name, if it exists;
           if not fall back to vendor description, if it exists. */
         if (if_info->friendly_name != NULL){
-            fprintf_stderr(" (%s)", if_info->friendly_name);
+            printf(" (%s)", if_info->friendly_name);
         } else {
             if (if_info->vendor_description != NULL)
-                fprintf_stderr(" (%s)", if_info->vendor_description);
+                printf(" (%s)", if_info->vendor_description);
         }
-        fprintf_stderr("\n");
+        printf("\n");
     }
 }
 
@@ -929,9 +910,12 @@ capture_opts_trim_ring_num_files(capture_options *capture_opts)
 #endif
 }
 
-
+/*
+ * If no interface was specified explicitly, pick a default.
+ */
 int
-capture_opts_trim_iface(capture_options *capture_opts, const char *capture_device)
+capture_opts_default_iface_if_necessary(capture_options *capture_opts,
+                                        const char *capture_device)
 {
     int status;
 

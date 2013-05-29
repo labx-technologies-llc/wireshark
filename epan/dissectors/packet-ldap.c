@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ldap.c                                                              */
 /* ../../tools/asn2wrs.py -b -p ldap -c ./ldap.cnf -s ./packet-ldap-template -D . -O ../../epan/dissectors Lightweight-Directory-Access-Protocol-V3.asn */
 
@@ -37,7 +37,7 @@
  * it handles only the commands of version 2, but any additional characteristics of the ver3 command are supported.
  * It's also missing extensible search filters.
  *
- * There should probably be alot more error checking, I simply assume that if we have a full packet, it will be a complete
+ * There should probably be a lot more error checking, I simply assume that if we have a full packet, it will be a complete
  * and correct packet.
  *
  * AFAIK, it will handle all messages used by the OpenLDAP 1.2.9 server and libraries which was my goal. I do plan to add
@@ -104,6 +104,7 @@
 #include <epan/emem.h>
 #include <epan/oids.h>
 #include <epan/strutil.h>
+#include <epan/show_exception.h>
 #include <epan/dissectors/packet-frame.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/dissectors/packet-windows-common.h>
@@ -340,7 +341,7 @@ static int hf_ldap_graceAuthNsRemaining = -1;     /* INTEGER_0_maxInt */
 static int hf_ldap_error = -1;                    /* T_error */
 
 /*--- End of included file: packet-ldap-hf.c ---*/
-#line 187 "../../asn1/ldap/packet-ldap-template.c"
+#line 188 "../../asn1/ldap/packet-ldap-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_ldap = -1;
@@ -413,7 +414,7 @@ static gint ett_ldap_PasswordPolicyResponseValue = -1;
 static gint ett_ldap_T_warning = -1;
 
 /*--- End of included file: packet-ldap-ett.c ---*/
-#line 198 "../../asn1/ldap/packet-ldap-template.c"
+#line 199 "../../asn1/ldap/packet-ldap-template.c"
 
 static dissector_table_t ldap_name_dissector_table=NULL;
 static const char *object_identifier_id = NULL; /* LDAP OID */
@@ -3835,7 +3836,7 @@ static void dissect_PasswordPolicyResponseValue_PDU(tvbuff_t *tvb _U_, packet_in
 
 
 /*--- End of included file: packet-ldap-fn.c ---*/
-#line 876 "../../asn1/ldap/packet-ldap-template.c"
+#line 877 "../../asn1/ldap/packet-ldap-template.c"
 
 static void
 dissect_ldap_payload(tvbuff_t *tvb, packet_info *pinfo,
@@ -3930,7 +3931,7 @@ one_more_pdu:
      * same blob
      */
     if(tvb_length_remaining(tvb, offset)>=6){
-        tvb = tvb_new_subset(tvb, offset, tvb_length_remaining(tvb, offset), -1);
+        tvb = tvb_new_subset_remaining(tvb, offset);
 	offset = 0;
 
         goto one_more_pdu;
@@ -4015,7 +4016,7 @@ static void
 	length_remaining = tvb_ensure_length_remaining(tvb, offset);
 
 	/* It might still be a packet containing a SASL security layer
-	* but its just that we never saw the BIND packet.
+	* but it's just that we never saw the BIND packet.
 	* check if it looks like it could be a SASL blob here
 	* and in that case just assume it is GSS-SPNEGO
 	*/
@@ -5193,11 +5194,11 @@ void proto_register_ldap(void) {
 /*--- Included file: packet-ldap-hfarr.c ---*/
 #line 1 "../../asn1/ldap/packet-ldap-hfarr.c"
     { &hf_ldap_LDAPMessage_PDU,
-      { "LDAPMessage", "ldap.LDAPMessage",
+      { "LDAPMessage", "ldap.LDAPMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_SearchControlValue_PDU,
-      { "SearchControlValue", "ldap.SearchControlValue",
+      { "SearchControlValue", "ldap.SearchControlValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_SortKeyList_PDU,
@@ -5205,31 +5206,31 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_SortResult_PDU,
-      { "SortResult", "ldap.SortResult",
+      { "SortResult", "ldap.SortResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_DirSyncControlValue_PDU,
-      { "DirSyncControlValue", "ldap.DirSyncControlValue",
+      { "DirSyncControlValue", "ldap.DirSyncControlValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_PasswdModifyRequestValue_PDU,
-      { "PasswdModifyRequestValue", "ldap.PasswdModifyRequestValue",
+      { "PasswdModifyRequestValue", "ldap.PasswdModifyRequestValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_CancelRequestValue_PDU,
-      { "CancelRequestValue", "ldap.CancelRequestValue",
+      { "CancelRequestValue", "ldap.CancelRequestValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_SyncRequestValue_PDU,
-      { "SyncRequestValue", "ldap.SyncRequestValue",
+      { "SyncRequestValue", "ldap.SyncRequestValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_SyncStateValue_PDU,
-      { "SyncStateValue", "ldap.SyncStateValue",
+      { "SyncStateValue", "ldap.SyncStateValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_SyncDoneValue_PDU,
-      { "SyncDoneValue", "ldap.SyncDoneValue",
+      { "SyncDoneValue", "ldap.SyncDoneValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_SyncInfoValue_PDU,
@@ -5237,7 +5238,7 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, VALS(ldap_SyncInfoValue_vals), 0,
         NULL, HFILL }},
     { &hf_ldap_PasswordPolicyResponseValue_PDU,
-      { "PasswordPolicyResponseValue", "ldap.PasswordPolicyResponseValue",
+      { "PasswordPolicyResponseValue", "ldap.PasswordPolicyResponseValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_messageID,
@@ -5253,27 +5254,27 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_bindRequest,
-      { "bindRequest", "ldap.bindRequest",
+      { "bindRequest", "ldap.bindRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_bindResponse,
-      { "bindResponse", "ldap.bindResponse",
+      { "bindResponse", "ldap.bindResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_unbindRequest,
-      { "unbindRequest", "ldap.unbindRequest",
+      { "unbindRequest", "ldap.unbindRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_searchRequest,
-      { "searchRequest", "ldap.searchRequest",
+      { "searchRequest", "ldap.searchRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_searchResEntry,
-      { "searchResEntry", "ldap.searchResEntry",
+      { "searchResEntry", "ldap.searchResEntry_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SearchResultEntry", HFILL }},
     { &hf_ldap_searchResDone,
-      { "searchResDone", "ldap.searchResDone",
+      { "searchResDone", "ldap.searchResDone_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SearchResultDone", HFILL }},
     { &hf_ldap_searchResRef,
@@ -5281,19 +5282,19 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SearchResultReference", HFILL }},
     { &hf_ldap_modifyRequest,
-      { "modifyRequest", "ldap.modifyRequest",
+      { "modifyRequest", "ldap.modifyRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_modifyResponse,
-      { "modifyResponse", "ldap.modifyResponse",
+      { "modifyResponse", "ldap.modifyResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_addRequest,
-      { "addRequest", "ldap.addRequest",
+      { "addRequest", "ldap.addRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_addResponse,
-      { "addResponse", "ldap.addResponse",
+      { "addResponse", "ldap.addResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_delRequest,
@@ -5301,23 +5302,23 @@ void proto_register_ldap(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_delResponse,
-      { "delResponse", "ldap.delResponse",
+      { "delResponse", "ldap.delResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_modDNRequest,
-      { "modDNRequest", "ldap.modDNRequest",
+      { "modDNRequest", "ldap.modDNRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyDNRequest", HFILL }},
     { &hf_ldap_modDNResponse,
-      { "modDNResponse", "ldap.modDNResponse",
+      { "modDNResponse", "ldap.modDNResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyDNResponse", HFILL }},
     { &hf_ldap_compareRequest,
-      { "compareRequest", "ldap.compareRequest",
+      { "compareRequest", "ldap.compareRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_compareResponse,
-      { "compareResponse", "ldap.compareResponse",
+      { "compareResponse", "ldap.compareResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_abandonRequest,
@@ -5325,15 +5326,15 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_extendedReq,
-      { "extendedReq", "ldap.extendedReq",
+      { "extendedReq", "ldap.extendedReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ExtendedRequest", HFILL }},
     { &hf_ldap_extendedResp,
-      { "extendedResp", "ldap.extendedResp",
+      { "extendedResp", "ldap.extendedResp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ExtendedResponse", HFILL }},
     { &hf_ldap_intermediateResponse,
-      { "intermediateResponse", "ldap.intermediateResponse",
+      { "intermediateResponse", "ldap.intermediateResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_AttributeDescriptionList_item,
@@ -5381,7 +5382,7 @@ void proto_register_ldap(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_Controls_item,
-      { "Control", "ldap.Control",
+      { "Control", "ldap.Control_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_controlType,
@@ -5413,7 +5414,7 @@ void proto_register_ldap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_sasl,
-      { "sasl", "ldap.sasl",
+      { "sasl", "ldap.sasl_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SaslCredentials", HFILL }},
     { &hf_ldap_ntlmsspNegotiate,
@@ -5497,19 +5498,19 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, VALS(ldap_Filter_vals), 0,
         NULL, HFILL }},
     { &hf_ldap_equalityMatch,
-      { "equalityMatch", "ldap.equalityMatch",
+      { "equalityMatch", "ldap.equalityMatch_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_substrings,
-      { "substrings", "ldap.substrings",
+      { "substrings", "ldap.substrings_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SubstringFilter", HFILL }},
     { &hf_ldap_greaterOrEqual,
-      { "greaterOrEqual", "ldap.greaterOrEqual",
+      { "greaterOrEqual", "ldap.greaterOrEqual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_lessOrEqual,
-      { "lessOrEqual", "ldap.lessOrEqual",
+      { "lessOrEqual", "ldap.lessOrEqual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_present,
@@ -5517,11 +5518,11 @@ void proto_register_ldap(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_approxMatch,
-      { "approxMatch", "ldap.approxMatch",
+      { "approxMatch", "ldap.approxMatch_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_extensibleMatch,
-      { "extensibleMatch", "ldap.extensibleMatch",
+      { "extensibleMatch", "ldap.extensibleMatch_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_substringFilter_substrings,
@@ -5565,7 +5566,7 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "PartialAttributeList", HFILL }},
     { &hf_ldap_PartialAttributeList_item,
-      { "PartialAttributeList item", "ldap.PartialAttributeList_item",
+      { "PartialAttributeList item", "ldap.PartialAttributeList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap__untag_item,
@@ -5581,7 +5582,7 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ModifyRequest_modification", HFILL }},
     { &hf_ldap_modifyRequest_modification_item,
-      { "modification item", "ldap.modification_item",
+      { "modification item", "ldap.modification_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_modifyRequest_modification_item", HFILL }},
     { &hf_ldap_operation,
@@ -5589,7 +5590,7 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, VALS(ldap_T_operation_vals), 0,
         NULL, HFILL }},
     { &hf_ldap_modification,
-      { "modification", "ldap.modification",
+      { "modification", "ldap.modification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeTypeAndValues", HFILL }},
     { &hf_ldap_entry,
@@ -5601,7 +5602,7 @@ void proto_register_ldap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "AttributeList", HFILL }},
     { &hf_ldap_AttributeList_item,
-      { "AttributeList item", "ldap.AttributeList_item",
+      { "AttributeList item", "ldap.AttributeList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_newrdn,
@@ -5617,7 +5618,7 @@ void proto_register_ldap(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "LDAPDN", HFILL }},
     { &hf_ldap_ava,
-      { "ava", "ldap.ava",
+      { "ava", "ldap.ava_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_ldap_requestName,
@@ -5653,7 +5654,7 @@ void proto_register_ldap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_ldap_SortKeyList_item,
-      { "SortKeyList item", "ldap.SortKeyList_item",
+      { "SortKeyList item", "ldap.SortKeyList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_attributeType,
@@ -5729,7 +5730,7 @@ void proto_register_ldap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_ldap_refreshDelete,
-      { "refreshDelete", "ldap.refreshDelete",
+      { "refreshDelete", "ldap.refreshDelete_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_refreshDone,
@@ -5737,11 +5738,11 @@ void proto_register_ldap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ldap_refreshPresent,
-      { "refreshPresent", "ldap.refreshPresent",
+      { "refreshPresent", "ldap.refreshPresent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_syncIdSet,
-      { "syncIdSet", "ldap.syncIdSet",
+      { "syncIdSet", "ldap.syncIdSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ldap_syncUUIDs,
@@ -5770,7 +5771,7 @@ void proto_register_ldap(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-ldap-hfarr.c ---*/
-#line 2230 "../../asn1/ldap/packet-ldap-template.c"
+#line 2231 "../../asn1/ldap/packet-ldap-template.c"
   };
 
   /* List of subtrees */
@@ -5845,7 +5846,7 @@ void proto_register_ldap(void) {
     &ett_ldap_T_warning,
 
 /*--- End of included file: packet-ldap-ettarr.c ---*/
-#line 2243 "../../asn1/ldap/packet-ldap-template.c"
+#line 2244 "../../asn1/ldap/packet-ldap-template.c"
   };
   /* UAT for header fields */
   static uat_field_t custom_attribute_types_uat_fields[] = {
@@ -5856,7 +5857,7 @@ void proto_register_ldap(void) {
 
   module_t *ldap_module;
   uat_t *attributes_uat;
-  
+
   /* Register protocol */
   proto_ldap = proto_register_protocol(PNAME, PSNAME, PFNAME);
   /* Register fields and subtrees */
@@ -5885,7 +5886,7 @@ void proto_register_ldap(void) {
                            sizeof(attribute_type_t),
                            "custom_ldap_attribute_types",
                            TRUE,
-                           (void*) &attribute_types,
+                           (void**) &attribute_types,
                            &num_attribute_types,
                            /* specifies named fields, so affects dissection
                               and the set of named fields */
@@ -6004,7 +6005,7 @@ proto_reg_handoff_ldap(void)
 
 
 /*--- End of included file: packet-ldap-dis-tab.c ---*/
-#line 2385 "../../asn1/ldap/packet-ldap-template.c"
+#line 2386 "../../asn1/ldap/packet-ldap-template.c"
 
 
 }

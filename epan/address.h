@@ -150,16 +150,27 @@ typedef struct _address {
 	guint8 *COPY_ADDRESS_data; \
 	(to)->type = (from)->type; \
 	(to)->len = (from)->len; \
-	COPY_ADDRESS_data = g_malloc((from)->len); \
+	(to)->hf = (from)->hf; \
+	COPY_ADDRESS_data = (guint8 *)g_malloc((from)->len); \
 	memcpy(COPY_ADDRESS_data, (from)->data, (from)->len); \
 	(to)->data = COPY_ADDRESS_data; \
 	}
+
+/* Perform a shallow copy of the address (both addresses point to the same
+ * memory location).
+ */
+#define COPY_ADDRESS_SHALLOW(to, from) \
+	(to)->type = (from)->type; \
+	(to)->len = (from)->len; \
+	(to)->hf = (from)->hf; \
+	(to)->data = (from)->data;
 
 #define SE_COPY_ADDRESS(to, from) { \
 	guint8 *SE_COPY_ADDRESS_data; \
 	(to)->type = (from)->type; \
 	(to)->len = (from)->len; \
-	SE_COPY_ADDRESS_data = se_alloc((from)->len); \
+	(to)->hf = (from)->hf; \
+	SE_COPY_ADDRESS_data = (guint8 *)se_alloc((from)->len); \
 	memcpy(SE_COPY_ADDRESS_data, (from)->data, (from)->len); \
 	(to)->data = SE_COPY_ADDRESS_data; \
 	}
@@ -170,7 +181,7 @@ typedef struct _address {
 #define ADD_ADDRESS_TO_HASH(hash_val, addr) { \
 	const guint8 *ADD_ADDRESS_TO_HASH_data; \
 	int ADD_ADDRESS_TO_HASH_index; \
-	ADD_ADDRESS_TO_HASH_data = (addr)->data; \
+	ADD_ADDRESS_TO_HASH_data = (const guint8 *)(addr)->data; \
 	for (ADD_ADDRESS_TO_HASH_index = 0; \
 	     ADD_ADDRESS_TO_HASH_index < (addr)->len; \
 	     ADD_ADDRESS_TO_HASH_index++) \
@@ -193,7 +204,8 @@ typedef enum {
   PT_TIPC,		/* TIPC PORT */
   PT_USB,		/* USB endpoint 0xffff means the host */
   PT_I2C,
-  PT_IBQP		/* Infiniband QP number */
+  PT_IBQP,		/* Infiniband QP number */
+  PT_BLUETOOTH
 } port_type;
 
 /* Types of circuit IDs Wireshark knows about. */
@@ -206,7 +218,7 @@ typedef enum {
   CT_IAX2,		/* IAX2 call id */
   CT_H223,		/* H.223 logical channel number */
   CT_BICC,		/* BICC Circuit identifier */
-  CT_DVBCI		/* DVB-CI session number */
+  CT_DVBCI		/* DVB-CI session number|transport connection id */
   /* Could also have ATM VPI/VCI pairs */
 } circuit_type;
 

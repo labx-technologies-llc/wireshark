@@ -75,6 +75,31 @@
 #include "ui/progress_dlg.h"
 #include "ui/ui_util.h"
 
+/* Needed for addrinfo */
+#ifdef HAVE_SYS_TYPES_H
+# include <sys/types.h>
+#endif
+
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+
+#ifdef HAVE_NETINET_IN_H
+# include <netinet/in.h>
+#endif
+
+#ifdef HAVE_NETDB_H
+# include <netdb.h>
+#endif
+
+#ifdef HAVE_WINSOCK2_H
+# include <winsock2.h>
+#endif
+
+#if defined(_WIN32) && defined(INET6)
+# include <ws2tcpip.h>
+#endif
+
 #ifdef HAVE_LIBPCAP
 gboolean auto_scroll_live;
 #endif
@@ -103,11 +128,11 @@ static match_result match_protocol_tree(capture_file *cf, frame_data *fdata,
 static void match_subtree_text(proto_node *node, gpointer data);
 static match_result match_summary_line(capture_file *cf, frame_data *fdata,
     void *criterion);
-static match_result match_ascii_and_unicode(capture_file *cf, frame_data *fdata,
+static match_result match_narrow_and_wide(capture_file *cf, frame_data *fdata,
     void *criterion);
-static match_result match_ascii(capture_file *cf, frame_data *fdata,
+static match_result match_narrow(capture_file *cf, frame_data *fdata,
     void *criterion);
-static match_result match_unicode(capture_file *cf, frame_data *fdata,
+static match_result match_wide(capture_file *cf, frame_data *fdata,
     void *criterion);
 static match_result match_binary(capture_file *cf, frame_data *fdata,
     void *criterion);
@@ -155,7 +180,7 @@ cf_callback_invoke(int event, gpointer data)
   g_assert(cb_item != NULL);
 
   while (cb_item != NULL) {
-    cb = cb_item->data;
+    cb = (cf_callback_data_t *)cb_item->data;
     cb->cb_fct(event, data, cb->user_data);
     cb_item = g_list_next(cb_item);
   }
@@ -167,7 +192,7 @@ cf_callback_add(cf_callback_t func, gpointer user_data)
 {
   cf_callback_data_t *cb;
 
-  cb = g_malloc(sizeof(cf_callback_data_t));
+  cb = g_new(cf_callback_data_t,1);
   cb->cb_fct = func;
   cb->user_data = user_data;
 
@@ -181,7 +206,7 @@ cf_callback_remove(cf_callback_t func)
   GList              *cb_item = cf_callbacks;
 
   while (cb_item != NULL) {
-    cb = cb_item->data;
+    cb = (cf_callback_data_t *)cb_item->data;
     if (cb->cb_fct == func) {
       cf_callbacks = g_list_remove(cf_callbacks, cb);
       g_free(cb);
@@ -363,7 +388,7 @@ fail:
 /*
  * Add an encapsulation type to cf->linktypes.
  */
-void
+static void
 cf_add_encapsulation_type(capture_file *cf, int encap)
 {
   guint i;
@@ -626,7 +651,7 @@ cf_read(capture_file *cf, gboolean reloading)
         break;
       }
       read_packet(cf, dfcode, create_proto_tree, cinfo, data_offset);
-    } 
+    }
   }
   CATCH(OutOfMemoryError) {
     simple_message_box(ESD_TYPE_ERROR, NULL,
@@ -1081,17 +1106,6 @@ void cf_set_rfcode(capture_file *cf, dfilter_t *rfcode)
   cf->rfcode = rfcode;
 }
 
-static void
-find_and_mark_frame_depended_upon(gpointer data, gpointer user_data)
-{
-  frame_data   *dependent_fd;
-  guint32       dependent_frame = GPOINTER_TO_UINT(data);
-  capture_file *cf              = (capture_file *)user_data;
-
-  dependent_fd = frame_data_sequence_find(cf->frames, dependent_frame);
-  dependent_fd->flags.dependent_of_displayed = 1;
-}
-
 static int
 add_packet_to_packet_list(frame_data *fdata, capture_file *cf,
     dfilter_t *dfcode, gboolean create_proto_tree, column_info *cinfo,
@@ -1123,7 +1137,7 @@ add_packet_to_packet_list(frame_data *fdata, capture_file *cf,
        * (potentially not displayed) frames.  Find those frames and mark them
        * as depended upon.
        */
-      g_slist_foreach(edt.pi.dependent_frames, find_and_mark_frame_depended_upon, cf);
+      g_slist_foreach(edt.pi.dependent_frames, find_and_mark_frame_depended_upon, cf->frames);
     }
   } else
     fdata->flags.passed_dfilter = 1;
@@ -1905,8 +1919,7 @@ rescan_packets(capture_file *cf, const char *action, const char *action_item, gb
        * as not visited, free the GSList referring to the state
        * data (the per-frame data itself was freed by
        * "init_dissection()"), and null out the GSList pointer. */
-      fdata->flags.visited = 0;
-      frame_data_cleanup(fdata);
+      frame_data_reset(fdata);
       frames_count = cf->count;
     }
 
@@ -1963,8 +1976,7 @@ rescan_packets(capture_file *cf, const char *action, const char *action_item, gb
        until it finishes.  Should we just stick them with that? */
     for (; framenum <= frames_count; framenum++) {
       fdata = frame_data_sequence_find(cf->frames, framenum);
-      fdata->flags.visited = 0;
-      frame_data_cleanup(fdata);
+      frame_data_reset(fdata);
     }
   }
 
@@ -2265,7 +2277,7 @@ retap_packet(capture_file *cf _U_, frame_data *fdata,
              struct wtap_pkthdr *phdr, const guint8 *pd,
              void *argsp)
 {
-  retap_callback_args_t *args = argsp;
+  retap_callback_args_t *args = (retap_callback_args_t *)argsp;
   epan_dissect_t         edt;
 
   epan_dissect_init(&edt, args->construct_protocol_tree, FALSE);
@@ -2343,7 +2355,7 @@ print_packet(capture_file *cf, frame_data *fdata,
              struct wtap_pkthdr *phdr, const guint8 *pd,
              void *argsp)
 {
-  print_callback_args_t *args = argsp;
+  print_callback_args_t *args = (print_callback_args_t *)argsp;
   epan_dissect_t  edt;
   int             i;
   char           *cp;
@@ -2406,7 +2418,7 @@ print_packet(capture_file *cf, frame_data *fdata,
       if (line_len > args->line_buf_len) {
         cp_off = (int) (cp - args->line_buf);
         args->line_buf_len = 2 * line_len;
-        args->line_buf = g_realloc(args->line_buf, args->line_buf_len + 1);
+        args->line_buf = (char *)g_realloc(args->line_buf, args->line_buf_len + 1);
         cp = args->line_buf + cp_off;
       }
 
@@ -2521,7 +2533,7 @@ cf_print_packets(capture_file *cf, print_args_t *print_args)
   if (print_args->print_summary) {
     /* We're printing packet summaries.  Allocate the header line buffer
        and get the column widths. */
-    callback_args.header_line_buf = g_malloc(callback_args.header_line_buf_len + 1);
+    callback_args.header_line_buf = (char *)g_malloc(callback_args.header_line_buf_len + 1);
 
     /* Find the number of visible columns and the last visible column */
     for (i = 0; i < prefs.num_cols; i++) {
@@ -2580,7 +2592,7 @@ cf_print_packets(capture_file *cf, print_args_t *print_args)
       if (line_len > callback_args.header_line_buf_len) {
         cp_off = (int) (cp - callback_args.header_line_buf);
         callback_args.header_line_buf_len = 2 * line_len;
-        callback_args.header_line_buf = g_realloc(callback_args.header_line_buf,
+        callback_args.header_line_buf = (char *)g_realloc(callback_args.header_line_buf,
                                                   callback_args.header_line_buf_len + 1);
         cp = callback_args.header_line_buf + cp_off;
       }
@@ -2601,7 +2613,7 @@ cf_print_packets(capture_file *cf, print_args_t *print_args)
     /* Now start out the main line buffer with the same length as the
        header line buffer. */
     callback_args.line_buf_len = callback_args.header_line_buf_len;
-    callback_args.line_buf = g_malloc(callback_args.line_buf_len + 1);
+    callback_args.line_buf = (char *)g_malloc(callback_args.line_buf_len + 1);
   } /* if (print_summary) */
 
   /* Iterate through the list of packets, printing the packets we were
@@ -2657,7 +2669,7 @@ write_pdml_packet(capture_file *cf _U_, frame_data *fdata,
                   struct wtap_pkthdr *phdr, const guint8 *pd,
           void *argsp)
 {
-  FILE           *fh = argsp;
+  FILE           *fh = (FILE *)argsp;
   epan_dissect_t  edt;
 
   /* Create the protocol tree, but don't fill in the column information. */
@@ -2727,7 +2739,7 @@ write_psml_packet(capture_file *cf, frame_data *fdata,
                   struct wtap_pkthdr *phdr, const guint8 *pd,
           void *argsp)
 {
-  FILE           *fh = argsp;
+  FILE           *fh = (FILE *)argsp;
   epan_dissect_t  edt;
   gboolean        proto_tree_needed;
 
@@ -2802,7 +2814,7 @@ write_csv_packet(capture_file *cf, frame_data *fdata,
                  struct wtap_pkthdr *phdr, const guint8 *pd,
                  void *argsp)
 {
-  FILE           *fh = argsp;
+  FILE           *fh = (FILE *)argsp;
   epan_dissect_t  edt;
   gboolean        proto_tree_needed;
 
@@ -2877,7 +2889,7 @@ write_carrays_packet(capture_file *cf _U_, frame_data *fdata,
              struct wtap_pkthdr *phdr,
              const guint8 *pd, void *argsp)
 {
-  FILE           *fh = argsp;
+  FILE           *fh = (FILE *)argsp;
   epan_dissect_t  edt;
 
   epan_dissect_init(&edt, TRUE, TRUE);
@@ -2962,7 +2974,7 @@ cf_find_string_protocol_tree(capture_file *cf, proto_tree *tree,  match_data *md
 static match_result
 match_protocol_tree(capture_file *cf, frame_data *fdata, void *criterion)
 {
-  match_data     *mdata = criterion;
+  match_data     *mdata = (match_data *)criterion;
   epan_dissect_t  edt;
 
   /* Load the frame's data. */
@@ -3057,7 +3069,7 @@ cf_find_packet_summary_line(capture_file *cf, const char *string,
 static match_result
 match_summary_line(capture_file *cf, frame_data *fdata, void *criterion)
 {
-  match_data     *mdata      = criterion;
+  match_data     *mdata      = (match_data *)criterion;
   const gchar    *string     = mdata->string;
   size_t          string_len = mdata->string_len;
   epan_dissect_t  edt;
@@ -3111,6 +3123,17 @@ typedef struct {
     size_t        data_len;
 } cbs_t;    /* "Counted byte string" */
 
+
+/*
+ * The current match_* routines only support ASCII case insensitivity and don't
+ * convert UTF-8 inputs to UTF-16 for matching.
+ *
+ * We could modify them to use the GLib Unicode routines or the International
+ * Components for Unicode library but it's not apparent that we could do so
+ * without consuming a lot more CPU and memory or that searching would be
+ * significantly better.
+ */
+
 gboolean
 cf_find_packet_data(capture_file *cf, const guint8 *string, size_t string_size,
                     search_direction dir)
@@ -3125,14 +3148,14 @@ cf_find_packet_data(capture_file *cf, const guint8 *string, size_t string_size,
     /* String search - what type of string? */
     switch (cf->scs_type) {
 
-    case SCS_ASCII_AND_UNICODE:
-      return find_packet(cf, match_ascii_and_unicode, &info, dir);
+    case SCS_NARROW_AND_WIDE:
+      return find_packet(cf, match_narrow_and_wide, &info, dir);
 
-    case SCS_ASCII:
-      return find_packet(cf, match_ascii, &info, dir);
+    case SCS_NARROW:
+      return find_packet(cf, match_narrow, &info, dir);
 
-    case SCS_UNICODE:
-      return find_packet(cf, match_unicode, &info, dir);
+    case SCS_WIDE:
+      return find_packet(cf, match_wide, &info, dir);
 
     default:
       g_assert_not_reached();
@@ -3143,9 +3166,9 @@ cf_find_packet_data(capture_file *cf, const guint8 *string, size_t string_size,
 }
 
 static match_result
-match_ascii_and_unicode(capture_file *cf, frame_data *fdata, void *criterion)
+match_narrow_and_wide(capture_file *cf, frame_data *fdata, void *criterion)
 {
-  cbs_t        *info       = criterion;
+  cbs_t        *info       = (cbs_t *)criterion;
   const guint8 *ascii_text = info->data;
   size_t        textlen    = info->data_len;
   match_result  result;
@@ -3189,9 +3212,9 @@ match_ascii_and_unicode(capture_file *cf, frame_data *fdata, void *criterion)
 }
 
 static match_result
-match_ascii(capture_file *cf, frame_data *fdata, void *criterion)
+match_narrow(capture_file *cf, frame_data *fdata, void *criterion)
 {
-  cbs_t        *info       = criterion;
+  cbs_t        *info       = (cbs_t *)criterion;
   const guint8 *ascii_text = info->data;
   size_t        textlen    = info->data_len;
   match_result  result;
@@ -3234,9 +3257,9 @@ match_ascii(capture_file *cf, frame_data *fdata, void *criterion)
 }
 
 static match_result
-match_unicode(capture_file *cf, frame_data *fdata, void *criterion)
+match_wide(capture_file *cf, frame_data *fdata, void *criterion)
 {
-  cbs_t        *info       = criterion;
+  cbs_t        *info       = (cbs_t *)criterion;
   const guint8 *ascii_text = info->data;
   size_t        textlen    = info->data_len;
   match_result  result;
@@ -3281,7 +3304,7 @@ match_unicode(capture_file *cf, frame_data *fdata, void *criterion)
 static match_result
 match_binary(capture_file *cf, frame_data *fdata, void *criterion)
 {
-  cbs_t        *info        = criterion;
+  cbs_t        *info        = (cbs_t *)criterion;
   const guint8 *binary_data = info->data;
   size_t        datalen     = info->data_len;
   match_result  result;
@@ -3354,7 +3377,7 @@ cf_find_packet_dfilter_string(capture_file *cf, const char *filter,
 static match_result
 match_dfilter(capture_file *cf, frame_data *fdata, void *criterion)
 {
-  dfilter_t      *sfcode = criterion;
+  dfilter_t      *sfcode = (dfilter_t *)criterion;
   epan_dissect_t  edt;
   match_result    result;
 
@@ -3699,7 +3722,7 @@ cf_select_packet(capture_file *cf, int row)
   cf->edt = epan_dissect_new(TRUE, TRUE);
 
   tap_build_interesting(cf->edt);
-  epan_dissect_run(cf->edt, &cf->phdr, cf->pd, cf->current_frame, 
+  epan_dissect_run(cf->edt, &cf->phdr, cf->pd, cf->current_frame,
           NULL);
 
   dfilter_macro_build_ftv_cache(cf->edt->tree);
@@ -3860,12 +3883,18 @@ cf_update_packet_comment(capture_file *cf, frame_data *fdata, gchar *comment)
 }
 
 /*
- * Does this capture file have any comments?
+ * What types of comments does this capture file have?
  */
-gboolean
-cf_has_comments(capture_file *cf)
+guint32
+cf_comment_types(capture_file *cf)
 {
-  return (cf_read_shb_comment(cf) != NULL || cf->packet_comment_count != 0);
+  guint32 comment_types = 0;
+
+  if (cf_read_shb_comment(cf) != NULL)
+    comment_types |= WTAP_COMMENT_PER_SECTION;
+  if (cf->packet_comment_count != 0)
+    comment_types |= WTAP_COMMENT_PER_PACKET;
+  return comment_types;
 }
 
 typedef struct {
@@ -3886,7 +3915,7 @@ save_packet(capture_file *cf _U_, frame_data *fdata,
             struct wtap_pkthdr *phdr, const guint8 *pd,
             void *argsp)
 {
-  save_callback_args_t *args = argsp;
+  save_callback_args_t *args = (save_callback_args_t *)argsp;
   struct wtap_pkthdr    hdr;
   int           err;
   gchar        *display_basename;
@@ -3909,6 +3938,8 @@ save_packet(capture_file *cf _U_, frame_data *fdata,
     hdr.presence_flags |= WTAP_HAS_TS;
   if (fdata->flags.has_if_id)
     hdr.presence_flags |= WTAP_HAS_INTERFACE_ID;
+  if (fdata->flags.has_pack_flags)
+    hdr.presence_flags |= WTAP_HAS_PACK_FLAGS;
   hdr.ts.secs      = fdata->abs_ts.secs;
   hdr.ts.nsecs     = fdata->abs_ts.nsecs;
   hdr.caplen       = fdata->cap_len;
@@ -3917,6 +3948,7 @@ save_packet(capture_file *cf _U_, frame_data *fdata,
   /* pcapng */
   hdr.interface_id = fdata->interface_id;   /* identifier of the interface. */
   /* options */
+  hdr.pack_flags   = fdata->pack_flags;
   hdr.opt_comment  = fdata->opt_comment; /* NULL if not available */
   /* pseudo */
   hdr.pseudo_header = phdr->pseudo_header;
@@ -3964,20 +3996,102 @@ save_packet(capture_file *cf _U_, frame_data *fdata,
 gboolean
 cf_can_write_with_wiretap(capture_file *cf)
 {
-  int ft;
+  /* We don't care whether we support the comments in this file or not;
+     if we can't, we'll offer the user the option of discarding the
+     comments. */
+  return wtap_dump_can_write(cf->linktypes, 0);
+}
 
-  for (ft = 0; ft < WTAP_NUM_FILE_TYPES; ft++) {
-    /* To save a file with Wiretap, Wiretap has to handle that format,
-       and its code to handle that format must be able to write a file
-       with this file's encapsulation types. */
-    if (wtap_dump_can_write_encaps(ft, cf->linktypes)) {
-      /* OK, we can write it out in this type. */
-      return TRUE;
-    }
+/*
+ * Should we let the user do a save?
+ *
+ * We should if:
+ *
+ *  the file has unsaved changes, and we can save it in some
+ *  format through Wiretap
+ *
+ * or
+ *
+ *  the file is a temporary file and has no unsaved changes (so
+ *  that "saving" it just means copying it).
+ *
+ * XXX - we shouldn't allow files to be edited if they can't be saved,
+ * so cf->unsaved_changes should be true only if the file can be saved.
+ *
+ * We don't care whether we support the comments in this file or not;
+ * if we can't, we'll offer the user the option of discarding the
+ * comments.
+ */
+gboolean
+cf_can_save(capture_file *cf)
+{
+  if (cf->unsaved_changes && wtap_dump_can_write(cf->linktypes, 0)) {
+    /* Saved changes, and we can write it out with Wiretap. */
+    return TRUE;
   }
 
-  /* No, we couldn't save it in any format. */
+  if (cf->is_tempfile && !cf->unsaved_changes) {
+    /*
+     * Temporary file with no unsaved changes, so we can just do a
+     * raw binary copy.
+     */
+    return TRUE;
+  }
+
+  /* Nothing to save. */
   return FALSE;
+}
+
+/*
+ * Should we let the user do a "save as"?
+ *
+ * That's true if:
+ *
+ *  we can save it in some format through Wiretap
+ *
+ * or
+ *
+ *  the file is a temporary file and has no unsaved changes (so
+ *  that "saving" it just means copying it).
+ *
+ * XXX - we shouldn't allow files to be edited if they can't be saved,
+ * so cf->unsaved_changes should be true only if the file can be saved.
+ *
+ * We don't care whether we support the comments in this file or not;
+ * if we can't, we'll offer the user the option of discarding the
+ * comments.
+ */
+gboolean
+cf_can_save_as(capture_file *cf)
+{
+  if (wtap_dump_can_write(cf->linktypes, 0)) {
+    /* We can write it out with Wiretap. */
+    return TRUE;
+  }
+
+  if (cf->is_tempfile && !cf->unsaved_changes) {
+    /*
+     * Temporary file with no unsaved changes, so we can just do a
+     * raw binary copy.
+     */
+    return TRUE;
+  }
+
+  /* Nothing to save. */
+  return FALSE;
+}
+
+/*
+ * Does this file have unsaved data?
+ */
+gboolean
+cf_has_unsaved_data(capture_file *cf)
+{
+  /*
+   * If this is a temporary file, or a file with unsaved changes, it
+   * has unsaved data.
+   */
+  return cf->is_tempfile || cf->unsaved_changes;
 }
 
 /*
@@ -4218,30 +4332,35 @@ cf_save_packets(capture_file *cf, const char *fname, guint save_format,
                 gboolean compressed, gboolean discard_comments,
                 gboolean dont_reopen)
 {
-  gchar        *fname_new = NULL;
-  int           err;
-  gchar        *err_info;
+  gchar           *err_info;
+  gchar           *fname_new = NULL;
+  wtap_dumper     *pdh;
+  frame_data      *fdata;
+  struct addrinfo *addrs;
+  guint            framenum;
+  int              err;
+#ifdef _WIN32
+  gchar           *display_basename;
+#endif
   enum {
      SAVE_WITH_MOVE,
      SAVE_WITH_COPY,
      SAVE_WITH_WTAP
-  }             how_to_save;
-  wtap_dumper  *pdh;
+  }                    how_to_save;
   save_callback_args_t callback_args;
-#ifdef _WIN32
-  gchar        *display_basename;
-#endif
-  guint         framenum;
-  frame_data   *fdata;
 
   cf_callback_invoke(cf_cb_file_save_started, (gpointer)fname);
 
+  addrs = get_addrinfo_list();
+
   if (save_format == cf->cd_t && compressed == cf->iscompressed
-      && !discard_comments && !cf->unsaved_changes) {
+      && !discard_comments && !cf->unsaved_changes
+      && !(addrs && addrs->ai_next &&
+           wtap_dump_has_name_resolution(save_format))) {
     /* We're saving in the format it's already in, and we're
        not discarding comments, and there are no changes we have
-       in memory that aren't saved to the file, so we can just move
-       or copy the raw data. */
+       in memory that aren't saved to the file, and we have no name
+       resolution blocks to write, so we can just move or copy the raw data. */
 
     if (cf->is_tempfile) {
       /* The file being saved is a temporary file from a live
@@ -4351,7 +4470,7 @@ cf_save_packets(capture_file *cf, const char *fname, guint save_format,
     }
 
     /* Add address resolution */
-    wtap_dump_set_addrinfo_list(pdh, get_addrinfo_list());
+    wtap_dump_set_addrinfo_list(pdh, addrs);
 
     /* Iterate through the list of packets, processing all the packets. */
     callback_args.pdh = pdh;

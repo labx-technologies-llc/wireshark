@@ -91,7 +91,7 @@ typedef struct _wslua_field_t {
     char* abbr;
     char* blob;
     enum ftenum type;
-    base_display_e base;
+    unsigned base;
     const void* vs;
     guint32 mask;
 } wslua_field_t;
@@ -152,7 +152,7 @@ typedef struct _wslua_proto_t {
 
 struct _wslua_distbl_t {
     dissector_table_t table;
-    gchar* name;
+    const gchar* name;
 };
 
 struct _wslua_col_info {
@@ -271,7 +271,7 @@ C check##C(lua_State* L, int idx) { \
 C* push##C(lua_State* L, C v) { \
     C* p; \
     luaL_checkstack(L,2,"Unable to grow stack\n"); \
-    p = lua_newuserdata(L,sizeof(C)); *p = v; \
+    p = (C*)lua_newuserdata(L,sizeof(C)); *p = v; \
     luaL_getmetatable(L, #C); lua_setmetatable(L, -2); \
     push_code; \
     return p; \
@@ -288,7 +288,7 @@ gboolean is##C(lua_State* L,int i) { \
 C shift##C(lua_State* L,int i) { \
     C* p; \
     if(!lua_isuserdata(L,i)) return NULL; \
-    p = lua_touserdata(L, i); \
+    p = (C*)lua_touserdata(L, i); \
     lua_getfield(L, LUA_REGISTRYINDEX, #C); \
     if (p == NULL || !lua_getmetatable(L, i) || !lua_rawequal(L, -1, -2)) p=NULL; \
     lua_pop(L, 2); \
@@ -299,48 +299,60 @@ typedef int dummy##C
 
 #ifdef HAVE_LUA
 
-#if LUA_VERSION_NUM >= 502
 #define WSLUA_REGISTER_CLASS(C) { \
-    int lib_idx, meta_idx; \
-	lua_createtable(L, 0, 0); \
-    lib_idx = lua_gettop(L); \
-	luaL_newmetatable(L, #C); \
-    meta_idx = lua_gettop(L); \
-	luaL_setfuncs(L, C ## _meta, 0); \
-	luaL_newlib(L, C ## _methods); \
-	lua_setfield(L, meta_idx, "__index"); \
-	luaL_newlib(L, C ## _meta); \
-	lua_setfield(L, meta_idx, "__metatable"); \
-	lua_setmetatable(L, lib_idx); \
-	lua_setglobal(L, #C); \
+    /* check for existing class table in global */ \
+    lua_getglobal (L, #C); \
+    if (!lua_isnil (L, -1)) { \
+        fprintf(stderr, "ERROR: Attempt to register class '%s' which already exists in global Lua table\n", #C); \
+        exit(1); \
+    } \
+    lua_pop (L, 1); \
+    /* create new class method table and 'register' the class methods into it */ \
+    lua_newtable (L); \
+    wslua_setfuncs (L, C ## _methods, 0); \
+    /* add a method-table field named '__typeof' = the class name, this is used by the typeof() Lua func */ \
+    lua_pushstring(L, #C); \
+    lua_setfield(L, -2, "__typeof"); \
+    /* create a new metatable and register metamethods into it */ \
+    luaL_newmetatable (L, #C); \
+    wslua_setfuncs (L, C ## _meta, 0); \
+    /* add the '__gc' metamethod with a C-function named Class__gc */ \
+    /* this will force ALL wslua classes to have a Class__gc function defined, which is good */ \
+    lua_pushcfunction(L, C ## __gc); \
+    lua_setfield(L, -2, "__gc"); \
+    /* push a copy of the class methods table, and set it to be the metatable's __index field */ \
+    lua_pushvalue (L, -2); \
+    lua_setfield (L, -2, "__index"); \
+    /* push a copy of the class methods table, and set it to be the metatable's __metatable field, to hide metatable */ \
+    lua_pushvalue (L, -2); \
+    lua_setfield (L, -2, "__metatable"); \
+    /* pop the metatable */ \
+    lua_pop (L, 1); \
+    /* set the class methods table as the global class table */ \
+    lua_setglobal (L, #C); \
 }
 
 #define WSLUA_REGISTER_META(C) { \
+    /* check for existing metatable in registry */ \
+    luaL_getmetatable(L, #C); \
+    if (!lua_isnil (L, -1)) { \
+        fprintf(stderr, "ERROR: Attempt to register metatable '%s' which already exists in Lua registry\n", #C); \
+        exit(1); \
+    } \
+    lua_pop (L, 1); \
+    /* create a new metatable and register metamethods into it */ \
     luaL_newmetatable (L, #C); \
-    luaL_setfuncs (L, C ## _meta, 0); \
-    lua_pop(L,1); \
+    wslua_setfuncs (L, C ## _meta, 0); \
+    /* add a metatable field named '__typeof' = the class name, this is used by the typeof() Lua func */ \
+    lua_pushstring(L, #C); \
+    lua_setfield(L, -2, "__typeof"); \
+     /* add the '__gc' metamethod with a C-function named Class__gc */ \
+    /* this will force ALL wslua classes to have a Class__gc function defined, which is good */ \
+    lua_pushcfunction(L, C ## __gc); \
+    lua_setfield(L, -2, "__gc"); \
+    /* pop the metatable */ \
+    lua_pop(L, 1); \
 }
-
-#else
-#define WSLUA_REGISTER_CLASS(C) { \
-    luaL_register (L, #C, C ## _methods); \
-    luaL_newmetatable (L, #C); \
-    luaL_register (L, NULL, C ## _meta); \
-    lua_pushliteral(L, "__index"); \
-    lua_pushvalue(L, -3); \
-    lua_rawset(L, -3); \
-    lua_pushliteral(L, "__metatable"); \
-    lua_pushvalue(L, -3); \
-    lua_rawset(L, -3); \
-    lua_pop(L, 2); \
-}
-
-#define WSLUA_REGISTER_META(C) { \
-    luaL_newmetatable (L, #C); \
-    luaL_register (L, NULL, C ## _meta); \
-    lua_pop(L,1); \
-}
-#endif
 
 #define WSLUA_INIT(L) \
     luaL_openlibs(L); \
@@ -364,6 +376,7 @@ typedef int dummy##C
 #define WSLUA_METHODS static const luaL_Reg 
 #define WSLUA_META static const luaL_Reg
 #define WSLUA_CLASS_FNREG(class,name) { #name, class##_##name }
+#define WSLUA_CLASS_FNREG_ALIAS(class,aliasname,name) { #aliasname, class##_##name }
 
 #define WSLUA_ERROR(name,error) { luaL_error(L, ep_strdup_printf("%s%s", #name ": " ,error) ); return 0; }
 #define WSLUA_ARG_ERROR(name,attr,error) { luaL_argerror(L,WSLUA_ARG_ ## name ## _ ## attr, #name  ": " error); return 0; }
@@ -404,7 +417,6 @@ extern C shift##C(lua_State* L,int i)
 extern packet_info* lua_pinfo;
 extern TreeItem lua_tree;
 extern tvbuff_t* lua_tvb;
-extern int lua_malformed;
 extern dissector_handle_t lua_data_handle;
 extern gboolean lua_initialized;
 extern int lua_dissectors_table_ref;
@@ -416,10 +428,12 @@ extern lua_State* wslua_state(void);
 
 extern gboolean wslua_optbool(lua_State* L, int n, gboolean def);
 extern const gchar* lua_shiftstring(lua_State* L,int idx);
+extern void wslua_setfuncs(lua_State *L, const luaL_Reg *l, int nup);
 extern int dissect_lua(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* data);
 
 extern void proto_register_lua(void);
 extern GString* lua_register_all_taps(void);
+extern void wslua_prime_dfilter(epan_dissect_t *edt);
 extern void lua_prime_all_fields(proto_tree* tree);
 
 extern int Proto_commit(lua_State* L);

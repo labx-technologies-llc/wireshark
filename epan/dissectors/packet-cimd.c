@@ -126,6 +126,8 @@ struct cimd_parameter_t {
   gint          *hf_p;
 };
 
+void proto_register_cimd(void);
+void proto_reg_handoff_cimd(void);
 static void dissect_cimd_parameter(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset);
 static void dissect_cimd_ud(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset);
 static void dissect_cimd_dcs(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset);
@@ -374,9 +376,7 @@ static void dissect_cimd_ud(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint s
   proto_item *param_item;
   proto_tree *param_tree;
 
-  gchar* payloadText;
-  gchar* tmpBuffer          = (gchar*)ep_alloc(1024);
-  gchar* tmpBuffer1         = (gchar*)ep_alloc(1024);
+  gchar *payloadText, *tmpBuffer, *tmpBuffer1;
   int    loop,i,poz, bufPoz = 0, bufPoz1 = 0, size, size1, resch;
   gint   g_offset, g_size;
   gchar  token[4];
@@ -408,6 +408,7 @@ static void dissect_cimd_ud(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint s
 
   payloadText = tvb_format_text(tvb, g_offset, g_size);
   size = (int)strlen(payloadText);
+  tmpBuffer = (gchar*)ep_alloc(size+1);
   for (loop = 0; loop < size; loop++)
   {
     if (payloadText[loop] == '_')
@@ -453,6 +454,7 @@ static void dissect_cimd_ud(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint s
   tmpBuffer[bufPoz] = '\0';
 
   size1 = (int)strlen(tmpBuffer);
+  tmpBuffer1 = (gchar*)ep_alloc(size1+1);
   for (loop=0; loop<size1; loop++)
   {
     ch = tmpBuffer[loop];
@@ -722,7 +724,7 @@ dissect_cimd_operation(tvbuff_t *tvb, proto_tree *tree, gint etxp, guint16 check
       break;
 
     PC = decimal_int_value(tvb, offset + 1, CIMD_PC_LENGTH);
-    match_strval_idx(PC, cimd_vals_PC, &idx);
+    try_val_to_str_idx(PC, cimd_vals_PC, &idx);
     if (idx != -1 && tree)
     {
       (vals_hdr_PC[idx].diss)(tvb, cimd_tree, idx, offset, endOffset);
@@ -811,7 +813,7 @@ dissect_cimd_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
 
   /* Try getting the operation-code */
   opcode  = decimal_int_value(tvb, CIMD_OC_OFFSET, CIMD_OC_LENGTH);
-  if (match_strval(opcode, vals_hdr_OC) == NULL)
+  if (try_val_to_str(opcode, vals_hdr_OC) == NULL)
     return FALSE;
 
   if (tvb_get_guint8(tvb, CIMD_OC_OFFSET + CIMD_OC_LENGTH) != CIMD_COLON)

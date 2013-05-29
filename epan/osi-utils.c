@@ -44,7 +44,7 @@ print_nsap_net( const guint8 *ad, int length )
 {
   gchar *cur;
 
-  cur = ep_alloc(MAX_NSAP_LEN * 3 + 50);
+  cur = (gchar *)ep_alloc(MAX_NSAP_LEN * 3 + 50);
   print_nsap_net_buf( ad, length, cur, MAX_NSAP_LEN * 3 + 50);
   return( cur );
 }
@@ -83,7 +83,7 @@ print_system_id( const guint8 *ad, int length )
 {
   gchar        *cur;
 
-  cur = ep_alloc(MAX_SYSTEMID_LEN * 3 + 5);
+  cur = (gchar *)ep_alloc(MAX_SYSTEMID_LEN * 3 + 5);
   print_system_id_buf(ad, length, cur, MAX_SYSTEMID_LEN * 3 + 5);
   return( cur );
 }
@@ -138,7 +138,7 @@ print_area(const guint8 *ad, int length)
 {
   gchar *cur;
 
-  cur = ep_alloc(MAX_AREA_LEN * 3 + 20);
+  cur = (gchar *)ep_alloc(MAX_AREA_LEN * 3 + 20);
   print_area_buf(ad, length, cur, MAX_AREA_LEN * 3 + 20);
   return cur;
 }
@@ -186,26 +186,23 @@ print_area_buf(const guint8 *ad, int length, gchar *buf, int buf_len)
       g_snprintf(buf, buf_len, "%02x.%02x%02x", ad[0], ad[1], ad[2] );
       return;
     }
-	if(length == 4)
-	{
+    if ( length == 4 ) {
       g_snprintf(buf, buf_len, "%02x%02x%02x%02x", ad[0], ad[1], ad[2], ad[3] );
-	}
-    if ( 4 < length ) 
-	{
-      while ( tmp < length / 4 ) {      /* 16/4==4 > four Octets left to print */
+      return;
+    }
+    while ( tmp < length / 4 ) {      /* 16/4==4 > four Octets left to print */
+      cur += g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "%02x", ad[tmp++] );
+      cur += g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "%02x", ad[tmp++] );
+      cur += g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "%02x", ad[tmp++] );
+      cur += g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "%02x.", ad[tmp++] );
+    }
+    if ( 1 == tmp ) {                     /* Special case for Designated IS */
+      cur--;
+      g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "-%02x", ad[tmp] );
+    }
+    else {
+      for ( ; tmp < length; ) {  /* print the rest without dot or dash */
         cur += g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "%02x", ad[tmp++] );
-        cur += g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "%02x", ad[tmp++] );
-        cur += g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "%02x", ad[tmp++] );
-        cur += g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "%02x.", ad[tmp++] );
-      }
-      if ( 1 == tmp ) {                     /* Special case for Designated IS */
-        cur--;
-        g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "-%02x", ad[tmp] );
-      }
-      else {
-        for ( ; tmp < length; ) {  /* print the rest without dot */
-          cur += g_snprintf(cur, (gulong) (buf_len-(cur-buf)), "%02x", ad[tmp++] );
-        }
       }
     }
   }

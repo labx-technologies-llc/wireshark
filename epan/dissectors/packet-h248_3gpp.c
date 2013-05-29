@@ -39,7 +39,7 @@
  * 3GUP Package
  * 3GPP TS 29.232 -- 15.1.1
  */
-static int hf_h248_package_3GUP = -1;
+static int proto_h248_package_3GUP = -1;
 
 static int hf_h248_package_3GUP_Mode = -1;
 static int hf_h248_package_3GUP_UPversions = -1;
@@ -126,7 +126,7 @@ static const h248_pkg_param_t h248_package_3GUP_properties[] = {
 
 static const h248_package_t h248_package_3GUP = {
 	0x002f,
-	&hf_h248_package_3GUP,
+	&proto_h248_package_3GUP,
 	&ett_h248_package_3GUP,
 	h248_3GUP_properties_vals,
 	NULL,
@@ -161,11 +161,11 @@ static gint ett_h248_3GCSD_evt_protres = -1;
 static gint ett_h248_3GCSD_evt_ratechg = -1;
 static gint ett_pkg_3GCSD_sig_actprot = -1;
 
-static void dissect_3gcsd_plmnbc(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, int hfid, h248_curr_info_t* cu _U_, void* ignored _U_) {
+static void dissect_3gcsd_plmnbc(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, int hfid, h248_curr_info_t* cu _U_, void* implicit_param) {
 	asn1_ctx_t asn1_ctx;
 
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
-	dissect_ber_octet_string(implicit, &asn1_ctx, tree, tvb, 0, hfid, NULL);
+	dissect_ber_octet_string(implicit_param ? *((gboolean*)implicit_param) : FALSE, &asn1_ctx, tree, tvb, 0, hfid, NULL);
 	de_bearer_cap(tvb, tree, pinfo, 4, tvb_length(tvb)-4, NULL, 0);
 }
 
@@ -294,14 +294,14 @@ static gint ett_h248_3GTFO_codec = -1;
 
 static void dissect_3GTFO_codec_mode(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, int hfid, h248_curr_info_t* cu _U_, void* ignored _U_) {
 	tvbuff_t* sub_tvb = NULL;
-	gint8 class;
+	gint8 appclass;
 	gboolean pc;
 	gint32 tag;
 	asn1_ctx_t asn1_ctx;
 
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	get_ber_identifier(tvb, 0, &class, &pc, &tag);
+	get_ber_identifier(tvb, 0, &appclass, &pc, &tag);
 
 	/* XXX: is this enough to guess it? */
 	if (tag==BER_UNI_TAG_OCTETSTRING) {
@@ -319,14 +319,14 @@ static void dissect_3GTFO_codec_mode(proto_tree* tree, tvbuff_t* tvb, packet_inf
 
 static void dissect_3GTFO_codec_list(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, int hfid, h248_curr_info_t* cu _U_, void* ignored _U_) {
 	tvbuff_t* sub_tvb = NULL;
-	gint8 class;
+	gint8 appclass;
 	gboolean pc;
 	gint32 tag;
 	asn1_ctx_t asn1_ctx;
 
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	get_ber_identifier(tvb, 0, &class, &pc, &tag);
+	get_ber_identifier(tvb, 0, &appclass, &pc, &tag);
 
 	if (tag==BER_UNI_TAG_OCTETSTRING) {
 		dissect_ber_octet_string(FALSE, &asn1_ctx, tree, tvb, 0, hfid, &sub_tvb );
@@ -581,9 +581,9 @@ void proto_register_h248_3gpp(void) {
 		&ett_pkg_3GCSD_sig_actprot
 	};
 
-	hf_h248_package_3GUP = proto_register_protocol(PNAME, PSNAME, PFNAME);
+	proto_h248_package_3GUP = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
-	proto_register_field_array(hf_h248_package_3GUP, hf, array_length(hf));
+	proto_register_field_array(proto_h248_package_3GUP, hf, array_length(hf));
 
 	proto_register_subtree_array(ett, array_length(ett));
 

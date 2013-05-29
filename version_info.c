@@ -192,7 +192,8 @@ get_string_from_dictionary(CFPropertyListRef dict, CFStringRef key)
 {
 	CFStringRef cfstring;
 
-	cfstring = CFDictionaryGetValue(dict, key);
+	cfstring = (CFStringRef)CFDictionaryGetValue((CFDictionaryRef)dict,
+	    (const void *)key);
 	if (cfstring == NULL)
 		return NULL;
 	if (CFGetTypeID(cfstring) != CFStringGetTypeID()) {
@@ -263,11 +264,11 @@ get_os_x_version_info(GString *str)
 		}
 	}
 #ifdef HAVE_CFPROPERTYLISTCREATEWITHSTREAM
-	version_dict = CFPropertyListCreateWithStream(NULL,
+	version_dict = (CFDictionaryRef)CFPropertyListCreateWithStream(NULL,
 	    version_plist_stream, 0, kCFPropertyListImmutable,
 	    NULL, NULL);
 #else
-	version_dict = CFPropertyListCreateFromStream(NULL,
+	version_dict = (CFDictionaryRef)CFPropertyListCreateFromStream(NULL,
 	    version_plist_stream, 0, kCFPropertyListImmutable,
 	    NULL, NULL);
 #endif
@@ -474,6 +475,9 @@ void get_os_version_info(GString *str)
 			case 1:
 				g_string_append_printf(str, is_nt_workstation ? "Windows 7" : "Windows Server 2008 R2");
 				break;
+			case 2:
+				g_string_append_printf(str, is_nt_workstation ? "Windows 8" : "Windows Server 2012");
+				break;
 			default:
 				g_string_append_printf(str, "Windows NT, unknown version %lu.%lu",
 						       info.dwMajorVersion, info.dwMinorVersion);
@@ -602,6 +606,90 @@ void get_os_version_info(GString *str)
 
 
 /*
+ * Get the CPU info, and append it to the GString
+ */
+
+#if defined(_MSC_VER)
+static void
+do_cpuid(int *CPUInfo, guint32 selector){
+	__cpuid(CPUInfo, selector);
+}
+#elif defined(__GNUC__)
+#if defined(__x86_64__)  
+static inline void
+do_cpuid(guint32 *CPUInfo, int selector)
+{
+	__asm__ __volatile__("cpuid"
+						: "=a" (CPUInfo[0]),
+							"=b" (CPUInfo[1]),
+							"=c" (CPUInfo[2]),
+							"=d" (CPUInfo[3])
+						: "a"(selector));
+}
+#else /* (__i386__) */
+/* would need a test if older proccesors have the cpuid instruction */
+static void
+do_cpuid(guint32 *CPUInfo, int selector _U_){
+	CPUInfo[0] = 0;
+}
+
+#endif /* defined(__x86_64__)*/
+#else /* Other compilers */
+static void
+do_cpuid(guint32 *CPUInfo, int selector _U_){
+	CPUInfo[0] = 0;
+}
+#endif
+
+/*
+ * Get CPU info on platforms where the cpuid instruction can be used skip 32 bit versions for GCC
+ * 	http://www.intel.com/content/dam/www/public/us/en/documents/application-notes/processor-identification-cpuid-instruction-note.pdf
+ * the get_cpuid() routine will return 0 in CPUInfo[0] if cpuinfo isn't available.
+ */
+
+static void get_cpu_info(GString *str _U_)
+{
+	int CPUInfo[4];
+	char CPUBrandString[0x40];
+	unsigned    nExIds;
+
+	/* http://msdn.microsoft.com/en-us/library/hskdteyh(v=vs.100).aspx */
+
+	/* Calling __cpuid with 0x80000000 as the InfoType argument*/
+    /* gets the number of valid extended IDs.*/
+    do_cpuid(CPUInfo, 0x80000000);
+    nExIds = CPUInfo[0];
+
+	if( nExIds<0x80000005)
+		return;
+    memset(CPUBrandString, 0, sizeof(CPUBrandString));
+
+    /* Interpret CPU brand string.*/
+    do_cpuid(CPUInfo, 0x80000002);
+    memcpy(CPUBrandString, CPUInfo, sizeof(CPUInfo));
+    do_cpuid(CPUInfo, 0x80000003);
+    memcpy(CPUBrandString + 16, CPUInfo, sizeof(CPUInfo));
+    do_cpuid(CPUInfo, 0x80000004);
+    memcpy(CPUBrandString + 32, CPUInfo, sizeof(CPUInfo));
+
+	g_string_append_printf(str, "\n%s", CPUBrandString);
+
+}
+
+static void get_mem_info(GString *str _U_)
+{
+#if defined(_WIN32)
+	MEMORYSTATUSEX statex;
+
+	statex.dwLength = sizeof (statex);
+	
+	if(GlobalMemoryStatusEx (&statex))
+		g_string_append_printf(str, ", with ""%" G_GINT64_MODIFIER "d" "MB of physical memory.\n", statex.ullTotalPhys/(1024*1024));
+#endif
+
+}
+
+/*
  * Get various library run-time versions, and the OS version, and append
  * them to the specified GString.
  */
@@ -638,6 +726,12 @@ get_runtime_version_info(GString *str, void (*additional_info)(GString *))
 		(*additional_info)(str);
 
 	g_string_append(str, ".");
+
+	/* CPU Info */
+	get_cpu_info(str);
+
+	/* Get info about installed memory Windows only */
+	get_mem_info(str);
 
 	/* Compiler info */
 
@@ -726,7 +820,7 @@ const char *
 get_copyright_info(void)
 {
 	return
-"Copyright 1998-2012 Gerald Combs <gerald@wireshark.org> and contributors.\n"
+"Copyright 1998-2013 Gerald Combs <gerald@wireshark.org> and contributors.\n"
 "This is free software; see the source for copying conditions. There is NO\n"
 "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n";
 }

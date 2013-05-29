@@ -149,7 +149,7 @@ xmpp_iq(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t *pac
     attr_type    = xmpp_get_attr(packet, "type");
 
     conversation = find_or_create_conversation(pinfo);
-    xmpp_info    = conversation_get_proto_data(conversation, proto_xmpp);
+    xmpp_info    = (xmpp_conv_info_t *)conversation_get_proto_data(conversation, proto_xmpp);
 
     xmpp_iq_item = proto_tree_add_item(tree, hf_xmpp_iq, tvb, packet->offset, packet->length, ENC_LITTLE_ENDIAN);
     xmpp_iq_tree = proto_item_add_subtree(xmpp_iq_item,ett_xmpp_iq);
@@ -168,28 +168,28 @@ xmpp_iq(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t *pac
     {
         gchar *jingle_sid, *ibb_sid, *gtalk_sid;
 
-        jingle_sid = se_tree_lookup_string(xmpp_info->jingle_sessions, attr_id->value, EMEM_TREE_STRING_NOCASE);
+        jingle_sid = (gchar *)se_tree_lookup_string(xmpp_info->jingle_sessions, attr_id->value, EMEM_TREE_STRING_NOCASE);
 
         if (jingle_sid) {
             proto_item *it = proto_tree_add_string(tree, hf_xmpp_jingle_session, tvb, 0, 0, jingle_sid);
             PROTO_ITEM_SET_GENERATED(it);
         }
 
-        ibb_sid = se_tree_lookup_string(xmpp_info->ibb_sessions, attr_id->value, EMEM_TREE_STRING_NOCASE);
+        ibb_sid = (gchar *)se_tree_lookup_string(xmpp_info->ibb_sessions, attr_id->value, EMEM_TREE_STRING_NOCASE);
 
         if (ibb_sid) {
             proto_item *it = proto_tree_add_string(tree, hf_xmpp_ibb, tvb, 0, 0, ibb_sid);
             PROTO_ITEM_SET_GENERATED(it);
         }
 
-        gtalk_sid = se_tree_lookup_string(xmpp_info->gtalk_sessions, attr_id->value, EMEM_TREE_STRING_NOCASE);
+        gtalk_sid = (gchar *)se_tree_lookup_string(xmpp_info->gtalk_sessions, attr_id->value, EMEM_TREE_STRING_NOCASE);
 
         if (gtalk_sid) {
             proto_item *it = proto_tree_add_string(tree, hf_xmpp_gtalk, tvb, 0, 0, gtalk_sid);
             PROTO_ITEM_SET_GENERATED(it);
         }
 
-        reqresp_trans = se_tree_lookup_string(xmpp_info->req_resp, attr_id->value, EMEM_TREE_STRING_NOCASE);
+        reqresp_trans = (xmpp_transaction_t *)se_tree_lookup_string(xmpp_info->req_resp, attr_id->value, EMEM_TREE_STRING_NOCASE);
         /*displays request/response field in each iq packet*/
         if (reqresp_trans) {
 
@@ -243,7 +243,7 @@ xmpp_error(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t *
     if(cond_element)
     {
         fake_condition = xmpp_ep_init_attr_t(cond_element->name, cond_element->offset, cond_element->length);
-        g_hash_table_insert(element->attrs,"condition", fake_condition);
+        g_hash_table_insert(element->attrs, (gpointer)"condition", fake_condition);
 
         error_info = ep_strdup_printf("%s: %s;", error_info, cond_element->name);
     }
@@ -317,13 +317,13 @@ xmpp_presence(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_
     if((show = xmpp_steal_element_by_name(packet, "show"))!=NULL)
     {
         xmpp_attr_t *fake_show = xmpp_ep_init_attr_t(show->data?show->data->value:"",show->offset, show->length);
-        g_hash_table_insert(packet->attrs, "show", fake_show);
+        g_hash_table_insert(packet->attrs, (gpointer)"show", fake_show);
     }
 
     if((priority = xmpp_steal_element_by_name(packet, "priority"))!=NULL)
     {
         xmpp_attr_t *fake_priority = xmpp_ep_init_attr_t(priority->data?priority->data->value:"",priority->offset, priority->length);
-        g_hash_table_insert(packet->attrs, "priority", fake_priority);
+        g_hash_table_insert(packet->attrs, (gpointer)"priority", fake_priority);
     }
     xmpp_display_attrs(presence_tree, packet, pinfo, tvb, attrs_info, array_length(attrs_info));
 
@@ -352,7 +352,7 @@ xmpp_presence_status(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_e
         fake_value = xmpp_ep_init_attr_t("(empty)", element->offset, element->length);
 
 
-    g_hash_table_insert(element->attrs, "value", fake_value);
+    g_hash_table_insert(element->attrs, (gpointer)"value", fake_value);
 
     xmpp_display_attrs(status_tree, element, pinfo, tvb, attrs_info, array_length(attrs_info));
 
@@ -403,7 +403,7 @@ xmpp_message(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
     id = xmpp_get_attr(packet, "id");
 
     conversation = find_or_create_conversation(pinfo);
-    xmpp_info = conversation_get_proto_data(conversation, proto_xmpp);
+    xmpp_info = (xmpp_conv_info_t *)conversation_get_proto_data(conversation, proto_xmpp);
 
     message_item = proto_tree_add_item(tree, hf_xmpp_message, tvb, packet->offset, packet->length, ENC_BIG_ENDIAN);
     message_tree = proto_item_add_subtree(message_item, ett_xmpp_message);
@@ -411,7 +411,7 @@ xmpp_message(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
     if((chatstate = xmpp_steal_element_by_attr(packet, "xmlns", "http://jabber.org/protocol/chatstates"))!=NULL)
     {
         xmpp_attr_t *fake_chatstate_attr = xmpp_ep_init_attr_t(chatstate->name, chatstate->offset, chatstate->length);
-        g_hash_table_insert(packet->attrs, "chatstate", fake_chatstate_attr);
+        g_hash_table_insert(packet->attrs, (gpointer)"chatstate", fake_chatstate_attr);
     }
 
     xmpp_display_attrs(message_tree, packet, pinfo, tvb, attrs_info, array_length(attrs_info));
@@ -423,7 +423,7 @@ xmpp_message(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
     {
         gchar *ibb_sid;
 
-        ibb_sid = se_tree_lookup_string(xmpp_info->ibb_sessions, id->value, EMEM_TREE_STRING_NOCASE);
+        ibb_sid = (gchar *)se_tree_lookup_string(xmpp_info->ibb_sessions, id->value, EMEM_TREE_STRING_NOCASE);
 
         if (ibb_sid) {
             proto_item *it = proto_tree_add_string(tree, hf_xmpp_ibb, tvb, 0, 0, ibb_sid);
@@ -450,7 +450,7 @@ xmpp_message_body(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_elem
     body_tree = proto_item_add_subtree(body_item, ett_xmpp_message_body);
 
     fake_data_attr = xmpp_ep_init_attr_t(element->data?element->data->value:"", element->offset, element->length);
-    g_hash_table_insert(element->attrs, "value", fake_data_attr);
+    g_hash_table_insert(element->attrs, (gpointer)"value", fake_data_attr);
 
 
     xmpp_display_attrs(body_tree, element, pinfo, tvb, attrs_info, array_length(attrs_info));
@@ -474,7 +474,7 @@ xmpp_message_subject(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_e
     subject_tree = proto_item_add_subtree(subject_item, ett_xmpp_message_subject);
 
     fake_data_attr = xmpp_ep_init_attr_t(element->data?element->data->value:"", element->offset, element->length);
-    g_hash_table_insert(element->attrs, "value", fake_data_attr);
+    g_hash_table_insert(element->attrs, (gpointer)"value", fake_data_attr);
 
 
     xmpp_display_attrs(subject_tree, element, pinfo, tvb, attrs_info, array_length(attrs_info));
@@ -499,7 +499,7 @@ xmpp_message_thread(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_el
     thread_tree = proto_item_add_subtree(thread_item, ett_xmpp_message_thread);
 
     fake_value = xmpp_ep_init_attr_t(element->data?element->data->value:"", element->offset, element->length);
-    g_hash_table_insert(element->attrs, "value", fake_value);
+    g_hash_table_insert(element->attrs, (gpointer)"value", fake_value);
 
 
     xmpp_display_attrs(thread_tree, element, pinfo, tvb, attrs_info, array_length(attrs_info));
@@ -583,7 +583,7 @@ xmpp_failure(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
     if((fail_condition = xmpp_steal_element_by_names(packet, fail_names, array_length(fail_names)))!=NULL)
     {
         xmpp_attr_t *fake_cond = xmpp_ep_init_attr_t(fail_condition->name, fail_condition->offset, fail_condition->length);
-        g_hash_table_insert(packet->attrs, "condition", fake_cond);
+        g_hash_table_insert(packet->attrs, (gpointer)"condition", fake_cond);
     }
 
     if((text = xmpp_steal_element_by_name(packet, "text"))!=NULL)

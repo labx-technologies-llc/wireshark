@@ -940,7 +940,7 @@ static int hf_amqp_0_10_struct_delivery_properties_resume_ttl = -1;
 static int hf_amqp_0_10_struct_fragment_properties_first = -1;
 static int hf_amqp_0_10_struct_fragment_properties_last = -1;
 static int hf_amqp_0_10_struct_fragment_properties_size = -1;
-static int hf_amqp_0_10_struct_message_properties = -1;
+/* static int hf_amqp_0_10_struct_message_properties = -1; */
 static int hf_amqp_0_10_struct_message_properties_content_len = -1;
 static int hf_amqp_0_10_struct_message_properties_message_id = -1;
 static int hf_amqp_0_10_struct_message_properties_correlation = -1;
@@ -1069,7 +1069,7 @@ static int hf_amqp_0_10_method_file_reject_delivery_tag = -1;
 static int hf_amqp_0_10_method_file_reject_requeue = -1;
 static int hf_amqp_0_10_method_stream_qos_prefetch_size = -1;
 static int hf_amqp_0_10_method_stream_qos_prefetch_count = -1;
-static int hf_amqp_0_10_method_stream_qos_consume_rate = -1;
+/* static int hf_amqp_0_10_method_stream_qos_consume_rate = -1; */
 static int hf_amqp_0_10_method_stream_qos_global = -1;
 static int hf_amqp_0_10_method_stream_consumer_tag = -1;
 static int hf_amqp_0_10_method_stream_consume_no_local = -1;
@@ -1867,7 +1867,7 @@ dissect_amqp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     conv = find_or_create_conversation(pinfo);
     conn = (amqp_conv *)conversation_get_proto_data(conv, proto_amqp);
     if (conn == NULL) {
-        conn = se_alloc0(sizeof(amqp_conv));
+        conn = se_new0(amqp_conv);
         conversation_add_proto_data(conv, proto_amqp, conn);
     }
     check_amqp_version(tvb, conn);
@@ -2987,7 +2987,7 @@ dissect_amqp_0_10_execution(tvbuff_t *tvb,
                         tvb, offset+1, 1, ENC_BIG_ENDIAN);
     AMQP_INCREMENT(offset, 2, length);
     /*
-     * Session header is 2 bytes; one that tells it's 1 byte long, then
+     * Session header is 2 bytes; one that tells that it's 1 byte long, then
      * the byte itself. Bit 0 is sync.
      */
     flag1 = tvb_get_guint8(tvb, offset);
@@ -3174,7 +3174,7 @@ dissect_amqp_0_10_message(tvbuff_t *tvb,
                         tvb, offset+1, 1, ENC_BIG_ENDIAN);
     AMQP_INCREMENT(offset, 2, length);
     /*
-     * Session header is 2 bytes; one that tells it's 1 byte long, then
+     * Session header is 2 bytes; one that tells that it's 1 byte long, then
      * the byte itself. Bit 0 is sync.
      */
     flag1 = tvb_get_guint8(tvb, offset);
@@ -3523,7 +3523,7 @@ dissect_amqp_0_10_tx(tvbuff_t *tvb,
                         tvb, offset+1, 1, ENC_BIG_ENDIAN);
     AMQP_INCREMENT(offset, 2, length);
     /*
-     * Session header is 2 bytes; one that tells it's 1 byte long, then
+     * Session header is 2 bytes; one that tells that it's 1 byte long, then
      * the byte itself. Bit 0 is sync.
      */
     flag1 = tvb_get_guint8(tvb, offset);
@@ -3564,7 +3564,7 @@ dissect_amqp_0_10_dtx(tvbuff_t *tvb,
                         tvb, offset+1, 1, ENC_BIG_ENDIAN);
     AMQP_INCREMENT(offset, 2, length);
     /*
-     * Session header is 2 bytes; one that tells it's 1 byte long, then
+     * Session header is 2 bytes; one that tells that it's 1 byte long, then
      * the byte itself. Bit 0 is sync.
      */
     flag1 = tvb_get_guint8(tvb, offset);
@@ -3762,7 +3762,7 @@ dissect_amqp_0_10_exchange(tvbuff_t *tvb,
                         tvb, offset+1, 1, ENC_BIG_ENDIAN);
     AMQP_INCREMENT(offset, 2, length);
     /*
-     * Session header is 2 bytes; one that tells it's 1 byte long, then
+     * Session header is 2 bytes; one that tells that it's 1 byte long, then
      * the byte itself. Bit 0 is sync.
      */
     flag1 = tvb_get_guint8(tvb, offset);
@@ -4028,7 +4028,7 @@ dissect_amqp_0_10_queue(tvbuff_t *tvb,
                         tvb, offset+1, 1, ENC_BIG_ENDIAN);
     AMQP_INCREMENT(offset, 2, length);
     /*
-     * Session header is 2 bytes; one that tells it's 1 byte long, then
+     * Session header is 2 bytes; one that tells that it's 1 byte long, then
      * the byte itself. Bit 0 is sync.
      */
     flag1 = tvb_get_guint8(tvb, offset);
@@ -4186,7 +4186,7 @@ dissect_amqp_0_10_file(tvbuff_t *tvb,
                         tvb, offset+1, 1, ENC_BIG_ENDIAN);
     AMQP_INCREMENT(offset, 2, length);
     /*
-     * Session header is 2 bytes; one that tells it's 1 byte long, then
+     * Session header is 2 bytes; one that tells that it's 1 byte long, then
      * the byte itself. Bit 0 is sync.
      */
     flag1 = tvb_get_guint8(tvb, offset);
@@ -4524,7 +4524,7 @@ dissect_amqp_0_10_stream(tvbuff_t *tvb,
                         tvb, offset+1, 1, ENC_BIG_ENDIAN);
     AMQP_INCREMENT(offset, 2, length);
     /*
-     * Session header is 2 bytes; one that tells it's 1 byte long, then
+     * Session header is 2 bytes; one that tells that it's 1 byte long, then
      * the byte itself. Bit 0 is sync.
      */
     flag1 = tvb_get_guint8(tvb, offset);
@@ -5578,7 +5578,7 @@ dissect_amqp_0_10_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint8      frame_type;
     guint16     length;
     guint32     struct_length;
-    int         offset;
+    guint       offset;
 
 #if 0  /* XXX: Not currently used ?? */
     conversation_t *conv;
@@ -5697,6 +5697,7 @@ dissect_amqp_0_10_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             struct_length = tvb_get_ntohl(tvb, offset);
             AMQP_INCREMENT(offset, 4, length);
             THROW_ON((offset + struct_length > length), ReportedBoundsError);
+            THROW_ON((offset + struct_length < offset), ReportedBoundsError);
 
             ti = proto_tree_add_item(amqp_tree,
                                      hf_amqp_0_10_undissected_struct32,
@@ -8873,10 +8874,12 @@ proto_register_amqp(void)
             "Fragment-size", "amqp.message.fragment-properties.fragment-size",
             FT_UINT64, BASE_DEC, NULL, 0x0,
             "Size of the message fragment", HFILL}},
+#if 0
         {&hf_amqp_0_10_struct_message_properties, {
             "message.message-properties", "amqp.message.message-properties",
             FT_NONE, BASE_NONE, NULL, 0x0,
             "Message properties struct", HFILL}},
+#endif
         {&hf_amqp_0_10_struct_message_properties_content_len, {
             "Content-length", "amqp.message.message-properties.content-length",
             FT_UINT64, BASE_DEC, NULL, 0x0,
@@ -9397,10 +9400,12 @@ proto_register_amqp(void)
             "Prefetch-count", "amqp.stream.qos.prefetch-count",
             FT_UINT16, BASE_DEC, NULL, 0x0,
             "Pre-fetch window size in messages", HFILL}},
+#if 0
         {&hf_amqp_0_10_method_stream_qos_consume_rate, {
             "Prefetch-size", "amqp.stream.qos.consume_rate",
             FT_UINT32, BASE_DEC, NULL, 0x0,
             "Desired transfer rate in octets/second", HFILL}},
+#endif
         {&hf_amqp_0_10_method_stream_qos_global, {
             "Global", "amqp.stream.qos.global",
             FT_BOOLEAN, 8, TFS(&tfs_true_false), 0x08,

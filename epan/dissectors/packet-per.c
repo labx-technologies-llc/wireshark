@@ -72,7 +72,7 @@ static int hf_per_single_ASN1_type = -1;          /* T_single_ASN1_type */
 static int hf_per_octet_aligned = -1;             /* T_octet_aligned */
 static int hf_per_arbitrary = -1;                 /* T_arbitrary */
 static int hf_per_integer_length = -1;			  /* Show integer length if "show internal per fields" */
-static int hf_per_debug_pos = -1;
+/* static int hf_per_debug_pos = -1; */
 
 static gint ett_per_open_type = -1;
 static gint ett_per_containing = -1;
@@ -115,6 +115,8 @@ static const true_false_string tfs_optional_field_bit = {
 
 
 #define BYTE_ALIGN_OFFSET(offset) if(offset&0x07){offset=(offset&0xfffffff8)+8;}
+
+#define SEQ_MAX_COMPONENTS 128
 
 static void per_check_value(guint32 value, guint32 min_len, guint32 max_len, asn1_ctx_t *actx, proto_item *item, gboolean is_signed)
 {
@@ -161,7 +163,7 @@ static tvbuff_t *new_octet_aligned_subset(tvbuff_t *tvb, guint32 offset, asn1_ct
   if (offset & 0x07) {  /* unaligned */
     shift1 = offset & 0x07;
     shift0 = 8 - shift1;
-    buf = g_malloc(actual_length);
+    buf = (guint8 *)g_malloc(actual_length);
     octet0 = tvb_get_guint8(tvb, boffset);
     for (i=0; i<actual_length; i++) {
       octet1 = octet0;
@@ -302,7 +304,7 @@ dissect_per_length_determinant(tvbuff_t *tvb, guint32 offset, asn1_ctx_t *actx _
 
 		/* prepare the string (max number of bits + quartet separators + prepended space) */
 		str_length = 256+64+1;
-		str=ep_alloc(str_length+1);
+		str=(char *)ep_alloc(str_length+1);
 		str_index = 0;
 
 		str_length = g_snprintf(str, str_length+1, " ");
@@ -633,7 +635,7 @@ DEBUG_ENTRY("dissect_per_restricted_character_string");
 	}
 
 
-	buf = g_malloc(length+1);
+	buf = (guint8 *)g_malloc(length+1);
 	old_offset=offset;
 	for(char_pos=0;char_pos<length;char_pos++){
 		guchar val;
@@ -783,6 +785,13 @@ dissect_per_BMPString(tvbuff_t *tvb, guint32 offset, asn1_ctx_t *actx, proto_tre
 
 	return offset;
 }
+guint32
+dissect_per_UTF8String(tvbuff_t *tvb, guint32 offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index, int min_len, int max_len, gboolean has_extension _U_)
+{
+	offset=dissect_per_restricted_character_string_sorted(tvb, offset, actx, tree,
+		hf_index, min_len, max_len, has_extension, NULL, 256, NULL);
+	return offset;
+}
 
 guint32
 dissect_per_object_descriptor(tvbuff_t *tvb, guint32 offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index, tvbuff_t **value_tvb)
@@ -895,7 +904,7 @@ DEBUG_ENTRY("dissect_per_set_of");
 
 /* 23 Encoding the object identifier type */
 guint32
-dissect_per_object_identifier(tvbuff_t *tvb, guint32 offset, asn1_ctx_t *actx _U_, proto_tree *tree, int hf_index, tvbuff_t **value_tvb)
+dissect_per_object_identifier(tvbuff_t *tvb, guint32 offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index, tvbuff_t **value_tvb)
 {
   guint length;
   const char *str;
@@ -1373,7 +1382,7 @@ DEBUG_ENTRY("dissect_per_constrained_integer_64b");
 
 		/* prepare the string (max number of bits + quartet separators + field name + ": ") */
 		str_length = 512+128+(int)strlen(hfi->name)+2;
-		str = ep_alloc(str_length+1);
+		str = (char *)ep_alloc(str_length+1);
 		str_index = 0;
 		str_index = g_snprintf(str, str_length+1, "%s: ", hfi->name);
 		for(bit=0;bit<((int)(offset&0x07));bit++){
@@ -1718,8 +1727,8 @@ dissect_per_sequence(tvbuff_t *tvb, guint32 offset, asn1_ctx_t *actx, proto_tree
 	proto_item *item;
 	proto_tree *tree;
 	guint32 old_offset=offset;
-	guint32 i, num_opts;
-	guint32 optional_mask;
+	guint32 i, j, num_opts;
+	guint32 optional_mask[SEQ_MAX_COMPONENTS>>5];
 
 DEBUG_ENTRY("dissect_per_sequence");
 
@@ -1746,8 +1755,11 @@ DEBUG_ENTRY("dissect_per_sequence");
 			num_opts++;
 		}
 	}
+	if (num_opts > SEQ_MAX_COMPONENTS) {
+		PER_NOT_DECODED_YET("too many optional/default components");
+	}
 
-	optional_mask=0;
+	memset(optional_mask, 0, sizeof(optional_mask));
 	for(i=0;i<num_opts;i++){
 		offset=dissect_per_boolean(tvb, offset, actx, tree, hf_per_optional_field_bit, &optional_field_flag);
 		if (tree) {
@@ -1755,15 +1767,14 @@ DEBUG_ENTRY("dissect_per_sequence");
 				index_get_optional_name(sequence, i), optional_field_flag?"is":"is NOT");
 		}
 		if (!display_internal_per_fields) PROTO_ITEM_SET_HIDDEN(actx->created_item);
-		optional_mask<<=1;
 		if(optional_field_flag){
-			optional_mask|=0x01;
+			optional_mask[i>>5]|=0x80000000>>(i&0x1f);
 		}
 	}
 
 
 	/* 18.4 */
-	for(i=0;sequence[i].p_id;i++){
+	for(i=0,j=0;sequence[i].p_id;i++){
 		if( (sequence[i].extension==ASN1_NO_EXTENSIONS)
 		||  (sequence[i].extension==ASN1_EXTENSION_ROOT) ){
 			if(sequence[i].optional==ASN1_OPTIONAL){
@@ -1771,8 +1782,9 @@ DEBUG_ENTRY("dissect_per_sequence");
 				if (num_opts == 0){
 					continue;
 				}
-				is_present=(1<<(num_opts-1))&optional_mask;
+				is_present=(0x80000000>>(j&0x1f))&optional_mask[j>>5];
 				num_opts--;
+				j++;
 				if(!is_present){
 					continue;
 				}
@@ -1810,6 +1822,9 @@ DEBUG_ENTRY("dissect_per_sequence");
 		   then it won't get fixed!
 		*/
 		num_extensions+=1;
+		if (num_extensions > 32) {
+			PER_NOT_DECODED_YET("too many extensions");
+		}
 
 		extension_mask=0;
 		for(i=0;i<num_extensions;i++){
@@ -1838,7 +1853,7 @@ DEBUG_ENTRY("dissect_per_sequence");
 			guint32 new_offset;
 			guint32 difference;
 			guint32 extension_index;
-			guint32 j,k;
+			guint32 k;
 
 			if(!((1L<<(num_extensions-1-i))&extension_mask)){
 				/* this extension is not encoded in this PDU */
@@ -1894,8 +1909,8 @@ guint32
 dissect_per_sequence_eag(tvbuff_t *tvb, guint32 offset, asn1_ctx_t *actx, proto_tree *tree, const per_sequence_t *sequence)
 {
 	gboolean optional_field_flag;
-	guint32 i, num_opts;
-	guint32 optional_mask;
+	guint32 i, j, num_opts;
+	guint32 optional_mask[SEQ_MAX_COMPONENTS>>5];
 
 DEBUG_ENTRY("dissect_per_sequence_eag");
 
@@ -1905,8 +1920,11 @@ DEBUG_ENTRY("dissect_per_sequence_eag");
 			num_opts++;
 		}
 	}
+	if (num_opts > SEQ_MAX_COMPONENTS) {
+		PER_NOT_DECODED_YET("too many optional/default components");
+	}
 
-	optional_mask=0;
+	memset(optional_mask, 0, sizeof(optional_mask));
 	for(i=0;i<num_opts;i++){
 		offset=dissect_per_boolean(tvb, offset, actx, tree, hf_per_optional_field_bit, &optional_field_flag);
 		if (tree) {
@@ -1914,20 +1932,20 @@ DEBUG_ENTRY("dissect_per_sequence_eag");
 				index_get_optional_name(sequence, i), optional_field_flag?"is":"is NOT");
 		}
 		if (!display_internal_per_fields) PROTO_ITEM_SET_HIDDEN(actx->created_item);
-		optional_mask<<=1;
 		if(optional_field_flag){
-			optional_mask|=0x01;
+			optional_mask[i>>5]|=0x80000000>>(i&0x1f);
 		}
 	}
 
-	for(i=0;sequence[i].p_id;i++){
+	for(i=0,j=0;sequence[i].p_id;i++){
 		if(sequence[i].optional==ASN1_OPTIONAL){
 			gboolean is_present;
 			if (num_opts == 0){
 				continue;
 			}
-			is_present=(1<<(num_opts-1))&optional_mask;
+			is_present=(0x80000000>>(j&0x1f))&optional_mask[j>>5];
 			num_opts--;
+			j++;
 			if(!is_present){
 				continue;
 			}
@@ -2536,10 +2554,12 @@ proto_register_per(void)
       { "integer length", "per.integer_length",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
+#if 0
 	{ &hf_per_debug_pos,
       { "Current bit offset", "per.debug_pos",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
+#endif
 	};
 	static gint *ett[] =
 	{

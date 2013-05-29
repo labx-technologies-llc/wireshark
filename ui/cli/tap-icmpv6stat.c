@@ -68,7 +68,7 @@ typedef struct _icmpv6stat_t {
 static void
 icmpv6stat_reset(void *tapdata)
 {
-    icmpv6stat_t *icmpv6stat = tapdata;
+    icmpv6stat_t *icmpv6stat = (icmpv6stat_t *)tapdata;
 
     g_slist_free(icmpv6stat->rt_list);
     memset(icmpv6stat, 0, sizeof(icmpv6stat_t));
@@ -116,8 +116,8 @@ static gint compare_doubles(gconstpointer a, gconstpointer b)
 static int
 icmpv6stat_packet(void *tapdata, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *data)
 {
-    icmpv6stat_t *icmpv6stat = tapdata;
-    const icmp_transaction_t *trans = data;
+    icmpv6stat_t *icmpv6stat = (icmpv6stat_t *)tapdata;
+    const icmp_transaction_t *trans = (const icmp_transaction_t *)data;
     double resp_time, *rt;
 
     if (trans == NULL)
@@ -125,11 +125,11 @@ icmpv6stat_packet(void *tapdata, packet_info *pinfo _U_, epan_dissect_t *edt _U_
 
     if (trans->resp_frame) {
         resp_time = nstime_to_msec(&trans->resp_time);
-        rt = g_malloc(sizeof(double));
+        rt = g_new(double,1);
         if (rt == NULL)
             return 0;
         *rt = resp_time;
-        icmpv6stat->rt_list = g_slist_insert_sorted(icmpv6stat->rt_list, rt, compare_doubles);
+        icmpv6stat->rt_list = g_slist_prepend(icmpv6stat->rt_list, rt);
         icmpv6stat->num_resps++;
         if (icmpv6stat->min_msecs > resp_time) {
             icmpv6stat->min_frame = trans->resp_frame;
@@ -154,9 +154,12 @@ icmpv6stat_packet(void *tapdata, packet_info *pinfo _U_, epan_dissect_t *edt _U_
  */
 static void compute_stats(icmpv6stat_t *icmpv6stat, double *mean, double *med, double *sdev)
 {
-    GSList *slist = icmpv6stat->rt_list;
+    GSList *slist;
     double diff;
     double sq_diff_sum = 0.0;
+
+    icmpv6stat->rt_list = g_slist_sort(icmpv6stat->rt_list, compare_doubles);
+    slist = icmpv6stat->rt_list;
 
     if (icmpv6stat->num_resps == 0 || slist == NULL) {
         *mean = 0.0;
@@ -223,7 +226,7 @@ static void compute_stats(icmpv6stat_t *icmpv6stat, double *mean, double *med, d
 static void
 icmpv6stat_draw(void *tapdata)
 {
-    icmpv6stat_t *icmpv6stat = tapdata;
+    icmpv6stat_t *icmpv6stat = (icmpv6stat_t *)tapdata;
     unsigned int lost;
     double mean, sdev, med;
 
@@ -270,7 +273,7 @@ icmpv6stat_init(const char *optarg, void* userdata _U_)
     if (strstr(optarg, "icmpv6,srt,"))
         filter = optarg + strlen("icmpv6,srt,");
 
-    icmpv6stat = g_try_malloc(sizeof(icmpv6stat_t));
+    icmpv6stat = (icmpv6stat_t *)g_try_malloc(sizeof(icmpv6stat_t));
     if (icmpv6stat == NULL) {
         fprintf(stderr, "tshark: g_try_malloc() fatal error.\n");
         exit(1);

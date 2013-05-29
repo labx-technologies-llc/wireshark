@@ -166,8 +166,8 @@ static int hf_wtp_header_Inv_flag_UP          = HF_EMPTY;
 static int hf_wtp_header_Inv_Reserved         = HF_EMPTY;
 static int hf_wtp_header_Inv_TransactionClass = HF_EMPTY;
 
-static int hf_wtp_header_variable_part = HF_EMPTY;
-static int hf_wtp_data                 = HF_EMPTY;
+/* static int hf_wtp_header_variable_part = HF_EMPTY; */
+/* static int hf_wtp_data                 = HF_EMPTY; */
 
 static int hf_wtp_tpi_type   = HF_EMPTY;
 static int hf_wtp_tpi_psn    = HF_EMPTY;
@@ -226,12 +226,13 @@ static dissector_handle_t wsp_handle;
 /*
  * reassembly of WSP
  */
-static GHashTable *wtp_fragment_table = NULL;
+static reassembly_table wtp_reassembly_table;
 
 static void
 wtp_defragment_init(void)
 {
-    fragment_table_init(&wtp_fragment_table);
+    reassembly_table_init(&wtp_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 /*
@@ -341,7 +342,7 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gint           dataLen;
 
 #define SZINFO_SIZE 256
-    szInfo=ep_alloc(SZINFO_SIZE);
+    szInfo=(char *)ep_alloc(SZINFO_SIZE);
 
     b0 = tvb_get_guint8 (tvb, offCur + 0);
     /* Discover Concatenated PDUs */
@@ -458,8 +459,8 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             break;
     };
     if (fRID) {
-        returned_length = g_snprintf(&szInfo[str_index], SZINFO_SIZE-str_index, " R" );
-        str_index += MIN(returned_length, SZINFO_SIZE-str_index);
+        /*returned_length =*/ g_snprintf(&szInfo[str_index], SZINFO_SIZE-str_index, " R" );
+        /*str_index += MIN(returned_length, SZINFO_SIZE-str_index);*/
     };
     /* In the interest of speed, if "tree" is NULL, don't do any work not
        necessary to generate protocol tree items. */
@@ -685,8 +686,8 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             gboolean save_fragmented = pinfo->fragmented;
 
             pinfo->fragmented = TRUE;
-            fd_wtp = fragment_add_seq(tvb, dataOffset, pinfo, TID,
-                    wtp_fragment_table, psn, dataLen, !fTTR);
+            fd_wtp = fragment_add_seq(&wtp_reassembly_table, tvb, dataOffset,
+                    pinfo, TID, NULL, psn, dataLen, !fTTR, 0);
             /* XXX - fragment_add_seq() yields NULL unless Wireshark knows
              * that the packet is part of a reassembled whole. This means
              * that fd_wtp will be NULL as long as Wireshark did not encounter
@@ -926,6 +927,7 @@ proto_register_wtp(void)
                 NULL, HFILL
             }
         },
+#if 0
         { &hf_wtp_header_variable_part,
             { "Header: Variable part", "wtp.header_variable_part",
                 FT_BYTES, BASE_NONE, NULL, 0x0,
@@ -938,6 +940,7 @@ proto_register_wtp(void)
                 NULL, HFILL
             }
         },
+#endif
         { &hf_wtp_tpi_type,
             { "TPI", "wtp.tpi",
                 FT_UINT8, BASE_HEX, VALS(vals_tpi_type), 0x00,

@@ -43,6 +43,8 @@
 #define DMX_TEST_PACKET_SIZE  512
 #define DMX_TEST_VALUE       0x55
 
+void proto_register_dmx_test(void);
+
 static int proto_dmx_test = -1;
 
 static int hf_dmx_test_data = -1;
@@ -58,8 +60,8 @@ dissect_dmx_test(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	col_clear(pinfo->cinfo, COL_INFO);
 
 	if (tree != NULL) {
-		unsigned    offset = 0;
-		unsigned    size, i, test_data_is_ok;
+		guint    offset = 0;
+		guint    size, i, test_data_is_ok;
 		proto_tree *test_data_tree;
 		proto_item *item;
 

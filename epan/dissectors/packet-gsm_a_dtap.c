@@ -76,7 +76,7 @@
  *   Mobile radio interface Layer 3 specification;
  *   Core network protocols;
  *   Stage 3
- *   (3GPP TS 24.008 version 11.4.0 Release 11)
+ *   (3GPP TS 24.008 version 11.6.0 Release 11)
  *
  * $Id$
  *
@@ -243,96 +243,97 @@ const value_string gsm_a_dtap_msg_tp_strings[] = {
 	{ 0, NULL }
 };
 
-const value_string gsm_dtap_elem_strings[] = {
+static const value_string gsm_dtap_elem_strings[] = {
 	/* Mobility Management Information Elements 10.5.3 */
-	{ 0x00,	"Authentication Parameter RAND" },
-	{ 0x00,	"Authentication Parameter AUTN (UMTS and EPS authentication challenge)" },
-	{ 0x00,	"Authentication Response Parameter" },
-	{ 0x00,	"Authentication Response Parameter (extension) (UMTS authentication challenge only)" },
-	{ 0x00,	"Authentication Failure Parameter (UMTS and EPS authentication challenge)" },
-	{ 0x00,	"CM Service Type" },
-	{ 0x00,	"Identity Type" },
-	{ 0x00,	"Location Updating Type" },
-	{ 0x00,	"Network Name" },
-	{ 0x00,	"Reject Cause" },
-	{ 0x00,	"Follow-on Proceed" },
-	{ 0x00,	"Time Zone" },
-	{ 0x00,	"Time Zone and Time" },
-	{ 0x00,	"CTS Permission" },
-	{ 0x00,	"LSA Identifier" },
-	{ 0x00,	"Daylight Saving Time" },
-	{ 0x00, "Emergency Number List" },
-	{ 0x00, "Additional update parameters" },
-	{ 0x00, "MM Timer" },
+	{ DE_AUTH_PARAM_RAND,	"Authentication Parameter RAND" },
+	{ DE_AUTH_PARAM_AUTN,	"Authentication Parameter AUTN (UMTS and EPS authentication challenge)" },
+	{ DE_AUTH_RESP_PARAM,	"Authentication Response Parameter" },
+	{ DE_AUTH_RESP_PARAM_EXT,	"Authentication Response Parameter (extension) (UMTS authentication challenge only)" },
+	{ DE_AUTH_FAIL_PARAM,	"Authentication Failure Parameter (UMTS and EPS authentication challenge)" },
+	{ DE_CM_SRVC_TYPE,	"CM Service Type" },
+	{ DE_ID_TYPE,	"Identity Type" },
+	{ DE_LOC_UPD_TYPE,	"Location Updating Type" },
+	{ DE_NETWORK_NAME,	"Network Name" },
+	{ DE_REJ_CAUSE,	"Reject Cause" },
+	{ DE_FOP,	"Follow-on Proceed" },
+	{ DE_TIME_ZONE,	"Time Zone" },
+	{ DE_TIME_ZONE_TIME,	"Time Zone and Time" },
+	{ DE_CTS_PERM,	"CTS Permission" },
+	{ DE_LSA_ID,	"LSA Identifier" },
+	{ DE_DAY_SAVING_TIME,	"Daylight Saving Time" },
+	{ DE_EMERGENCY_NUM_LIST, "Emergency Number List" },
+	{ DE_ADD_UPD_PARAMS, "Additional update parameters" },
+	{ DE_MM_TIMER, "MM Timer" },
 	/* Call Control Information Elements 10.5.4 */
-	{ 0x00,	"Auxiliary States" },					/* 10.5.4.4 Auxiliary states */
-	{ 0x00,	"Bearer Capability" },					/* 10.5.4.4a Backup bearer capability */
-	{ 0x00,	"Call Control Capabilities" },
-	{ 0x00,	"Call State" },
-	{ 0x00,	"Called Party BCD Number" },
-	{ 0x00,	"Called Party Subaddress" },
-	{ 0x00,	"Calling Party BCD Number" },
-	{ 0x00,	"Calling Party Subaddress" },
-	{ 0x00,	"Cause" },
-	{ 0x00,	"CLIR Suppression" },
-	{ 0x00,	"CLIR Invocation" },
-	{ 0x00,	"Congestion Level" },
-	{ 0x00,	"Connected Number" },
-	{ 0x00,	"Connected Subaddress" },
-	{ 0x00,	"Facility" },
-	{ 0x00,	"High Layer Compatibility" },
-	{ 0x00,	"Keypad Facility" },
-	{ 0x00,	"Low Layer Compatibility" },
-	{ 0x00,	"More Data" },
-	{ 0x00,	"Notification Indicator" },
-	{ 0x00,	"Progress Indicator" },
-	{ 0x00,	"Recall type $(CCBS)$" },
-	{ 0x00,	"Redirecting Party BCD Number" },
-	{ 0x00,	"Redirecting Party Subaddress" },
-	{ 0x00,	"Repeat Indicator" },
-	{ 0x00,	"Reverse Call Setup Direction" },
-	{ 0x00,	"SETUP Container $(CCBS)$" },
-	{ 0x00,	"Signal" },
-	{ 0x00,	"SS Version Indicator" },
-	{ 0x00,	"User-user" },
-	{ 0x00,	"Alerting Pattern $(NIA)$" },				/* 10.5.4.26 Alerting Pattern $(NIA)$ */
-	{ 0x00,	"Allowed Actions $(CCBS)$" },
-	{ 0x00,	"Stream Identifier" },
-	{ 0x00,	"Network Call Control Capabilities" },
-	{ 0x00,	"Cause of No CLI" },						/* 10.5.4.30 Cause of No CLI */
+	{ DE_AUX_STATES,	"Auxiliary States" },					/* 10.5.4.4 Auxiliary states */
+	{ DE_BEARER_CAP,	"Bearer Capability" },					/* 10.5.4.4a Backup bearer capability */
+	{ DE_CC_CAP,	"Call Control Capabilities" },
+	{ DE_CALL_STATE,	"Call State" },
+	{ DE_CLD_PARTY_BCD_NUM,	"Called Party BCD Number" },
+	{ DE_CLD_PARTY_SUB_ADDR,	"Called Party Subaddress" },
+	{ DE_CLG_PARTY_BCD_NUM,	"Calling Party BCD Number" },
+	{ DE_CLG_PARTY_SUB_ADDR,	"Calling Party Subaddress" },
+	{ DE_CAUSE,	"Cause" },
+	{ DE_CLIR_SUP,	"CLIR Suppression" },
+	{ DE_CLIR_INV,	"CLIR Invocation" },
+	{ DE_CONGESTION,	"Congestion Level" },
+	{ DE_CONN_NUM,	"Connected Number" },
+	{ DE_CONN_SUB_ADDR,	"Connected Subaddress" },
+	{ DE_FACILITY,	"Facility" },
+	{ DE_HLC,	"High Layer Compatibility" },
+	{ DE_KEYPAD_FACILITY,	"Keypad Facility" },
+	{ DE_LLC,	"Low Layer Compatibility" },
+	{ DE_MORE_DATA,	"More Data" },
+	{ DE_NOT_IND,	"Notification Indicator" },
+	{ DE_PROG_IND,	"Progress Indicator" },
+	{ DE_RECALL_TYPE,	"Recall type $(CCBS)$" },
+	{ DE_RED_PARTY_BCD_NUM,	"Redirecting Party BCD Number" },
+	{ DE_RED_PARTY_SUB_ADDR,	"Redirecting Party Subaddress" },
+	{ DE_REPEAT_IND,	"Repeat Indicator" },
+	{ DE_REV_CALL_SETUP_DIR,	"Reverse Call Setup Direction" },
+	{ DE_SETUP_CONTAINER,	"SETUP Container $(CCBS)$" },
+	{ DE_SIGNAL,	"Signal" },
+	{ DE_SS_VER_IND,	"SS Version Indicator" },
+	{ DE_USER_USER,	"User-user" },
+	{ DE_ALERT_PATTERN,	"Alerting Pattern $(NIA)$" },				/* 10.5.4.26 Alerting Pattern $(NIA)$ */
+	{ DE_ALLOWED_ACTIONS,	"Allowed Actions $(CCBS)$" },
+	{ DE_SI,	"Stream Identifier" },
+	{ DE_NET_CC_CAP,	"Network Call Control Capabilities" },
+	{ DE_CAUSE_NO_CLI,	"Cause of No CLI" },						/* 10.5.4.30 Cause of No CLI */
 	/* 10.5.4.31 Void */
-	{ 0x00,	"Supported Codec List" },				/* 10.5.4.32 Supported codec list */
-	{ 0x00,	"Service Category" },					/* 10.5.4.33 Service category */
-	{ 0x00,	"Redial" },						/* 10.5.4.34 Redial */
-	{ 0x00, "Network-initiated Service Upgrade indicator" },
+	{ DE_SUP_CODEC_LIST,	"Supported Codec List" },				/* 10.5.4.32 Supported codec list */
+	{ DE_SERV_CAT,	"Service Category" },					/* 10.5.4.33 Service category */
+	{ DE_REDIAL,	"Redial" },						/* 10.5.4.34 Redial */
+	{ DE_NET_INIT_SERV_UPG, "Network-initiated Service Upgrade indicator" },
 	/* 10.5.4.35 Network-initiated Service Upgrade indicator */
 	/* Short Message Service Information Elements [5] 8.1.4 */
-	{ 0x00,	"CP-User Data" },
-	{ 0x00,	"CP-Cause" },
+	{ DE_CP_USER_DATA,	"CP-User Data" },
+	{ DE_CP_CAUSE,	"CP-Cause" },
 	/* Tests procedures information elements 3GPP TS 44.014 6.4.0, 3GPP TS 34.109 6.4.0 and 3GPP TS 36.509 9.1.0*/
-	{ 0x00, "Close TCH Loop Cmd Sub-channel"},
-	{ 0x00, "Open Loop Cmd Ack"},
-	{ 0x00, "Close Multi-slot Loop Cmd Loop type"},
-	{ 0x00, "Close Multi-slot Loop Ack Result"},
-	{ 0x00, "Test Interface Tested device"},
-	{ 0x00, "GPRS Test Mode Cmd PDU description"},
-	{ 0x00, "GPRS Test Mode Cmd Mode flag"},
-	{ 0x00, "EGPRS Start Radio Block Loopback Cmd Mode flag"},
-	{ 0x00, "MS Positioning Technology"},
-	{ 0x00, "Close UE Test Loop Mode"},
-	{ 0x00, "UE Positioning Technology"},
-	{ 0x00, "RLC SDU Counter Value"},
-	{ 0x00, "UE Test Loop Mode"},
-	{ 0x00, "UE Test Loop Mode A LB Setup"},
-	{ 0x00, "UE Test Loop Mode B LB Setup"},
-	{ 0x00, "UE Test Loop Mode C Setup"},
-	{ 0x00, "UE Positioning Technology"},
-	{ 0x00, "MBMS Packet Counter Value"},
-	{ 0x00, "Ellipsoid Point With Altitude"},
-	{ 0x00, "Horizontal Velocity"},
-	{ 0x00, "GNSS-TOD-msec"},
+	{ DE_TP_SUB_CHANNEL, "Close TCH Loop Cmd Sub-channel"},
+	{ DE_TP_ACK, "Open Loop Cmd Ack"},
+	{ DE_TP_LOOP_TYPE, "Close Multi-slot Loop Cmd Loop type"},
+	{ DE_TP_LOOP_ACK, "Close Multi-slot Loop Ack Result"},
+	{ DE_TP_TESTED_DEVICE, "Test Interface Tested device"},
+	{ DE_TP_PDU_DESCRIPTION, "GPRS Test Mode Cmd PDU description"},
+	{ DE_TP_MODE_FLAG, "GPRS Test Mode Cmd Mode flag"},
+	{ DE_TP_EGPRS_MODE_FLAG, "EGPRS Start Radio Block Loopback Cmd Mode flag"},
+	{ DE_TP_MS_POSITIONING_TECHNOLOGY, "MS Positioning Technology"},
+	{ DE_TP_UE_TEST_LOOP_MODE, "Close UE Test Loop Mode"},
+	{ DE_TP_UE_POSITIONING_TECHNOLOGY, "UE Positioning Technology"},
+	{ DE_TP_RLC_SDU_COUNTER_VALUE, "RLC SDU Counter Value"},
+	{ DE_TP_EPC_UE_TEST_LOOP_MODE, "UE Test Loop Mode"},
+	{ DE_TP_EPC_UE_TL_A_LB_SETUP, "UE Test Loop Mode A LB Setup"},
+	{ DE_TP_EPC_UE_TL_B_LB_SETUP, "UE Test Loop Mode B LB Setup"},
+	{ DE_TP_EPC_UE_TL_C_SETUP, "UE Test Loop Mode C Setup"},
+	{ DE_TP_EPC_UE_POSITIONING_TECHNOLOGY, "UE Positioning Technology"},
+	{ DE_TP_EPC_MBMS_PACKET_COUNTER_VALUE, "MBMS Packet Counter Value"},
+	{ DE_TP_EPC_ELLIPSOID_POINT_WITH_ALT, "Ellipsoid Point With Altitude"},
+	{ DE_TP_EPC_HORIZONTAL_VELOCITY, "Horizontal Velocity"},
+	{ DE_TP_EPC_GNSS_TOD_MSEC, "GNSS-TOD-msec"},
 	{ 0, NULL }
 };
+value_string_ext gsm_dtap_elem_strings_ext = VALUE_STRING_EXT_INIT(gsm_dtap_elem_strings);
 
 const gchar *gsm_a_pd_str[] = {
 	"Group Call Control",
@@ -824,7 +825,7 @@ de_rej_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 of
 
 	oct = tvb_get_guint8(tvb, offset);
 
-	str = match_strrval(oct, gsm_a_dtap_rej_cause_vals);
+	str = try_rval_to_str(oct, gsm_a_dtap_rej_cause_vals);
 	if(!str)
 	{
 		if(is_uplink == IS_UPLINK_TRUE)
@@ -871,7 +872,7 @@ de_time_zone(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 of
 	oct = (oct >> 4) + (oct & 0x07) * 10;
 
 	proto_tree_add_text(tree,
-		tvb, offset, 1,
+		tvb, curr_offset, 1,
 		"Timezone: GMT %c %d hours %d minutes",
 		sign, oct / 4, oct % 4 * 15);
 	curr_offset++;
@@ -939,7 +940,7 @@ de_time_zone_time(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint
 	oct = (oct >> 4) + (oct & 0x07) * 10;
 
 	proto_tree_add_text(tree,
-		tvb, offset, 1,
+		tvb, curr_offset, 1,
 		"Timezone: GMT %c %d hours %d minutes",
 		sign, oct / 4, oct % 4 * 15);
 
@@ -2397,7 +2398,7 @@ de_call_state(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 o
 	item =
 	proto_tree_add_text(tree,
 		tvb, offset, 1, "%s",
-		gsm_dtap_elem_strings[DE_CALL_STATE].strptr);
+		val_to_str_ext_const(DE_CALL_STATE, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_CALL_STATE]);
 	proto_tree_add_item(subtree, hf_gsm_a_dtap_coding_standard, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -2949,7 +2950,7 @@ static guint16
 de_facility(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint fac_len, gchar *add_string _U_, int string_len _U_)
 {
 	guint        saved_offset;
-	gint8        class;
+	gint8        appclass;
 	gboolean     pc;
 	gboolean     ind           = FALSE;
 	guint32      component_len = 0;
@@ -2971,7 +2972,7 @@ de_facility(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset,
 
 		/* Get the length of the component there can be more than one component in a facility message */
 
-		header_end_offset = get_ber_identifier(tvb, offset, &class, &pc, &comp_type_tag);
+		header_end_offset = get_ber_identifier(tvb, offset, &appclass, &pc, &comp_type_tag);
 		header_end_offset = get_ber_length(tvb, header_end_offset, &component_len, &ind);
 		header_len = header_end_offset - offset;
 		component_len = header_len + component_len;
@@ -4414,7 +4415,7 @@ dtap_mm_auth_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint3
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_common_elem_strings[DE_CIPH_KEY_SEQ_NUM].strptr);
+		val_to_str_ext_const(DE_CIPH_KEY_SEQ_NUM, &gsm_common_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_common_elem[DE_CIPH_KEY_SEQ_NUM]);
 
@@ -4524,7 +4525,7 @@ dtap_mm_cm_reestab_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, 
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_common_elem_strings[DE_CIPH_KEY_SEQ_NUM].strptr);
+		val_to_str_ext_const(DE_CIPH_KEY_SEQ_NUM, &gsm_common_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_common_elem[DE_CIPH_KEY_SEQ_NUM]);
 
@@ -4656,7 +4657,7 @@ dtap_mm_cm_srvc_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_common_elem_strings[DE_CIPH_KEY_SEQ_NUM].strptr);
+		val_to_str_ext_const(DE_CIPH_KEY_SEQ_NUM, &gsm_common_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_common_elem[DE_CIPH_KEY_SEQ_NUM]);
 
@@ -4684,7 +4685,7 @@ dtap_mm_cm_srvc_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_dtap_elem_strings[DE_CM_SRVC_TYPE].strptr);
+		val_to_str_ext_const(DE_CM_SRVC_TYPE, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_CM_SRVC_TYPE]);
 
@@ -4756,7 +4757,7 @@ dtap_mm_id_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_dtap_elem_strings[DE_ID_TYPE].strptr);
+		val_to_str_ext_const(DE_ID_TYPE, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_ID_TYPE]);
 
@@ -4919,7 +4920,7 @@ dtap_mm_loc_upd_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_common_elem_strings[DE_CIPH_KEY_SEQ_NUM].strptr);
+		val_to_str_ext_const(DE_CIPH_KEY_SEQ_NUM, &gsm_common_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_common_elem[DE_CIPH_KEY_SEQ_NUM]);
 
@@ -4948,7 +4949,7 @@ dtap_mm_loc_upd_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_dtap_elem_strings[DE_LOC_UPD_TYPE].strptr);
+		val_to_str_ext_const(DE_LOC_UPD_TYPE, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_LOC_UPD_TYPE]);
 
@@ -5205,7 +5206,7 @@ dtap_cc_congestion_control(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _
 	item =
 		proto_tree_add_text(tree,
 			tvb, curr_offset, 1, "%s",
-			gsm_dtap_elem_strings[DE_CONGESTION].strptr);
+			val_to_str_ext_const(DE_CONGESTION, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_CONGESTION]);
 
@@ -6425,22 +6426,30 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/*
 	 * octet 1
 	 */
+	/* Initialize hf_idx, ett_tree and dtap_msg_fcn.
+	   ett_tree and dtap_msg_fcn will not be used if msg_str == NULL. */
 	switch (pd)
 	{
 	case 3:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_CC_IEI_MASK), gsm_a_dtap_msg_cc_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_cc[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_CC_IEI_MASK), gsm_a_dtap_msg_cc_strings, &idx);
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_cc[idx];
+			dtap_msg_fcn = dtap_msg_cc_fcn[idx];
+		}
 		hf_idx = hf_gsm_a_dtap_msg_cc_type;
-		dtap_msg_fcn = dtap_msg_cc_fcn[idx];
 		ti = (oct_1 & DTAP_TI_MASK) >> 4;
 		nsd = TRUE;
 		break;
 
 	case 5:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_MM_IEI_MASK), gsm_a_dtap_msg_mm_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_mm[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_MM_IEI_MASK), gsm_a_dtap_msg_mm_strings, &idx);
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_mm[idx];
+			dtap_msg_fcn = dtap_msg_mm_fcn[idx];
+		}
 		hf_idx = hf_gsm_a_dtap_msg_mm_type;
-		dtap_msg_fcn = dtap_msg_mm_fcn[idx];
 		nsd = TRUE;
 		break;
 
@@ -6453,10 +6462,13 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		break;
 
 	case 9:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_SMS_IEI_MASK), gsm_a_dtap_msg_sms_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_sms[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_SMS_IEI_MASK), gsm_a_dtap_msg_sms_strings, &idx);
 		hf_idx = hf_gsm_a_dtap_msg_sms_type;
-		dtap_msg_fcn = dtap_msg_sms_fcn[idx];
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_sms[idx];
+			dtap_msg_fcn = dtap_msg_sms_fcn[idx];
+		}
 		ti = (oct_1 & DTAP_TI_MASK) >> 4;
 		break;
 
@@ -6466,19 +6478,25 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		break;
 
 	case 11:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_SS_IEI_MASK), gsm_a_dtap_msg_ss_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_ss[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_SS_IEI_MASK), gsm_a_dtap_msg_ss_strings, &idx);
 		hf_idx = hf_gsm_a_dtap_msg_ss_type;
-		dtap_msg_fcn = dtap_msg_ss_fcn[idx];
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_ss[idx];
+			dtap_msg_fcn = dtap_msg_ss_fcn[idx];
+		}
 		ti = (oct_1 & DTAP_TI_MASK) >> 4;
 		nsd = TRUE;
 		break;
 
 	case 15:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_TP_IEI_MASK), gsm_a_dtap_msg_tp_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_tp[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_TP_IEI_MASK), gsm_a_dtap_msg_tp_strings, &idx);
 		hf_idx = hf_gsm_a_dtap_msg_tp_type;
-		dtap_msg_fcn = dtap_msg_tp_fcn[idx];
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_tp[idx];
+			dtap_msg_fcn = dtap_msg_tp_fcn[idx];
+		}
 		nsd = TRUE;
 		break;
 
@@ -6528,6 +6546,7 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		}
 
 		col_append_fstr(pinfo->cinfo, COL_INFO, "%s ", msg_str);
+		col_set_fence(pinfo->cinfo, COL_INFO);
 	}
 
 	oct_1_item =
@@ -6613,7 +6632,7 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	tap_p->pdu_type = GSM_A_PDU_TYPE_DTAP;
 	tap_p->message_type = (nsd ? (oct & 0x3f) : oct);
-	tap_p->protocol_disc = pd;
+	tap_p->protocol_disc = (gsm_a_pd_str_e)pd;
 
 	tap_queue_packet(gsm_a_tap, pinfo, tap_p);
 

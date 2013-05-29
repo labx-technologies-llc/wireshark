@@ -1240,11 +1240,11 @@ smpp_handle_string(proto_tree *tree, tvbuff_t *tvb, int field, int *offset)
 }
 
 /* NOTE - caller must free the returned string! */
-static char *
+static const char *
 smpp_handle_string_return(proto_tree *tree, tvbuff_t *tvb, int field, int *offset)
 {
     gint         len;
-    char        *str;
+    const char   *str;
 
     len = tvb_strsize(tvb, *offset);
     if (len > 1) {
@@ -1926,8 +1926,8 @@ submit_sm(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo,
     int       offset  = 0;
     guint8    flag, udhi;
     guint8    length;
-    char     *src_str = NULL;
-    char     *dst_str = NULL;
+    const char *src_str = NULL;
+    const char *dst_str = NULL;
     address   save_src, save_dst;
 
     smpp_handle_string_z(tree, tvb, hf_smpp_service_type, &offset, "(Default)");
@@ -2370,11 +2370,11 @@ dissect_smpp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
     if (command_length > 64 * 1024 || command_length < SMPP_MIN_LENGTH)
         return FALSE;
     command_id = tvb_get_ntohl(tvb, 4);         /* Only known commands  */
-    if (match_strval(command_id, vals_command_id) == NULL)
+    if (try_val_to_str(command_id, vals_command_id) == NULL)
         return FALSE;
     command_status = tvb_get_ntohl(tvb, 8);     /* ..with known status  */
-    if (match_strval(command_status, vals_command_status) == NULL &&
-                match_strrval(command_status, reserved_command_status) == NULL)
+    if (try_val_to_str(command_status, vals_command_status) == NULL &&
+                try_rval_to_str(command_status, reserved_command_status) == NULL)
         return FALSE;
     dissect_smpp(tvb, pinfo, tree);
     return TRUE;
@@ -2460,7 +2460,7 @@ dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     command_status = tvb_get_ntohl(tvb, offset);
     if (command_id & 0x80000000) {
         /* PDU is a response. */
-        command_status_str = match_strval(command_status, vals_command_status);
+        command_status_str = try_val_to_str(command_status, vals_command_status);
         if (command_status_str == NULL) {
                 /* Check if the reserved value is in the vendor-specific range. */
                 command_status_str = (command_status >= 0x400 && command_status <= 0x4FF ?
@@ -2717,11 +2717,11 @@ dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 } /* if (command_id & 0x80000000) */
 
             } /* if (command_length <= tvb_reported_length(pdu_tvb)) */
-            offset += command_length;
+            /*offset += command_length;*/
         } /* if (tree || (command_id == 4)) */
 
         /* Queue packet for Tap */
-        tap_rec = ep_alloc0(sizeof(smpp_tap_rec_t));
+        tap_rec = ep_new0(smpp_tap_rec_t);
         tap_rec->command_id = command_id;
         tap_rec->command_status = command_status;
         tap_queue_packet(smpp_tap, pinfo, tap_rec);

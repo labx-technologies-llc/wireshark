@@ -26,8 +26,8 @@
 #define __PREFS_DLG_H__
 
 /** @defgroup prefs_group Preferences
- * 
- *  All GUI related preferences things. Please note, that some GUI related things 
+ *
+ *  All GUI related preferences things. Please note, that some GUI related things
  *  are saved in the recent file, which is processed in recent.h.
  *
  *  The Preference dialog has the following page submodules:
@@ -38,8 +38,8 @@
       ui [ label="User Interface" URL="\ref prefs_gui.h"];
       layout [ label="UI: Layout" URL="\ref prefs_layout.h"];
       columns [ label="UI: Columns" URL="\ref prefs_column.h"];
-      font [ label="UI: Font" URL="\ref prefs_gui.h"];
-      colors [ label="UI: Colors" URL="\ref prefs_stream.h"];
+      font [ label="UI: Font" URL="\ref prefs_font_colors.h"];
+      colors [ label="UI: Colors" URL="\ref prefs_font_colors.h"];
       capture [ label="Capture" URL="\ref prefs_capture.h"];
       print [ label="Printing" URL="\ref prefs_print.h"];
       nameres [ label="Name resolution" URL="\ref prefs_nameres.h"];
@@ -71,14 +71,14 @@ typedef enum {
 } PREFS_PAGE_E;
 
 /** Show the preferences dialog.
- * 
+ *
  * @param widget parent widget (unused)
  * @param data unused
  */
 extern void prefs_cb(GtkWidget *widget, gpointer data);
 
 /** Show the preferences dialog in given page.
- * 
+ *
  * @param widget parent widget (unused)
  * @param data unused
  * @param prefs_page page to show
@@ -86,7 +86,7 @@ extern void prefs_cb(GtkWidget *widget, gpointer data);
 extern void prefs_page_cb(GtkWidget *widget, gpointer data, PREFS_PAGE_E prefs_page);
 
 /** Show the protocol properties dialog.
- * 
+ *
  * @param widget parent widget (unused)
  * @param data unused
  */
@@ -94,32 +94,32 @@ extern void properties_cb(GtkWidget *widget, gpointer data);
 
 /** Create a check button for a preferences page.
  *
- * @param main_tb the table to put this button into
- * @param table_row row in the table
+ * @param main_grid the grid to put this button into
+ * @param grid_row row in the grid
  * @param label_text the label text for the left side
  * @param tooltip_text the tooltip for this check button
  * @param active the check button is initially active
  * @return the new check button
  */
-extern GtkWidget *create_preference_check_button(GtkWidget *main_tb, int table_row,
+extern GtkWidget *create_preference_check_button(GtkWidget *main_grid, int grid_row,
     const gchar *label_text, const gchar *tooltip_text, gboolean active);
 
 /** Create a radio button for a preferences page.
  *
- * @param main_tb the table to put this button into
- * @param table_row row in the table
+ * @param main_grid the grid to put this button into
+ * @param grid_row row in the grid
  * @param label_text the label text for the left side
  * @param tooltip_text the tooltip for this radio button
  * @param enumvals the values
  * @param current_val the initially selected value
  * @return the new radio button
  */
-extern GtkWidget *create_preference_radio_buttons(GtkWidget *main_tb, int table_row,
+extern GtkWidget *create_preference_radio_buttons(GtkWidget *main_grid, int grid_row,
     const gchar *label_text, const gchar *tooltip_text,
     const enum_val_t *enumvals, gint current_val);
 
 /** Get the currently selected value from a radio button.
- * 
+ *
  * @param button the button from create_preference_radio_buttons()
  * @param enumvals the same enum vals as in create_preference_radio_buttons()
  * @return the index of the currently selected item
@@ -128,20 +128,20 @@ extern gint fetch_preference_radio_buttons_val(GtkWidget *button, const enum_val
 
 /** Create an option menu for a preferences page.
  *
- * @param main_tb the table to put this menu into
- * @param table_row row in the table
+ * @param main_grid the grid to put this menu into
+ * @param grid_row row in the grid
  * @param label_text the label text for the left side
  * @param tooltip_text the tooltip for this option menu
  * @param enumvals the values
  * @param current_val the initially selected value
  * @return the new option menu
  */
-extern GtkWidget *create_preference_option_menu(GtkWidget *main_tb, int table_row,
+extern GtkWidget *create_preference_option_menu(GtkWidget *main_grid, int grid_row,
     const gchar *label_text, const gchar *tooltip_text,
     const enum_val_t *enumvals, gint current_val);
 
 /** Get the currently selected value from an option menu.
- * 
+ *
  * @param optmenu the option menu from create_preference_option_menu()
  * @param enumvals the same enum vals as in create_preference_option_menu()
  * @return the index of the currently selected item
@@ -150,43 +150,37 @@ extern gint fetch_preference_option_menu_val(GtkWidget *optmenu, const enum_val_
 
 /** Create a text entry for a preferences page.
  *
- * @param main_tb the table to put this entry into
- * @param table_row row in the table
+ * @param main_grid the grid to put this entry into
+ * @param grid_row row in the grid
  * @param label_text the label text for the left side
  * @param tooltip_text the tooltip for this text entry
  * @param value the initially value
  * @return the new text entry
  */
-extern GtkWidget *create_preference_entry(GtkWidget *main_tb, int table_row,
+extern GtkWidget *create_preference_entry(GtkWidget *main_grid, int grid_row,
     const gchar *label_text, const gchar *tooltip_text, char *value);
 
 /** Create a static text for a preferences page.
  *
- * @param main_tb the table to put this entry into
- * @param table_position row in the table
+ * @param main_grid the grid to put this entry into
+ * @param grid_position row in the grid
  * @param label_text the label text
  * @param tooltip_text the tooltip for this text (not needed at all...)
  * @return the new static text label
  */
-GtkWidget *
-create_preference_static_text(GtkWidget *main_tb, int table_position,
+extern GtkWidget *create_preference_static_text(GtkWidget *main_grid, int grid_position,
     const gchar *label_text, const gchar *tooltip_text);
 
 /** Create a UAT button for a preferences page.
  *
- * @param main_tb the table to put this entry into
- * @param table_position row in the table
+ * @param main_grid the grid to put this entry into
+ * @param grid_position row in the grid
  * @param label_text the label text
  * @param tooltip_text the tooltip for this text
  * @param uat pointer to the UAT
  * @return the new UAT button
  */
-GtkWidget *
-create_preference_uat(GtkWidget *main_tb, int table_position,
+extern GtkWidget *create_preference_uat(GtkWidget *main_grid, int grid_position,
     const gchar *label_text, const gchar *tooltip_text, void *uat);
-
-/** Save all preferences */
-void
-prefs_main_write(void);
 
 #endif

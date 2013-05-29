@@ -589,7 +589,7 @@ ngsniffer_open(wtap *wth, int *err, gchar **err_info)
 	bytes_read = file_read(magic, sizeof magic, wth->fh);
 	if (bytes_read != sizeof magic) {
 		*err = file_error(wth->fh, err_info);
-		if (*err != 0)
+		if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
 			return -1;
 		return 0;
 	}
@@ -606,16 +606,16 @@ ngsniffer_open(wtap *wth, int *err, gchar **err_info)
 	bytes_read = file_read(record_type, 2, wth->fh);
 	if (bytes_read != 2) {
 		*err = file_error(wth->fh, err_info);
-		if (*err != 0)
-			return -1;
-		return 0;
+		if (*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return -1;
 	}
 	bytes_read = file_read(record_length, 4, wth->fh);
 	if (bytes_read != 4) {
 		*err = file_error(wth->fh, err_info);
-		if (*err != 0)
-			return -1;
-		return 0;
+		if (*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return -1;
 	}
 
 	type = pletohs(record_type);
@@ -630,9 +630,9 @@ ngsniffer_open(wtap *wth, int *err, gchar **err_info)
 	bytes_read = file_read(&version, sizeof version, wth->fh);
 	if (bytes_read != sizeof version) {
 		*err = file_error(wth->fh, err_info);
-		if (*err != 0)
-			return -1;
-		return 0;
+		if (*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return -1;
 	}
 
 	/* Check the data link type. */
@@ -654,7 +654,6 @@ ngsniffer_open(wtap *wth, int *err, gchar **err_info)
 	/* compressed or uncompressed Sniffer file? */
 	if (version.format != 1) {
 		wth->file_type = WTAP_FILE_NGSNIFFER_COMPRESSED;
-
 	} else {
 		wth->file_type = WTAP_FILE_NGSNIFFER_UNCOMPRESSED;
 	}
@@ -2128,7 +2127,7 @@ ngsniffer_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
 	   date. */
 	if (ngsniffer->first_frame) {
 		ngsniffer->first_frame=FALSE;
-#ifdef _MSC_VER
+#if (defined _WIN32) && (_MSC_VER < 1500)
 		/* calling localtime() on MSVC 2005 with huge values causes it to crash */
 		/* XXX - find the exact value that still does work */
 		/* XXX - using _USE_32BIT_TIME_T might be another way to circumvent this problem */
@@ -2544,7 +2543,6 @@ ng_file_read(void *buffer, unsigned int nbytes, wtap *wth, gboolean is_random,
 					*err = WTAP_ERR_CANT_SEEK;
 					return -1;
 				}
-				blob = (blob_info_t *)ngsniffer->current_blob->data;
 			} else {
 				/* If we also have a random stream open, add a new element,
 				   for this blob, to the list of blobs; we know the list is

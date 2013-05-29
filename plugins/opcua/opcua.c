@@ -72,7 +72,6 @@ static int hf_opcua_fragment_error = -1;
 static int hf_opcua_fragment_count = -1;
 static int hf_opcua_reassembled_in = -1;
 static int hf_opcua_reassembled_length = -1;
-static int hf_opcua_reassembled_data = -1;
 
 static const fragment_items opcua_frag_items = {
     /* Fragment subtrees */
@@ -92,14 +91,13 @@ static const fragment_items opcua_frag_items = {
     /* Reassembled length field */
     &hf_opcua_reassembled_length,
     /* Reassembled data field */
-    &hf_opcua_reassembled_data,
+    NULL,
     /* Tag */
     "Message fragments"
 };
 
 
-static GHashTable *opcua_fragment_table = NULL;
-static GHashTable *opcua_reassembled_table = NULL;
+static reassembly_table opcua_reassembly_table;
 
 /** OpcUa Transport Message Types */
 enum MessageType
@@ -114,7 +112,7 @@ enum MessageType
 };
 
 /** OpcUa Transport Message Type Names */
-static char* g_szMessageTypes[] =
+static const char* g_szMessageTypes[] =
 {
     "Hello message",
     "Acknowledge message",
@@ -200,8 +198,8 @@ void proto_register_opcua(void)
 
     range_convert_str(&global_tcp_ports_opcua, ep_strdup_printf("%u", OPCUA_PORT),  65535);
 
-    fragment_table_init(&opcua_fragment_table);
-    reassembled_table_init(&opcua_reassembled_table);
+    reassembly_table_init(&opcua_reassembly_table,
+                          &addresses_reassembly_table_functions);
     proto_register_field_array(proto_opcua, hf, array_length(hf));
 
     /* register user preferences */
@@ -329,12 +327,13 @@ static void dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
             opcua_seqid = tvb_get_letohl(tvb, offset); offset += 4; /* Security RequestId */
 
             /* check if tvb is part of a chunked message:
-               the UA protocol does not tell us that, so we look into opcua_fragment_table and
-               opcua_reassembled_table if the opcua_seqid belongs to a chunked message */
-            frag_msg = fragment_get(pinfo, opcua_seqid, opcua_fragment_table);
+               the UA protocol does not tell us that, so we look into
+               opcua_reassembly_table if the opcua_seqid belongs to a
+               chunked message */
+            frag_msg = fragment_get(&opcua_reassembly_table, pinfo, opcua_seqid, NULL);
             if (frag_msg == NULL)
             {
-                frag_msg = fragment_get_reassembled_id(pinfo, opcua_seqid, opcua_reassembled_table);
+                frag_msg = fragment_get_reassembled_id(&opcua_reassembly_table, pinfo, opcua_seqid);
             }
 
             if (frag_msg != NULL || chunkType != 'F')
@@ -365,12 +364,12 @@ static void dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
                     }
                 }
 
-                frag_msg = fragment_add_seq_check(tvb,
+                frag_msg = fragment_add_seq_check(&opcua_reassembly_table,
+                                                  tvb,
                                                   offset,
                                                   pinfo,
                                                   opcua_seqid, /* ID for fragments belonging together */
-                                                  opcua_fragment_table, /* list of message fragments */
-                                                  opcua_reassembled_table, /* list of reassembled messages */
+                                                  NULL,
                                                   opcua_seqnum, /* fragment sequence number */
                                                   tvb_length_remaining(tvb, offset), /* fragment length - to the end */
                                                   bMoreFragments); /* More fragments? */
@@ -404,7 +403,7 @@ static void dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
                 {
                     /* only show transport header */
                     bParseService = FALSE;
-                    next_tvb = tvb_new_subset(tvb, 0, -1, -1);
+                    next_tvb = tvb_new_subset_remaining(tvb, 0);
                 }
 
                 pinfo->fragmented = bSaveFragmented;

@@ -327,10 +327,10 @@ extern void main_colorize_changed(gboolean packet_list_colorize);
  */
 extern gboolean main_do_quit(void);
 
-/** Rearrange the main window widgets, user changed it's preferences. */
+/** Rearrange the main window widgets, user changed its preferences. */
 extern void main_widgets_rearrange(void);
 
-/** Show or hide the main window widgets, user changed it's preferences. */
+/** Show or hide the main window widgets, user changed its preferences. */
 extern void main_widgets_show_or_hide(void);
 
 /* Update main window items based on whether we have a packet history. */
@@ -350,13 +350,7 @@ extern gboolean main_filter_packets(capture_file *cf, const gchar *dftext,
 #ifdef _WIN32
 /** Win32 only: Create a console. Beware: cannot be closed again. */
 extern void create_console(void);
-
-/** Restart the tap update display timer with new configured interval */
-extern void reset_tap_update_timer(void);
 #endif
-
-/** Fill in capture options with values from the preferences */
-extern void prefs_to_capture_opts(void);
 
 /** Change configuration profile */
 extern void change_configuration_profile(const gchar *profile_name);

@@ -98,6 +98,7 @@ NSIS_FLAGS=\
 	/DMSC_VER_REQUIRED=$(MSC_VER_REQUIRED) \
 	/DWIRESHARK_LIB_DIR=$(WIRESHARK_LIB_DIR) \
 	/DPCAP_VERSION=$(PCAP_VERSION) \
+	/DPCAP_DISPLAY_VERSION=$(PCAP_VERSION:_=.) \
 !IFDEF MSVCR_DLL
 	/DMSVCR_DLL="$(MSVCR_DLL)" \
 !ENDIF
@@ -208,11 +209,14 @@ NSIS_FLAGS=\
 !IFDEF GEOIP_DIR
 	/DGEOIP_DIR=$(GEOIP_DIR) \
 !ENDIF
+!IFDEF WINSPARKLE_DIR
+	/DWINSPARKLE_DIR=$(WINSPARKLE_DIR) \
+!ENDIF
 !IFDEF HHC_DIR
 	/DHHC_DIR="$(HHC_DIR)" \
 !ENDIF
-!IF EXIST("..\..\wireshark-qt\qtshark.exe")
-	/DQT_DIR="..\..\wireshark-qt" \
+!IF EXIST("..\..\wireshark-qt-release\qtshark.exe")
+	/DQT_DIR="..\..\wireshark-qt-release" \
 !ENDIF
 
 $(STAGING_DIR)\uninstall.exe : $(NSI)

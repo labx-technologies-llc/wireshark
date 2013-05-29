@@ -51,6 +51,8 @@ import lex
 import yacc
 
 from string import maketrans
+from functools import partial
+
 
 # OID name -> number conversion table
 oid_names = {
@@ -504,7 +506,7 @@ class Ctx:
 EF_TYPE    = 0x0001
 EF_VALS    = 0x0002
 EF_ENUM    = 0x0004
-EF_WS_VAR  = 0x0010
+EF_WS_DLL  = 0x0010 #  exported from shared library
 EF_EXTERN  = 0x0020
 EF_NO_PROT = 0x0040
 EF_NO_TYPE = 0x0080
@@ -722,7 +724,7 @@ class EthCtx:
       val = self.all_vals[module][nm]
     return val
 
-  def get_obj_repr(self, ident, restr):
+  def get_obj_repr(self, ident, flds=[], not_flds=[]):
     def set_type_fn(cls, field, fnfield):
       obj[fnfield + '_fn'] = 'NULL'
       obj[fnfield + '_pdu'] = 'NULL'
@@ -738,20 +740,12 @@ class EthCtx:
     obj['_class'] = self.oassign[ident].cls
     obj['_module'] = self.oassign[ident].module
     val = self.oassign[ident].val
-    fld = None
-    fld_neg = False
-    if len(restr) > 0:
-      fld = restr[0]
-      if fld[0] == '!':
-        fld_neg = True
-        fld = fld[1:]
-    if fld:
-      if fld_neg:
-        if fld in val:
-          return None
-      else:
-        if fld not in val:
-          return None
+    for f in flds:
+      if f not in val:
+        return None
+    for f in not_flds:
+      if f in val:
+        return None
     for f in list(val.keys()):
       if isinstance(val[f], Node):
         obj[f] = val[f].fld_obj_repr(self)
@@ -1581,7 +1575,10 @@ class EthCtx:
       else:
         blurb = '"%s"' % (t)
       attr = self.eth_hf[f]['attr'].copy()
-      attr['ABBREV'] = '"%s.%s"' % (self.proto, attr['ABBREV'])
+      if attr['TYPE'] == 'FT_NONE':
+        attr['ABBREV'] = '"%s.%s_element"' % (self.proto, attr['ABBREV'])
+      else:
+        attr['ABBREV'] = '"%s.%s"' % (self.proto, attr['ABBREV'])
       if 'BLURB' not in attr:
         attr['BLURB'] = blurb
       fx.write('    { &%s,\n' % (self.eth_hf[f]['fullname']))
@@ -1625,8 +1622,8 @@ class EthCtx:
         fx.write(self.eth_type[t]['val'].eth_type_enum(t, self))
       if (self.eth_type[t]['export'] & EF_VALS) and self.eth_type[t]['val'].eth_has_vals():
         if not self.eth_type[t]['export'] & EF_TABLE:
-          if self.eth_type[t]['export'] & EF_WS_VAR:
-            fx.write("WS_VAR_IMPORT ")
+          if self.eth_type[t]['export'] & EF_WS_DLL:
+            fx.write("WS_DLL_PUBLIC ")
           else:
             fx.write("extern ")
           fx.write("const value_string %s[];\n" % (self.eth_vals_nm(t)))
@@ -1635,7 +1632,10 @@ class EthCtx:
     for t in self.eth_export_ord:  # functions
       if (self.eth_type[t]['export'] & EF_TYPE):
         if self.eth_type[t]['export'] & EF_EXTERN:
-          fx.write("extern ")
+          if self.eth_type[t]['export'] & EF_WS_DLL:
+            fx.write("WS_DLL_PUBLIC ")
+          else:
+            fx.write("extern ")
         fx.write(self.eth_type_fn_h(t))
     for f in self.eth_hfpdu_ord:  # PDUs
       if (self.eth_hf[f]['pdu'] and self.eth_hf[f]['pdu']['export']):
@@ -1893,37 +1893,78 @@ class EthCtx:
       fempty=False
     self.output.file_close(fx, discard=fempty)
 
-  #--- eth_output_table -----------------------------------------------------
-  def eth_output_table(self):
+  #--- eth_output_tables -----------------------------------------------------
+  def eth_output_tables(self):
     for num in list(self.conform.report.keys()):
       fx = self.output.file_open('table' + num)
       for rep in self.conform.report[num]:
-        if rep['type'] == 'HDR':
-          fx.write('\n')
-        if rep['var']:
-          var = rep['var']
-          var_list = var.split('.')
-          cls = var_list[0]
-          del var_list[0]
-          if (cls in self.oassign_cls):
-            for ident in self.oassign_cls[cls]:
-             obj = self.get_obj_repr(ident, var_list)
-             if not obj:
-               continue
-             obj['_LOOP'] = var
-             obj['_DICT'] = str(obj)
-             try:
-               text = rep['text'] % obj
-             except (KeyError):
-               raise sys.exc_info()[0], "%s:%s invalid key %s for information object %s of %s" % (rep['fn'], rep['lineno'], sys.exc_info()[1], ident, var)
-             fx.write(text)
-          else:
-            fx.write("/* Unknown or empty loop list %s */\n" % (var))
-        else:
-          fx.write(rep['text'])
-        if rep['type'] == 'FTR':
-          fx.write('\n')
+        self.eth_output_table(fx, rep)
       self.output.file_close(fx)
+
+  #--- eth_output_table -----------------------------------------------------
+  def eth_output_table(self, fx, rep):
+    def cmp_fn(a, b, cmp_flds, objs):
+      if not cmp_flds: return 0
+      obja = objs[a]
+      objb = objs[b]
+      res = 0
+      for f in cmp_flds:
+        if f[0] == '#':
+          f = f[1:]
+          res = int(obja[f]) - int(objb[f])
+        else:
+          res = cmp(obja[f], objb[f])
+        if res: break
+      return res
+    if rep['type'] == 'HDR':
+      fx.write('\n')
+    if rep['var']:
+      var = rep['var']
+      var_list = var.split('.', 1)
+      cls = var_list[0]
+      del var_list[0]
+      flds = []
+      not_flds = []
+      sort_flds = []
+      for f in var_list:
+         if f[0] == '!':
+           not_flds.append(f[1:])
+           continue
+         if f[0] == '#':
+           flds.append(f[1:])
+           sort_flds.append(f)
+           continue
+         if f[0] == '@':
+           flds.append(f[1:])
+           sort_flds.append(f[1:])
+           continue
+         flds.append(f)
+      objs = {}
+      objs_ord = []
+      if (cls in self.oassign_cls):
+        for ident in self.oassign_cls[cls]:
+          obj = self.get_obj_repr(ident, flds, not_flds)
+          if not obj:
+            continue
+          obj['_LOOP'] = var
+          obj['_DICT'] = str(obj)
+          objs[ident] = obj
+          objs_ord.append(ident)
+        if (sort_flds):
+          objs_ord.sort(cmp=partial(cmp_fn, cmp_flds=sort_flds, objs=objs))
+        for ident in objs_ord:
+          obj = objs[ident]
+          try:
+            text = rep['text'] % obj
+          except (KeyError):
+            raise sys.exc_info()[0], "%s:%s invalid key %s for information object %s of %s" % (rep['fn'], rep['lineno'], sys.exc_info()[1], ident, var)
+          fx.write(text)
+      else:
+        fx.write("/* Unknown or empty loop list %s */\n" % (var))
+    else:
+      fx.write(rep['text'])
+    if rep['type'] == 'FTR':
+      fx.write('\n')
 
   #--- dupl_report -----------------------------------------------------
   def dupl_report(self):
@@ -2056,7 +2097,7 @@ class EthCtx:
       self.eth_output_dis_reg()
       self.eth_output_dis_tab()
       self.eth_output_syn_reg()
-      self.eth_output_table()
+      self.eth_output_tables()
     if self.expcnf:
       self.eth_output_expcnf()
 
@@ -2390,7 +2431,7 @@ class EthCnf:
             if (par[i] == 'ONLY_ENUM'):   default_flags &= ~(EF_TYPE|EF_VALS); default_flags |= EF_ENUM
             elif (par[i] == 'WITH_ENUM'): default_flags |= EF_ENUM
             elif (par[i] == 'VALS_WITH_TABLE'):  default_flags |= EF_TABLE
-            elif (par[i] == 'WS_VAR'):    default_flags |= EF_WS_VAR
+            elif (par[i] == 'WS_DLL'):    default_flags |= EF_WS_DLL
             elif (par[i] == 'EXTERN'):    default_flags |= EF_EXTERN
             elif (par[i] == 'NO_PROT_PREFIX'): default_flags |= EF_NO_PROT
             else: warnings.warn_explicit("Unknown parameter value '%s'" % (par[i]), UserWarning, fn, lineno)
@@ -2526,7 +2567,7 @@ class EthCnf:
           if (par[i] == 'ONLY_ENUM'):        flags &= ~(EF_TYPE|EF_VALS); flags |= EF_ENUM
           elif (par[i] == 'WITH_ENUM'):      flags |= EF_ENUM
           elif (par[i] == 'VALS_WITH_TABLE'):  flags |= EF_TABLE
-          elif (par[i] == 'WS_VAR'):         flags |= EF_WS_VAR
+          elif (par[i] == 'WS_DLL'):         flags |= EF_WS_DLL
           elif (par[i] == 'EXTERN'):         flags |= EF_EXTERN
           elif (par[i] == 'NO_PROT_PREFIX'): flags |= EF_NO_PROT
           else: warnings.warn_explicit("Unknown parameter value '%s'" % (par[i]), UserWarning, fn, lineno)
@@ -2858,8 +2899,8 @@ class EthOut:
   #--- fhdr -------------------------------------------------------
   def fhdr(self, fn, comment=None):
     out = ''
-    out += self.outcomment('Do not modify this file.', comment)
-    out += self.outcomment('It is created automatically by the ASN.1 to Wireshark dissector compiler', comment)
+    out += self.outcomment('Do not modify this file. Changes will be overwritten.', comment)
+    out += self.outcomment('Generated automatically by the ASN.1 to Wireshark dissector compiler', comment)
     out += self.outcomment(os.path.basename(fn), comment)
     out += self.outcomment(' '.join(sys.argv), comment)
     out += '\n'
@@ -7124,11 +7165,18 @@ def p_cls_syntax_3 (t):
 def p_cls_syntax_4 (t):
   '''cls_syntax : ARGUMENT Type
                  | RESULT Type
-                 | PARAMETER Type
-                 | CODE Value '''
+                 | PARAMETER Type '''
   t[0] = { get_class_fieled(t[1]) : t[2] }
 
 def p_cls_syntax_5 (t):
+  'cls_syntax : CODE Value'
+  fld = get_class_fieled(t[1]);
+  t[0] = { fld : t[2] }
+  if isinstance(t[2], ChoiceValue):
+    fldt = fld + '.' + t[2].choice
+    t[0][fldt] = t[2]
+
+def p_cls_syntax_6 (t):
   '''cls_syntax : ARGUMENT Type OPTIONAL BooleanValue
                  | RESULT Type OPTIONAL BooleanValue
                  | PARAMETER Type OPTIONAL BooleanValue '''

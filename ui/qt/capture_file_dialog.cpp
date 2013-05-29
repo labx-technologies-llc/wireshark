@@ -26,11 +26,11 @@
 #include "packet_range_group_box.h"
 #include "capture_file_dialog.h"
 
-#ifdef Q_WS_WIN
+#ifdef Q_OS_WIN
 #include <windows.h>
 #include "packet-range.h"
 #include "ui/win32/file_dlg_win32.h"
-#else // Q_WS_WIN
+#else // Q_OS_WIN
 
 #include <errno.h>
 #include "file.h"
@@ -50,13 +50,11 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QSpacerItem>
-#endif // Q_WS_WIN
+#endif // Q_OS_WIN
 
 #include <QPushButton>
 
-#include <QDebug>
-
-#ifdef Q_WS_WIN
+#ifdef Q_OS_WIN
 // All of these routines are required by file_dlg_win32.c.
 // We don't yet have a good place for them so we'll add them as stubs here.
 
@@ -91,13 +89,13 @@ extern void menu_name_resolution_changed(void) {
 
 } // extern "C"
 // End stub routines
-#endif // Q_WS_WIN
+#endif // Q_OS_WIN
 
 CaptureFileDialog::CaptureFileDialog(QWidget *parent, capture_file *cf, QString &display_filter) :
     QFileDialog(parent),
     cap_file_(cf),
     display_filter_(display_filter),
-#if !defined(Q_WS_WIN)
+#if !defined(Q_OS_WIN)
     default_ft_(-1),
     save_bt_(NULL),
     help_topic_(TOPIC_ACTION_NONE)
@@ -105,7 +103,7 @@ CaptureFileDialog::CaptureFileDialog(QWidget *parent, capture_file *cf, QString 
     file_type_(-1)
 #endif
 {
-#if !defined(Q_WS_WIN)
+#if !defined(Q_OS_WIN)
     // Add extra widgets
     // http://qt-project.org/faq/answer/how_can_i_add_widgets_to_my_qfiledialog_instance
     setOption(QFileDialog::DontUseNativeDialog, true);
@@ -122,42 +120,38 @@ CaptureFileDialog::CaptureFileDialog(QWidget *parent, capture_file *cf, QString 
     h_box->addLayout(&left_v_box_);
     h_box->addLayout(&right_v_box_);
 
-#else // Q_WS_WIN
+#else // Q_OS_WIN
     merge_type_ = 0;
-#endif // Q_WS_WIN
+#endif // Q_OS_WIN
 }
 
 check_savability_t CaptureFileDialog::checkSaveAsWithComments(QWidget *
-#if defined(Q_WS_WIN)
+#if defined(Q_OS_WIN)
         parent
 #endif
         , capture_file *cf, int file_type) {
-#if defined(Q_WS_WIN)
+#if defined(Q_OS_WIN)
     if (!parent || !cf)
         return CANCELLED;
     return win32_check_save_as_with_comments(parent->effectiveWinId(), cf, file_type);
-#else // Q_WS_WIN
+#else // Q_OS_WIN
+    guint32 comment_types;
     QMessageBox msg_dialog;
     int response;
 
-    /* Do we have any comments? */
-    if (!cf_has_comments(cf)) {
-        /* No.  Let the save happen; no comments to delete. */
+    /* What types of comments do we have? */
+    comment_types = cf_comment_types(cf);
+
+    /* Does the file's format support all the comments we have? */
+    if (wtap_dump_supports_comment_types(file_type, comment_types)) {
+        /* Yes.  Let the save happen; we can save all the comments, so
+           there's no need to delete them. */
         return SAVE;
     }
 
-    /* XXX - for now, we "know" that pcap-ng is the only format for which
-       we support comments.  We should really ask Wiretap what the
-       format in question supports (and handle different types of
-       comments, some but not all of which some file formats might
-       not support). */
-    if (file_type == WTAP_FILE_PCAPNG) {
-        /* Yes - they selected pcap-ng.  Let the save happen; we can
-         save the comments, so no need to delete them. */
-        return SAVE;
-    }
-    /* No. Is pcap-ng one of the formats in which we can write this file? */
-    if (wtap_dump_can_write_encaps(WTAP_FILE_PCAPNG, cf->linktypes)) {
+    /* No. Are there formats in which we can write this file that
+       supports all the comments in this file? */
+    if (wtap_dump_can_write(cf->linktypes, comment_types)) {
         QPushButton *default_button;
         /* Yes.  Offer the user a choice of "Save in a format that
            supports comments", "Discard comments and save in the
@@ -215,7 +209,7 @@ check_savability_t CaptureFileDialog::checkSaveAsWithComments(QWidget *
       break;
     }
     return CANCELLED;
-#endif // Q_WS_WIN
+#endif // Q_OS_WIN
 }
 
 
@@ -228,7 +222,7 @@ int CaptureFileDialog::exec() {
 
 
 // Windows
-#ifdef Q_WS_WIN
+#ifdef Q_OS_WIN
 int CaptureFileDialog::selectedFileType() {
     return file_type_;
 }
@@ -252,11 +246,11 @@ int CaptureFileDialog::open(QString &file_name) {
     return (int) wof_status;
 }
 
-check_savability_t CaptureFileDialog::saveAs(QString &file_name, bool must_support_comments) {
+check_savability_t CaptureFileDialog::saveAs(QString &file_name, bool must_support_all_comments) {
     GString *fname = g_string_new(file_name.toUtf8().constData());
     gboolean wsf_status;
 
-    wsf_status = win32_save_as_file(parentWidget()->effectiveWinId(), cap_file_, fname, &file_type_, &compressed_, must_support_comments);
+    wsf_status = win32_save_as_file(parentWidget()->effectiveWinId(), cap_file_, fname, &file_type_, &compressed_, must_support_all_comments);
     file_name = fname->str;
 
     g_string_free(fname, TRUE);
@@ -303,7 +297,7 @@ int CaptureFileDialog::mergeType() {
     return merge_type_;
 }
 
-#else // not Q_WS_WINDOWS
+#else // not Q_OS_WINDOWS
 QString CaptureFileDialog::fileType(int ft, bool extension_globs)
 {
     QString filter;
@@ -520,12 +514,12 @@ int CaptureFileDialog::open(QString &file_name) {
     }
 }
 
-check_savability_t CaptureFileDialog::saveAs(QString &file_name, bool must_support_comments) {
+check_savability_t CaptureFileDialog::saveAs(QString &file_name, bool must_support_all_comments) {
     setWindowTitle(tr("Wireshark: Save Capture File As"));
     // XXX There doesn't appear to be a way to use setNameFilters without restricting
     // what the user can select. We might want to use our own combobox instead and
     // let the user select anything.
-    setNameFilters(buildFileSaveAsTypeList(must_support_comments));
+    setNameFilters(buildFileSaveAsTypeList(must_support_all_comments));
     setAcceptMode(QFileDialog::AcceptSave);
     setLabelText(FileType, tr("Save as:"));
 
@@ -607,13 +601,24 @@ int CaptureFileDialog::merge(QString &file_name) {
     }
 }
 
-QStringList CaptureFileDialog::buildFileSaveAsTypeList(bool must_support_comments) {
+QStringList CaptureFileDialog::buildFileSaveAsTypeList(bool must_support_all_comments) {
     QStringList filters;
+    guint32 required_comment_types;
     GArray *savable_file_types;
     guint i;
 
     type_hash_.clear();
-    savable_file_types = wtap_get_savable_file_types(cap_file_->cd_t, cap_file_->linktypes);
+
+    /* What types of comments do we have to support? */
+    if (must_support_all_comments)
+        required_comment_types = cf_comment_types(cap_file_); /* all the ones the file has */
+    else
+        required_comment_types = 0; /* none of them */
+
+  /* What types of file can we save this file as? */
+    savable_file_types = wtap_get_savable_file_types(cap_file_->cd_t,
+                                                     cap_file_->linktypes,
+                                                     required_comment_types);
 
     if (savable_file_types != NULL) {
         QString file_type;
@@ -623,10 +628,6 @@ QStringList CaptureFileDialog::buildFileSaveAsTypeList(bool must_support_comment
            place.)  Add them all to the combo box.  */
         for (i = 0; i < savable_file_types->len; i++) {
             ft = g_array_index(savable_file_types, int, i);
-            if (must_support_comments) {
-                if (ft != WTAP_FILE_PCAPNG)
-                    continue;
-            }
             if (default_ft_ < 1)
                 default_ft_ = ft; /* first file type is the default */
             file_type = fileType(ft);
@@ -788,7 +789,7 @@ void CaptureFileDialog::on_buttonBox_helpRequested()
     if (help_topic_ != TOPIC_ACTION_NONE) wsApp->helpTopicAction(help_topic_);
 }
 
-#endif // Q_WS_WINDOWS
+#endif // Q_OS_WINDOWS
 
 /*
  * Editor modelines

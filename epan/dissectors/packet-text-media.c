@@ -157,6 +157,7 @@ proto_reg_handoff_text_lines(void)
 	dissector_add_string("media_type", "text/plain", text_lines_handle); /* RFC 2046 */
 	dissector_add_string("media_type", "text/richtext", text_lines_handle);  /* RFC 1341 */
 	dissector_add_string("media_type", "text/enriched", text_lines_handle);  /* RFC 1896 */
+	dissector_add_string("media_type", "text/parameters", text_lines_handle);
 	/* W3C line-based textual media */
 	dissector_add_string("media_type", "text/html", text_lines_handle);
 	dissector_add_string("media_type", "text/xml-external-parsed-entity", text_lines_handle);
@@ -164,6 +165,8 @@ proto_reg_handoff_text_lines(void)
 	dissector_add_string("media_type", "application/xml-external-parsed-entity", text_lines_handle);
 	dissector_add_string("media_type", "text/javascript", text_lines_handle);
 	dissector_add_string("media_type", "application/x-javascript", text_lines_handle);
+	dissector_add_string("media_type", "application/x-tia-p25-issi", text_lines_handle);
+	dissector_add_string("media_type", "application/x-tia-p25-sndcp", text_lines_handle);
 	dissector_add_string("media_type", "application/x-www-form-urlencoded", text_lines_handle);
 	dissector_add_string("media_type", "application/x-ns-proxy-autoconfig", text_lines_handle);
 
@@ -173,6 +176,5 @@ proto_reg_handoff_text_lines(void)
 
 	dissector_add_string("media_type", "application/x-wms-logplaystats", text_lines_handle);
 	dissector_add_string("media_type", "application/x-rtsp-udp-packetpair", text_lines_handle);
-
 	xml_handle = find_dissector("xml");
 }

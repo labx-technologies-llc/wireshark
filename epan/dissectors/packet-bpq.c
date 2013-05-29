@@ -49,6 +49,9 @@
 
 #define BPQ_HEADER_SIZE	2 /* length of bpq_len */
 
+void proto_register_bpq(void);
+void proto_reg_handoff_bpq(void);
+
 static dissector_handle_t ax25_handle;
 
 static int proto_bpq            = -1;
@@ -99,7 +102,7 @@ dissect_bpq( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 
 	saved_private_data = pinfo->private_data;
 	/* XXX - use the length */
-	next_tvb = tvb_new_subset( tvb, offset, -1, -1 );
+	next_tvb = tvb_new_subset_remaining( tvb, offset );
 	call_dissector( ax25_handle, next_tvb, pinfo, parent_tree );
 	pinfo->private_data = saved_private_data;
 }

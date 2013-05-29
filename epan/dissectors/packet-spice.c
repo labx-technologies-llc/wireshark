@@ -33,6 +33,7 @@
 
 #include <epan/packet.h>
 #include <epan/conversation.h>
+#include <epan/expert.h>
 #include <epan/emem.h>
 
 #define SPICE_MAGIC 0x52454451 /* = "REDQ" */
@@ -654,33 +655,10 @@ static const value_string brush_types_vs[] = {
     { 0, NULL }
 };
 
-typedef struct {
-    guint64   image;
-    point32_t position;
-} Pattern;
-
-#define sizeof_Pattern 16
-
-typedef struct {
-    guint8 type;
-    union {
-        guint32 color;
-        Pattern patten;
-    };
-} Brush;
-
-#define sizeof_Brush 17 /* for pattern */
-
 static const value_string Mask_flags_vs[] = {
     { 0, "MASK_FLAG_INVERS" },
     { 0, NULL }
 };
-
-typedef struct {
-    guint8    flags;
-    point32_t position;
-    guint32   bitmap;
-} Mask;
 
 #define sizeof_Mask 13
 
@@ -689,14 +667,6 @@ static const value_string scale_mode_vs[] = {
     { 1, "IMAGE_SCALE_NEAREST" },
     { 0, NULL }
 };
-
-typedef struct {
-    guint64 id;
-    guint8  type;
-    guint8  flag;
-    guint32 width;
-    guint32 height;
-} ImageDescriptor;
 
 #define sizeof_ImageDescriptor 18
 
@@ -1042,6 +1012,21 @@ static int hf_display_head_height = -1;
 static int hf_display_head_x = -1;
 static int hf_display_head_y = -1;
 static int hf_display_head_flags = -1;
+static int hf_zlib_uncompress_size = -1;
+static int hf_zlib_compress_size = -1;
+static int hf_rect_left = -1;
+static int hf_rect_top = -1;
+static int hf_rect_right = -1;
+static int hf_rect_bottom = -1;
+static int hf_point32_x = -1;
+static int hf_point32_y = -1;
+static int hf_point16_x = -1;
+static int hf_point16_y = -1;
+static int hf_severity = -1;
+static int hf_visibility = -1;
+static int hf_num_glyphs = -1;
+
+static expert_field ei_spice_decompress_error = EI_INIT;
 
 static dissector_handle_t jpeg_handle;
 
@@ -1170,7 +1155,7 @@ dissect_RedCursor(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
     offset += 2;
 
     type = dissect_CursorHeader(tvb, RedCursor_tree, offset, &width, &height);
-    offset += sizeof_CursorHeader;
+    offset += (int)sizeof_CursorHeader;
 
 
     if (((width == 0) || (height == 0)) || (flags == SPICE_CURSOR_FLAGS_FROM_CACHE)) {
@@ -1503,7 +1488,7 @@ dissect_ImageZLIB_GLZ_stream(tvbuff_t *tvb, proto_tree *ZLIB_GLZ_tree, packet_in
         Uncomp_tree = proto_item_add_subtree(ti, ett_Uncomp_tree);
         dissect_ImageGLZ_RGB(uncompressed_tvb, Uncomp_tree, 0, ZLIB_uncompSize);
     } else {
-        proto_tree_add_text(ZLIB_GLZ_tree, tvb, offset, -1, "Error: Unable to decompress content");
+        expert_add_info(pinfo, ti, &ei_spice_decompress_error);
     }
 }
 #else
@@ -1528,9 +1513,11 @@ dissect_ImageZLIB_GLZ(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint
         ti = proto_tree_add_text(tree, tvb, offset, ZLIB_GLZSize + 8, "ZLIB over GLZ Image");
         ZLIB_GLZ_tree = proto_item_add_subtree(ti, ett_ZLIB_GLZ);
 
-        proto_tree_add_text(ZLIB_GLZ_tree, tvb, offset, 4, "ZLIB stream uncompressed size: %u bytes", ZLIB_uncompSize);
+        ti = proto_tree_add_item(ZLIB_GLZ_tree, hf_zlib_uncompress_size, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+        proto_item_append_text(ti, " bytes");
         offset += 4;
-        proto_tree_add_text(ZLIB_GLZ_tree, tvb, offset, 4, "ZLIB stream compressed size: %u bytes", ZLIB_GLZSize);
+        ti = proto_tree_add_item(ZLIB_GLZ_tree, hf_zlib_compress_size, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+        proto_item_append_text(ti, " bytes");
         offset += 4;
         dissect_ImageZLIB_GLZ_stream(tvb, ZLIB_GLZ_tree, pinfo, offset, ZLIB_GLZSize, ZLIB_uncompSize);
     }
@@ -1545,7 +1532,7 @@ dissect_Image(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offse
     guint32      ImageSize = 0;
     const guint8 type      = dissect_ImageDescriptor(tvb, tree, offset);
 
-    offset += sizeof_ImageDescriptor;
+    offset += (int)sizeof_ImageDescriptor;
 
     switch (type) {
         case IMAGE_TYPE_QUIC:
@@ -1611,10 +1598,10 @@ dissect_SpiceRect(tvbuff_t *tvb, proto_tree *tree, const guint32 offset, const g
         }
         rect_tree = proto_item_add_subtree(ti, ett_rect);
 
-        proto_tree_add_text(rect_tree, tvb, offset,      4, "left: %u", rect.left);
-        proto_tree_add_text(rect_tree, tvb, offset + 4,  4, "top: %u", rect.top);
-        proto_tree_add_text(rect_tree, tvb, offset + 8,  4, "right: %u", rect.right);
-        proto_tree_add_text(rect_tree, tvb, offset + 12, 4, "bottom: %u", rect.bottom);
+        proto_tree_add_item(rect_tree, hf_rect_left, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(rect_tree, hf_rect_top, tvb, offset + 4, 4, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(rect_tree, hf_rect_right, tvb, offset + 8, 4, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(rect_tree, hf_rect_bottom, tvb, offset + 12, 4, ENC_LITTLE_ENDIAN);
     }
 
     return rect;
@@ -1643,7 +1630,7 @@ dissect_RectList(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
         offset += 4;
         for (i = 0; i < rectlist_size; i++ ) {
             dissect_SpiceRect(tvb, rectlist_tree, offset, i);
-            offset += sizeof_SpiceRect;
+            offset += (int)sizeof_SpiceRect;
         }
     }
 
@@ -1681,8 +1668,8 @@ dissect_POINT32(tvbuff_t *tvb, proto_tree *tree, const guint32 offset)
         ti = proto_tree_add_text(tree, tvb, offset, sizeof(point32_t), "POINT (%u, %u)", point.x, point.y);
         point_tree = proto_item_add_subtree(ti, ett_point);
 
-        proto_tree_add_text(point_tree, tvb, offset,     4, "x: %u", point.x);
-        proto_tree_add_text(point_tree, tvb, offset + 4, 4, "y: %u", point.y);
+        proto_tree_add_item(point_tree, hf_point32_x, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(point_tree, hf_point32_y, tvb, offset + 4, 4, ENC_LITTLE_ENDIAN);
     }
 
     return point;
@@ -1702,8 +1689,8 @@ dissect_POINT16(tvbuff_t *tvb, proto_tree *tree, const guint32 offset)
         ti = proto_tree_add_text(tree, tvb, offset, sizeof(point16_t), "POINT16 (%u, %u)", point16.x, point16.y);
         point16_tree = proto_item_add_subtree(ti, ett_point16);
 
-        proto_tree_add_text(point16_tree, tvb, offset,     2, "x: %u", point16.x);
-        proto_tree_add_text(point16_tree, tvb, offset + 2, 2, "y: %u", point16.y);
+        proto_tree_add_item(point16_tree, hf_point16_x, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(point16_tree, hf_point16_y, tvb, offset + 2, 2, ENC_LITTLE_ENDIAN);
     }
 
     return point16;
@@ -1719,12 +1706,12 @@ dissect_Mask(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
     ti = proto_tree_add_text(tree, tvb, offset, sizeof_Mask, "Mask");
     Mask_tree = proto_item_add_subtree(ti, ett_Mask);
 
-    bitmap = tvb_get_letohl(tvb, offset + sizeof(point32_t) + 1);
+    bitmap = tvb_get_letohl(tvb, offset + (int)sizeof(point32_t) + 1);
     if (bitmap != 0) {
         proto_tree_add_item(Mask_tree, hf_Mask_flag, tvb, offset, 1, ENC_NA);
         offset += 1;
         dissect_POINT32(tvb, Mask_tree, offset);
-        offset += sizeof(point32_t);
+        offset += (int)sizeof(point32_t);
         proto_tree_add_item(Mask_tree, hf_Mask_bitmap, tvb, offset, 4, ENC_LITTLE_ENDIAN);
         offset += 4;
         proto_item_set_len(ti, sizeof_Mask + sizeof_ImageDescriptor);
@@ -1734,7 +1721,7 @@ dissect_Mask(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
         proto_tree_add_text(Mask_tree, tvb, offset, 1, "Mask flag - value irrelevant as bitmap address is 0");
         offset += 1;
         proto_tree_add_text(Mask_tree, tvb, offset, sizeof(point32_t), "Point - value irrelevant as bitmap address is 0");
-        offset += sizeof(point32_t);
+        offset += (int)sizeof(point32_t);
         proto_tree_add_item(Mask_tree, hf_Mask_bitmap, tvb, offset, 4, ENC_LITTLE_ENDIAN);
     }
     return sizeof_Mask;
@@ -1798,9 +1785,9 @@ dissect_DisplayBase(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
     offset += 4;
     rect = dissect_SpiceRect(tvb, DisplayBase_tree, offset, -1);
     proto_item_append_text(ti, " - SpiceRect box (%u-%u, %u-%u)",rect.left, rect.top, rect.right, rect.bottom);
-    offset += sizeof_SpiceRect;
+    offset += (int)sizeof_SpiceRect;
     clip_type = dissect_Clip(tvb, DisplayBase_tree, offset);
-    offset += sizeof_Clip;
+    offset += (int)sizeof_Clip;
     if (clip_type == CLIP_TYPE_RECTS) {
         clip_size = dissect_RectList(tvb, DisplayBase_tree, offset);
         proto_item_set_len(ti, sizeof_DisplayBase + clip_size);
@@ -1936,7 +1923,7 @@ dissect_spice_common_server_messages(tvbuff_t *tvb, proto_tree *tree, const guin
 {
     proto_item *ti = NULL;
     proto_tree *server_message_tree;
-    guint32     message_len, severity, visibility;
+    guint32     message_len;
 
     switch (message_type) {
         /*
@@ -1971,14 +1958,9 @@ dissect_spice_common_server_messages(tvbuff_t *tvb, proto_tree *tree, const guin
             server_message_tree = proto_item_add_subtree(ti, ett_common_server_message);
             proto_tree_add_item(server_message_tree, hf_red_timestamp, tvb, offset, 8, ENC_LITTLE_ENDIAN);
             offset += 8;
-            /* TODO: properly dissect severity and visibility flags, using hf_ and proto_tree_add_item */
-            severity = tvb_get_letohl(tvb, offset);
-            proto_tree_add_text(server_message_tree, tvb, offset, 4,
-                                "Severity: %s (%d)", val_to_str_const(severity, spice_severity_vs, "unknown severity"), severity);
+            proto_tree_add_item(server_message_tree, hf_severity, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
-            visibility = tvb_get_letohl(tvb, offset);
-            proto_tree_add_text(server_message_tree, tvb, offset, 4,
-                                "Visibility: %s (%d)", val_to_str_const(visibility, spice_visibility_vs, "unknown visibility"), visibility);
+            proto_tree_add_item(server_message_tree, hf_visibility, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
             /*TODO: based on severity, dissect the error code */
             proto_tree_add_text(server_message_tree, tvb, offset, 4, "error/warning/info code: %d", tvb_get_letohl(tvb, offset));
@@ -2053,7 +2035,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
 {
     guint32    data_size, displayBaseLen;
     guint8     clip_type;
-    guint16    glyphs, count, i;
+    guint16    count, i;
     SpiceRect  r;
     tvbuff_t  *jpeg_tvb;
 
@@ -2080,7 +2062,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
             dissect_ID(tvb, tree, offset);
             offset += 4;
             dissect_SpiceRect(tvb, tree, offset, -1);
-            offset += sizeof_SpiceRect;
+            offset += (int)sizeof_SpiceRect;
             data_size = dissect_Image(tvb, tree, pinfo, offset);
             offset += data_size;
             break;
@@ -2093,7 +2075,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
             displayBaseLen = dissect_DisplayBase(tvb, tree, offset);
             offset += displayBaseLen;
             dissect_POINT32(tvb, tree, offset);
-            offset += sizeof(point32_t);
+            offset += (int)sizeof(point32_t);
             break;
         case SPICE_DISPLAY_DRAW_WHITENESS:
             displayBaseLen = dissect_DisplayBase(tvb, tree, offset);
@@ -2127,7 +2109,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
             offset += 4;
             /* source area */
             dissect_SpiceRect(tvb, tree, offset, -1);
-            offset += sizeof_SpiceRect;
+            offset += (int)sizeof_SpiceRect;
             proto_tree_add_item(tree, hf_tranparent_src_color, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
             proto_tree_add_item(tree, hf_tranparent_true_color, tvb, offset, 4, ENC_LITTLE_ENDIAN);
@@ -2145,7 +2127,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
 
             /* source area */
             dissect_SpiceRect(tvb, tree, offset, -1);
-            offset += sizeof_SpiceRect;
+            offset += (int)sizeof_SpiceRect;
 
             proto_tree_add_item(tree, hf_display_rop_descriptor, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset += 2;
@@ -2167,7 +2149,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
 
             /* source area */
             dissect_SpiceRect(tvb, tree, offset, -1);
-            offset += sizeof_SpiceRect;
+            offset += (int)sizeof_SpiceRect;
 
             data_size = dissect_Brush(tvb, tree, offset);
             offset += data_size;
@@ -2192,7 +2174,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
             offset += 4;
 
             r = dissect_SpiceRect(tvb, tree, offset, -1);
-            offset += sizeof_SpiceRect;
+            offset += (int)sizeof_SpiceRect;
             if (!rect_is_empty(r)) {
                 data_size = dissect_Brush(tvb, tree, offset);
                 offset += data_size;
@@ -2202,8 +2184,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
             proto_tree_add_item(tree, hf_display_text_back_mode, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset += 2;
 
-            glyphs = tvb_get_letohs(tvb, offset);
-            proto_tree_add_text(tree, tvb, offset, 2, "Number of glyphs: %u", glyphs);
+            proto_tree_add_item(tree, hf_num_glyphs, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset += 2;
             proto_tree_add_text(tree, tvb, offset, 2, "Glyph flags");
             /*TODO finish dissecting glyph list */
@@ -2218,7 +2199,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
             proto_tree_add_item(tree, hf_display_stream_id, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
             clip_type = dissect_Clip(tvb, tree, offset);
-            offset += sizeof_Clip;
+            offset += (int)sizeof_Clip;
             if (clip_type == CLIP_TYPE_RECTS) {
                 offset += dissect_RectList(tvb, tree, offset);
             }
@@ -2243,9 +2224,9 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
             proto_tree_add_item(tree, hf_display_stream_src_height, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
             dissect_SpiceRect(tvb, tree, offset, -1);
-            offset += sizeof_SpiceRect;
+            offset += (int)sizeof_SpiceRect;
             clip_type = dissect_Clip(tvb, tree, offset);
-            offset += sizeof_Clip;
+            offset += (int)sizeof_Clip;
             if (clip_type == CLIP_TYPE_RECTS) {
                 offset += dissect_RectList(tvb, tree, offset);
             }
@@ -2277,7 +2258,7 @@ dissect_spice_display_server(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
             proto_tree_add_item(tree, hf_display_stream_height, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
             dissect_SpiceRect(tvb, tree, offset, -1);
-            offset += sizeof_SpiceRect;
+            offset += (int)sizeof_SpiceRect;
             proto_tree_add_item(tree, hf_display_stream_data_size, tvb, offset, 4, ENC_LITTLE_ENDIAN);
             offset += 4;
             break;
@@ -2387,7 +2368,7 @@ dissect_spice_cursor_server(tvbuff_t *tvb, proto_tree *tree, const guint16 messa
     switch (message_type) {
         case SPICE_CURSOR_INIT:
             dissect_POINT16(tvb, tree, offset);
-            offset += sizeof(point16_t);
+            offset += (int)sizeof(point16_t);
             proto_tree_add_item(tree, hf_cursor_trail_len, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset += 2;
             proto_tree_add_item(tree, hf_cursor_trail_freq, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -2402,14 +2383,14 @@ dissect_spice_cursor_server(tvbuff_t *tvb, proto_tree *tree, const guint16 messa
             break;
         case SPICE_CURSOR_SET:
             dissect_POINT16(tvb, tree, offset);
-            offset += sizeof(point16_t);
+            offset += (int)sizeof(point16_t);
             offset +=1; /*TODO flags */
             RedCursorSize = dissect_RedCursor(tvb, tree, offset);
             offset += RedCursorSize;
             break;
         case SPICE_CURSOR_MOVE:
             dissect_POINT16(tvb, tree, offset);
-            offset += sizeof(point16_t);
+            offset += (int)sizeof(point16_t);
             break;
         case SPICE_CURSOR_HIDE:
             proto_tree_add_text(tree, tvb, offset, 0, "CURSOR_HIDE message");
@@ -2698,7 +2679,7 @@ dissect_spice_inputs_client(tvbuff_t *tvb, proto_tree *tree, const guint16 messa
             ti = proto_tree_add_text(tree, tvb, offset, sizeof(point32_t) + 3, "Client MOUSE_POSITION message");
             inputs_tree = proto_item_add_subtree(ti, ett_inputs_client);
             dissect_POINT32(tvb, inputs_tree, offset);
-            offset += sizeof(point32_t);
+            offset += (int)sizeof(point32_t);
             proto_tree_add_item(inputs_tree, hf_button_state, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset += 2;
             proto_tree_add_item(inputs_tree, hf_mouse_display_id, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -2708,7 +2689,7 @@ dissect_spice_inputs_client(tvbuff_t *tvb, proto_tree *tree, const guint16 messa
             ti = proto_tree_add_text(tree, tvb, offset, sizeof(point32_t) + 4, "Client MOUSE_MOTION message");
             inputs_tree = proto_item_add_subtree(ti, ett_inputs_client);
             dissect_POINT32(tvb, inputs_tree, offset);
-            offset += sizeof(point32_t);
+            offset += (int)sizeof(point32_t);
             proto_tree_add_item(inputs_tree, hf_button_state, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset += 2;
             break;
@@ -3094,7 +3075,7 @@ dissect_spice_link_server_pdu(tvbuff_t *tvb, proto_tree *tree, spice_conversatio
 
     common_caps_len  = tvb_get_letohl(tvb, offset + 4 + SPICE_TICKET_PUBKEY_BYTES);
     channel_caps_len = tvb_get_letohl(tvb, offset + 8 + SPICE_TICKET_PUBKEY_BYTES);
-    offset += sizeof_SpiceLinkHeader + SPICE_TICKET_PUBKEY_BYTES;
+    offset += (int)sizeof_SpiceLinkHeader + SPICE_TICKET_PUBKEY_BYTES;
 
     if (common_caps_len > 0) {
         ti = proto_tree_add_text(tree, tvb, offset, common_caps_len * 4,
@@ -3134,7 +3115,7 @@ dissect_spice(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 
     spice_info = (spice_conversation_t*)conversation_get_proto_data(conversation, proto_spice);
     if (!spice_info) {
-        spice_info = se_alloc0(sizeof(spice_conversation_t));
+        spice_info = se_new0(spice_conversation_t);
         spice_info->destport           = pinfo->destport;
         spice_info->channel_type       = SPICE_CHANNEL_NONE;
         spice_info->next_state         = SPICE_LINK_CLIENT;
@@ -3147,11 +3128,11 @@ dissect_spice(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
         conversation_set_dissector(conversation, spice_handle);
     }
 
-    per_packet_info = p_get_proto_data(pinfo->fd, proto_spice);
+    per_packet_info = (spice_packet_t *)p_get_proto_data(pinfo->fd, proto_spice, 0);
     if (!per_packet_info) {
-        per_packet_info = se_alloc(sizeof(spice_packet_t));
+        per_packet_info = se_new(spice_packet_t);
         per_packet_info->state = spice_info->next_state;
-        p_add_proto_data(pinfo->fd, proto_spice, per_packet_info);
+        p_add_proto_data(pinfo->fd, proto_spice, 0, per_packet_info);
     }
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "Spice");
@@ -4247,7 +4228,72 @@ proto_register_spice(void)
           { "Head flags", "spice.display_head_flags",
             FT_UINT32, BASE_DEC, NULL, 0x0,
             NULL, HFILL }
-        }
+        },
+        { &hf_zlib_uncompress_size,
+          { "ZLIB stream uncompressed size", "spice.zlib_uncompress_size",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_zlib_compress_size,
+          { "ZLIB stream compressed size", "spice.zlib_compress_size",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_rect_left,
+          { "left", "spice.rect.left",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_rect_top,
+          { "top", "spice.rect.top",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_rect_right,
+          { "right", "spice.rect.right",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_rect_bottom,
+          { "bottom", "spice.rect.bottom",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_point32_x,
+          { "x", "spice.point32.x",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_point32_y,
+          { "y", "spice.point32.y",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_point16_x,
+          { "x", "spice.point16.x",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_point16_y,
+          { "y", "spice.point16.y",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_severity,
+          { "Severity", "spice.severity",
+            FT_UINT32, BASE_DEC, VALS(spice_severity_vs), 0x0,
+            NULL, HFILL }
+        },
+        { &hf_visibility,
+          { "Visibility", "spice.visibility",
+            FT_UINT32, BASE_DEC, VALS(spice_visibility_vs), 0x0,
+            NULL, HFILL }
+        },
+        { &hf_num_glyphs,
+          { "Number of glyphs", "spice.num_glyphs",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }
+        },
     };
 
     /* Setup protocol subtree arrays */
@@ -4299,6 +4345,12 @@ proto_register_spice(void)
         &ett_cap_tree
     };
 
+    static ei_register_info ei[] = {
+        { &ei_spice_decompress_error, { "spice.decompress_error", PI_PROTOCOL, PI_WARN, "Error: Unable to decompress content", EXPFILL }},
+    };
+
+    expert_module_t* expert_spice;
+
     /* Register the protocol name and description */
     proto_spice = proto_register_protocol("Spice protocol",
                                           "Spice", "spice");
@@ -4306,6 +4358,8 @@ proto_register_spice(void)
     /* Required function calls to register the header fields and subtrees */
     proto_register_field_array(proto_spice, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_spice = expert_register_protocol(proto_spice);
+    expert_register_field_array(expert_spice, ei, array_length(ei));
 
 }
 

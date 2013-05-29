@@ -1113,6 +1113,9 @@ static const value_string cmd_le_test_pkt_payload[] = {
     { 0, NULL }
 };
 
+void proto_register_bthci_cmd(void);
+void proto_reg_handoff_bthci_cmd(void);
+
 static int 
 dissect_bthci_cmd_bd_addr(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
 {
@@ -1174,7 +1177,7 @@ dissect_bthci_cmd_cod(int type, tvbuff_t *tvb, int offset, packet_info *pinfo _U
 }
 
 static int 
-dissect_bthci_eir_ad_data(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, guint8 size)
+dissect_bthci_eir_ad_data(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 size)
 {
     guint8 length, type, data_size = size;
     guint16 i, j;
@@ -1187,26 +1190,26 @@ dissect_bthci_eir_ad_data(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, pro
     }
 
     i=0;
-    while(i<data_size){
-        length = tvb_get_guint8(tvb, offset+i);
+    while (i < data_size) {
+        length = tvb_get_guint8(tvb, offset + i);
         if (length != 0) {
 
             proto_item *ti_data_struct;
             proto_tree *ti_data_struct_subtree;
 
-            ti_data_struct = proto_tree_add_text(ti_data_subtree, tvb, offset+i, length+1, "%s", "");
+            ti_data_struct = proto_tree_add_text(ti_data_subtree, tvb, offset + i, length + 1, "%s", "");
             ti_data_struct_subtree = proto_item_add_subtree(ti_data_struct, ett_eir_struct_subtree);
 
-            type = tvb_get_guint8(tvb, offset+i+1);
+            type = tvb_get_guint8(tvb, offset + i + 1);
 
-            proto_item_append_text(ti_data_struct,"%s", val_to_str(type, bthci_cmd_eir_data_type_vals, "Unknown"));
+            proto_item_append_text(ti_data_struct, "%s", val_to_str_const(type, bthci_cmd_eir_data_type_vals, "Unknown"));
 
-            proto_tree_add_item(ti_data_struct_subtree,hf_bthci_cmd_eir_struct_length, tvb, offset+i, 1, ENC_LITTLE_ENDIAN);
-            proto_tree_add_item(ti_data_struct_subtree,hf_bthci_cmd_eir_struct_type, tvb, offset+i+1, 1, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(ti_data_struct_subtree,hf_bthci_cmd_eir_struct_length, tvb, offset + i, 1, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(ti_data_struct_subtree,hf_bthci_cmd_eir_struct_type, tvb, offset + i + 1, 1, ENC_LITTLE_ENDIAN);
 
             switch (type) {
                 case 0x01: /* flags */
-                    if(length-1 > 0)
+                    if (length > 1)
                     {
                         proto_tree_add_item(ti_data_struct_subtree, hf_bthci_cmd_flags_limited_disc_mode, tvb, offset+i+2, 1, ENC_LITTLE_ENDIAN);
                         proto_tree_add_item(ti_data_struct_subtree, hf_bthci_cmd_flags_general_disc_mode, tvb, offset+i+2, 1, ENC_LITTLE_ENDIAN);
@@ -1259,7 +1262,7 @@ dissect_bthci_eir_ad_data(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, pro
                     proto_tree_add_item(ti_data_struct_subtree, hf_bthci_cmd_hash_c, tvb, offset+i+2, 16, ENC_NA);
                     break;
                 case 0x0F: /* Simple Pairing Randomizer R */
-                    proto_tree_add_item(ti_data_struct_subtree, hf_bthci_cmd_randomizer_r, tvb, offset+i+2, 16, ENC_NA);
+                    proto_tree_add_item(ti_data_struct_subtree, hf_bthci_cmd_randomizer_r, tvb, offset + i + 2, 16, ENC_NA);
                     break;
                 case 0x11: /* Security Manager OOB Flags */
                     proto_tree_add_item(ti_data_struct_subtree, hf_bthci_cmd_flags_le_oob_data_present, tvb, offset+i+2, 1, ENC_LITTLE_ENDIAN);
@@ -1296,7 +1299,7 @@ dissect_bthci_eir_ad_data(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, pro
                     break;
                 }
                 default:
-                    proto_tree_add_item(ti_data_struct_subtree, hf_bthci_cmd_eir_data, tvb, offset+i+2, length-1, ENC_LITTLE_ENDIAN);
+                    proto_tree_add_item(ti_data_struct_subtree, hf_bthci_cmd_eir_data, tvb, offset + i + 2, length - 1, ENC_NA);
                     break;
             }
             i += length+1;
@@ -1335,7 +1338,7 @@ dissect_bthci_cmd_flow_spec(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, p
 }
 
 static int
-dissect_link_control_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, guint16 cmd_ocf)
+dissect_link_control_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint16 cmd_ocf)
 {
     proto_item *item;
     guint32     clock_value;
@@ -1612,9 +1615,9 @@ dissect_link_control_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, prot
         case 0x0030: /* Remote OOB Data Request Reply */
             offset = dissect_bthci_cmd_bd_addr(tvb, offset, pinfo, tree);
 
-            proto_tree_add_item(tree, hf_bthci_cmd_hash_c, tvb, offset, 16, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(tree, hf_bthci_cmd_hash_c, tvb, offset, 16, ENC_NA);
             offset+=16;
-            proto_tree_add_item(tree, hf_bthci_cmd_randomizer_r, tvb, offset, 16, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(tree, hf_bthci_cmd_randomizer_r, tvb, offset, 16, ENC_NA);
             offset+=16;
             break;
 
@@ -1673,7 +1676,7 @@ dissect_link_control_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, prot
 }
 
 static int
-dissect_link_policy_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, guint16 cmd_ocf)
+dissect_link_policy_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint16 cmd_ocf)
 {
     proto_item *item;
     guint16     timeout;
@@ -1816,7 +1819,7 @@ return offset;
 }
 
 static int
-dissect_host_controller_baseband_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
+dissect_host_controller_baseband_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo,
         proto_tree *tree, guint16 cmd_ocf)
 {
     proto_item *item;
@@ -2269,9 +2272,9 @@ dissect_host_controller_baseband_cmd(tvbuff_t *tvb, int offset, packet_info *pin
         case 0x0065: /* Write Location Data */
             proto_tree_add_item(tree, hf_bthci_cmd_location_domain_aware, tvb, offset, 1, ENC_LITTLE_ENDIAN);
             offset++;
-            proto_tree_add_item(tree, hf_bthci_cmd_location_domain, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(tree, hf_bthci_cmd_location_domain, tvb, offset, 2, ENC_ASCII | ENC_NA);
             offset+=2;
-            proto_tree_add_item(tree, hf_bthci_cmd_location_domain_options, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(tree, hf_bthci_cmd_location_domain_options, tvb, offset, 1, ENC_ASCII | ENC_NA);
             offset++;
             proto_tree_add_item(tree, hf_bthci_cmd_location_options, tvb, offset, 1, ENC_LITTLE_ENDIAN);
             offset++;
@@ -2430,8 +2433,8 @@ dissect_testing_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tre
 return offset;
 }
 
-static void
-dissect_le_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, guint16 cmd_ocf)
+static gint
+dissect_le_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint16 cmd_ocf)
 {
     proto_item *item;
 
@@ -2571,7 +2574,7 @@ dissect_le_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tr
             break;
 
         case 0x0014: /* LE Set Host Channel Classification */
-            proto_tree_add_item(tree, hf_bthci_cmd_le_channel_map, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(tree, hf_bthci_cmd_le_channel_map, tvb, offset, 2, ENC_NA);
             offset+=5;
             break;
 
@@ -2628,6 +2631,8 @@ dissect_le_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tr
             offset+=tvb_length_remaining(tvb, offset);
             break;
     }
+
+    return offset;
 }
 
 /* Code to actually dissect the packets */
@@ -2639,9 +2644,21 @@ dissect_bthci_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint16     opcode, ocf;
     guint8      param_length, ogf;
     int         offset         = 0;
-
     proto_item *ti_opcode;
     proto_tree *opcode_tree;
+
+    switch (pinfo->p2p_dir) {
+        case P2P_DIR_SENT:
+            col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
+    }
 
     if (tree) {
         ti_cmd = proto_tree_add_item(tree, proto_bthci_cmd, tvb, offset, -1, ENC_NA);
@@ -2656,7 +2673,7 @@ dissect_bthci_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "HCI_CMD");
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, " %s", val_to_str_ext(opcode, &bthci_cmd_opcode_vals_ext, "Unknown 0x%04x"));
+    col_append_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str_ext(opcode, &bthci_cmd_opcode_vals_ext, "Unknown 0x%04x"));
 
     ti_opcode = proto_tree_add_item(bthci_cmd_tree, hf_bthci_cmd_opcode, tvb, offset, 2, ENC_LITTLE_ENDIAN);
     opcode_tree = proto_item_add_subtree(ti_opcode, ett_opcode);

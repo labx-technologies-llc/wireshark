@@ -46,6 +46,7 @@
 
 #include "ui/capture_globals.h"
 #include "ui/iface_lists.h"
+#include "ui/preference_utils.h"
 #include "ui/recent.h"
 #include "ui/recent_utils.h"
 #include "ui/simple_dialog.h"
@@ -281,9 +282,6 @@ capture_dlg_prep(gpointer parent_w);
 static GtkTreeModel*
 create_and_fill_model(GtkTreeView *view);
 
-void
-update_visible_columns_menu (void);
-
 static void
 update_options_table(gint indx);
 
@@ -326,6 +324,24 @@ gchar *col_index_to_name(gint indx)
     default: return NULL;
     }
     return col_name;
+}
+
+static
+gint col_title_to_index(gchar *name)
+{
+  if (strcmp(name, "Capture") == 0) return CAPTURE;
+  if (strcmp(name, "Interface") == 0) return INTERFACE;
+  if (strcmp(name, "Link-layer header") == 0) return LINK;
+  if (strcmp(name, "Prom. Mode") == 0) return PMODE;
+  if (strcmp(name, "Snaplen [B]") == 0) return SNAPLEN;
+#if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
+  if (strcmp(name, "Buffer [MB]") == 0) return BUFFER;
+#endif
+#if defined (HAVE_PCAP_CREATE)
+  if (strcmp(name, "Mon. Mode") == 0) return MONITOR;
+#endif
+  if (strcmp(name, "Capture Filter") == 0) return FILTER;
+  return -1;
 }
 
 static void
@@ -426,7 +442,7 @@ update_visible_columns_menu (void)
   sub_menu = gtk_menu_new();
   gtk_menu_item_set_submenu (GTK_MENU_ITEM(menu_columns), sub_menu);
 
-  for (col_id = 2; col_id < NUM_COLUMNS; col_id++) {
+  for (col_id = 3; col_id < NUM_COLUMNS; col_id++) {
     title = col_index_to_name(col_id);
     menu_item = gtk_check_menu_item_new_with_label(title);
     gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menu_item), prefs_capture_options_dialog_column_is_visible(title));
@@ -496,7 +512,7 @@ activate_monitor(GtkTreeViewColumn *tree_column, GtkCellRenderer *renderer,
                  GtkTreeModel *tree_model, GtkTreeIter *iter, gpointer data);
 #endif
 
-void
+static void
 init_columns_menu(void)
 {
   GtkActionGroup *columns_action_group;
@@ -507,7 +523,7 @@ init_columns_menu(void)
   columns_action_group = gtk_action_group_new ("ColumnsPopUpMenuActionGroup");
 
   gtk_action_group_add_actions (columns_action_group,            /* the action group */
-      (gpointer)columns_menu_popup_action_entries,               /* an array of action descriptions */
+      (GtkActionEntry *)columns_menu_popup_action_entries,       /* an array of action descriptions */
       G_N_ELEMENTS(columns_menu_popup_action_entries),           /* the number of entries */
       columns_menu_object);                                      /* data to pass to the action callbacks */
 
@@ -539,7 +555,7 @@ capture_stop_cb(GtkWidget *w _U_, gpointer d _U_)
     airpcap_set_toolbar_stop_capture(airpcap_if_active);
 #endif
 
-  capture_stop(&global_capture_opts);
+  capture_stop(&global_capture_session);
 }
 
 /* restart (stop - delete old file - start) running capture */
@@ -551,7 +567,7 @@ capture_restart_cb(GtkWidget *w _U_, gpointer d _U_)
     airpcap_set_toolbar_start_capture(airpcap_if_active);
 #endif
 
-  capture_restart(&global_capture_opts);
+  capture_restart(&global_capture_session);
 }
 
 enum cfc_state_t {
@@ -666,11 +682,11 @@ void capture_filter_init(void) {
   cfc_data.state = CFC_PENDING;
 
 #if GLIB_CHECK_VERSION(2,31,0)
-  pcap_compile_mtx = g_malloc(sizeof(GMutex));
+  pcap_compile_mtx = g_new(GMutex,1);
   g_mutex_init(pcap_compile_mtx);
-  cfc_data_cond = g_malloc(sizeof(GCond));
+  cfc_data_cond = g_new(GCond,1);
   g_cond_init(cfc_data_cond);
-  cfc_data_mtx = g_malloc(sizeof(GMutex));
+  cfc_data_mtx = g_new(GMutex,1);
   g_mutex_init(cfc_data_mtx);
   g_thread_new("Capture filter syntax", check_capture_filter_syntax, NULL);
 #else
@@ -736,7 +752,7 @@ capture_all_filter_check_syntax_cb(GtkWidget *w _U_, gpointer user_data _U_)
       filter_text = gtk_combo_box_text_get_active_text (GTK_COMBO_BOX_TEXT(filter_cm));
       if (strlen(filter_text) == 0) {
         colorize_filter_te_as_empty(filter_te);
-        if (strlen(device.cfilter) == 1) {
+        if (strlen(device.cfilter) > 0) {
           g_array_remove_index(global_capture_opts.all_ifaces, i);
           device.cfilter = g_strdup(filter_text);
           g_array_insert_val(global_capture_opts.all_ifaces, i, device);
@@ -1247,11 +1263,17 @@ insert_new_rows(GList *list)
       device.display_name = g_strdup(if_string);
     }
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-    device.buffer = global_capture_opts.default_options.buffer_size;
+    if ((device.buffer = capture_dev_user_buffersize_find(if_string)) == -1) {
+      device.buffer = global_capture_opts.default_options.buffer_size;
+    }
 #endif
-    device.pmode = global_capture_opts.default_options.promisc_mode;
+    if ((device.pmode = capture_dev_user_pmode_find(if_string)) == -1) {
+      device.pmode = global_capture_opts.default_options.promisc_mode;
+    }
     device.has_snaplen = global_capture_opts.default_options.has_snaplen;
-    device.snaplen = global_capture_opts.default_options.snaplen;
+    if ((device.snaplen = capture_dev_user_snaplen_find(if_string)) == -1) {
+      device.snaplen = global_capture_opts.default_options.snaplen;
+    }
     device.cfilter = g_strdup(global_capture_opts.default_options.cfilter);
     monitor_mode = prefs_capture_device_monitor_mode(if_string);
     caps = capture_get_if_capabilities(if_string, monitor_mode, NULL);
@@ -1335,6 +1357,8 @@ insert_new_rows(GList *list)
     device.remote_opts.sampling_method = global_remote_opts.sampling_method;
     device.remote_opts.sampling_param = global_remote_opts.sampling_param;
 #endif
+    device.selected = TRUE;
+    global_capture_opts.num_selected++;
     g_array_append_val(global_capture_opts.all_ifaces, device);
     if (device.has_snaplen) {
       snaplen_string = g_strdup_printf("%d", device.snaplen);
@@ -1343,9 +1367,9 @@ insert_new_rows(GList *list)
     }
 
 #if defined(HAVE_PCAP_CREATE)
-    gtk_list_store_set (GTK_LIST_STORE(model), &iter, CAPTURE, FALSE, IFACE_HIDDEN_NAME, device.name, INTERFACE, temp, LINK, link_type_name, PMODE, (device.pmode?"enabled":"disabled"), SNAPLEN, snaplen_string, BUFFER, (guint) global_capture_opts.default_options.buffer_size, MONITOR, "no",FILTER, "",-1);
+    gtk_list_store_set (GTK_LIST_STORE(model), &iter, CAPTURE, FALSE, IFACE_HIDDEN_NAME, device.name, INTERFACE, temp, LINK, link_type_name, PMODE, (device.pmode?"enabled":"disabled"), SNAPLEN, snaplen_string, BUFFER, device.buffer, MONITOR, "no",FILTER, "",-1);
 #elif defined(_WIN32) && !defined(HAVE_PCAP_CREATE)
-    gtk_list_store_set (GTK_LIST_STORE(model), &iter, CAPTURE, FALSE, IFACE_HIDDEN_NAME, device.name, INTERFACE, temp, LINK, link_type_name, PMODE, (device.pmode?"enabled":"disabled"), SNAPLEN, snaplen_string, BUFFER, (guint) global_capture_opts.default_options.buffer_size, FILTER, "",-1);
+    gtk_list_store_set (GTK_LIST_STORE(model), &iter, CAPTURE, FALSE, IFACE_HIDDEN_NAME, device.name, INTERFACE, temp, LINK, link_type_name, PMODE, (device.pmode?"enabled":"disabled"), SNAPLEN, snaplen_string, BUFFER, device.buffer, FILTER, "",-1);
  #else
     gtk_list_store_set (GTK_LIST_STORE(model), &iter, CAPTURE, FALSE, IFACE_HIDDEN_NAME, device.name, INTERFACE, temp, LINK, link_type_name, PMODE, (device.pmode?"enabled":"disabled"), SNAPLEN, snaplen_string, -1);
 #endif
@@ -1366,14 +1390,14 @@ update_interface_list(void)
 {
   GtkWidget *iftype_cbx;
   GList     *if_list, *if_r_list;
-  int        iftype, err;
+  int        iftype_id, err;
   gchar     *err_str;
 
   if (cap_open_w == NULL)
     return;
   iftype_cbx = (GtkWidget *)g_object_get_data(G_OBJECT(g_object_get_data(G_OBJECT(interface_management_w), E_CAP_REMOTE_DIALOG_PTR_KEY)), E_REMOTE_HOST_TE_KEY);
-  iftype = CAPTURE_IFREMOTE;
-  if (iftype >= CAPTURE_IFREMOTE) {
+  iftype_id = CAPTURE_IFREMOTE;
+  if (iftype_id >= CAPTURE_IFREMOTE) {
     if_r_list = get_remote_interface_list(global_remote_opts.remote_host_opts.remote_host,
                                         global_remote_opts.remote_host_opts.remote_port,
                                         global_remote_opts.remote_host_opts.auth_type,
@@ -1392,12 +1416,12 @@ update_interface_list(void)
     gpointer dialog = simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", err_str);
     g_free(err_str);
 
-    if (iftype >= CAPTURE_IFREMOTE) {
+    if (iftype_id >= CAPTURE_IFREMOTE) {
       /* Fall back to previous interface list */
       simple_dialog_set_cb(dialog, error_list_remote_interface_cb, iftype_cbx);
       return;
     }
-  } else if (iftype == CAPTURE_IFREMOTE) {
+  } else if (iftype_id == CAPTURE_IFREMOTE) {
     /* New remote interface */
     insert_new_rows(if_list);
     refresh_non_local_interface_lists();
@@ -1541,10 +1565,10 @@ static void
 capture_remote_cb(GtkWidget *w, gboolean focus_username)
 {
   GtkWidget *remote_w,
-            *main_vb, *host_tb,
+            *main_vb, *host_grid,
             *host_lb, *host_te, *port_lb, *port_te,
             *auth_fr, *auth_vb,
-            *auth_null_rb, *auth_passwd_rb, *auth_passwd_tb,
+            *auth_null_rb, *auth_passwd_rb, *auth_passwd_grid,
             *user_lb, *user_te, *passwd_lb, *passwd_te,
             *bbox, *ok_but, *cancel_bt;
   gchar     *title;
@@ -1552,6 +1576,7 @@ capture_remote_cb(GtkWidget *w, gboolean focus_username)
 
   title = create_user_window_title("Wireshark: Remote Interface");
   remote_w = dlg_window_new(title);
+  gtk_window_set_transient_for(GTK_WINDOW(remote_w), GTK_WINDOW(interface_management_w));
   g_object_set_data(G_OBJECT(remote_w), E_CAP_REMOTE_CALLER_PTR_KEY, interface_management_w);
   g_object_set_data(G_OBJECT(interface_management_w), E_CAP_REMOTE_DIALOG_PTR_KEY, remote_w);
   g_free(title);
@@ -1561,26 +1586,26 @@ capture_remote_cb(GtkWidget *w, gboolean focus_username)
   gtk_container_add(GTK_CONTAINER(remote_w), main_vb);
 
   /* Host/port table */
-  host_tb = gtk_table_new(2, 2, FALSE);
-  gtk_table_set_row_spacings(GTK_TABLE(host_tb), 3);
-  gtk_table_set_col_spacings(GTK_TABLE(host_tb), 3);
-  gtk_box_pack_start(GTK_BOX(main_vb), host_tb, FALSE, FALSE, 0);
+  host_grid = ws_gtk_grid_new();
+  ws_gtk_grid_set_row_spacing(GTK_GRID(host_grid), DLG_LABEL_SPACING);
+  ws_gtk_grid_set_column_spacing(GTK_GRID(host_grid), DLG_UNRELATED_SPACING);
+  gtk_box_pack_start(GTK_BOX(main_vb), host_grid, FALSE, FALSE, 0);
 
   /* Host row */
   host_lb = gtk_label_new("Host:");
-  gtk_table_attach_defaults(GTK_TABLE(host_tb), host_lb, 0, 1, 0, 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID (host_grid), host_lb, 0, 0, 1, 1);
 
   host_te = iftype_combo_box_new();
-  gtk_table_attach_defaults(GTK_TABLE(host_tb), host_te, 1, 2, 0, 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID (host_grid), host_te, 1, 0, 1, 1);
 
   /* Port row */
   port_lb = gtk_label_new("Port:");
-  gtk_table_attach_defaults(GTK_TABLE(host_tb), port_lb, 0, 1, 1, 2);
+  ws_gtk_grid_attach_defaults(GTK_GRID (host_grid), port_lb, 0, 1, 1, 1);
 
   port_te = gtk_entry_new();
   gtk_widget_set_tooltip_text(port_te, "Enter the TCP port number used by RPCAP server at remote host "
                               "(leave it empty for default port number).");
-  gtk_table_attach_defaults(GTK_TABLE(host_tb), port_te, 1, 2, 1, 2);
+  ws_gtk_grid_attach_defaults(GTK_GRID (host_grid), port_te, 1, 1, 1, 1);
 
   /* Authentication options frame */
   auth_fr = gtk_frame_new("Authentication");
@@ -1601,23 +1626,24 @@ capture_remote_cb(GtkWidget *w, gboolean focus_username)
   g_signal_connect(auth_passwd_rb, "toggled",
                    G_CALLBACK(capture_remote_adjust_sensitivity), remote_w);
 
-  auth_passwd_tb = gtk_table_new(2, 2, FALSE);
-  gtk_table_set_row_spacings(GTK_TABLE(auth_passwd_tb), 3);
-  gtk_table_set_col_spacings(GTK_TABLE(auth_passwd_tb), 3);
-  gtk_box_pack_start(GTK_BOX(auth_vb), auth_passwd_tb, FALSE, FALSE, 0);
+  auth_passwd_grid = ws_gtk_grid_new();
+  ws_gtk_grid_set_row_spacing(GTK_GRID(auth_passwd_grid), DLG_LABEL_SPACING);
+  ws_gtk_grid_set_column_spacing(GTK_GRID(auth_passwd_grid), DLG_UNRELATED_SPACING);
+
+  gtk_box_pack_start(GTK_BOX(auth_vb), auth_passwd_grid, FALSE, FALSE, 0);
 
   user_lb = gtk_label_new("Username:");
-  gtk_table_attach_defaults(GTK_TABLE(auth_passwd_tb), user_lb, 0, 1, 0, 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID (auth_passwd_grid), user_lb, 0, 0, 1, 1);
 
   user_te = gtk_entry_new();
-  gtk_table_attach_defaults(GTK_TABLE(auth_passwd_tb), user_te, 1, 2, 0, 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID (auth_passwd_grid), user_te, 1, 0, 1, 1);
 
   passwd_lb = gtk_label_new("Password:");
-  gtk_table_attach_defaults(GTK_TABLE(auth_passwd_tb), passwd_lb, 0, 1, 1, 2);
+  ws_gtk_grid_attach_defaults(GTK_GRID (auth_passwd_grid), passwd_lb, 0, 1, 1, 1);
 
   passwd_te = gtk_entry_new();
   gtk_entry_set_visibility(GTK_ENTRY(passwd_te), FALSE);
-  gtk_table_attach_defaults(GTK_TABLE(auth_passwd_tb), passwd_te, 1, 2, 1, 2);
+  ws_gtk_grid_attach_defaults(GTK_GRID (auth_passwd_grid), passwd_te, 1, 1, 1, 1);
 
   /* Button row: "Start" and "Cancel" buttons */
   bbox = dlg_button_row_new(GTK_STOCK_OK, GTK_STOCK_CANCEL, NULL);
@@ -1759,7 +1785,7 @@ options_remote_cb(GtkWidget *w _U_, gpointer d _U_)
   GtkWidget     *capture_fr, *capture_vb;
   GtkWidget     *nocap_rpcap_cb, *datatx_udp_cb;
 #ifdef HAVE_PCAP_SETSAMPLING
-  GtkWidget     *sampling_fr, *sampling_vb, *sampling_tb, *sampling_lb,
+  GtkWidget     *sampling_fr, *sampling_vb, *sampling_grid, *sampling_lb,
                 *samp_none_rb, *samp_count_rb, *samp_timer_rb,
                 *samp_count_sb, *samp_timer_sb;
   GtkAdjustment *samp_count_adj, *samp_timer_adj;
@@ -1776,6 +1802,10 @@ options_remote_cb(GtkWidget *w _U_, gpointer d _U_)
 
   device = g_array_index(global_capture_opts.all_ifaces, interface_t, marked_interface);
   opt_remote_w = dlg_window_new("Remote Capture Settings");
+  gtk_window_set_modal(GTK_WINDOW(opt_remote_w), TRUE);
+  gtk_window_set_transient_for(GTK_WINDOW(opt_remote_w), GTK_WINDOW(caller));
+  gtk_window_set_type_hint(GTK_WINDOW(opt_remote_w), GDK_WINDOW_TYPE_HINT_DIALOG);
+
   g_object_set_data(G_OBJECT(opt_remote_w), E_OPT_REMOTE_CALLER_PTR_KEY, caller);
   g_object_set_data(G_OBJECT(caller), E_OPT_REMOTE_DIALOG_PTR_KEY, opt_remote_w);
 
@@ -1811,10 +1841,10 @@ options_remote_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_container_set_border_width(GTK_CONTAINER(sampling_vb), 5);
   gtk_container_add(GTK_CONTAINER(sampling_fr), sampling_vb);
 
-  sampling_tb = gtk_table_new(3, 3, FALSE);
-  gtk_table_set_row_spacings(GTK_TABLE(sampling_tb), 1);
-  gtk_table_set_col_spacings(GTK_TABLE(sampling_tb), 3);
-  gtk_box_pack_start(GTK_BOX(sampling_vb), sampling_tb, FALSE, FALSE, 0);
+  sampling_grid = ws_gtk_grid_new();
+  ws_gtk_grid_set_row_spacing(GTK_GRID(sampling_grid), DLG_LABEL_SPACING);
+  ws_gtk_grid_set_column_spacing(GTK_GRID(sampling_grid), DLG_UNRELATED_SPACING);
+  gtk_box_pack_start(GTK_BOX(sampling_vb), sampling_grid, FALSE, FALSE, 0);
 
   /* "No sampling" row */
   samp_none_rb = gtk_radio_button_new_with_label(NULL, "None");
@@ -1822,7 +1852,7 @@ options_remote_cb(GtkWidget *w _U_, gpointer d _U_)
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(samp_none_rb), TRUE);
   g_signal_connect(samp_none_rb, "toggled",
                  G_CALLBACK(options_prep_adjust_sensitivity), opt_remote_w);
-  gtk_table_attach_defaults(GTK_TABLE(sampling_tb), samp_none_rb, 0, 1, 0, 1);
+  ws_gtk_grid_attach_defaults(GTK_GRID (sampling_grid), samp_none_rb, 0, 0, 1, 1);
 
   /* "Sampling by counter" row */
   samp_group = gtk_radio_button_get_group(GTK_RADIO_BUTTON(samp_none_rb));
@@ -1831,18 +1861,18 @@ options_remote_cb(GtkWidget *w _U_, gpointer d _U_)
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(samp_count_rb), TRUE);
   g_signal_connect(samp_count_rb, "toggled",
                  G_CALLBACK(options_prep_adjust_sensitivity), opt_remote_w);
-  gtk_table_attach_defaults(GTK_TABLE(sampling_tb), samp_count_rb, 0, 1, 1, 2);
+  ws_gtk_grid_attach_defaults(GTK_GRID (sampling_grid), samp_count_rb, 0, 1, 1, 1);
 
   samp_count_adj = (GtkAdjustment *) gtk_adjustment_new(
                         (gfloat)device.remote_opts.sampling_param,
                         1, (gfloat)INT_MAX, 1.0, 10.0, 0.0);
   samp_count_sb = gtk_spin_button_new(samp_count_adj, 0, 0);
   gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(samp_count_sb), TRUE);
-  gtk_table_attach_defaults(GTK_TABLE(sampling_tb), samp_count_sb, 1, 2, 1, 2);
+  ws_gtk_grid_attach_defaults(GTK_GRID (sampling_grid), samp_count_sb, 1, 1, 1, 1);
 
   sampling_lb = gtk_label_new("packets");
-  gtk_misc_set_alignment(GTK_MISC(sampling_lb), 0, 0.5);
-  gtk_table_attach_defaults(GTK_TABLE(sampling_tb), sampling_lb, 2, 3, 1, 2);
+  gtk_misc_set_alignment(GTK_MISC(sampling_lb), 0, 0.5f);
+  ws_gtk_grid_attach_defaults(GTK_GRID (sampling_grid), sampling_lb, 2, 1, 1, 1);
 
   /* "Sampling by timer" row */
   samp_group = gtk_radio_button_get_group(GTK_RADIO_BUTTON(samp_count_rb));
@@ -1851,18 +1881,18 @@ options_remote_cb(GtkWidget *w _U_, gpointer d _U_)
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(samp_timer_rb), TRUE);
   g_signal_connect(samp_timer_rb, "toggled",
                  G_CALLBACK(options_prep_adjust_sensitivity), opt_remote_w);
-  gtk_table_attach_defaults(GTK_TABLE(sampling_tb), samp_timer_rb, 0, 1, 2, 3);
+  ws_gtk_grid_attach_defaults(GTK_GRID (sampling_grid), samp_timer_rb, 0, 2, 1, 1);
 
   samp_timer_adj = (GtkAdjustment *) gtk_adjustment_new(
                         (gfloat)device.remote_opts.sampling_param,
                         1, (gfloat)INT_MAX, 1.0, 10.0, 0.0);
   samp_timer_sb = gtk_spin_button_new(samp_timer_adj, 0, 0);
   gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(samp_timer_sb), TRUE);
-  gtk_table_attach_defaults(GTK_TABLE(sampling_tb), samp_timer_sb, 1, 2, 2, 3);
+  ws_gtk_grid_attach_defaults(GTK_GRID(sampling_grid), samp_timer_sb, 1, 2, 1, 1);
 
   sampling_lb = gtk_label_new("milliseconds");
-  gtk_misc_set_alignment(GTK_MISC(sampling_lb), 0, 0.5);
-  gtk_table_attach_defaults(GTK_TABLE(sampling_tb), sampling_lb, 2, 3, 2, 3);
+  gtk_misc_set_alignment(GTK_MISC(sampling_lb), 0, 0.5f);
+  ws_gtk_grid_attach_defaults(GTK_GRID (sampling_grid), sampling_lb, 2, 2, 1, 1);
 #endif
 
   /* Button row: "Start" and "Cancel" buttons */
@@ -1921,7 +1951,7 @@ capture_remote_combo_recent_write_all(FILE *rf)
 }
 
 gboolean
-capture_remote_combo_add_recent(gchar *s)
+capture_remote_combo_add_recent(const gchar *s)
 {
   GList *vals = prefs_get_string_list (s);
   GList *valp = vals;
@@ -1996,7 +2026,7 @@ select_first_entry(void)
   GtkTreeIter       iter;
   GtkTreeSelection *selection;
 
-  view = g_object_get_data(G_OBJECT(compile_bpf_w), E_COMPILE_TREE_VIEW_INTERFACES);
+  view = (GtkWidget *)g_object_get_data(G_OBJECT(compile_bpf_w), E_COMPILE_TREE_VIEW_INTERFACES);
   model = gtk_tree_view_get_model(GTK_TREE_VIEW(view));
   gtk_tree_model_get_iter_first(model, &iter);
   selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view));
@@ -2010,7 +2040,7 @@ add_page(gchar *name, gchar *text, gboolean error)
   GtkTreeModel *model;
   GtkTreeIter   iter;
 
-  view = g_object_get_data(G_OBJECT(compile_bpf_w), E_COMPILE_TREE_VIEW_INTERFACES);
+  view = (GtkWidget *)g_object_get_data(G_OBJECT(compile_bpf_w), E_COMPILE_TREE_VIEW_INTERFACES);
   model = gtk_tree_view_get_model(GTK_TREE_VIEW(view));
   gtk_list_store_append (GTK_LIST_STORE(model), &iter);
   if (error) {
@@ -2037,11 +2067,11 @@ compile_tree_select_cb(GtkTreeSelection *sel, gpointer dummy _U_)
   {
     gtk_tree_model_get(model, &iter, COMPILE_ERROR, &error, INAME, &name, -1);
     text = (gchar *)g_hash_table_lookup(compile_results, name);
-    textview = g_object_get_data(G_OBJECT(compile_bpf_w), CR_MAIN_NB);
+    textview = (GtkWidget *)g_object_get_data(G_OBJECT(compile_bpf_w), CR_MAIN_NB);
     if (error == 1) {
-      gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textview), TRUE);
+      gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textview), GTK_WRAP_CHAR);
     } else {
-      gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textview), FALSE);
+      gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textview), GTK_WRAP_NONE);
     }
     buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textview));
     gtk_text_buffer_set_text(buffer, text, -1);
@@ -2145,7 +2175,7 @@ compile_results_prep(GtkWidget *w _U_, gpointer data _U_)
   bbox = dlg_button_row_new(GTK_STOCK_OK, NULL);
   gtk_box_pack_start(GTK_BOX(main_box), bbox, FALSE, FALSE, 0);
 
-  ok_btn = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+  ok_btn = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
   gtk_widget_grab_focus(ok_btn);
   gtk_widget_grab_default(ok_btn);
   window_set_cancel_button(compile_bpf_w, ok_btn, window_cancel_button_cb);
@@ -2259,9 +2289,9 @@ compile_results_win(gchar *text, gboolean error)
   gtk_container_add(GTK_CONTAINER(scrolled_win), textview);
   gtk_box_pack_start(GTK_BOX(main_box), scrolled_win, TRUE, TRUE, 0);
   if (error == 1) {
-    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textview), TRUE);
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textview), GTK_WRAP_CHAR);
   } else {
-    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textview), FALSE);
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textview), GTK_WRAP_NONE);
   }
   buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textview));
   gtk_text_buffer_set_text(buffer, g_strdup(text), -1);
@@ -2269,7 +2299,7 @@ compile_results_win(gchar *text, gboolean error)
   bbox = dlg_button_row_new(GTK_STOCK_OK, NULL);
   gtk_box_pack_start(GTK_BOX(main_box), bbox, FALSE, FALSE, 0);
 
-  ok_btn = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+  ok_btn = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
   gtk_widget_grab_focus(ok_btn);
   gtk_widget_grab_default(ok_btn);
   window_set_cancel_button(results_w, ok_btn, window_cancel_button_cb);
@@ -2353,7 +2383,7 @@ update_options_table(gint indx)
   GtkTreeView  *if_cb;
   GtkTreeModel *model;
   GtkTreeIter   iter;
-  gchar        *temp, *path_str, *snaplen_string, *linkname = "";
+  gchar        *temp, *path_str, *snaplen_string, *linkname;
   GList        *list;
   link_row     *linkr = NULL;
   gboolean      enabled;
@@ -2366,14 +2396,17 @@ update_options_table(gint indx)
     } else {
       temp = g_strdup_printf("<b>%s</b>\n<span size='small'>%s</span>", device.display_name, device.addresses);
     }
+    linkname = NULL;
     for (list=device.links; list!=NULL; list=g_list_next(list))
     {
       linkr = (link_row*)(list->data);
-      linkname = g_strdup(linkr->name);
       if (linkr->dlt == device.active_dlt) {
+        linkname = g_strdup(linkr->name);
         break;
       }
     }
+    if (!linkname)
+      linkname = g_strdup("unknown");
     if (device.has_snaplen) {
       snaplen_string = g_strdup_printf("%d", device.snaplen);
     } else {
@@ -2419,7 +2452,9 @@ update_options_table(gint indx)
     if (get_welcome_window() != NULL) {
       change_interface_selection(g_strdup(device.name), device.selected);
     }
+    g_free(linkname);
   }
+  set_sensitivity_for_start_icon();
 }
 
 
@@ -2473,6 +2508,8 @@ save_options_cb(GtkWidget *win _U_, gpointer user_data _U_)
   device.pmode = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(promisc_cb));
   device.has_snaplen = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(snap_cb));
   if (device.has_snaplen) {
+    if (device.snaplen != (guint)gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(snap_sb))) {
+    }
     device.snaplen = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(snap_sb));
     if (device.snaplen < 1)
       device.snaplen = WTAP_MAX_PACKET_SIZE;
@@ -2487,7 +2524,10 @@ save_options_cb(GtkWidget *win _U_, gpointer user_data _U_)
   g_assert(filter_text != NULL);
   device.cfilter = filter_text;
 #ifdef HAVE_PCAP_CREATE
-  device.monitor_mode_enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(monitor_cb));
+  /* if dumpcap reported that the interface does not support monitor
+     mode, we disable monitor mode even if the user explicitly selected it */
+  device.monitor_mode_enabled = device.monitor_mode_supported ?
+     gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(monitor_cb)) : FALSE;
 #endif
   g_array_insert_val(global_capture_opts.all_ifaces, marked_interface, device);
   window_destroy(opt_edit_w);
@@ -2512,6 +2552,10 @@ adjust_snap_sensitivity(GtkWidget *tb _U_, gpointer parent_w _U_)
   gtk_widget_set_sensitive(GTK_WIDGET(snap_sb),
       gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(snap_cb)));
   device.has_snaplen = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(snap_cb));
+  if (!device.has_snaplen) {
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON (snap_sb), WTAP_MAX_PACKET_SIZE);
+    device.snaplen = WTAP_MAX_PACKET_SIZE;
+  }
   g_array_insert_val(global_capture_opts.all_ifaces, marked_interface, device);
 }
 
@@ -2563,7 +2607,7 @@ void options_interface_cb(GtkTreeView *view, GtkTreePath *path, GtkTreeViewColum
 
   window = (GtkWidget *)userdata;
   caller = gtk_widget_get_toplevel(GTK_WIDGET(window));
-  opt_edit_w = g_object_get_data(G_OBJECT(caller), E_OPT_EDIT_DIALOG_PTR_KEY);
+  opt_edit_w = (GtkWidget *)g_object_get_data(G_OBJECT(caller), E_OPT_EDIT_DIALOG_PTR_KEY);
   if (opt_edit_w != NULL) {
     reactivate_window(opt_edit_w);
     return;
@@ -2584,7 +2628,7 @@ void options_interface_cb(GtkTreeView *view, GtkTreePath *path, GtkTreeViewColum
   device.snaplen = 65535;
   device.cfilter = NULL;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-  device.buffer = 1;
+  device.buffer = DEFAULT_CAPTURE_BUFFER_SIZE;
 #endif
 
   model = gtk_tree_view_get_model(view);
@@ -2608,6 +2652,7 @@ void options_interface_cb(GtkTreeView *view, GtkTreePath *path, GtkTreeViewColum
   marked_row = atoi(gtk_tree_path_to_string(path));
   opt_edit_w = dlg_window_new("Edit Interface Settings");
   gtk_window_set_modal(GTK_WINDOW(opt_edit_w), TRUE);
+  gtk_window_set_type_hint (GTK_WINDOW (opt_edit_w), GDK_WINDOW_TYPE_HINT_DIALOG);
   g_object_set_data(G_OBJECT(opt_edit_w), E_OPT_EDIT_CALLER_PTR_KEY, caller);
   g_object_set_data(G_OBJECT(caller), E_OPT_EDIT_DIALOG_PTR_KEY, opt_edit_w);
 
@@ -2951,7 +2996,7 @@ void options_interface_cb(GtkTreeView *view, GtkTreePath *path, GtkTreeViewColum
   bbox = dlg_button_row_new(GTK_STOCK_OK, GTK_STOCK_CANCEL, GTK_STOCK_HELP, NULL);
   gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 5);
 
-  ok_but = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+  ok_but = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
   g_signal_connect(ok_but, "clicked", G_CALLBACK(save_options_cb), NULL);
   gtk_widget_set_tooltip_text(ok_but,
     "Accept interface settings.");
@@ -3095,29 +3140,54 @@ static void capture_all_cb(GtkToggleButton *button, gpointer d _U_)
   GtkTreeIter   iter;
   GtkTreeView  *if_cb;
   GtkTreeModel *model;
-  GtkWidget    *pcap_ng_cb;
-  gboolean      enabled = FALSE, capture_set = FALSE;
+  GtkWidget    *filter_cm, *pcap_ng_cb;
+  gchar        *interface = NULL, *filter_text = NULL;
+  gboolean      enabled = FALSE, capture_set = FALSE, pseudo = FALSE;
+  guint16       num_temp, i;
+  interface_t   device;
 
   if (gtk_toggle_button_get_active(button))
     enabled = TRUE;
   if_cb = (GtkTreeView *) g_object_get_data(G_OBJECT(cap_open_w), E_CAP_IFACE_KEY);
   model = gtk_tree_view_get_model(if_cb);
   pcap_ng_cb = (GtkWidget *) g_object_get_data(G_OBJECT(cap_open_w), E_CAP_PCAP_NG_KEY);
+  num_temp = global_capture_opts.num_selected++;
+  filter_cm = (GtkWidget *)g_object_get_data(G_OBJECT(cap_open_w), E_ALL_CFILTER_CM_KEY);
+  filter_text = gtk_combo_box_text_get_active_text (GTK_COMBO_BOX_TEXT(filter_cm));
   if (gtk_tree_model_get_iter_first(model, &iter)) {
     do {
-      gtk_tree_model_get (model, &iter, CAPTURE, &capture_set, -1);
-      if (!capture_set && enabled) {
-        global_capture_opts.num_selected++;
-      } else if (capture_set && !enabled) {
-        global_capture_opts.num_selected--;
+      gtk_tree_model_get (model, &iter, CAPTURE, &capture_set, IFACE_HIDDEN_NAME, &interface, -1);
+      if (strcmp(interface, "any") == 0) {
+        pseudo = TRUE;
       }
-      gtk_list_store_set(GTK_LIST_STORE(model), &iter, CAPTURE, enabled, -1);
+      if (!capture_set && enabled && !pseudo) {
+        num_temp++;
+      } else if (capture_set && (!enabled || (enabled && pseudo))) {
+        num_temp--;
+      }
+      if (!pseudo) {
+        gtk_list_store_set(GTK_LIST_STORE(model), &iter, CAPTURE, enabled, -1);
+        if (strlen(filter_text) != 0) {
+          for (i = 0; i < global_capture_opts.all_ifaces->len; i++) {
+            device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
+            if (strcmp(device.name, interface) == 0) {
+              g_array_remove_index(global_capture_opts.all_ifaces, i);
+              device.cfilter = g_strdup(filter_text);
+              g_array_insert_val(global_capture_opts.all_ifaces, i, device);
+              update_filter_string(device.name, filter_text);
+            }
+          }
+        }
+      } else {
+        gtk_list_store_set(GTK_LIST_STORE(model), &iter, CAPTURE, FALSE, -1);
+      }
+      pseudo = FALSE;
     } while (gtk_tree_model_iter_next(model, &iter));
   }
-  if (global_capture_opts.num_selected >= 2) {
+  if (num_temp >= 2) {
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pcap_ng_cb), TRUE);
     gtk_widget_set_sensitive(pcap_ng_cb, FALSE);
-  } else if (global_capture_opts.num_selected <= 1) {
+  } else if (num_temp <= 1) {
     gtk_widget_set_sensitive(pcap_ng_cb, TRUE);
   }
   if (interfaces_dialog_window_present()) {
@@ -3125,6 +3195,9 @@ static void capture_all_cb(GtkToggleButton *button, gpointer d _U_)
   }
   if (get_welcome_window() != NULL) {
     change_selection_for_all(enabled);
+  }
+  if (global_capture_opts.num_selected != num_temp) {
+    global_capture_opts.num_selected = num_temp;
   }
   if (global_capture_opts.num_selected > 0) {
     gtk_widget_set_sensitive(ok_bt, TRUE);
@@ -3137,19 +3210,36 @@ static void capture_all_cb(GtkToggleButton *button, gpointer d _U_)
     gtk_widget_set_sensitive(all_compile_bt, FALSE);
 #endif
   }
+  set_sensitivity_for_start_icon();
 }
 
+
+static gboolean get_all_prom_mode(void)
+{
+  interface_options  interface_opts;
+  guint i;
+
+  for (i = 0; i < global_capture_opts.ifaces->len; i++) {
+    interface_opts = g_array_index(global_capture_opts.ifaces, interface_options, i);
+    if (!interface_opts.promisc_mode) {
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
 
 static void promisc_mode_callback(GtkToggleButton *button, gpointer d _U_)
 {
   GtkTreeIter        iter;
   GtkTreeView       *if_cb;
   GtkTreeModel      *model;
-  gboolean           enabled = FALSE;
+  gboolean           enabled = FALSE, set;
   interface_t        device;
   interface_options  interface_opts;
   guint              i;
 
+  set = gtk_toggle_button_get_active(button);
+  gtk_toggle_button_set_active(button, (set?FALSE:TRUE));
   if (gtk_toggle_button_get_active(button))
     enabled = TRUE;
 
@@ -3364,7 +3454,7 @@ add_pipe_cb(gpointer w _U_)
     device.last_packets = 0;
     device.links        = NULL;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-    device.buffer       = 1;
+    device.buffer       = DEFAULT_CAPTURE_BUFFER_SIZE;
 #endif
     device.active_dlt   = -1;
     device.locked       = FALSE;
@@ -3425,7 +3515,7 @@ add_pipe_cb(gpointer w _U_)
 static void
 pipe_new_bt_clicked_cb(GtkWidget *w _U_, gpointer data _U_)
 {
-  GtkWidget    *name_te = g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_TE_KEY);
+  GtkWidget    *name_te = (GtkWidget *)g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_TE_KEY);
   GtkTreeView  *pipe_l  = GTK_TREE_VIEW(g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_L_KEY));
   GtkListStore *store;
   GtkTreeIter   iter;
@@ -3449,13 +3539,13 @@ pipe_new_bt_clicked_cb(GtkWidget *w _U_, gpointer data _U_)
 static void
 pipe_del_bt_clicked_cb(GtkWidget *w _U_, gpointer data _U_)
 {
-  GtkWidget        *pipe_l  = g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_L_KEY);
-  GtkWidget        *name_te = g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_TE_KEY);
+  GtkWidget        *pipe_l  = (GtkWidget *)g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_L_KEY);
+  GtkWidget        *name_te = (GtkWidget *)g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_TE_KEY);
   GtkTreeSelection *sel;
   GtkTreeModel     *model, *optmodel;
   GtkTreeIter       iter, optiter;
   GtkTreeView      *if_cb;
-  gchar            *name, *optname = "";
+  gchar            *name, *optname = NULL;
   guint             i;
 
   sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(pipe_l));
@@ -3477,7 +3567,7 @@ pipe_del_bt_clicked_cb(GtkWidget *w _U_, gpointer data _U_)
       if (gtk_tree_model_get_iter_first (optmodel, &optiter)) {
         do {
           gtk_tree_model_get(optmodel, &optiter, IFACE_HIDDEN_NAME, &optname, -1);
-          if (strcmp(optname, name) == 0) {
+          if (optname != NULL && strcmp(optname, name) == 0) {
             gtk_list_store_remove(GTK_LIST_STORE(gtk_tree_view_get_model(if_cb)), &optiter);
             break;
           }
@@ -3503,15 +3593,15 @@ pipe_del_bt_clicked_cb(GtkWidget *w _U_, gpointer data _U_)
 static void
 pipe_name_te_changed_cb(GtkWidget *w _U_, gpointer data _U_)
 {
-  GtkWidget        *name_te = g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_TE_KEY);
-  GtkWidget        *pipe_l  = g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_L_KEY);
-  const gchar      *name    = "";
+  GtkWidget        *name_te = (GtkWidget *)g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_TE_KEY);
+  GtkWidget        *pipe_l  = (GtkWidget *)g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_L_KEY);
+  const gchar      *name;
   GtkTreeSelection *sel;
   GtkTreeModel     *model;
   GtkTreeIter       iter;
 
-  sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(pipe_l));
-  name   = gtk_entry_get_text(GTK_ENTRY(name_te));
+  sel  = gtk_tree_view_get_selection(GTK_TREE_VIEW(pipe_l));
+  name = gtk_entry_get_text(GTK_ENTRY(name_te));
 
   /* if something was selected */
   if (gtk_tree_selection_get_selected(sel, &model, &iter)) {
@@ -3545,8 +3635,8 @@ pipe_sel_list_cb(GtkTreeSelection *sel, gpointer data _U_)
  /* GtkWidget    *pipe_l   = GTK_WIDGET(gtk_tree_selection_get_tree_view(sel));*/
   GtkTreeModel *model;
   GtkTreeIter   iter;
-  GtkWidget    *name_te = g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_TE_KEY);
-  GtkWidget    *del_bt  = g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_DEL_KEY);
+  GtkWidget    *name_te = (GtkWidget *)g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_TE_KEY);
+  GtkWidget    *del_bt  = (GtkWidget *)g_object_get_data(G_OBJECT(interface_management_w), E_CAP_PIPE_DEL_KEY);
   gchar        *name    = NULL;
 
   if (gtk_tree_selection_get_selected(sel, &model, &iter)) {
@@ -3659,7 +3749,7 @@ apply_local_cb(GtkWidget *win _U_, gpointer *data _U_)
     local_l = GTK_TREE_VIEW(g_object_get_data(G_OBJECT(interface_management_w), E_CAP_LOCAL_L_KEY));
     model = gtk_tree_view_get_model(local_l);
 
-    new_hide = g_malloc0(MAX_VAL_LEN);
+    new_hide = (gchar*)g_malloc0(MAX_VAL_LEN);
 
     if (gtk_tree_model_get_iter_first (model, &iter)) {
       do {
@@ -3697,7 +3787,8 @@ capture_dlg_refresh_if (void)
 {
   GtkTreeView *view;
 
-  fill_local_list();
+  if (interface_management_w)
+    fill_local_list();
 
   view = (GtkTreeView *) g_object_get_data(G_OBJECT(cap_open_w), E_CAP_IFACE_KEY);
   create_and_fill_model(GTK_TREE_VIEW(view));
@@ -3894,7 +3985,7 @@ remove_remote_host(GtkWidget *w _U_, gpointer data _U_)
 #endif
 
 static void
-show_add_interfaces_dialog(void)
+show_add_interfaces_dialog(GtkWidget *bt _U_, GtkWidget *parent_win)
 {
   GtkWidget         *vbox, *top_hb;
   GtkWidget         *hbox, *bbox, *list_bb, *edit_fr, *pipe_fr, *pipe_sc, *pipe_l, *props_fr, *props_vb;
@@ -3915,18 +4006,20 @@ show_add_interfaces_dialog(void)
   GtkTreeSelection  *selection;
 #endif
 
-  interface_management_w = dlg_window_new("Interface Management");  /* transient_for top_level */
-  gtk_window_set_destroy_with_parent (GTK_WINDOW(interface_management_w), TRUE);
-  gtk_window_set_default_size(GTK_WINDOW(interface_management_w), 600, 200);
+  interface_management_w = window_new(GTK_WINDOW_TOPLEVEL, "Interface Management");
+  gtk_window_set_transient_for(GTK_WINDOW(interface_management_w), GTK_WINDOW(parent_win));
+  gtk_window_set_destroy_with_parent(GTK_WINDOW(interface_management_w), TRUE);
 
-  vbox=ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
+  gtk_window_set_default_size(GTK_WINDOW(interface_management_w), 700, 300);
+
+  vbox = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
   gtk_container_add(GTK_CONTAINER(interface_management_w), vbox);
   gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
 
   main_nb = gtk_notebook_new();
   gtk_box_pack_start(GTK_BOX(vbox), main_nb, TRUE, TRUE, 0);
 
-  /* Pipes */
+  /* --- Pipes --- */
   temp_page = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 6, FALSE);
   tmp = gtk_label_new("Pipes");
   gtk_widget_show(tmp);
@@ -3938,7 +4031,7 @@ show_add_interfaces_dialog(void)
   /* Pipe row */
   pipe_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20, FALSE);
   gtk_container_set_border_width(GTK_CONTAINER(pipe_hb), 5);
-  gtk_box_pack_start(GTK_BOX(temp_page), pipe_hb, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(temp_page), pipe_hb, TRUE, TRUE, 0);
 
   /* Container for each row of widgets */
   pipe_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
@@ -3979,7 +4072,6 @@ show_add_interfaces_dialog(void)
   gtk_widget_show(pipe_fr);
 
   pipe_sc = scrolled_window_new(NULL, NULL);
-  gtk_widget_set_size_request(pipe_sc, FALSE, 120);
   gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(pipe_sc),
                                       GTK_SHADOW_IN);
 
@@ -4039,13 +4131,13 @@ show_add_interfaces_dialog(void)
   g_signal_connect(pipe_bt, "clicked", G_CALLBACK(capture_prep_pipe_cb), pipe_te);
 
   bbox = dlg_button_row_new(GTK_STOCK_SAVE, GTK_STOCK_CLOSE, NULL);
-  gtk_box_pack_start(GTK_BOX(temp_page), bbox, TRUE, FALSE, 5);
+  gtk_box_pack_start(GTK_BOX(temp_page), bbox, FALSE, FALSE, 5);
 
-  add_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_SAVE);
+  add_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_SAVE);
   g_signal_connect(add_bt, "clicked", G_CALLBACK(add_pipe_cb), interface_management_w);
   gtk_widget_set_tooltip_text(GTK_WIDGET(add_bt), "Add pipe to the list of interfaces.");
 
-  cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+  cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
   g_signal_connect(GTK_WIDGET(cancel_bt), "clicked", G_CALLBACK(cancel_pipe_cb), interface_management_w);
   gtk_widget_set_tooltip_text(GTK_WIDGET(cancel_bt), "Cancel and exit dialog.");
 
@@ -4054,17 +4146,17 @@ show_add_interfaces_dialog(void)
 
   g_object_set_data(G_OBJECT(interface_management_w), E_CAP_PIPE_TE_KEY,  pipe_te);
 
-  /* Local interfaces */
+  /* --- Local interfaces --- */
   temp_page = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 6, FALSE);
   tmp = gtk_label_new("Local Interfaces");
   gtk_widget_show(tmp);
   hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
-  gtk_box_pack_start(GTK_BOX (hbox), tmp, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(hbox), tmp, TRUE, TRUE, 0);
   gtk_notebook_append_page(GTK_NOTEBOOK(main_nb), temp_page, hbox);
 
   local_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
   gtk_container_set_border_width(GTK_CONTAINER(local_vb), 0);
-  gtk_container_add(GTK_CONTAINER(temp_page), local_vb);
+  gtk_box_pack_start(GTK_BOX(temp_page), local_vb, TRUE, TRUE, 0);
   gtk_widget_show(local_vb);
 
   local_fr = gtk_frame_new("Local Interfaces");
@@ -4072,7 +4164,6 @@ show_add_interfaces_dialog(void)
   gtk_widget_show(local_fr);
 
   local_sc = scrolled_window_new(NULL, NULL);
-  gtk_widget_set_size_request(local_sc, FALSE, 150);
   gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(local_sc),
                                       GTK_SHADOW_IN);
 
@@ -4110,16 +4201,16 @@ show_add_interfaces_dialog(void)
 
   bbox = dlg_button_row_new(GTK_STOCK_REFRESH, GTK_STOCK_APPLY, GTK_STOCK_CLOSE, NULL);
 
-  gtk_box_pack_start(GTK_BOX(temp_page), bbox, TRUE, FALSE, 5);
-  refresh_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_REFRESH);
+  gtk_box_pack_start(GTK_BOX(temp_page), bbox, FALSE, FALSE, 5);
+  refresh_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_REFRESH);
   g_signal_connect(refresh_bt, "clicked", G_CALLBACK(rescan_local_cb), NULL);
   gtk_widget_set_tooltip_text(GTK_WIDGET(refresh_bt), "Rescan the local interfaces and refresh the list");
 
-  cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+  cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
   g_signal_connect(GTK_WIDGET(cancel_bt), "clicked", G_CALLBACK(cancel_pipe_cb), interface_management_w);
   gtk_widget_set_tooltip_text(GTK_WIDGET(cancel_bt), "Cancel and exit dialog.");
 
-  apply_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_APPLY);
+  apply_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_APPLY);
   g_signal_connect(GTK_WIDGET(apply_bt), "clicked", G_CALLBACK(apply_local_cb), NULL);
   gtk_widget_set_tooltip_text(GTK_WIDGET(apply_bt), "Apply the changes to the general list of local interfaces");
 
@@ -4128,7 +4219,7 @@ show_add_interfaces_dialog(void)
 
 
 #if defined (HAVE_PCAP_REMOTE)
-  /* remote interfaces */
+  /* --- remote interfaces --- */
   temp_page = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 6, FALSE);
   tmp = gtk_label_new("Remote Interfaces");
   gtk_widget_show(tmp);
@@ -4138,7 +4229,7 @@ show_add_interfaces_dialog(void)
 
   remote_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
   gtk_container_set_border_width(GTK_CONTAINER(remote_vb), 0);
-  gtk_container_add(GTK_CONTAINER(temp_page), remote_vb);
+  gtk_box_pack_start(GTK_BOX(temp_page), remote_vb, TRUE, TRUE, 0);
   gtk_widget_show(remote_vb);
 
   remote_fr = gtk_frame_new("Remote Interfaces");
@@ -4146,7 +4237,6 @@ show_add_interfaces_dialog(void)
   gtk_widget_show(remote_fr);
 
   remote_sc = scrolled_window_new(NULL, NULL);
-  gtk_widget_set_size_request(remote_sc, FALSE, 150);
   gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(remote_sc),
                                       GTK_SHADOW_IN);
 
@@ -4190,18 +4280,18 @@ show_add_interfaces_dialog(void)
   fill_remote_list();
 
   bbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
-  gtk_box_pack_start(GTK_BOX(temp_page), bbox, TRUE, FALSE, 5);
+  gtk_box_pack_start(GTK_BOX(temp_page), bbox, FALSE, FALSE, 5);
   gtk_widget_show(bbox);
 
   button_hbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
   gtk_box_pack_end(GTK_BOX(bbox), button_hbox, FALSE, FALSE, 0);
   gtk_widget_show(button_hbox);
-  gtk_box_set_spacing(GTK_BOX(button_hbox), 5);
+  gtk_box_set_spacing(GTK_BOX(button_hbox), DLG_BUTTON_SPACING);
 
   help_hbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
   gtk_box_pack_start(GTK_BOX(bbox), help_hbox, FALSE, FALSE, 0);
   gtk_widget_show(help_hbox);
-  gtk_box_set_spacing(GTK_BOX(help_hbox), 5);
+  gtk_box_set_spacing(GTK_BOX(help_hbox), DLG_BUTTON_SPACING);
 
   add_but = gtk_button_new_from_stock(GTK_STOCK_ADD);
   g_object_set_data(G_OBJECT(bbox), GTK_STOCK_ADD, add_but);
@@ -4322,11 +4412,9 @@ update_properties_all(void) {
       }
     }
   }
+  promisc_b = (GtkWidget *)g_object_get_data(G_OBJECT(cap_open_w), E_CAP_PROMISC_KEY_ALL);
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(promisc_b), promisc_all);
 
-  if (promisc_all) {
-    promisc_b = (GtkWidget *)g_object_get_data(G_OBJECT(cap_open_w), E_CAP_PROMISC_KEY_ALL);
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(promisc_b), TRUE);
-  }
   if (capture_all) {
     capture_b = (GtkWidget *)g_object_get_data(G_OBJECT(cap_open_w), E_CAP_KEY_ALL);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(capture_b), TRUE);
@@ -4346,7 +4434,7 @@ column_button_pressed_cb (GtkWidget *widget, GdkEvent *event, gpointer data)
 {
   GtkWidget   *col  = (GtkWidget *) data;
   GtkTreeView *view;
-  GtkWidget   *menu = g_object_get_data(G_OBJECT(columns_menu_object), PM_COLUMNS_KEY);
+  GtkWidget   *menu = (GtkWidget *)g_object_get_data(G_OBJECT(columns_menu_object), PM_COLUMNS_KEY);
 
   view = (GtkTreeView *)g_object_get_data(G_OBJECT(cap_open_w), E_CAP_IFACE_KEY);
   g_object_set_data(G_OBJECT(view), E_MCAPTURE_COLUMNS_COLUMN_KEY, col);
@@ -4364,12 +4452,12 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
                     *promisc_cb, *pcap_ng_cb,
                     *file_fr, *file_vb,
                     *file_hb, *file_bt, *file_lb, *file_te,
-                    *multi_tb, *multi_files_on_cb,
+                    *multi_hb, *multi_grid, *multi_files_on_cb,
                     *ring_filesize_cb, *ring_filesize_sb, *ring_filesize_cbx,
                     *file_duration_cb, *file_duration_sb, *file_duration_cbx,
                     *ringbuffer_nbf_cb, *ringbuffer_nbf_sb, *ringbuffer_nbf_lb,
                     *stop_files_cb, *stop_files_sb, *stop_files_lb,
-                    *limit_fr, *limit_vb, *limit_tb,
+                    *limit_fr, *limit_vb, *limit_hb, *limit_grid,
                     *stop_packets_cb, *stop_packets_sb, *stop_packets_lb,
                     *stop_filesize_cb, *stop_filesize_sb, *stop_filesize_cbx,
                     *stop_duration_cb, *stop_duration_sb, *stop_duration_cbx,
@@ -4402,6 +4490,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   GtkTreeViewColumn *column;
   gboolean           if_present = TRUE;
   GList             *all_cfilter_list, *cf_entry;
+  window_geometry_t  tl_geom;
 
   if (interfaces_dialog_window_present()) {
     destroy_if_window();
@@ -4427,28 +4516,34 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   /* load the airpcap interfaces */
   airpcap_if_list = get_airpcap_interface_list(&err, &err_str);
 
-  decryption_cb = g_object_get_data(G_OBJECT(wireless_tb),AIRPCAP_TOOLBAR_DECRYPTION_KEY);
-  update_decryption_mode_list(decryption_cb);
-
-  if (airpcap_if_list == NULL && err == CANT_GET_AIRPCAP_INTERFACE_LIST) {
-    simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", err_str);
-    g_free(err_str);
+  /* If we don't get a list don't do any thing.
+   * If the error is AIRPCAP_NOT_LOADED it avoids a unneccessay rescan of the packet list
+   * ( see airpcap_loader.h for error codes).
+   */
+  if (airpcap_if_list == NULL) {
+    if (err == CANT_GET_AIRPCAP_INTERFACE_LIST) {
+      simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", err_str);
+      g_free(err_str);
+    }
+  }else{
+    decryption_cb = (GtkWidget *)g_object_get_data(G_OBJECT(wireless_tb),AIRPCAP_TOOLBAR_DECRYPTION_KEY);
+    /* XXXX update_decryption_mode_list() trigers a rescan, should only be done if the mode is changed */
+    update_decryption_mode_list(decryption_cb);
+    /* select the first as default (THIS SHOULD BE CHANGED) */
+    airpcap_if_active = airpcap_get_default_if(airpcap_if_list);
   }
-
-  /* select the first as default (THIS SHOULD BE CHANGED) */
-  airpcap_if_active = airpcap_get_default_if(airpcap_if_list);
 #endif
 
   main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
-  gtk_container_set_border_width(GTK_CONTAINER(main_vb), 5);
+  gtk_container_set_border_width(GTK_CONTAINER(main_vb), DLG_OUTER_MARGIN);
   gtk_container_add(GTK_CONTAINER(cap_open_w), main_vb);
 
   /* Capture-related options frame */
-  capture_fr = gtk_frame_new("Capture");
+  capture_fr = frame_new("Capture");
   gtk_box_pack_start(GTK_BOX (main_vb), capture_fr, TRUE, TRUE, 0);
 
-  capture_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
-  gtk_container_set_border_width(GTK_CONTAINER(capture_vb), 5);
+  capture_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, DLG_UNRELATED_SPACING, FALSE);
+  gtk_container_set_border_width(GTK_CONTAINER(capture_vb), DLG_OUTER_MARGIN);
   gtk_container_add(GTK_CONTAINER(capture_fr), capture_vb);
 
 #if defined (HAVE_PCAP_REMOTE)
@@ -4485,12 +4580,8 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   column = gtk_tree_view_get_column(GTK_TREE_VIEW (view), INTERFACE);
   gtk_tree_view_column_set_min_width(column, 200);
   gtk_tree_view_column_set_resizable(column, TRUE );
-  gtk_tree_view_column_set_alignment(column, 0.5);
+  gtk_tree_view_column_set_alignment(column, 0.5f);
   g_object_set_data(G_OBJECT(column), E_MCAPTURE_COLUMNS_COL_KEY, GINT_TO_POINTER(INTERFACE));
-  gtk_tree_view_column_set_clickable(column, TRUE);
-  gtk_tree_view_column_set_reorderable(column, TRUE);
-  g_signal_connect(gtk_tree_view_column_get_button(column), "button_press_event",
-                   G_CALLBACK(column_button_pressed_cb), column);
   if (!prefs.capture_columns || prefs_capture_options_dialog_column_is_visible("INTERFACE"))
     gtk_tree_view_column_set_visible(column, TRUE);
   else
@@ -4510,12 +4601,12 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
     gtk_tree_view_column_set_visible(column, TRUE);
   else
     gtk_tree_view_column_set_visible(column, FALSE);
-  gtk_tree_view_column_set_alignment(column, 0.5);
+  gtk_tree_view_column_set_alignment(column, 0.5f);
 
   renderer = gtk_cell_renderer_text_new();
   column = gtk_tree_view_column_new_with_attributes("Prom. Mode", renderer, "text", PMODE, NULL);
   gtk_tree_view_append_column(GTK_TREE_VIEW(view), column);
-  g_object_set(renderer, "xalign", 0.5, NULL);
+  g_object_set(renderer, "xalign", 0.5f, NULL);
   gtk_tree_view_column_set_clickable(column, TRUE);
   gtk_tree_view_column_set_reorderable(column, TRUE);
   g_object_set_data(G_OBJECT(column), E_MCAPTURE_COLUMNS_COL_KEY, GINT_TO_POINTER(PMODE));
@@ -4525,7 +4616,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
     gtk_tree_view_column_set_visible(column, TRUE);
   else
     gtk_tree_view_column_set_visible(column, FALSE);
-  gtk_tree_view_column_set_alignment(column, 0.5);
+  gtk_tree_view_column_set_alignment(column, 0.5f);
 
   renderer = gtk_cell_renderer_text_new();
   column = gtk_tree_view_column_new_with_attributes("Snaplen [B]", renderer, "text", SNAPLEN, NULL);
@@ -4539,7 +4630,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
     gtk_tree_view_column_set_visible(column, TRUE);
   else
     gtk_tree_view_column_set_visible(column, FALSE);
-  g_object_set(renderer, "xalign", 0.5, NULL);
+  g_object_set(renderer, "xalign", 0.5f, NULL);
 
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
   renderer = gtk_cell_renderer_text_new();
@@ -4554,7 +4645,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
     gtk_tree_view_column_set_visible(column, TRUE);
   else
     gtk_tree_view_column_set_visible(column, FALSE);
-  g_object_set(renderer, "xalign", 0.5, NULL);
+  g_object_set(renderer, "xalign", 0.5f, NULL);
 #endif
 
 #if defined (HAVE_PCAP_CREATE)
@@ -4571,13 +4662,13 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
     gtk_tree_view_column_set_visible(column, TRUE);
   else
     gtk_tree_view_column_set_visible(column, FALSE);
-  g_object_set(renderer, "xalign", 0.5, NULL);
+  g_object_set(renderer, "xalign", 0.5f, NULL);
 #endif
 
   renderer = gtk_cell_renderer_text_new();
   column = gtk_tree_view_column_new_with_attributes("Capture Filter", renderer, "text", FILTER, NULL);
   gtk_tree_view_append_column(GTK_TREE_VIEW(view), column);
-  gtk_tree_view_column_set_alignment(column, 0.5);
+  gtk_tree_view_column_set_alignment(column, 0.5f);
   create_and_fill_model(GTK_TREE_VIEW(view));
   selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view));
   gtk_tree_selection_set_mode(selection, GTK_SELECTION_SINGLE);
@@ -4595,14 +4686,14 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
 
   g_object_set_data(G_OBJECT(cap_open_w), E_CAP_IFACE_KEY, view);
 
-  main_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5, FALSE);
-  gtk_container_set_border_width(GTK_CONTAINER(main_hb), 3);
+  main_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, DLG_UNRELATED_SPACING, FALSE);
+  gtk_container_set_border_width(GTK_CONTAINER(main_hb), 0);
   gtk_box_pack_start(GTK_BOX(capture_vb), main_hb, FALSE, FALSE, 0);
   all_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
   gtk_container_set_border_width(GTK_CONTAINER(all_vb), 0);
   gtk_box_pack_start(GTK_BOX(main_hb), all_vb, TRUE, TRUE, 0);
 
-  all_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5, FALSE);
+  all_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, DLG_UNRELATED_SPACING, FALSE);
   gtk_container_set_border_width(GTK_CONTAINER(all_hb), 0);
   gtk_box_pack_start(GTK_BOX(all_vb), all_hb, TRUE, TRUE, 0);
 
@@ -4623,21 +4714,21 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
 
   gtk_widget_set_sensitive(GTK_WIDGET(all_cb), if_present);
   /* Promiscuous mode row */
-  promisc_cb = gtk_check_button_new_with_mnemonic("Capture all in _promiscuous mode");
-  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(promisc_cb),
-                               global_capture_opts.default_options.promisc_mode);
-  if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(promisc_cb)))
-    promisc_mode_callback(GTK_TOGGLE_BUTTON(promisc_cb), NULL);
-  g_signal_connect(promisc_cb, "toggled", G_CALLBACK(promisc_mode_callback), NULL);
+  promisc_cb = gtk_check_button_new_with_mnemonic("Use _promiscuous mode on all interfaces");
+  if (!global_capture_session.session_started) {
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(promisc_cb), prefs.capture_prom_mode);
+  } else {
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(promisc_cb), get_all_prom_mode());
+  }
+  g_signal_connect(promisc_cb, "button-press-event", G_CALLBACK(promisc_mode_callback), NULL);
 
   gtk_widget_set_tooltip_text(promisc_cb,
     "Usually a network adapter will only capture the traffic sent to its own network address. "
-    "If you want to capture all traffic that all network adapters can \"see\", mark this option. "
-    "If you want to set this option on a per interface basis, unmark this button and set the "
-    "option individually."
+    "If you want to capture all traffic that all network adapters can \"see\", select this option. "
+    "If you want to set this option on a per-interface basis, do not select this option. "
+    "Instead, select the individual checkboxes in the interface list's \"Prom. Mode\" column. "
     "See the FAQ for some more details of capturing packets from a switched network.");
-  gtk_box_pack_start(GTK_BOX(left_vb), promisc_cb, TRUE, TRUE, 0);
-  gtk_widget_set_sensitive(GTK_WIDGET(promisc_cb), if_present);
+  gtk_box_pack_start(GTK_BOX(left_vb), promisc_cb, TRUE, TRUE, DLG_LABEL_SPACING);
 
   iftype_cbx = gtk_button_new_with_label("Manage Interfaces");
   gtk_widget_set_tooltip_text(iftype_cbx, "Add a new interface or pipe to capture from or remove "
@@ -4645,10 +4736,10 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   g_object_set_data(G_OBJECT(cap_open_w), E_CAP_IFTYPE_CBX_KEY, iftype_cbx);
 
   gtk_box_pack_start(GTK_BOX(right_vb), iftype_cbx, FALSE, FALSE, 0);
-  g_signal_connect(iftype_cbx, "clicked", G_CALLBACK(show_add_interfaces_dialog), iftype_cbx);
+  g_signal_connect(iftype_cbx, "clicked", G_CALLBACK(show_add_interfaces_dialog), cap_open_w);
   gtk_widget_show(iftype_cbx);
 
-  main_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5, FALSE);
+  main_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, DLG_UNRELATED_SPACING, FALSE);
   gtk_container_set_border_width(GTK_CONTAINER(main_hb), 0);
   gtk_box_pack_start(GTK_BOX(main_vb), main_hb, FALSE, FALSE, 0);
 
@@ -4661,8 +4752,8 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_box_pack_start(GTK_BOX(main_hb), right_vb, FALSE, FALSE, 0);
 
   /* Filter row */
-  all_filter_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
-  gtk_box_pack_start(GTK_BOX(all_vb), all_filter_hb, FALSE, FALSE, 0);
+  all_filter_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
+  gtk_box_pack_start(GTK_BOX(all_vb), all_filter_hb, FALSE, FALSE, DLG_LABEL_SPACING);
 
   all_filter_bt = gtk_button_new_from_stock(WIRESHARK_STOCK_CAPTURE_FILTER_ENTRY);
   g_signal_connect(all_filter_bt, "clicked", G_CALLBACK(capture_filter_construct_cb), NULL);
@@ -4671,7 +4762,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
     "Select a capture filter for all selected interfaces to reduce the amount of packets to be captured. "
     "See \"Capture Filters\" in the online help for further information how to use it."
     );
-  gtk_box_pack_start(GTK_BOX(all_filter_hb), all_filter_bt, FALSE, FALSE, 3);
+  gtk_box_pack_start(GTK_BOX(all_filter_hb), all_filter_bt, FALSE, FALSE, 0);
 
   /* Create the capture filter combo box*/
   all_filter_cm = gtk_combo_box_text_new_with_entry();
@@ -4698,7 +4789,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
     "See \"Capture Filters\" in the online help for further information how to use it. "
     "Syntax checking can be disabled in Preferences -> Capture -> Syntax check capture filter."
     );
-  gtk_box_pack_start(GTK_BOX(all_filter_hb), all_filter_cm, TRUE, TRUE, 3);
+  gtk_box_pack_start(GTK_BOX(all_filter_hb), all_filter_cm, TRUE, TRUE, DLG_BUTTON_SPACING);
 
   /* let an eventually capture filters dialog know the text entry to fill in */
   g_object_set_data(G_OBJECT(all_filter_bt), E_FILT_TE_PTR_KEY, all_filter_te);
@@ -4709,7 +4800,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_widget_set_tooltip_text(all_compile_bt,
    "Compile the capture filter expression and show the BPF (Berkeley Packet Filter) code.");
   /* We can't compile without any supported link-types, so disable the button in that case */
-  gtk_box_pack_start(GTK_BOX(all_filter_hb), all_compile_bt, FALSE, FALSE, 3);
+  gtk_box_pack_start(GTK_BOX(all_filter_hb), all_compile_bt, FALSE, FALSE, DLG_BUTTON_SPACING);
   if (global_capture_opts.num_selected > 0) {
     gtk_widget_set_sensitive(all_compile_bt, TRUE);
   } else {
@@ -4718,11 +4809,11 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
 #endif
 
   /* Capture file-related options frame */
-  file_fr = gtk_frame_new("Capture File(s)");
+  file_fr = frame_new("Capture Files");
   gtk_box_pack_start(GTK_BOX (left_vb), file_fr, TRUE, TRUE, 0);
 
-  file_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
-  gtk_container_set_border_width(GTK_CONTAINER(file_vb), 5);
+  file_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, DLG_UNRELATED_SPACING, FALSE);
+  gtk_container_set_border_width(GTK_CONTAINER(file_vb), DLG_OUTER_MARGIN);
   gtk_container_add(GTK_CONTAINER(file_fr), file_vb);
 
   /* File row */
@@ -4749,10 +4840,17 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   g_signal_connect(file_bt, "clicked", G_CALLBACK(capture_prep_file_cb), file_te);
 
   /* multiple files table */
-  multi_tb = gtk_table_new(5, 3, FALSE);
-  gtk_table_set_row_spacings(GTK_TABLE(multi_tb), 1);
-  gtk_table_set_col_spacings(GTK_TABLE(multi_tb), 3);
-  gtk_box_pack_start(GTK_BOX(file_vb), multi_tb, FALSE, FALSE, 0);
+  /* XXX We want multi_grid to shrink to its minimum size horizontally
+   * and be left-aligned within file_fr. Using a horizontal GtkBox works
+   * in Gtk2 but not Gtk3. The situation gets sillier below with limit_fr
+   * and limit_grid because we have both horizontal and vertical GtkBoxes.
+   */
+  multi_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
+  gtk_box_pack_start(GTK_BOX(file_vb), multi_hb, FALSE, FALSE, 0);
+  multi_grid = ws_gtk_grid_new();
+  ws_gtk_grid_set_row_spacing(GTK_GRID(multi_grid), DLG_LABEL_SPACING);
+  ws_gtk_grid_set_column_spacing(GTK_GRID(multi_grid), DLG_UNRELATED_SPACING);
+  gtk_box_pack_start(GTK_BOX(multi_hb), multi_grid, FALSE, FALSE, 0);
   row = 0;
 
   /* multiple files row */
@@ -4764,14 +4862,16 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_widget_set_tooltip_text(multi_files_on_cb,
     "Instead of using a single capture file, multiple files will be created. "
     "The generated file names will contain an incrementing number and the start time of the capture.");
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), multi_files_on_cb, 0, 1, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), multi_files_on_cb, 0, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   /* Pcap-NG row */
   pcap_ng_cb = gtk_check_button_new_with_mnemonic("Use pcap-ng format");
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pcap_ng_cb), global_capture_opts.use_pcapng);
   gtk_widget_set_tooltip_text(pcap_ng_cb, "Capture packets in the next-generation capture file format. "
                        "This is still experimental.");
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), pcap_ng_cb, 2, 3, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), pcap_ng_cb, 2, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
   row++;
 
   /* Ring buffer filesize row */
@@ -4782,20 +4882,23 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_widget_set_tooltip_text(ring_filesize_cb,
     "If the selected file size is exceeded, capturing switches to the next file.\n"
     "PLEASE NOTE: at least one of the \"Next file every\" options MUST be selected.");
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), ring_filesize_cb, 0, 1, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), ring_filesize_cb, 0, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   ring_filesize_adj = (GtkAdjustment *) gtk_adjustment_new(0.0,
     1, (gfloat)INT_MAX, 1.0, 10.0, 0.0);
   ring_filesize_sb = gtk_spin_button_new (ring_filesize_adj, 0, 0);
   gtk_spin_button_set_wrap (GTK_SPIN_BUTTON (ring_filesize_sb), TRUE);
   gtk_widget_set_size_request(ring_filesize_sb, 80, -1);
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), ring_filesize_sb, 1, 2, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), ring_filesize_sb, 1, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   ring_filesize_cbx = size_unit_combo_box_new(global_capture_opts.autostop_filesize);
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), ring_filesize_cbx, 2, 3, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), ring_filesize_cbx, 2, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   value = size_unit_combo_box_set_value(global_capture_opts.autostop_filesize);
-  gtk_adjustment_set_value(ring_filesize_adj, (gfloat) value);
+  gtk_adjustment_set_value(ring_filesize_adj, (gdouble) value);
 
   row++;
 
@@ -4808,20 +4911,23 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_widget_set_tooltip_text(file_duration_cb,
     "If the selected duration is exceeded, capturing switches to the next file.\n"
     "PLEASE NOTE: at least one of the \"Next file every\" options MUST be selected.");
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), file_duration_cb, 0, 1, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), file_duration_cb, 0, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   file_duration_adj = (GtkAdjustment *)gtk_adjustment_new(0.0,
     1, (gfloat)INT_MAX, 1.0, 10.0, 0.0);
   file_duration_sb = gtk_spin_button_new (file_duration_adj, 0, 0);
   gtk_spin_button_set_wrap (GTK_SPIN_BUTTON (file_duration_sb), TRUE);
   gtk_widget_set_size_request(file_duration_sb, 80, -1);
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), file_duration_sb, 1, 2, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), file_duration_sb, 1, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   file_duration_cbx = time_unit_combo_box_new(global_capture_opts.file_duration);
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), file_duration_cbx, 2, 3, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), file_duration_cbx, 2, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   value = time_unit_combo_box_convert_value(global_capture_opts.file_duration);
-  gtk_adjustment_set_value(file_duration_adj, (gfloat) value);
+  gtk_adjustment_set_value(file_duration_adj, (gdouble) value);
   row++;
 
   /* Ring buffer files row */
@@ -4833,7 +4939,8 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
     "After capturing has switched to the next file and the given number of files has exceeded, "
     "the oldest file will be removed."
     );
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), ringbuffer_nbf_cb, 0, 1, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), ringbuffer_nbf_cb, 0, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   ringbuffer_nbf_adj = (GtkAdjustment *) gtk_adjustment_new((gfloat) global_capture_opts.ring_num_files,
     2/*RINGBUFFER_MIN_NUM_FILES*/, RINGBUFFER_MAX_NUM_FILES, 1.0, 10.0, 0.0);
@@ -4841,11 +4948,14 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_spin_button_set_wrap (GTK_SPIN_BUTTON (ringbuffer_nbf_sb), TRUE);
   gtk_widget_set_size_request(ringbuffer_nbf_sb, 80, -1);
   g_signal_connect(ringbuffer_nbf_sb, "changed", G_CALLBACK(capture_prep_adjust_sensitivity), cap_open_w);
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), ringbuffer_nbf_sb, 1, 2, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), ringbuffer_nbf_sb, 1, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   ringbuffer_nbf_lb = gtk_label_new("files");
   gtk_misc_set_alignment(GTK_MISC(ringbuffer_nbf_lb), 0, 0.5f);
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), ringbuffer_nbf_lb, 2, 3, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), ringbuffer_nbf_lb, 2, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
+
   row++;
 
   /* Files row */
@@ -4854,106 +4964,122 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
                                global_capture_opts.has_autostop_files);
   g_signal_connect(stop_files_cb, "toggled", G_CALLBACK(capture_prep_adjust_sensitivity), cap_open_w);
   gtk_widget_set_tooltip_text(stop_files_cb, "Stop capturing after the given number of \"file switches\" have been done.");
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), stop_files_cb, 0, 1, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), stop_files_cb, 0, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   stop_files_adj = (GtkAdjustment *) gtk_adjustment_new((gfloat)global_capture_opts.autostop_files,
     1, (gfloat)INT_MAX, 1.0, 10.0, 0.0);
   stop_files_sb = gtk_spin_button_new (stop_files_adj, 0, 0);
   gtk_spin_button_set_wrap (GTK_SPIN_BUTTON (stop_files_sb), TRUE);
   gtk_widget_set_size_request(stop_files_sb, 80, -1);
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), stop_files_sb, 1, 2, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), stop_files_sb, 1, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   stop_files_lb = gtk_label_new("file(s)");
   gtk_misc_set_alignment(GTK_MISC(stop_files_lb), 0, 0.5f);
-  gtk_table_attach_defaults(GTK_TABLE(multi_tb), stop_files_lb, 2, 3, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (multi_grid), stop_files_lb, 2, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
+
   row++;
 
   /* Capture limits frame */
-  limit_fr = gtk_frame_new("Stop Capture ...");
+  limit_fr = frame_new("Stop Capture Automatically After...");
   gtk_box_pack_start(GTK_BOX (left_vb), limit_fr, TRUE, TRUE, 0);
 
-  limit_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
-  gtk_container_set_border_width(GTK_CONTAINER(limit_vb), 5);
+  limit_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, DLG_UNRELATED_SPACING, FALSE);
+  gtk_container_set_border_width(GTK_CONTAINER(limit_vb), DLG_OUTER_MARGIN);
   gtk_container_add(GTK_CONTAINER(limit_fr), limit_vb);
 
   /* limits table */
-  limit_tb = gtk_table_new(3, 3, FALSE);
-  gtk_table_set_row_spacings(GTK_TABLE(limit_tb), 1);
-  gtk_table_set_col_spacings(GTK_TABLE(limit_tb), 3);
-  gtk_box_pack_start(GTK_BOX(limit_vb), limit_tb, FALSE, FALSE, 0);
+  limit_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
+  gtk_box_pack_start(GTK_BOX(limit_vb), limit_hb, FALSE, FALSE, 0);
+  limit_grid = ws_gtk_grid_new();
+  ws_gtk_grid_set_row_spacing(GTK_GRID(limit_grid), DLG_LABEL_SPACING);
+  ws_gtk_grid_set_column_spacing(GTK_GRID(limit_grid), DLG_UNRELATED_SPACING);
+  gtk_box_pack_start(GTK_BOX(limit_hb), limit_grid, FALSE, FALSE, 0);
   row = 0;
 
   /* Packet count row */
-  stop_packets_cb = gtk_check_button_new_with_label("... after");
+  stop_packets_cb = gtk_check_button_new();
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(stop_packets_cb),
                                global_capture_opts.has_autostop_packets);
   g_signal_connect(stop_packets_cb, "toggled", G_CALLBACK(capture_prep_adjust_sensitivity), cap_open_w);
-  gtk_widget_set_tooltip_text(stop_packets_cb, "Stop capturing after the given number of packets have been captured.");
-  gtk_table_attach_defaults(GTK_TABLE(limit_tb), stop_packets_cb, 0, 1, row, row+1);
+  gtk_widget_set_tooltip_text(stop_packets_cb, "Stop capturing after the specified number of packets have been captured.");
+  ws_gtk_grid_attach_extended(GTK_GRID (limit_grid), stop_packets_cb, 0, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   stop_packets_adj = (GtkAdjustment *) gtk_adjustment_new((gfloat)global_capture_opts.autostop_packets,
     1, (gfloat)INT_MAX, 1.0, 10.0, 0.0);
   stop_packets_sb = gtk_spin_button_new (stop_packets_adj, 0, 0);
   gtk_spin_button_set_wrap (GTK_SPIN_BUTTON (stop_packets_sb), TRUE);
   gtk_widget_set_size_request(stop_packets_sb, 80, -1);
-  gtk_table_attach_defaults(GTK_TABLE(limit_tb), stop_packets_sb, 1, 2, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (limit_grid), stop_packets_sb, 1, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   stop_packets_lb = gtk_label_new("packet(s)");
   gtk_misc_set_alignment(GTK_MISC(stop_packets_lb), 0, 0.5f);
-  gtk_table_attach_defaults(GTK_TABLE(limit_tb), stop_packets_lb, 2, 3, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (limit_grid), stop_packets_lb, 2, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
+
   row++;
 
   /* Filesize row */
-  stop_filesize_cb = gtk_check_button_new_with_label("... after");
+  stop_filesize_cb = gtk_check_button_new();
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(stop_filesize_cb),
                                global_capture_opts.has_autostop_filesize);
   g_signal_connect(stop_filesize_cb, "toggled", G_CALLBACK(capture_prep_adjust_sensitivity), cap_open_w);
-  gtk_widget_set_tooltip_text(stop_filesize_cb, "Stop capturing after the given amount of capture data has been captured.");
-  gtk_table_attach_defaults(GTK_TABLE(limit_tb), stop_filesize_cb, 0, 1, row, row+1);
+  gtk_widget_set_tooltip_text(stop_filesize_cb, "Stop capturing after the specified amount of data has been captured.");
+  ws_gtk_grid_attach_extended(GTK_GRID (limit_grid), stop_filesize_cb, 0, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   stop_filesize_adj = (GtkAdjustment *) gtk_adjustment_new(0.0,
     1, (gfloat)INT_MAX, 1.0, 10.0, 0.0);
   stop_filesize_sb = gtk_spin_button_new (stop_filesize_adj, 0, 0);
   gtk_spin_button_set_wrap (GTK_SPIN_BUTTON (stop_filesize_sb), TRUE);
   gtk_widget_set_size_request(stop_filesize_sb, 80, -1);
-  gtk_table_attach_defaults(GTK_TABLE(limit_tb), stop_filesize_sb, 1, 2, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (limit_grid), stop_filesize_sb, 1, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   stop_filesize_cbx = size_unit_combo_box_new(global_capture_opts.autostop_filesize);
-  gtk_table_attach_defaults(GTK_TABLE(limit_tb), stop_filesize_cbx, 2, 3, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (limit_grid), stop_filesize_cbx, 2, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   value = size_unit_combo_box_set_value(global_capture_opts.autostop_filesize);
-  gtk_adjustment_set_value(stop_filesize_adj, (gfloat) value);
+  gtk_adjustment_set_value(stop_filesize_adj, (gdouble) value);
 
   row++;
 
   /* Duration row */
-  stop_duration_cb = gtk_check_button_new_with_label("... after");
+  stop_duration_cb = gtk_check_button_new();
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(stop_duration_cb),
                                global_capture_opts.has_autostop_duration);
   g_signal_connect(stop_duration_cb, "toggled", G_CALLBACK(capture_prep_adjust_sensitivity), cap_open_w);
-  gtk_widget_set_tooltip_text(stop_duration_cb, "Stop capturing after the given time is exceeded.");
-  gtk_table_attach_defaults(GTK_TABLE(limit_tb), stop_duration_cb, 0, 1, row, row+1);
+  gtk_widget_set_tooltip_text(stop_duration_cb, "Stop capturing after the specified amount of time has passed.");
+  ws_gtk_grid_attach_extended(GTK_GRID (limit_grid), stop_duration_cb, 0, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   stop_duration_adj = (GtkAdjustment *) gtk_adjustment_new(0.0,
     1, (gfloat)INT_MAX, 1.0, 10.0, 0.0);
   stop_duration_sb = gtk_spin_button_new (stop_duration_adj, 0, 0);
   gtk_spin_button_set_wrap (GTK_SPIN_BUTTON (stop_duration_sb), TRUE);
   gtk_widget_set_size_request(stop_duration_sb, 80, -1);
-  gtk_table_attach_defaults(GTK_TABLE(limit_tb), stop_duration_sb, 1, 2, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (limit_grid), stop_duration_sb, 1, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   stop_duration_cbx = time_unit_combo_box_new(global_capture_opts.autostop_duration);
-  gtk_table_attach_defaults(GTK_TABLE(limit_tb), stop_duration_cbx, 2, 3, row, row+1);
+  ws_gtk_grid_attach_extended(GTK_GRID (limit_grid), stop_duration_cbx, 2, row, 1, 1,
+                              (GtkAttachOptions)(GTK_FILL), (GtkAttachOptions)(GTK_FILL), 0, 0);
 
   value = time_unit_combo_box_convert_value(global_capture_opts.autostop_duration);
-  gtk_adjustment_set_value(stop_duration_adj, (gfloat) value);
+  gtk_adjustment_set_value(stop_duration_adj, (gdouble) value);
   row++;
 
   /* Display-related options frame */
-  display_fr = gtk_frame_new("Display Options");
+  display_fr = frame_new("Display Options");
   gtk_box_pack_start(GTK_BOX (right_vb), display_fr, TRUE, TRUE, 0);
 
-  display_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
-  gtk_container_set_border_width(GTK_CONTAINER(display_vb), 5);
+  display_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, DLG_UNRELATED_SPACING, FALSE);
+  gtk_container_set_border_width(GTK_CONTAINER(display_vb), DLG_OUTER_MARGIN);
   gtk_container_add(GTK_CONTAINER(display_fr), display_vb);
 
   /* "Update display in real time" row */
@@ -4968,7 +5094,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_box_pack_start(GTK_BOX (display_vb), sync_cb, TRUE, TRUE, 0);
 
   /* "Auto-scroll live update" row */
-  auto_scroll_cb = gtk_check_button_new_with_mnemonic("_Automatic scrolling in live capture");
+  auto_scroll_cb = gtk_check_button_new_with_mnemonic("_Automatically scroll during live capture");
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(auto_scroll_cb), auto_scroll_live);
   gtk_widget_set_tooltip_text(auto_scroll_cb,
     "This will scroll the \"Packet List\" automatically to the latest captured packet, "
@@ -4982,34 +5108,34 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_box_pack_start(GTK_BOX (display_vb), hide_info_cb, TRUE, TRUE, 0);
 
   /* Name Resolution frame */
-  resolv_fr = gtk_frame_new("Name Resolution");
+  resolv_fr = frame_new("Name Resolution");
   gtk_box_pack_start(GTK_BOX (right_vb), resolv_fr, TRUE, TRUE, 0);
 
-  resolv_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
-  gtk_container_set_border_width(GTK_CONTAINER(resolv_vb), 5);
+  resolv_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, DLG_UNRELATED_SPACING, FALSE);
+  gtk_container_set_border_width(GTK_CONTAINER(resolv_vb), DLG_OUTER_MARGIN);
   gtk_container_add(GTK_CONTAINER(resolv_fr), resolv_vb);
 
   m_resolv_cb = gtk_check_button_new_with_mnemonic(
-                "Enable _MAC name resolution");
+                "Resolve _MAC addresses");
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(m_resolv_cb),
                 gbl_resolv_flags.mac_name);
   gtk_widget_set_tooltip_text(m_resolv_cb, "Perform MAC layer name resolution while capturing.");
   gtk_box_pack_start(GTK_BOX (resolv_vb), m_resolv_cb, TRUE, TRUE, 0);
 
+  n_resolv_cb = gtk_check_button_new_with_mnemonic(
+                "Resolve _network-layer names");
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(n_resolv_cb),
+                gbl_resolv_flags.network_name);
+  gtk_widget_set_tooltip_text(n_resolv_cb, "Perform network layer name resolution while capturing.");
+  gtk_box_pack_start(GTK_BOX (resolv_vb), n_resolv_cb, TRUE, TRUE, 0);
+
   t_resolv_cb = gtk_check_button_new_with_mnemonic(
-                "Enable _transport name resolution");
+                "Resolve _transport-layer name");
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(t_resolv_cb),
                 gbl_resolv_flags.transport_name);
   gtk_widget_set_tooltip_text(t_resolv_cb,
     "Perform transport layer name resolution while capturing.");
   gtk_box_pack_start(GTK_BOX (resolv_vb), t_resolv_cb, TRUE, TRUE, 0);
-
-  n_resolv_cb = gtk_check_button_new_with_mnemonic(
-                "Enable _network name resolution");
-  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(n_resolv_cb),
-                gbl_resolv_flags.network_name);
-  gtk_widget_set_tooltip_text(n_resolv_cb, "Perform network layer name resolution while capturing.");
-  gtk_box_pack_start(GTK_BOX (resolv_vb), n_resolv_cb, TRUE, TRUE, 0);
 
   e_resolv_cb = gtk_check_button_new_with_mnemonic(
                 "Use _external network name resolver");
@@ -5040,7 +5166,7 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
   gtk_widget_set_tooltip_text(help_bt,
     "Show help about capturing.");
-  g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_CAPTURE_OPTIONS_DIALOG);
+  g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), GUINT_TO_POINTER(HELP_CAPTURE_OPTIONS_DIALOG));
   gtk_widget_grab_default(ok_bt);
 
   /* Attach pointers to needed widgets to the capture prefs window/object */
@@ -5100,68 +5226,33 @@ capture_prep_cb(GtkWidget *w _U_, gpointer d _U_)
   g_signal_connect(cap_open_w, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
   g_signal_connect(cap_open_w, "destroy", G_CALLBACK(capture_prep_destroy_cb), NULL);
 
+  window_get_geometry(top_level, &tl_geom);
+  gtk_window_set_default_size(GTK_WINDOW(cap_open_w), tl_geom.width * 8 / 10, -1);
+  
   gtk_widget_show_all(cap_open_w);
   window_present(cap_open_w);
 
   cap_open_complete = TRUE;   /* "Capture:Start" is now OK */
-}
-
-/* everythings prepared, now it's really time to start the capture */
-static void
-capture_start_confirmed(void)
-{
-  interface_options interface_opts;
-  guint             i;
-
-  /* did the user ever select a capture interface before? */
-  if (global_capture_opts.num_selected == 0 &&
-      ((prefs.capture_device == NULL) || (*prefs.capture_device != '\0'))) {
-    simple_dialog(ESD_TYPE_CONFIRMATION,
-                  ESD_BTN_OK,
-                  "%sNo capture interface selected!%s\n\n"
-                  "To select an interface use:\n\n"
-                  "Capture->Options (until Wireshark is stopped)\n"
-                  "Edit->Preferences/Capture (permanent, if saved)",
-                  simple_dialog_primary_start(), simple_dialog_primary_end());
-    return;
-  }
-
-  /* XXX - we might need to init other pref data as well... */
-  main_auto_scroll_live_changed(auto_scroll_live);
-
-  /* XXX - can this ever happen? */
-  if (global_capture_opts.state != CAPTURE_STOPPED)
-    return;
-
-  /* close the currently loaded capture file */
-  cf_close(global_capture_opts.cf);
-
-  /* Copy the selected interfaces to the set of interfaces to use for
-     this capture. */
-  collect_ifaces(&global_capture_opts);
-
-  if (capture_start(&global_capture_opts)) {
-    /* The capture succeeded, which means the capture filter syntax is
-       valid; add this capture filter to the recent capture filter list. */
-    for (i = 0; i < global_capture_opts.ifaces->len; i++) {
-      interface_opts = g_array_index(global_capture_opts.ifaces, interface_options, i);
-      if (interface_opts.cfilter) {
-        cfilter_combo_add_recent(interface_opts.cfilter);
-      }
-    }
-  }
+  global_capture_session.session_started = TRUE;
 }
 
 /* user pressed the "Start" button (in dialog or toolbar) */
 void
 capture_start_cb(GtkWidget *w _U_, gpointer d _U_)
 {
+  interface_options interface_opts;
+  guint             i;
+
 #ifdef HAVE_AIRPCAP
   airpcap_if_active = airpcap_if_selected;
   if (airpcap_if_active)
     airpcap_set_toolbar_start_capture(airpcap_if_active);
 #endif
 
+  /* XXX - will closing this remove a temporary file? */
+  if(!do_file_close(&cfile, FALSE, " before starting a new capture")){
+    return;
+  }
   if (cap_open_w) {
     /*
      * There's an options dialog; get the values from it and close it.
@@ -5186,9 +5277,32 @@ capture_start_cb(GtkWidget *w _U_, gpointer d _U_)
     return;
   }
 
-  /* XXX - will closing this remove a temporary file? */
-  if (do_file_close(&cfile, FALSE, " before starting a new capture"))
-    capture_start_confirmed();
+  /* everything's prepared, now it's really time to start the capture */
+
+  /* XXX - we might need to init other pref data as well... */
+  main_auto_scroll_live_changed(auto_scroll_live);
+
+  /* XXX - can this ever happen? */
+  if (global_capture_session.state != CAPTURE_STOPPED)
+    return;
+
+  /* close the currently loaded capture file */
+  cf_close((capture_file *)global_capture_session.cf);
+
+  /* Copy the selected interfaces to the set of interfaces to use for
+     this capture. */
+  collect_ifaces(&global_capture_opts);
+
+  if (capture_start(&global_capture_opts, &global_capture_session)) {
+    /* The capture succeeded, which means the capture filter syntax is
+       valid; add this capture filter to the recent capture filter list. */
+    for (i = 0; i < global_capture_opts.ifaces->len; i++) {
+      interface_opts = g_array_index(global_capture_opts.ifaces, interface_options, i);
+      if (interface_opts.cfilter) {
+        cfilter_combo_add_recent(interface_opts.cfilter);
+      }
+    }
+  }
 }
 
 
@@ -5414,7 +5528,7 @@ capture_dlg_prep(gpointer parent_w) {
       } else {
         simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
           "%sStop Capture: Requested filesize too large!%s\n\n"
-          "The setting \"... after x byte(s)\" can't be greater than %u bytes (2GB).",
+          "The setting \"after x byte(s)\" can't be greater than %u bytes (2GB).",
           simple_dialog_primary_start(), simple_dialog_primary_end(), G_MAXINT);
         return FALSE;
       }
@@ -5429,10 +5543,15 @@ create_and_fill_model(GtkTreeView *view)
   GtkListStore *store;
   GtkTreeIter   iter;
   GList        *list;
-  char         *temp = "", *snaplen_string, *linkname="";
+  char         *temp, *snaplen_string, *linkname;
   guint         i;
   link_row     *linkr = NULL;
   interface_t   device;
+#if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
+  gint          buffer;
+#endif
+  gint          snaplen;
+  gboolean      hassnap, pmode;
 
 #if defined(HAVE_PCAP_CREATE)
   store = gtk_list_store_new (9, G_TYPE_BOOLEAN, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
@@ -5450,11 +5569,34 @@ create_and_fill_model(GtkTreeView *view)
       } else {
         temp = g_strdup_printf("<b>%s</b>\n<span size='small'>%s</span>", device.display_name, device.addresses);
       }
+      linkname = NULL;
+      if(global_capture_session.session_started == FALSE && capture_dev_user_linktype_find(device.name) != -1) {
+        device.active_dlt = capture_dev_user_linktype_find(device.name);
+      }
       for (list = device.links; list != NULL; list = g_list_next(list)) {
         linkr = (link_row*)(list->data);
-        linkname = g_strdup(linkr->name);
         if (linkr->dlt == device.active_dlt) {
-        break;
+          linkname = g_strdup(linkr->name);
+          break;
+        }
+      }
+      if (!linkname)
+          linkname = g_strdup("unknown");
+      pmode = capture_dev_user_pmode_find(device.name);
+      if (global_capture_session.session_started == FALSE && pmode != -1) {
+        device.pmode = pmode;
+      }
+      if(global_capture_session.session_started == FALSE) {
+        hassnap = capture_dev_user_hassnap_find(device.name);
+        snaplen = capture_dev_user_snaplen_find(device.name);
+        if(snaplen != -1 && hassnap != -1) {
+          /* Default snap lenght set in preferences */
+          device.snaplen = snaplen;
+          device.has_snaplen = hassnap;
+        } else {
+          /* No preferences set yet, use default values */
+          device.snaplen = WTAP_MAX_PACKET_SIZE;
+          device.has_snaplen = FALSE;
         }
       }
       if (device.has_snaplen) {
@@ -5462,6 +5604,17 @@ create_and_fill_model(GtkTreeView *view)
       } else {
         snaplen_string = g_strdup("default");
       }
+
+#if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
+      if (global_capture_session.session_started == FALSE && capture_dev_user_buffersize_find(device.name) != -1) {
+        buffer = capture_dev_user_buffersize_find(device.name);
+        device.buffer = buffer;
+      } else if (global_capture_session.session_started == FALSE) {
+        device.buffer = DEFAULT_CAPTURE_BUFFER_SIZE;
+      } 
+#endif
+      global_capture_opts.all_ifaces = g_array_remove_index(global_capture_opts.all_ifaces, i);
+      g_array_insert_val(global_capture_opts.all_ifaces, i, device);
       gtk_list_store_append (store, &iter);
 #if defined(HAVE_PCAP_CREATE)
       gtk_list_store_set (store, &iter, CAPTURE, device.selected, IFACE_HIDDEN_NAME, device.name, INTERFACE, temp, LINK, linkname,  PMODE, device.pmode?"enabled":"disabled", SNAPLEN, snaplen_string, BUFFER, (guint) device.buffer, MONITOR, device.monitor_mode_supported?(device.monitor_mode_enabled?"enabled":"disabled"):"n/a", FILTER, device.cfilter, -1);
@@ -5470,6 +5623,7 @@ create_and_fill_model(GtkTreeView *view)
 #else
       gtk_list_store_set (store, &iter, CAPTURE, device.selected, IFACE_HIDDEN_NAME, device.name, INTERFACE, temp, LINK, linkname,  PMODE, device.pmode?"enabled":"disabled", SNAPLEN, snaplen_string, FILTER, device.cfilter, -1);
 #endif
+      g_free(linkname);
     }
   }
   gtk_tree_view_set_model(GTK_TREE_VIEW(view), GTK_TREE_MODEL(store));
@@ -5489,51 +5643,53 @@ query_tooltip_tree_view_cb (GtkWidget  *widget,
   GtkTreeModel      *model     = gtk_tree_view_get_model (tree_view);
   GtkTreePath       *path      = NULL;
   gchar             *tmp;
-  gchar             *pathstring;
   GtkTreeViewColumn *column;
-  int                col;
   GtkCellRenderer*   renderer  = NULL;
   GList             *renderer_list;
+  gint               idx;
 
   char               buffer[512];
 
-   if (!gtk_tree_view_get_tooltip_context (tree_view, &x, &y, keyboard_tip, &model, &path, &iter))
+  if (!gtk_tree_view_get_tooltip_context (tree_view, &x, &y, keyboard_tip, &model, &path, &iter))
     return FALSE;
 
   gtk_tree_model_get (model, &iter, 0, &tmp, -1);
-  pathstring = gtk_tree_path_to_string (path);
 
   if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(tree_view), (gint) x, (gint) y, NULL, &column, NULL, NULL)) {
-    for (col = 0; col < NUM_COLUMNS; col++) {
-      if (gtk_tree_view_get_column(tree_view, col) == column)
-        break;
-    }
-    switch (col)
+    idx = col_title_to_index((gchar *)gtk_tree_view_column_get_title(column));
+
+    switch (idx)
     {
-      case 0: g_snprintf (buffer, sizeof(buffer), "Choose which interface (network adapter) will be used to capture packets from. "
+      case CAPTURE: g_snprintf (buffer, sizeof(buffer), "Choose which interface (network adapter) will be used to capture packets from. "
                 "Be sure to select the correct one, as it's a common mistake to select the wrong interface.");
               break;
-      case 2: g_snprintf (buffer, sizeof(buffer), "Lists the interface name and the IP address(es) assigned to it. ");
+      case INTERFACE: g_snprintf (buffer, sizeof(buffer), "Lists the interface name and the IP address(es) assigned to it. ");
               break;
-      case 3: g_snprintf (buffer, sizeof(buffer), "Link-layer type the interface supports.");
+      case LINK: g_snprintf (buffer, sizeof(buffer), "Link-layer type the interface supports.");
               break;
-      case 4: g_snprintf (buffer, sizeof(buffer), "Usually a network adapter will only capture the traffic sent to its own network address. "
+      case PMODE: g_snprintf (buffer, sizeof(buffer), "Usually a network adapter will only capture the traffic sent to its own network address. "
                 "If you want to capture all traffic that the network adapter can \"see\", promiscuous mode should be configured.");
               break;
-      case 5: g_snprintf(buffer, sizeof(buffer), "Limit the maximum number of bytes to be captured from each packet. This size includes the "
+      case SNAPLEN: g_snprintf(buffer, sizeof(buffer), "Limit the maximum number of bytes to be captured from each packet. This size includes the "
                 "link-layer header and all subsequent headers.");
               break;
-      case 6: g_snprintf (buffer, sizeof(buffer), "The memory buffer size used while capturing. "
+#if defined(HAVE_PCAP_CREATE)
+      case BUFFER: g_snprintf (buffer, sizeof(buffer), "The memory buffer size used while capturing. "
                 "If you notice packet drops, you can try increasing this size.");
               break;
-      case 7: g_snprintf (buffer, sizeof(buffer), "Usually a Wi-Fi adapter will, even in promiscuous mode, only capture "
+      case MONITOR: g_snprintf (buffer, sizeof(buffer), "Usually a Wi-Fi adapter will, even in promiscuous mode, only capture "
                 "the traffic on the BSS to which it's associated. "
                 "If you want to capture all traffic that the Wi-Fi adapter can \"receive\", select this option. "
                 "In order to see IEEE 802.11 headers or to see radio information for captured packets, "
                 "it might be necessary to turn this option on.\n\n"
                 "Note that, in monitor mode, the adapter might disassociate from the network to which it's associated.");
               break;
-      case 8: g_snprintf(buffer, sizeof(buffer), "Selected capture filter to reduce the amount of packets to be captured.");
+#elif defined(_WIN32) && !defined(HAVE_PCAP_CREATE)
+      case BUFFER: g_snprintf (buffer, sizeof(buffer), "The memory buffer size used while capturing. "
+                "If you notice packet drops, you can try increasing this size.");
+              break;
+#endif
+      case FILTER: g_snprintf(buffer, sizeof(buffer), "Selected capture filter to reduce the amount of packets to be captured.");
               break;
       default: g_snprintf(buffer, sizeof(buffer), "another option");
     }
@@ -5547,7 +5703,6 @@ query_tooltip_tree_view_cb (GtkWidget  *widget,
     }
   }
   gtk_tree_path_free (path);
-  g_free (pathstring);
 
   return TRUE;
 }
@@ -5583,7 +5738,7 @@ capture_prep_destroy_cb(GtkWidget *win _U_, gpointer user_data _U_)
 
   /* Is there a file selection dialog associated with this
      Capture Options dialog? */
-  fs = g_object_get_data(G_OBJECT(cap_open_w), E_FILE_SEL_DIALOG_PTR_KEY);
+  fs = (GtkWidget *)g_object_get_data(G_OBJECT(cap_open_w), E_FILE_SEL_DIALOG_PTR_KEY);
 
 #ifdef HAVE_PCAP_REMOTE
   if_list = (GList *) g_object_get_data(G_OBJECT(cap_open_w), E_CAP_IF_LIST_KEY);
@@ -5620,9 +5775,9 @@ static void
 capture_prep_monitor_changed_cb(GtkWidget *monitor, gpointer argp _U_)
 {
   GList             *lt_entry;
-  gchar             *if_string          = "";
+  gchar             *if_string;
   gboolean           monitor_mode;
-  if_capabilities_t *caps               = NULL;
+  if_capabilities_t *caps;
   gint               linktype_count     = 0, i;
   data_link_info_t  *data_link_info;
   interface_t        device;
@@ -5895,3 +6050,16 @@ refresh_non_local_interface_lists(void)
 }
 
 #endif /* HAVE_LIBPCAP */
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

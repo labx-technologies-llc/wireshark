@@ -178,9 +178,9 @@ mpeg_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 							(bytes >> 43 & 0x0007) << 30 |
 							(bytes >> 27 & 0x7fff) << 15 |
 							(bytes >> 11 & 0x7fff) << 0;
-						unsigned ext = (unsigned)((bytes >> 1) & 0x1ff);
+						guint ext = (guint)((bytes >> 1) & 0x1ff);
 						guint64 cr = 300 * ts_val + ext;
-						unsigned rem = (unsigned)(cr % SCRHZ);
+						guint rem = (guint)(cr % SCRHZ);
 						mpeg->now.secs
 							= mpeg->t0 + (time_t)(cr / SCRHZ);
 						mpeg->now.nsecs
@@ -270,7 +270,7 @@ mpeg_open(wtap *wth, int *err, gchar **err_info)
 	bytes_read = file_read(magic_buf, sizeof magic_buf, wth->fh);
 	if (bytes_read != (int) sizeof magic_buf) {
 		*err = file_error(wth->fh, err_info);
-		if (*err != 0)
+		if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
 			return -1;
 		return 0;
 	}

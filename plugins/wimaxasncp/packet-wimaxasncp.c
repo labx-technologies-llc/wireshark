@@ -57,32 +57,32 @@ static int hf_wimaxasncp_version                = -1;
 static int hf_wimaxasncp_flags                  = -1;
 static int hf_wimaxasncp_function_type          = -1;
 static int hf_wimaxasncp_op_id                  = -1;
-static int hf_wimaxasncp_message_type           = -1;
-static int hf_wimaxasncp_qos_msg                = -1;
-static int hf_wimaxasncp_ho_control_msg         = -1;
-static int hf_wimaxasncp_data_path_control_msg  = -1;
-static int hf_wimaxasncp_context_delivery_msg   = -1;
-static int hf_wimaxasncp_r3_mobility_msg        = -1;
-static int hf_wimaxasncp_paging_msg             = -1;
-static int hf_wimaxasncp_rrm_msg                = -1;
-static int hf_wimaxasncp_authentication_msg     = -1;
-static int hf_wimaxasncp_ms_state_msg           = -1;
-static int hf_wimaxasncp_reauthentication_msg   = -1;
-static int hf_wimaxasncp_session_msg            = -1;
+/* static int hf_wimaxasncp_message_type           = -1; */
+/* static int hf_wimaxasncp_qos_msg                = -1; */
+/* static int hf_wimaxasncp_ho_control_msg         = -1; */
+/* static int hf_wimaxasncp_data_path_control_msg  = -1; */
+/* static int hf_wimaxasncp_context_delivery_msg   = -1; */
+/* static int hf_wimaxasncp_r3_mobility_msg        = -1; */
+/* static int hf_wimaxasncp_paging_msg             = -1; */
+/* static int hf_wimaxasncp_rrm_msg                = -1; */
+/* static int hf_wimaxasncp_authentication_msg     = -1; */
+/* static int hf_wimaxasncp_ms_state_msg           = -1; */
+/* static int hf_wimaxasncp_reauthentication_msg   = -1; */
+/* static int hf_wimaxasncp_session_msg            = -1; */
 static int hf_wimaxasncp_length                 = -1;
 static int hf_wimaxasncp_msid                   = -1;
 static int hf_wimaxasncp_reserved1              = -1;
 static int hf_wimaxasncp_transaction_id         = -1;
 static int hf_wimaxasncp_reserved2              = -1;
-static int hf_wimaxasncp_tlv                    = -1;
+/* static int hf_wimaxasncp_tlv                    = -1; */
 static int hf_wimaxasncp_tlv_type               = -1;
 static int hf_wimaxasncp_tlv_length             = -1;
 static int hf_wimaxasncp_tlv_value_bytes        = -1;
 static int hf_wimaxasncp_tlv_value_bitflags8    = -1;
 static int hf_wimaxasncp_tlv_value_bitflags16   = -1;
 static int hf_wimaxasncp_tlv_value_bitflags32   = -1;
-static int hf_wimaxasncp_tlv_value_protocol     = -1;
-static int hf_wimaxasncp_tlv_value_vendor_id    = -1;
+/* static int hf_wimaxasncp_tlv_value_protocol     = -1; */
+/* static int hf_wimaxasncp_tlv_value_vendor_id    = -1; */
 
 /* Preferences */
 static gboolean show_transaction_id_d_bit      = FALSE;
@@ -131,7 +131,7 @@ wimaxasncp_build_dict_t wimaxasncp_build_dict;
 
 static wimaxasncp_dict_tlv_t wimaxasncp_tlv_not_found =
 {
-    0, "Unknown", NULL, WIMAXASNCP_TLV_UNKNOWN, 0,
+    0, (char *)"Unknown", NULL, WIMAXASNCP_TLV_UNKNOWN, 0,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     NULL, NULL, NULL
 };
@@ -1972,7 +1972,7 @@ static guint dissect_wimaxasncp_backend(
     guint     offset = 0;
     guint16   ui16;
     guint32   ui32;
-    guint8   *pmsid;
+    const guint8 *pmsid;
     guint16   tid    = 0;
     gboolean  dbit_show;
 
@@ -2076,10 +2076,7 @@ static guint dissect_wimaxasncp_backend(
     {
         tvbuff_t *tlv_tvb;
 
-        tlv_tvb = tvb_new_subset(
-            tvb, offset,
-            tvb_length(tvb) - offset,
-            tvb_length(tvb) - offset);
+        tlv_tvb = tvb_new_subset_remaining(tvb, offset);
 
         offset += dissect_wimaxasncp_tlvs(tlv_tvb, pinfo, tree);
     }
@@ -2518,6 +2515,7 @@ static void add_tlv_reg_info(
 {
     char *name;
     char *abbrev;
+    const char *root_blurb;
     char *blurb;
 
     /* ------------------------------------------------------------------------
@@ -2531,24 +2529,24 @@ static void add_tlv_reg_info(
     switch (tlv->decoder)
     {
     case WIMAXASNCP_TLV_UNKNOWN:
-        blurb = "type=Unknown";
+        root_blurb = "type=Unknown";
         break;
     case WIMAXASNCP_TLV_TBD:
-        blurb = g_strdup_printf("type=%u, TBD", tlv->type);
+        root_blurb = g_strdup_printf("type=%u, TBD", tlv->type);
         break;
     case WIMAXASNCP_TLV_COMPOUND:
-        blurb = g_strdup_printf("type=%u, Compound", tlv->type);
+        root_blurb = g_strdup_printf("type=%u, Compound", tlv->type);
         break;
     case WIMAXASNCP_TLV_FLAG0:
-        blurb = g_strdup_printf("type=%u, Value = Null", tlv->type);
+        root_blurb = g_strdup_printf("type=%u, Value = Null", tlv->type);
         break;
     default:
-        blurb = g_strdup_printf("type=%u", tlv->type);
+        root_blurb = g_strdup_printf("type=%u", tlv->type);
         break;
     }
 
     add_reg_info(
-        &tlv->hf_root, name, abbrev, FT_BYTES, BASE_NONE, blurb);
+        &tlv->hf_root, name, abbrev, FT_BYTES, BASE_NONE, root_blurb);
 
     /* ------------------------------------------------------------------------
      * add value(s) reg info
@@ -2627,32 +2625,25 @@ static void add_tlv_reg_info(
         break;
 
     case WIMAXASNCP_TLV_ID:
-        g_free(name);
         g_free(abbrev);
-
-        name = "IPv4 Address";
 
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.ipv4_value", tlv->name));
 
         add_reg_info(
-            &tlv->hf_ipv4, name, abbrev, FT_IPv4, BASE_NONE, blurb);
-
-        name = "IPv6 Address";
+            &tlv->hf_ipv4, "IPv4 Address", abbrev, FT_IPv4, BASE_NONE, blurb);
 
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.ipv6_value", tlv->name));
 
         add_reg_info(
-            &tlv->hf_ipv6, name, abbrev, FT_IPv6, BASE_NONE, blurb);
-
-        name = "BS ID";
+            &tlv->hf_ipv6, "IPv6 Address", abbrev, FT_IPv6, BASE_NONE, blurb);
 
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.bsid_value", tlv->name));
 
         add_reg_info(
-            &tlv->hf_bsid, name, abbrev, FT_ETHER, BASE_NONE, blurb);
+            &tlv->hf_bsid, "BS ID", abbrev, FT_ETHER, BASE_NONE, blurb);
 
         break;
 
@@ -2687,24 +2678,19 @@ static void add_tlv_reg_info(
         break;
 
     case WIMAXASNCP_TLV_IP_ADDRESS:
-        g_free(name);
         g_free(abbrev);
-
-        name = "IPv4 Address";
 
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.ipv4_value", tlv->name));
 
         add_reg_info(
-            &tlv->hf_ipv4, name, abbrev, FT_IPv4, BASE_NONE, blurb);
-
-        name = "IPv6 Address";
+            &tlv->hf_ipv4, "IPv4 Address", abbrev, FT_IPv4, BASE_NONE, blurb);
 
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.ipv6_value", tlv->name));
 
         add_reg_info(
-            &tlv->hf_ipv6, name, abbrev, FT_IPv6, BASE_NONE, blurb);
+            &tlv->hf_ipv6, "IPv6 Address", abbrev, FT_IPv6, BASE_NONE, blurb);
 
         break;
 
@@ -2719,13 +2705,11 @@ static void add_tlv_reg_info(
 
         blurb = g_strdup_printf("value component for type=%u", tlv->type);
 
-        name = "Protocol";
-
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.value.protocol", tlv->name));
 
         add_reg_info(
-            &tlv->hf_protocol, name, abbrev, FT_UINT16, BASE_DEC, blurb);
+            &tlv->hf_protocol, "Protocol", abbrev, FT_UINT16, BASE_DEC, blurb);
 
         break;
 
@@ -2735,21 +2719,17 @@ static void add_tlv_reg_info(
 
         blurb = g_strdup_printf("value component for type=%u", tlv->type);
 
-        name = "Port Low";
-
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.value.port_low", tlv->name));
 
         add_reg_info(
-            &tlv->hf_port_low, name, abbrev, FT_UINT16, BASE_DEC, blurb);
-
-        name = "Port High";
+            &tlv->hf_port_low, "Port Low", abbrev, FT_UINT16, BASE_DEC, blurb);
 
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.value.port_high", tlv->name));
 
         add_reg_info(
-            &tlv->hf_port_high, name, abbrev, FT_UINT16, BASE_DEC, blurb);
+            &tlv->hf_port_high, "Port High", abbrev, FT_UINT16, BASE_DEC, blurb);
 
         break;
 
@@ -2759,37 +2739,29 @@ static void add_tlv_reg_info(
 
         blurb = g_strdup_printf("value component for type=%u", tlv->type);
 
-        name = "IPv4 Address";
-
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.value.ipv4", tlv->name));
 
         add_reg_info(
-            &tlv->hf_ipv4, name, abbrev, FT_IPv4, BASE_NONE, blurb);
-
-        name = "IPv4 Mask";
+            &tlv->hf_ipv4, "IPv4 Address", abbrev, FT_IPv4, BASE_NONE, blurb);
 
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.value.ipv4_mask", tlv->name));
 
         add_reg_info(
-            &tlv->hf_ipv4_mask, name, abbrev, FT_IPv4, BASE_NONE, blurb);
-
-        name = "IPv6 Address";
+            &tlv->hf_ipv4_mask, "IPv4 Mask", abbrev, FT_IPv4, BASE_NONE, blurb);
 
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.value.ipv6", tlv->name));
 
         add_reg_info(
-            &tlv->hf_ipv6, name, abbrev, FT_IPv6, BASE_NONE, blurb);
-
-        name = "IPv6 Mask";
+            &tlv->hf_ipv6, "IPv6 Address", abbrev, FT_IPv6, BASE_NONE, blurb);
 
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.value.ipv6_mask", tlv->name));
 
         add_reg_info(
-            &tlv->hf_ipv6_mask, name, abbrev, FT_IPv6, BASE_NONE, blurb);
+            &tlv->hf_ipv6_mask, "IPv6 Mask", abbrev, FT_IPv6, BASE_NONE, blurb);
 
         break;
 
@@ -2799,22 +2771,18 @@ static void add_tlv_reg_info(
 
         blurb = g_strdup_printf("value component for type=%u", tlv->type);
 
-        name = "Vendor ID";
-
         abbrev = alnumerize(
             g_strdup_printf("wimaxasncp.tlv.%s.value.vendor_id", tlv->name));
 
         add_reg_info(
-            &tlv->hf_vendor_id, name, abbrev, FT_UINT24, BASE_DEC, blurb);
-
-        name = "Rest of Info";
+            &tlv->hf_vendor_id, "Vendor ID", abbrev, FT_UINT24, BASE_DEC, blurb);
 
         abbrev = alnumerize(
             g_strdup_printf(
                 "wimaxasncp.tlv.%s.value.vendor_rest_of_info", tlv->name));
 
         add_reg_info(
-            &tlv->hf_vendor_rest_of_info, name, abbrev, FT_BYTES, BASE_NONE,
+            &tlv->hf_vendor_rest_of_info, "Rest of Info", abbrev, FT_BYTES, BASE_NONE,
             blurb);
 
         break;
@@ -2909,6 +2877,7 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#if 0
             {
                 &hf_wimaxasncp_message_type,
                 {
@@ -2922,6 +2891,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_qos_msg,
                 {
@@ -2935,6 +2906,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_ho_control_msg,
                 {
@@ -2948,6 +2921,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_data_path_control_msg,
                 {
@@ -2961,6 +2936,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_context_delivery_msg,
                 {
@@ -2974,6 +2951,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_r3_mobility_msg,
                 {
@@ -2987,6 +2966,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_paging_msg,
                 {
@@ -3000,6 +2981,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_rrm_msg,
                 {
@@ -3013,6 +2996,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_authentication_msg,
                 {
@@ -3026,6 +3011,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_ms_state_msg,
                 {
@@ -3039,6 +3026,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_reauthentication_msg,
                 {
@@ -3052,6 +3041,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_session_msg,
                 {
@@ -3065,6 +3056,7 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
             {
                 &hf_wimaxasncp_length,
                 {
@@ -3130,6 +3122,7 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#if 0
             {
                 &hf_wimaxasncp_tlv,
                 {
@@ -3143,6 +3136,7 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
             {
                 &hf_wimaxasncp_tlv_type,
                 {
@@ -3221,6 +3215,7 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#if 0
             {
                 &hf_wimaxasncp_tlv_value_protocol,
                 {
@@ -3234,6 +3229,8 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             },
+#endif
+#if 0
             {
                 &hf_wimaxasncp_tlv_value_vendor_id,
                 {
@@ -3247,6 +3244,7 @@ register_wimaxasncp_fields(const char* unused _U_)
                     HFILL
                 }
             }
+#endif
         };
 
     /* ------------------------------------------------------------------------

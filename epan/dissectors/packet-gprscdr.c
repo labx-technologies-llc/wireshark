@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-gprscdr.c                                                           */
 /* ../../tools/asn2wrs.py -b -p gprscdr -c ./gprscdr.cnf -s ./packet-gprscdr-template -D . -O ../../epan/dissectors GenericChargingDataTypesV8e0.asn GPRSChargingDataTypesV641.asn GPRSChargingDataTypesV8e0.asn */
 
@@ -45,6 +45,8 @@
 #define PNAME  "GPRS CDR"
 #define PSNAME "GPRSCDR"
 #define PFNAME "gprscdr"
+
+void proto_register_gprscdr(void);
 
 /* Define the GPRS CDR proto */
 static int proto_gprscdr = -1;
@@ -301,7 +303,7 @@ static int hf_gprscdr_ServiceConditionChange_tAIChange = -1;
 static int hf_gprscdr_ServiceConditionChange_userLocationChange = -1;
 
 /*--- End of included file: packet-gprscdr-hf.c ---*/
-#line 45 "../../asn1/gprscdr/packet-gprscdr-template.c"
+#line 47 "../../asn1/gprscdr/packet-gprscdr-template.c"
 
 static int ett_gprscdr = -1;
 static int ett_gprscdr_timestamp = -1;
@@ -363,7 +365,7 @@ static gint ett_gprscdr_ServiceConditionChange = -1;
 static gint ett_gprscdr_TimeQuotaMechanism = -1;
 
 /*--- End of included file: packet-gprscdr-ett.c ---*/
-#line 50 "../../asn1/gprscdr/packet-gprscdr-template.c"
+#line 52 "../../asn1/gprscdr/packet-gprscdr-template.c"
 
 static const value_string gprscdr_daylight_saving_time_vals[] = {
     {0, "No adjustment"},
@@ -1286,6 +1288,7 @@ static const value_string gprscdr_CauseForRecClosingV651_vals[] = {
   {  21, "intraSGSNIntersystemChange" },
   {  22, "rATChange" },
   {  23, "mSTimeZoneChange" },
+  {  24, "sGSNPLMNIDChange" },
   {  52, "unauthorizedRequestingNetwork" },
   {  53, "unauthorizedLCSClient" },
   {  54, "positionMethodFailure" },
@@ -2684,7 +2687,7 @@ int dissect_gprscdr_GPRSRecord_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, pr
 
 
 /*--- End of included file: packet-gprscdr-fn.c ---*/
-#line 60 "../../asn1/gprscdr/packet-gprscdr-template.c"
+#line 62 "../../asn1/gprscdr/packet-gprscdr-template.c"
 
 
 
@@ -2718,11 +2721,11 @@ proto_register_gprscdr(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_gprscdr_networkSpecificCause,
-      { "networkSpecificCause", "gprscdr.networkSpecificCause",
+      { "networkSpecificCause", "gprscdr.networkSpecificCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ManagementExtension", HFILL }},
     { &hf_gprscdr_manufacturerSpecificCause,
-      { "manufacturerSpecificCause", "gprscdr.manufacturerSpecificCause",
+      { "manufacturerSpecificCause", "gprscdr.manufacturerSpecificCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ManagementExtension", HFILL }},
     { &hf_gprscdr_positionMethodFailureCause,
@@ -2758,7 +2761,7 @@ proto_register_gprscdr(void)
         FT_STRING, BASE_NONE, NULL, 0,
         "IA5String_SIZE_15_45", HFILL }},
     { &hf_gprscdr_ManagementExtensions_item,
-      { "ManagementExtension", "gprscdr.ManagementExtension",
+      { "ManagementExtension", "gprscdr.ManagementExtension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_iPAddress,
@@ -2794,31 +2797,31 @@ proto_register_gprscdr(void)
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_gprscdr_information,
-      { "information", "gprscdr.information",
+      { "information", "gprscdr.information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_sgsnPDPRecord,
-      { "sgsnPDPRecord", "gprscdr.sgsnPDPRecord",
+      { "sgsnPDPRecord", "gprscdr.sgsnPDPRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SGSNPDPRecordV651", HFILL }},
     { &hf_gprscdr_ggsnPDPRecord,
-      { "ggsnPDPRecord", "gprscdr.ggsnPDPRecord",
+      { "ggsnPDPRecord", "gprscdr.ggsnPDPRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_sgsnMMRecord,
-      { "sgsnMMRecord", "gprscdr.sgsnMMRecord",
+      { "sgsnMMRecord", "gprscdr.sgsnMMRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_sgsnSMORecord,
-      { "sgsnSMORecord", "gprscdr.sgsnSMORecord",
+      { "sgsnSMORecord", "gprscdr.sgsnSMORecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SGSNSMORecordV651", HFILL }},
     { &hf_gprscdr_sgsnSMTRecord,
-      { "sgsnSMTRecord", "gprscdr.sgsnSMTRecord",
+      { "sgsnSMTRecord", "gprscdr.sgsnSMTRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SGSNSMTRecordV651", HFILL }},
     { &hf_gprscdr_egsnPDPRecord,
-      { "egsnPDPRecord", "gprscdr.egsnPDPRecord",
+      { "egsnPDPRecord", "gprscdr.egsnPDPRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_recordType,
@@ -2870,7 +2873,7 @@ proto_register_gprscdr(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_ChangeOfCharConditionV651", HFILL }},
     { &hf_gprscdr_listOfTrafficVolumes_item,
-      { "ChangeOfCharConditionV651", "gprscdr.ChangeOfCharConditionV651",
+      { "ChangeOfCharConditionV651", "gprscdr.ChangeOfCharConditionV651_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_recordOpeningTime,
@@ -2922,7 +2925,7 @@ proto_register_gprscdr(void)
         FT_UINT32, BASE_DEC, VALS(gprscdr_ChChSelectionMode_vals), 0,
         NULL, HFILL }},
     { &hf_gprscdr_iMSsignalingContext,
-      { "iMSsignalingContext", "gprscdr.iMSsignalingContext",
+      { "iMSsignalingContext", "gprscdr.iMSsignalingContext_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_externalChargingID,
@@ -2954,7 +2957,7 @@ proto_register_gprscdr(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_gprscdr_pSFurnishChargingInformation,
-      { "pSFurnishChargingInformation", "gprscdr.pSFurnishChargingInformation",
+      { "pSFurnishChargingInformation", "gprscdr.pSFurnishChargingInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_listOfServiceData,
@@ -2962,7 +2965,7 @@ proto_register_gprscdr(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_ChangeOfServiceConditionV651", HFILL }},
     { &hf_gprscdr_listOfServiceData_item,
-      { "ChangeOfServiceConditionV651", "gprscdr.ChangeOfServiceConditionV651",
+      { "ChangeOfServiceConditionV651", "gprscdr.ChangeOfServiceConditionV651_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_servedIMEI,
@@ -3002,7 +3005,7 @@ proto_register_gprscdr(void)
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_cAMELInformationPDP,
-      { "cAMELInformationPDP", "gprscdr.cAMELInformationPDP",
+      { "cAMELInformationPDP", "gprscdr.cAMELInformationPDP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_rNCUnsentDownlinkVolume,
@@ -3038,7 +3041,7 @@ proto_register_gprscdr(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "SmsTpDestinationNumber", HFILL }},
     { &hf_gprscdr_cAMELInformationSMS,
-      { "cAMELInformationSMS", "gprscdr.cAMELInformationSMS",
+      { "cAMELInformationSMS", "gprscdr.cAMELInformationSMS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_qosRequested,
@@ -3134,23 +3137,23 @@ proto_register_gprscdr(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_sgsnPDPRecord_01,
-      { "sgsnPDPRecord", "gprscdr.sgsnPDPRecord",
+      { "sgsnPDPRecord", "gprscdr.sgsnPDPRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_sgsnSMORecord_01,
-      { "sgsnSMORecord", "gprscdr.sgsnSMORecord",
+      { "sgsnSMORecord", "gprscdr.sgsnSMORecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_sgsnSMTRecord_01,
-      { "sgsnSMTRecord", "gprscdr.sgsnSMTRecord",
+      { "sgsnSMTRecord", "gprscdr.sgsnSMTRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_sGWRecord,
-      { "sGWRecord", "gprscdr.sGWRecord",
+      { "sGWRecord", "gprscdr.sGWRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_pGWRecord,
-      { "pGWRecord", "gprscdr.pGWRecord",
+      { "pGWRecord", "gprscdr.pGWRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_recordType_01,
@@ -3182,7 +3185,7 @@ proto_register_gprscdr(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_ChangeOfCharCondition", HFILL }},
     { &hf_gprscdr_listOfTrafficVolumes_item_01,
-      { "ChangeOfCharCondition", "gprscdr.ChangeOfCharCondition",
+      { "ChangeOfCharCondition", "gprscdr.ChangeOfCharCondition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_causeForRecClosing_01,
@@ -3246,11 +3249,11 @@ proto_register_gprscdr(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_ChangeOfServiceCondition", HFILL }},
     { &hf_gprscdr_listOfServiceData_item_01,
-      { "ChangeOfServiceCondition", "gprscdr.ChangeOfServiceCondition",
+      { "ChangeOfServiceCondition", "gprscdr.ChangeOfServiceCondition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_servedMNNAI,
-      { "servedMNNAI", "gprscdr.servedMNNAI",
+      { "servedMNNAI", "gprscdr.servedMNNAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SubscriptionID", HFILL }},
     { &hf_gprscdr_served3gpp2MEID,
@@ -3266,11 +3269,11 @@ proto_register_gprscdr(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_ChangeLocation", HFILL }},
     { &hf_gprscdr_changeLocation_item,
-      { "ChangeLocation", "gprscdr.ChangeLocation",
+      { "ChangeLocation", "gprscdr.ChangeLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_cAMELInformationMM,
-      { "cAMELInformationMM", "gprscdr.cAMELInformationMM",
+      { "cAMELInformationMM", "gprscdr.cAMELInformationMM_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_cellPLMNId,
@@ -3282,7 +3285,7 @@ proto_register_gprscdr(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_flows,
-      { "flows", "gprscdr.flows",
+      { "flows", "gprscdr.flows_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_sCFAddress,
@@ -3346,7 +3349,7 @@ proto_register_gprscdr(void)
         FT_UINT32, BASE_DEC, VALS(gprscdr_ChangeCondition_vals), 0,
         NULL, HFILL }},
     { &hf_gprscdr_ePCQoSInformation,
-      { "ePCQoSInformation", "gprscdr.ePCQoSInformation",
+      { "ePCQoSInformation", "gprscdr.ePCQoSInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_serviceConditionChange_01,
@@ -3354,7 +3357,7 @@ proto_register_gprscdr(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_qoSInformationNeg_01,
-      { "qoSInformationNeg", "gprscdr.qoSInformationNeg",
+      { "qoSInformationNeg", "gprscdr.qoSInformationNeg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EPCQoSInformation", HFILL }},
     { &hf_gprscdr_servingNodeAddress_01,
@@ -3366,15 +3369,15 @@ proto_register_gprscdr(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_AFRecordInformation", HFILL }},
     { &hf_gprscdr_aFRecordInformation_item,
-      { "AFRecordInformation", "gprscdr.AFRecordInformation",
+      { "AFRecordInformation", "gprscdr.AFRecordInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_eventBasedChargingInformation,
-      { "eventBasedChargingInformation", "gprscdr.eventBasedChargingInformation",
+      { "eventBasedChargingInformation", "gprscdr.eventBasedChargingInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_timeQuotaMechanism,
-      { "timeQuotaMechanism", "gprscdr.timeQuotaMechanism",
+      { "timeQuotaMechanism", "gprscdr.timeQuotaMechanism_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_serviceSpecificInfo,
@@ -3382,7 +3385,7 @@ proto_register_gprscdr(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_ServiceSpecificInfo", HFILL }},
     { &hf_gprscdr_serviceSpecificInfo_item,
-      { "ServiceSpecificInfo", "gprscdr.ServiceSpecificInfo",
+      { "ServiceSpecificInfo", "gprscdr.ServiceSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gprscdr_mCC_MNC,
@@ -3683,7 +3686,7 @@ proto_register_gprscdr(void)
         NULL, HFILL }},
 
 /*--- End of included file: packet-gprscdr-hfarr.c ---*/
-#line 70 "../../asn1/gprscdr/packet-gprscdr-template.c"
+#line 72 "../../asn1/gprscdr/packet-gprscdr-template.c"
   };
 
   /* List of subtrees */
@@ -3748,7 +3751,7 @@ proto_register_gprscdr(void)
     &ett_gprscdr_TimeQuotaMechanism,
 
 /*--- End of included file: packet-gprscdr-ettarr.c ---*/
-#line 78 "../../asn1/gprscdr/packet-gprscdr-template.c"
+#line 80 "../../asn1/gprscdr/packet-gprscdr-template.c"
         };
 
   proto_gprscdr = proto_register_protocol(PNAME, PSNAME, PFNAME);

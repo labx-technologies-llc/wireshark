@@ -35,8 +35,8 @@
 static gint ett_nmas = -1;
 
 static int proto_nmas = -1;
-static int hf_func = -1;
-static int hf_subfunc = -1;
+/* static int hf_func = -1; */
+/* static int hf_subfunc = -1; */
 static int hf_ping_version = -1;
 static int hf_ping_flags = -1;
 static int hf_frag_handle = -1;
@@ -48,7 +48,7 @@ static int hf_nmas_version = -1;
 static int hf_msg_version = -1;
 static int hf_session_ident = -1;
 static int hf_msg_verb = -1;
-static int hf_attribute = -1;
+/* static int hf_attribute = -1; */
 static int hf_clearance = -1;
 static int hf_login_sequence = -1;
 static int hf_opaque = -1;
@@ -64,6 +64,9 @@ static int hf_enc_cred = -1;
 static int hf_enc_data = -1;
 static int hf_reply_buffer_size = -1;
 static int hf_encrypt_error = -1;
+
+static expert_field ei_encrypt_error = EI_INIT;
+static expert_field ei_return_error = EI_INIT;
 
 static const value_string nmas_func_enum[] = {
     { 0x01, "Ping" },
@@ -204,7 +207,7 @@ nmas_string(tvbuff_t* tvb, int hfinfo, proto_tree *nmas_tree, int offset, gboole
         guint16 c_char;
         guint32 length_remaining = 0;
 
-        buffer=ep_alloc(ITEM_LABEL_LENGTH+1);
+        buffer=(char *)ep_alloc(ITEM_LABEL_LENGTH+1);
         if (little) {
             str_length = tvb_get_letohl(tvb, foffset);
         }
@@ -594,12 +597,12 @@ dissect_nmas_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ncp_tree, guin
                     break;
                 case 7:
                     encrypt_error = tvb_get_ntohl(tvb, foffset);
-                    str = match_strval(encrypt_error, nmas_errors_enum);
+                    str = try_val_to_str(encrypt_error, nmas_errors_enum);
                     if (str)
                     {
                         col_add_fstr(pinfo->cinfo, COL_INFO, "R Payload Error - %s", str);
                         expert_item = proto_tree_add_item(atree, hf_encrypt_error, tvb, foffset, 4, ENC_BIG_ENDIAN);
-                        expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "NMAS Payload Error: %s", str);
+                        expert_add_info_format_text(pinfo, expert_item, &ei_encrypt_error, "NMAS Payload Error: %s", str);
                     }
                     else
                     {
@@ -618,11 +621,11 @@ dissect_nmas_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ncp_tree, guin
                 break;
             }
         }
-        str = match_strval(return_code, nmas_errors_enum);
+        str = try_val_to_str(return_code, nmas_errors_enum);
         if (str)
         {
             expert_item = proto_tree_add_item(atree, hf_return_code, tvb, roffset, 4, ENC_LITTLE_ENDIAN);
-            expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "NMAS Error: 0x%08x %s", return_code, str);
+            expert_add_info_format_text(pinfo, expert_item, &ei_return_error, "NMAS Error: 0x%08x %s", return_code, str);
             col_add_fstr(pinfo->cinfo, COL_INFO, "R Error - %s", str);
         }
         else
@@ -630,7 +633,7 @@ dissect_nmas_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ncp_tree, guin
             if (return_code!=0)
             {
                 expert_item = proto_tree_add_item(atree, hf_return_code, tvb, roffset, 4, ENC_LITTLE_ENDIAN);
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "NMAS Error: 0x%08x is unknown", return_code);
+                expert_add_info_format_text(pinfo, expert_item, &ei_return_error, "NMAS Error: 0x%08x is unknown", return_code);
                 if (check_col(pinfo->cinfo, COL_INFO)) {
                    col_add_fstr(pinfo->cinfo, COL_INFO, "R Unknown NMAS Error - 0x%08x", return_code);
                 }
@@ -652,13 +655,17 @@ void
 proto_register_nmas(void)
 {
     static hf_register_info hf_nmas[] = {
+#if 0
         { &hf_func,
         { "Function", "nmas.func", FT_UINT8, BASE_HEX, NULL, 0x0,
             NULL, HFILL }},
+#endif
 
+#if 0
         { &hf_subfunc,
         { "Subfunction", "nmas.subfunc", FT_UINT8, BASE_HEX, NULL, 0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_ping_version,
         { "Ping Version", "nmas.ping_version", FT_UINT32, BASE_HEX, NULL, 0x0,
@@ -707,9 +714,11 @@ proto_register_nmas(void)
         { "Message Verb",        "nmas.msg_verb", FT_UINT8, BASE_HEX, VALS(nmas_msgverb_enum), 0x0,
             NULL, HFILL }},
 
+#if 0
         { &hf_attribute,
         { "Attribute Type",        "nmas.attribute", FT_UINT32, BASE_DEC, VALS(nmas_attribute_enum), 0x0,
             NULL, HFILL }},
+#endif
 
         { &hf_clearance,
         { "Requested Clearance",    "nmas.clearance",
@@ -783,7 +792,16 @@ proto_register_nmas(void)
         &ett_nmas,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_encrypt_error, { "nmas.encrypt_error.expert", PI_RESPONSE_CODE, PI_NOTE, "NMAS Payload Erro", EXPFILL }},
+        { &ei_return_error, { "nmas.return_code.expert", PI_RESPONSE_CODE, PI_NOTE, "NMAS Error", EXPFILL }},
+    };
+
+    expert_module_t* expert_nmas;
+
     proto_nmas = proto_register_protocol("Novell Modular Authentication Service", "NMAS", "nmas");
     proto_register_field_array(proto_nmas, hf_nmas, array_length(hf_nmas));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_nmas = expert_register_protocol(proto_nmas);
+    expert_register_field_array(expert_nmas, ei, array_length(ei));
 }

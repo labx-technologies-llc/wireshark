@@ -51,6 +51,7 @@ typedef struct _usb_trans_info_t {
         guint8 request;
         guint16 wValue;
         guint16 wIndex;
+        guint16 wLength;
     } setup;
 
     /* Valid only during GET DESCRIPTOR transactions */
@@ -72,10 +73,15 @@ typedef struct _usb_trans_info_t {
     usb_conv_info_t *interface_info;
 } usb_trans_info_t;
 
-/* there is one such structure for each device/endpoint conversation */
+/* Conversation Structure 
+ * there is one such structure for each device/endpoint conversation */
 struct _usb_conv_info_t {
-    guint16 interfaceClass;		/* class for this conversation */
-    guint16 interfaceSubclass;	/* Most recent interface descriptor subclass */
+    guint16 interfaceClass;     /* Interface Descriptor - class          */
+    guint16 interfaceSubclass;  /* Interface Descriptor - subclass       */
+    guint16 interfaceProtocol;  /* Interface Descriptor - protocol       */
+    guint8  interfaceNum;       /* Most recent interface number          */
+    guint16 deviceVendor;       /* Device    Descriptor - USB Vendor  ID */
+    guint32 deviceProduct;      /* Device    Descriptor - USB Product ID - MSBs only for encoding unknown */
     emem_tree_t *transactions;
     usb_trans_info_t *usb_trans_info; /* pointer to the current transaction */
     void *class_data;	/* private class/id decode data */
@@ -148,6 +154,9 @@ typedef struct _usb_data_t {
 
 #define IF_CLASS_UNKNOWN              0xffff
 #define IF_SUBCLASS_UNKNOWN           0xffff
+#define IF_PROTOCOL_UNKNOWN           0xffff
+#define DEV_VENDOR_UNKNOWN            0x0000  /* this id is unassigned */
+#define DEV_PRODUCT_UNKNOWN           0xfffffff /* 0x0000 and 0xffff are used values by vendors, so MSBs encode unknown */
 
 /* bmRequestType values */
 #define USB_DIR_OUT                     0               /* to device */
@@ -172,6 +181,8 @@ typedef struct _usb_data_t {
 #define ENDPOINT_TYPE_ISOCHRONOUS       1
 #define ENDPOINT_TYPE_BULK              2
 #define ENDPOINT_TYPE_INTERRUPT         3
+
+usb_conv_info_t *get_usb_iface_conv_info(packet_info *pinfo, guint8 interface_num);
 
 void dissect_usb_descriptor_header(proto_tree *tree, tvbuff_t *tvb, int offset);
 void dissect_usb_endpoint_address(proto_tree *tree, tvbuff_t *tvb, int offset);

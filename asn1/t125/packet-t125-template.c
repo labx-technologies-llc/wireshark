@@ -39,6 +39,8 @@
 #define PSNAME "T.125"
 #define PFNAME "t125"
 
+void proto_register_t125(void);
+void proto_reg_handoff_t125(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_t125 = -1;
@@ -109,7 +111,7 @@ dissect_t125_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
   TRY {
     /* could be BER */
     get_ber_identifier(tvb, 0, &ber_class, &pc, &tag);
-  } CATCH2(BoundsError, ReportedBoundsError) {
+  } CATCH_BOUNDS_ERRORS {
     failed = TRUE;
   } ENDTRY;
 
@@ -126,7 +128,7 @@ dissect_t125_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
     dissect_per_constrained_integer(tvb, 0, &asn1_ctx,
                                     NULL, hf_t125_heur, 0, 42,
                                     &choice_index, FALSE);
-  } CATCH2(BoundsError, ReportedBoundsError) {
+  } CATCH_BOUNDS_ERRORS {
     failed = TRUE;
   } ENDTRY;
 

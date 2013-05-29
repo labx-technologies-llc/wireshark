@@ -84,13 +84,13 @@ char *bytes_to_hexstr_punct(char *out, const guint8 *ad, guint32 len, char punct
 /* XXX FIXME
 remove this one later when every call has been converted to ep_address_to_str()
 */
-gchar *
+const gchar *
 ether_to_str(const guint8 *ad)
 {
 	return bytestring_to_str(ad, 6, ':');
 }
 
-gchar *
+const gchar *
 tvb_ether_to_str(tvbuff_t *tvb, const gint offset)
 {
 	return bytestring_to_str(tvb_get_ptr(tvb, offset, 6), 6, ':');
@@ -104,7 +104,7 @@ const gchar *
 ip_to_str(const guint8 *ad) {
   gchar *buf;
 
-  buf=ep_alloc(MAX_IP_STR_LEN);
+  buf=(gchar *)ep_alloc(MAX_IP_STR_LEN);
   ip_to_str_buf(ad, buf, MAX_IP_STR_LEN);
   return buf;
 }
@@ -115,7 +115,7 @@ tvb_ip_to_str(tvbuff_t *tvb, const gint offset)
 {
   gchar *buf;
 
-  buf=ep_alloc(MAX_IP_STR_LEN);
+  buf=(gchar *)ep_alloc(MAX_IP_STR_LEN);
   ip_to_str_buf(tvb_get_ptr(tvb, offset, IPV4_LENGTH), buf, MAX_IP_STR_LEN);
   return buf;
 }
@@ -127,7 +127,7 @@ gchar *
 ip6_to_str(const struct e_in6_addr *ad) {
   gchar *str;
 
-  str=ep_alloc(MAX_IP6_STR_LEN);
+  str=(gchar *)ep_alloc(MAX_IP6_STR_LEN);
   ip6_to_str_buf(ad, str);
   return str;
 }
@@ -138,7 +138,7 @@ tvb_ip6_to_str(tvbuff_t *tvb, const gint offset)
 {
   gchar *buf;
 
-  buf=ep_alloc(MAX_IP6_STR_LEN);
+  buf=(gchar *)ep_alloc(MAX_IP6_STR_LEN);
   ip6_to_str_buf((const struct e_in6_addr *)tvb_get_ptr(tvb, offset, IPV6_LENGTH), buf);
   return buf;
 }
@@ -288,7 +288,7 @@ ipxnet_to_string(const guint8 *ad)
 gchar *
 ipxnet_to_str_punct(const guint32 ad, const char punct)
 {
-  gchar *buf = ep_alloc(12);
+  gchar *buf = (gchar *)ep_alloc(12);
 
   *dword_to_hex_punct(buf, ad, punct) = '\0';
   return buf;
@@ -313,7 +313,7 @@ tvb_vines_addr_to_str(tvbuff_t *tvb, const gint offset)
 {
   gchar	*buf;
 
-  buf=ep_alloc(214); /* XXX, 14 here? */
+  buf=(gchar *)ep_alloc(214); /* XXX, 14 here? */
 
   vines_addr_to_str_buf(tvb_get_ptr(tvb, offset, VINES_ADDR_LEN), buf, 214);
   return buf;
@@ -328,8 +328,8 @@ eui64_to_str(const guint64 ad) {
   gchar *buf;
   guint8 *p_eui64;
 
-  p_eui64 = ep_alloc(8);
-  buf=ep_alloc(EUI64_STR_LEN);
+  p_eui64 = (guint8 *)ep_alloc(8);
+  buf=(gchar *)ep_alloc(EUI64_STR_LEN);
 
   /* Copy and convert the address to network byte order. */
   *(guint64 *)(void *)(p_eui64) = pntoh64(&(ad));
@@ -386,9 +386,9 @@ tipc_addr_to_str_buf( const guint8 *data, gchar *buf, int buf_len){
 static void
 ib_addr_to_str_buf( const address *addr, gchar *buf, int buf_len){
 	if (addr->len >= 16) {	/* GID is 128bits */
-		#define PREAMBLE_STR_LEN		(sizeof("GID: ") - 1)
+		#define PREAMBLE_STR_LEN	((int)(sizeof("GID: ") - 1))
 		g_snprintf(buf,buf_len,"GID: ");
-		if (buf_len < (int)PREAMBLE_STR_LEN ||
+		if (buf_len < PREAMBLE_STR_LEN ||
 				inet_ntop(AF_INET6, addr->data, buf + PREAMBLE_STR_LEN, 
 						  buf_len - PREAMBLE_STR_LEN) == NULL ) /* Returns NULL if no space and does not touch buf */
 			g_snprintf ( buf, buf_len, BUF_TOO_SMALL_ERR ); /* Let the unexpected value alert user */
@@ -403,13 +403,13 @@ ib_addr_to_str_buf( const address *addr, gchar *buf, int buf_len){
 /* XXX FIXME
 remove this one later when every call has been converted to ep_address_to_str()
 */
-gchar *
+const gchar *
 fc_to_str(const guint8 *ad)
 {
     return bytestring_to_str (ad, 3, '.');
 }
 
-gchar *
+const gchar *
 tvb_fc_to_str(tvbuff_t *tvb, const gint offset)
 {
     return bytestring_to_str (tvb_get_ptr(tvb, offset, 3), 3, '.');
@@ -437,7 +437,7 @@ fcwwn_to_str (const guint8 *ad)
 
     if (ad == NULL) return NULL;
 
-    ethstr=ep_alloc(512);
+    ethstr=(gchar *)ep_alloc(512);
     ethptr = bytes_to_hexstr_punct(ethstr, ad, 8, ':');	/* 23 bytes */
 
     fmt = (ad[0] & 0xF0) >> 4;
@@ -478,7 +478,7 @@ tvb_fcwwn_to_str(tvbuff_t *tvb, const gint offset)
 /* XXX FIXME
 remove this one later when every call has been converted to address_to_str()
 */
-gchar *
+const gchar *
 ax25_to_str(const guint8 *ad)
 {
 	return bytestring_to_str(ad, 7, ':');
@@ -517,7 +517,7 @@ ep_address_to_str(const address *addr)
 {
   gchar *str;
 
-  str=ep_alloc(MAX_ADDR_STR_LEN);
+  str=(gchar *)ep_alloc(MAX_ADDR_STR_LEN);
   address_to_str_buf(addr, str, MAX_ADDR_STR_LEN);
   return str;
 }
@@ -528,7 +528,7 @@ se_address_to_str(const address *addr)
 {
   gchar *str;
 
-  str=se_alloc(MAX_ADDR_STR_LEN);
+  str=(gchar *)se_alloc(MAX_ADDR_STR_LEN);
   address_to_str_buf(addr, str, MAX_ADDR_STR_LEN);
   return str;
 }
@@ -551,16 +551,16 @@ address_to_str_buf(const address *addr, gchar *buf, int buf_len)
     buf[0] = '\0';
     break;
   case AT_ETHER:					/* 18 bytes */
-    tempptr = bytes_to_hexstr_punct(tempptr, addr->data, 6, ':');	/* 17 bytes */
+    tempptr = bytes_to_hexstr_punct(tempptr, (const guint8 *)addr->data, 6, ':');	/* 17 bytes */
     break;
   case AT_IPv4:
-    ip_to_str_buf(addr->data, buf, buf_len);
+    ip_to_str_buf((const guint8 *)addr->data, buf, buf_len);
     break;
   case AT_IPv6:
-    ip6_to_str_buf_len(addr->data, buf, buf_len);
+    ip6_to_str_buf_len((const guchar *)addr->data, buf, buf_len);
     break;
   case AT_IPX:						/* 22 bytes */
-    addrdata = addr->data;
+    addrdata = (const guint8 *)addr->data;
     tempptr = bytes_to_hexstr(tempptr, &addrdata[0], 4);		/*  8 bytes */
     *tempptr++ = '.';							/*  1 byte  */
     tempptr = bytes_to_hexstr(tempptr, &addrdata[4], 6);		/* 12 bytes */
@@ -573,29 +573,29 @@ address_to_str_buf(const address *addr, gchar *buf, int buf_len)
     atalk_addr_to_str_buf(&ddp_addr, buf, buf_len);
     break;
   case AT_VINES:
-    vines_addr_to_str_buf(addr->data, buf, buf_len);
+    vines_addr_to_str_buf((const guint8 *)addr->data, buf, buf_len);
     break;
   case AT_USB:
-    usb_addr_to_str_buf(addr->data, buf, buf_len);
+    usb_addr_to_str_buf((const guint8 *)addr->data, buf, buf_len);
     break;
   case AT_OSI:
-    print_nsap_net_buf(addr->data, addr->len, buf, buf_len);
+    print_nsap_net_buf((const guint8 *)addr->data, addr->len, buf, buf_len);
     break;
   case AT_ARCNET:					/* 5 bytes */
     tempptr = g_stpcpy(tempptr, "0x");					/* 2 bytes */
-    tempptr = bytes_to_hexstr(tempptr, addr->data, 1);			/* 2 bytes */
+    tempptr = bytes_to_hexstr(tempptr, (const guint8 *)addr->data, 1);			/* 2 bytes */
     break;
   case AT_FC:						/* 9 bytes */
-    tempptr = bytes_to_hexstr_punct(tempptr, addr->data, 3, '.');	/* 8 bytes */
+    tempptr = bytes_to_hexstr_punct(tempptr, (const guint8 *)addr->data, 3, '.');	/* 8 bytes */
     break;
   case AT_SS7PC:
     mtp3_addr_to_str_buf((const mtp3_addr_pc_t *)addr->data, buf, buf_len);
     break;
   case AT_STRINGZ:
-    g_strlcpy(buf, addr->data, buf_len);
+    g_strlcpy(buf, (const guint8 *)addr->data, buf_len);
     break;
   case AT_EUI64:					/* 24 bytes */
-    tempptr = bytes_to_hexstr_punct(tempptr, addr->data, 8, ':');	/* 23 bytes */
+    tempptr = bytes_to_hexstr_punct(tempptr, (const guint8 *)addr->data, 8, ':');	/* 23 bytes */
     break;
   case AT_URI: {
     int copy_len = addr->len < (buf_len - 1) ? addr->len : (buf_len - 1);
@@ -604,13 +604,13 @@ address_to_str_buf(const address *addr, gchar *buf, int buf_len)
     }
     break;
   case AT_TIPC:
-    tipc_addr_to_str_buf(addr->data, buf, buf_len);
+    tipc_addr_to_str_buf((const guint8 *)addr->data, buf, buf_len);
     break;
   case AT_IB:
     ib_addr_to_str_buf(addr, buf, buf_len);
     break;
   case AT_AX25:
-    addrdata = addr->data;
+    addrdata = (const guint8 *)addr->data;
     g_snprintf(buf, buf_len, "%c%c%c%c%c%c-%02d",
         (addrdata[0] >> 1) & 0x7f, (addrdata[1] >> 1) & 0x7f, (addrdata[2] >> 1) & 0x7f,
         (addrdata[3] >> 1) & 0x7f, (addrdata[4] >> 1) & 0x7f, (addrdata[5] >> 1) & 0x7f,

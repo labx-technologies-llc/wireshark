@@ -216,7 +216,9 @@ set(ASN1_DISSECTOR_SRC
 	dissectors/packet-h501.c
 	dissectors/packet-hnbap.c
 	dissectors/packet-idmp.c
+	dissectors/packet-idrp.c
 	dissectors/packet-inap.c
+	dissectors/packet-isdn-sup.c
 	dissectors/packet-lcsap.c
 	dissectors/packet-logotypecertextn.c
 	dissectors/packet-lpp.c
@@ -247,6 +249,7 @@ set(ASN1_DISSECTOR_SRC
 	dissectors/packet-qsig.c
 	dissectors/packet-ranap.c
 	dissectors/packet-ros.c
+	dissectors/packet-rpki-rtr.c
 	dissectors/packet-rrc.c
 	dissectors/packet-rrlp.c
 	dissectors/packet-rtse.c
@@ -354,10 +357,12 @@ set(DISSECTOR_SRC
 	dissectors/packet-aruba-adp.c
 	dissectors/packet-aruba-erm.c
 	dissectors/packet-aruba-papi.c
+	dissectors/packet-ar_drone.c
 	dissectors/packet-asap.c
 	dissectors/packet-ascend.c
 	dissectors/packet-asf.c
 	dissectors/packet-assa_r3.c
+	dissectors/packet-asterix.c
 	dissectors/packet-at.c
 	dissectors/packet-atalk.c
 	dissectors/packet-atm.c
@@ -380,6 +385,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-bfcp.c
 	dissectors/packet-bfd.c
 	dissectors/packet-bgp.c
+	dissectors/packet-bitcoin.c
 	dissectors/packet-bittorrent.c
 	dissectors/packet-bjnp.c
 	dissectors/packet-bmc.c
@@ -404,9 +410,11 @@ set(DISSECTOR_SRC
 	dissectors/packet-bthci_cmd.c
 	dissectors/packet-bthci_evt.c
 	dissectors/packet-bthci_sco.c
+	dissectors/packet-bthcrp.c
 	dissectors/packet-bthfp.c
 	dissectors/packet-bthid.c
 	dissectors/packet-btl2cap.c
+	dissectors/packet-btmcap.c
 	dissectors/packet-btobex.c
 	dissectors/packet-btrfcomm.c
 	dissectors/packet-btsap.c
@@ -644,6 +652,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-g723.c
 	dissectors/packet-gadu-gadu.c
 	dissectors/packet-gdsdb.c
+	dissectors/packet-gearman.c
 	dissectors/packet-ged125.c
 	dissectors/packet-gift.c
 	dissectors/packet-giop.c
@@ -717,6 +726,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-homeplug.c
 	dissectors/packet-hp-erm.c
 	dissectors/packet-hpext.c
+	dissectors/packet-hpfeeds.c
 	dissectors/packet-hpsw.c
 	dissectors/packet-hpteam.c
 	dissectors/packet-hsr-prp-supervision.c
@@ -799,6 +809,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-iuup.c
 	dissectors/packet-iwarp-ddp-rdmap.c
 	dissectors/packet-iwarp-mpa.c
+	dissectors/packet-ixiatrailer.c
 	dissectors/packet-ixveriwave.c
 	dissectors/packet-jmirror.c
 	dissectors/packet-jpeg.c
@@ -863,6 +874,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-mesh.c
 	dissectors/packet-meta.c
 	dissectors/packet-mgcp.c
+	dissectors/packet-mih.c
 	dissectors/packet-mikey.c
 	dissectors/packet-mim.c
 	dissectors/packet-mime-encap.c
@@ -893,6 +905,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-mpls.c
 	dissectors/packet-mq-pcf.c
 	dissectors/packet-mq.c
+	dissectors/packet-mrcpv2.c
 	dissectors/packet-mrdisc.c
 	dissectors/packet-mrp-mmrp.c
 	dissectors/packet-mrp-msrp.c
@@ -962,11 +975,13 @@ set(DISSECTOR_SRC
 	dissectors/packet-omapi.c
 	dissectors/packet-omron-fins.c
 	dissectors/packet-opensafety.c
+	dissectors/packet-openvpn.c
 	dissectors/packet-openwire.c
 	dissectors/packet-osi-options.c
 	dissectors/packet-osi.c
 	dissectors/packet-ositp.c
 	dissectors/packet-ospf.c
+	dissectors/packet-ouch.c
 	dissectors/packet-p_mul.c
 	dissectors/packet-packetbb.c
 	dissectors/packet-packetlogger.c
@@ -1002,6 +1017,8 @@ set(DISSECTOR_SRC
 	dissectors/packet-pptp.c
 	dissectors/packet-prp.c
 	dissectors/packet-ptp.c
+	dissectors/packet-ptpip.c
+	dissectors/packet-pulse.c
 	dissectors/packet-pvfs2.c
 	dissectors/packet-pw-atm.c
 	dissectors/packet-pw-cesopsn.c
@@ -1046,7 +1063,6 @@ set(DISSECTOR_SRC
 	dissectors/packet-rmi.c
 	dissectors/packet-rmp.c
 	dissectors/packet-rmt-alc.c
-	dissectors/packet-rmt-common.c
 	dissectors/packet-rmt-fec.c
 	dissectors/packet-rmt-lct.c
 	dissectors/packet-rmt-norm.c
@@ -1062,6 +1078,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-rstat.c
 	dissectors/packet-rsvp.c
 	dissectors/packet-rsync.c
+	dissectors/packet-rtcdc.c
 	dissectors/packet-rtcp.c
 	dissectors/packet-rtmpt.c
 	dissectors/packet-rtnet.c
@@ -1069,7 +1086,6 @@ set(DISSECTOR_SRC
 	dissectors/packet-rtp-midi.c
 	dissectors/packet-rtp.c
 	dissectors/packet-rtps.c
-	dissectors/packet-rtps2.c
 	dissectors/packet-rtsp.c
 	dissectors/packet-rudp.c
 	dissectors/packet-rwall.c
@@ -1096,6 +1112,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-sdlc.c
 	dissectors/packet-sdp.c
 	dissectors/packet-sebek.c
+	dissectors/packet-selfm.c
 	dissectors/packet-sercosiii.c
 	dissectors/packet-ses.c
 	dissectors/packet-sflow.c
@@ -1119,6 +1136,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-smb-sidsnooping.c
 	dissectors/packet-smb.c
 	dissectors/packet-smb2.c
+	dissectors/packet-sml.c
 	dissectors/packet-smpp.c
 	dissectors/packet-smtp.c
 	dissectors/packet-sna.c
@@ -1127,6 +1145,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-sndcp.c
 	dissectors/packet-socketcan.c
 	dissectors/packet-socks.c
+	dissectors/packet-soupbintcp.c
 	dissectors/packet-spice.c
 	dissectors/packet-spp.c
 	dissectors/packet-spray.c
@@ -1189,6 +1208,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-ucp.c
 	dissectors/packet-udld.c
 	dissectors/packet-udp.c
+	dissectors/packet-uhd.c
 	dissectors/packet-uma.c
 	dissectors/packet-umts_fp.c
 	dissectors/packet-umts_mac.c
@@ -1197,6 +1217,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-usb-hid.c
 	dissectors/packet-usb-hub.c
 	dissectors/packet-usb-masstorage.c
+	dissectors/packet-usb-video.c
 	dissectors/packet-usb.c
 	dissectors/packet-user_encap.c
 	dissectors/packet-uts.c
@@ -1215,6 +1236,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-vnc.c
 	dissectors/packet-vntag.c
 	dissectors/packet-vrrp.c
+	dissectors/packet-vrt.c
 	dissectors/packet-vssmonitoring.c
 	dissectors/packet-vtp.c
 	dissectors/packet-vuze-dht.c
@@ -1230,6 +1252,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-websocket.c
 	dissectors/packet-wfleet-hdlc.c
 	dissectors/packet-who.c
+	dissectors/packet-wifi-display.c
 	dissectors/packet-wifi-p2p.c
 	dissectors/packet-windows-common.c
 	dissectors/packet-winsrepl.c
@@ -1269,6 +1292,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-zbee-nwk.c
 	dissectors/packet-zbee-security.c
 	dissectors/packet-zbee-zcl.c
+	dissectors/packet-zbee-zcl-on-off.c
 	dissectors/packet-zbee-zdp-binding.c
 	dissectors/packet-zbee-zdp-discovery.c
 	dissectors/packet-zbee-zdp-management.c
@@ -1351,12 +1375,15 @@ set(FTYPE_FILES
 
 set(WMEM_FILES
 	wmem/wmem_core.c
-	wmem/wmem_allocator_glib.c
 	wmem/wmem_allocator_block.c
+	wmem/wmem_allocator_simple.c
+	wmem/wmem_allocator_strict.c
 	wmem/wmem_scopes.c
-	wmem/wmem_slab.c
+	wmem/wmem_slist.c
 	wmem/wmem_stack.c
+	wmem/wmem_strbuf.c
 	wmem/wmem_strutl.c
+	wmem/wmem_user_cb.c
 )
 
 ADD_CUSTOM_COMMAND(
@@ -1397,6 +1424,7 @@ set(LIBWIRESHARK_FILES
 	ex-opt.c
 	except.c
 	expert.c
+	exported_pdu.c
 	filesystem.c
 	filter_expressions.c
 	follow.c
@@ -1424,6 +1452,7 @@ set(LIBWIRESHARK_FILES
 	reedsolomon.c
 	report_err.c
 	req_resp_hdrs.c
+	show_exception.c
 	sigcomp_state_hdlr.c
 	sigcomp-udvm.c
 	sminmpec.c
@@ -1525,7 +1554,66 @@ add_library(epan ${LINK_MODE_LIB}
 	${DISSECTOR_SUPPORT_SRC}
 	${LIBWIRESHARK_ASM_FILES}
 )
+
+add_dependencies(epan svnversion)
+
+set(FULL_SO_VERSION "0.0.0")
+
+set_target_properties(epan PROPERTIES COMPILE_DEFINITIONS "WS_BUILD_DLL")
 set_target_properties(epan PROPERTIES LINK_FLAGS "${WS_LINK_FLAGS}")
+set_target_properties(epan PROPERTIES VERSION ${FULL_SO_VERSION} SOVERSION 0)
+
+# discover and substitute list of include directories for ABI compatibility
+# checks
+get_directory_property(INCLUDE_DIRS INCLUDE_DIRECTORIES)
+list(REMOVE_DUPLICATES INCLUDE_DIRS)
+string(REGEX REPLACE ";" "\n" INCLUDE_DIRS "${INCLUDE_DIRS}")
+configure_file(../abi-descriptor.template abi-descriptor.xml)
+
+# ABI compliance checker can be obtained from
+# http://ispras.linux-foundation.org/index.php/ABI_compliance_checker
+# Checked using version 1.21.12
+file(GLOB EPAN_HEADERS *.h)
+file(GLOB CRYPT_HEADERS crypt/*.h)
+file(GLOB DFILTER_HEADERS dfilter/*.h ../tools/lemon/cppmagic.h)
+file(GLOB D_HEADERS dissectors/*.h)
+file(GLOB FTYPES_HEADERS ftypes/*.h)
+file(GLOB WMEM_HEADERS wmem/*.h)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/abi-check-headers
+	${CMAKE_CURRENT_BINARY_DIR}/abi-check-headers/epan
+	${CMAKE_CURRENT_BINARY_DIR}/abi-check-headers/crypt
+	${CMAKE_CURRENT_BINARY_DIR}/abi-check-headers/dfilter
+	${CMAKE_CURRENT_BINARY_DIR}/abi-check-headers/dissectors
+	${CMAKE_CURRENT_BINARY_DIR}/abi-check-headers/ftypes
+	${CMAKE_CURRENT_BINARY_DIR}/abi-check-headers/wmem)
+
+file(COPY ../color.h ../register.h ../ws_symbol_export.h DESTINATION abi-check-headers)
+file(COPY ${EPAN_HEADERS} DESTINATION abi-check-headers/epan)
+file(COPY ${CRYPT_HEADERS} DESTINATION abi-check-headers/crypt)
+file(COPY ${DFILTER_HEADERS} DESTINATION abi-check-headers/dfilter)
+file(COPY ${D_HEADERS} DESTINATION abi-check-headers/dissectors)
+file(COPY ${FTYPES_HEADERS} DESTINATION abi-check-headers/ftypes)
+file(COPY ${WMEM_HEADERS} DESTINATION abi-check-headers/wmem)
+
+add_custom_command(OUTPUT libwireshark.abi.tar.gz
+	COMMAND cp ../config.h abi-check-headers
+	COMMAND rm abi-check-headers/dissectors/x11-extension-implementation.h
+		abi-check-headers/dissectors/packet-rtps.h
+		abi-check-headers/dissectors/x11-glx-render-enum.h
+		abi-check-headers/dissectors/x11-register-info.h
+		abi-check-headers/dissectors/packet-idmp.h
+	COMMAND abi-compliance-checker -l libwireshark -v1 ${FULL_SO_VERSION}
+		-relpath ${CMAKE_CURRENT_BINARY_DIR} -dump-abi abi-descriptor.xml
+		|| cat logs/libwireshark/[0-9]*/log.txt
+	COMMAND cp abi_dumps/libwireshark/libwireshark_* libwireshark.abi.tar.gz
+	COMMAND rm -rf abi_dumps abi-check-headers/config.h
+		abi-check-headers/epan/* abi-check-headers/crypt/*
+		abi-check-headers/dfilter/* abi-check-headers/dissectors/*
+		abi-check-headers/ftypes/* abi-check-headers/wmem/*
+	DEPENDS ${EPAN_HEADERS}
+		${CRYPT_HEADERS} ${DFILTER_HEADERS} ${D_HEADERS}
+		${FTYPES_HEADERS} ${WMEM_HEADERS} epan)
+add_custom_target(dumpabi-libwireshark DEPENDS libwireshark.abi.tar.gz)
 
 # By default the name for a library with target name epan will be libepan,
 # but Ethereal is now named Wireshark

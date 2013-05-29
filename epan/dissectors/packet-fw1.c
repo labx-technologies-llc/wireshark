@@ -157,7 +157,7 @@ dissect_fw1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   if (fw1_with_uuid)
     iface_len = 6;
 
-  interface_name=ep_alloc(iface_len+1);
+  interface_name=(char *)ep_alloc(iface_len+1);
   tvb_get_nstringz0(tvb, 2, iface_len+1, interface_name);
 
   /* Known interface name - if not, remember it */
@@ -240,6 +240,11 @@ proto_register_fw1(void)
     { &hf_fw1_type,
       { "Type", "fw1.type", FT_UINT16, BASE_HEX, VALS(etype_vals), 0x0,
         NULL, HFILL }},
+
+    { &hf_fw1_trailer,
+      { "Trailer", "fw1.trailer", FT_BYTES, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }
+    }
   };
   /* Setup protocol subtree array */
   static gint *ett[] = {

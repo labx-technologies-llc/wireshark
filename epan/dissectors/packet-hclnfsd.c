@@ -37,7 +37,7 @@ static int proto_hclnfsd = -1;
 static int hf_hclnfsd_procedure_v1 = -1;
 static int hf_hclnfsd_request_type = -1;
 static int hf_hclnfsd_device = -1;
-static int hf_hclnfsd_login = -1;
+/* static int hf_hclnfsd_login = -1; */
 static int hf_hclnfsd_lockname = -1;
 static int hf_hclnfsd_unknown_data = -1;
 static int hf_hclnfsd_lockowner = -1;
@@ -117,7 +117,7 @@ dissect_hclnfsd_spool_inquire_call(tvbuff_t *tvb, int offset, packet_info *pinfo
 {
 	offset = dissect_rpc_uint32(tvb, tree, hf_hclnfsd_status, offset);
 
-	offset = dissect_nfs_fh3(tvb, offset, pinfo, tree, "spool filehandle", NULL);
+	offset = dissect_nfs3_fh(tvb, offset, pinfo, tree, "spool filehandle", NULL);
 
 	return offset;
 }
@@ -144,18 +144,24 @@ static const value_string names_request_type[] = {
 	{ 0, NULL }
 };
 
-static void
-hclnfsd_decode_obscure(char *ident, int ident_len)
+static char *
+hclnfsd_decode_obscure(const char *ident, int ident_len)
 {
+	char *ident_decoded, *ident_out;
 	int j, x, y;
 
+	ident_decoded = (char *)ep_alloc(ident_len);
+	ident_out = ident_decoded;
 	for (x = -1, j = 0; j < ident_len; j++)
 	{
 		y = *ident;
 		x ^= *ident;
-		*ident++ = x;
+		*ident_out = x;
 		x = y;
+		ident++;
+		ident_out++;
 	}
+	return ident_decoded;
 }
 
 
@@ -163,7 +169,8 @@ static int
 dissect_hclnfsd_authorize_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint32 request_type;
-	char *ident = NULL;
+	const char *ident = NULL;
+	char *ident_decoded;
 	char *username = NULL;
 	char *password = NULL;
 	int ident_len = 0;
@@ -204,9 +211,9 @@ dissect_hclnfsd_authorize_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_
 
 					proto_item_set_len(ident_item, ident_len);
 
-					hclnfsd_decode_obscure(ident, ident_len);
+					ident_decoded = hclnfsd_decode_obscure(ident, ident_len);
 
-					username = ident + 2;
+					username = ident_decoded + 2;
 					password = username + strlen(username) + 1;
 
 					proto_tree_add_text(ident_tree, tvb, offset, ident_len,
@@ -395,7 +402,7 @@ dissect_hclnfsd_share_call(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_
 
 	offset = dissect_rpc_string(tvb, tree, hf_hclnfsd_lockname, offset, NULL);
 
-	offset = dissect_nfs_fh3(tvb, offset, pinfo, tree, "Filehandle", NULL);
+	offset = dissect_nfs3_fh(tvb, offset, pinfo, tree, "Filehandle", NULL);
 
 	offset = dissect_rpc_data(tvb, tree, hf_hclnfsd_unknown_data, offset);
 
@@ -453,7 +460,7 @@ dissect_hclnfsd_lock_call(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_t
 
 	offset = dissect_rpc_string(tvb, tree, hf_hclnfsd_lockname, offset, NULL);
 
-	offset = dissect_nfs_fh3(tvb, offset, pinfo, tree, "Filehandle", NULL);
+	offset = dissect_nfs3_fh(tvb, offset, pinfo, tree, "Filehandle", NULL);
 
 	offset = dissect_rpc_data(tvb, tree, hf_hclnfsd_lockowner, offset);
 
@@ -505,7 +512,7 @@ dissect_hclnfsd_unlock_call(tvbuff_t *tvb, int offset, packet_info *pinfo, proto
 
 	offset = dissect_rpc_string(tvb, tree, hf_hclnfsd_lockname, offset, NULL);
 
-	offset = dissect_nfs_fh3(tvb, offset, pinfo, tree, "Filehandle", NULL);
+	offset = dissect_nfs3_fh(tvb, offset, pinfo, tree, "Filehandle", NULL);
 
 	offset = dissect_rpc_data(tvb, tree, hf_hclnfsd_unknown_data, offset);
 
@@ -716,9 +723,11 @@ proto_register_hclnfsd(void)
 			"Device", "hclnfsd.device", FT_STRING, BASE_NONE,
 			NULL, 0, NULL, HFILL }},
 
+#if 0
 		{ &hf_hclnfsd_login, {
 			"Login Text", "hclnfsd.logintext", FT_STRING, BASE_NONE,
 			NULL, 0, NULL, HFILL }},
+#endif
 
 		{ &hf_hclnfsd_lockname, {
 			"Lockname", "hclnfsd.lockname", FT_STRING, BASE_NONE,

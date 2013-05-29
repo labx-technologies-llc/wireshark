@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pcap.c                                                              */
 /* ../../tools/asn2wrs.py -p pcap -c ./pcap.cnf -s ./packet-pcap-template -D . -O ../../epan/dissectors PCAP-CommonDataTypes.asn PCAP-Constants.asn PCAP-Containers.asn PCAP-IEs.asn PCAP-PDU-Contents.asn PCAP-PDU-Descriptions.asn */
 
@@ -101,6 +101,8 @@ static dissector_table_t sccp_ssn_table;
 #define maxGANSSSatAlmanac             36
 #define maxGANSSClockMod               4
 #define maxGANSS_1                     7
+#define maxNrOfIRATMeasurements        16
+#define maxReportedGERANCells          6
 #define maxNrOfULTSs                   15
 #define maxNrOfDPCHs                   240
 
@@ -173,9 +175,6 @@ typedef enum _ProtocolIE_ID_enum {
   id_OTDOA_AddMeasuredResultsInfo =  49,
   id_GPS_ReferenceLocation =  50,
   id_OTDOA_MeasuredResultsSets =  51,
-  id_Unknown_52 =  52,
-  id_Unknown_53 =  53,
-  id_Unknown_54 =  54,
   id_rxTimingDeviation384extInfo =  55,
   id_ExtendedRoundTripTime =  56,
   id_PeriodicPosCalcInfo =  57,
@@ -239,7 +238,16 @@ typedef enum _ProtocolIE_ID_enum {
   id_GANSS_Reference_Time_Only = 115,
   id_GANSS_AddADchoices = 116,
   id_OTDOA_ReferenceCellInfo = 117,
-  id_DGNSS_ValidityPeriod = 118
+  id_DGNSS_ValidityPeriod = 118,
+  id_AzimuthAndElevationLSB = 119,
+  id_completeAlmanacProvided = 120,
+  id_GPS_Week_Cycle = 121,
+  id_GANSS_Day_Cycle = 122,
+  id_ganss_Delta_T = 123,
+  id_requestedCellIDGERANMeasurements = 124,
+  id_CellId_IRATMeasuredResultsSets = 125,
+  id_IMSI      = 126,
+  id_IMEI      = 127
 } ProtocolIE_ID_enum;
 
 /*--- End of included file: packet-pcap-val.h ---*/
@@ -262,16 +270,21 @@ static int hf_pcap_RxTimingDeviation768Info_PDU = -1;  /* RxTimingDeviation768In
 static int hf_pcap_RxTimingDeviation384extInfo_PDU = -1;  /* RxTimingDeviation384extInfo */
 static int hf_pcap_AddMeasurementInfo_PDU = -1;   /* AddMeasurementInfo */
 static int hf_pcap_AngleOfArrivalLCR_PDU = -1;    /* AngleOfArrivalLCR */
+static int hf_pcap_CellId_IRATMeasuredResultsSets_PDU = -1;  /* CellId_IRATMeasuredResultsSets */
 static int hf_pcap_CellIDPositioning_PDU = -1;    /* CellIDPositioning */
+static int hf_pcap_RequestedCellIDGERANMeasurements_PDU = -1;  /* RequestedCellIDGERANMeasurements */
 static int hf_pcap_ClientType_PDU = -1;           /* ClientType */
 static int hf_pcap_CriticalityDiagnostics_PDU = -1;  /* CriticalityDiagnostics */
 static int hf_pcap_DGNSS_ValidityPeriod_PDU = -1;  /* DGNSS_ValidityPeriod */
+static int hf_pcap_IMEI_PDU = -1;                 /* IMEI */
+static int hf_pcap_IMSI_PDU = -1;                 /* IMSI */
 static int hf_pcap_UE_PositionEstimate_PDU = -1;  /* UE_PositionEstimate */
 static int hf_pcap_UE_PositionEstimateInfo_PDU = -1;  /* UE_PositionEstimateInfo */
 static int hf_pcap_GANSS_Reference_Time_Only_PDU = -1;  /* GANSS_Reference_Time_Only */
 static int hf_pcap_PositionDataUEbased_PDU = -1;  /* PositionDataUEbased */
 static int hf_pcap_PositionData_PDU = -1;         /* PositionData */
 static int hf_pcap_GANSS_PositioningDataSet_PDU = -1;  /* GANSS_PositioningDataSet */
+static int hf_pcap_AzimuthAndElevationLSB_PDU = -1;  /* AzimuthAndElevationLSB */
 static int hf_pcap_GANSS_Additional_Ionospheric_Model_PDU = -1;  /* GANSS_Additional_Ionospheric_Model */
 static int hf_pcap_GANSS_Additional_Navigation_Models_PDU = -1;  /* GANSS_Additional_Navigation_Models */
 static int hf_pcap_GANSS_Additional_Time_Models_PDU = -1;  /* GANSS_Additional_Time_Models */
@@ -288,9 +301,13 @@ static int hf_pcap_GANSS_GenericAssistanceDataList_PDU = -1;  /* GANSS_GenericAs
 static int hf_pcap_GanssCodePhaseAmbiguityExt_PDU = -1;  /* GanssCodePhaseAmbiguityExt */
 static int hf_pcap_GanssIntegerCodePhaseExt_PDU = -1;  /* GanssIntegerCodePhaseExt */
 static int hf_pcap_GANSS_MeasuredResultsList_PDU = -1;  /* GANSS_MeasuredResultsList */
+static int hf_pcap_GANSS_Day_Cycle_PDU = -1;      /* GANSS_Day_Cycle */
+static int hf_pcap_GANSS_Delta_T_PDU = -1;        /* GANSS_Delta_T */
 static int hf_pcap_GANSS_UTRAN_TRU_PDU = -1;      /* GANSS_UTRAN_TRU */
+static int hf_pcap_CompleteAlmanacProvided_PDU = -1;  /* CompleteAlmanacProvided */
 static int hf_pcap_MeasuredResultsList_PDU = -1;  /* MeasuredResultsList */
 static int hf_pcap_GPS_ReferenceLocation_PDU = -1;  /* GPS_ReferenceLocation */
+static int hf_pcap_GPS_Week_Cycle_PDU = -1;       /* GPS_Week_Cycle */
 static int hf_pcap_UTRAN_GPS_DriftRate_PDU = -1;  /* UTRAN_GPS_DriftRate */
 static int hf_pcap_GPSReferenceTimeUncertainty_PDU = -1;  /* GPSReferenceTimeUncertainty */
 static int hf_pcap_GPS_UTRAN_TRU_PDU = -1;        /* GPS_UTRAN_TRU */
@@ -426,6 +443,20 @@ static int hf_pcap_cpich_RSCP = -1;               /* CPICH_RSCP */
 static int hf_pcap_cpich_EcNo = -1;               /* CPICH_EcNo */
 static int hf_pcap_aOA_LCR = -1;                  /* AOA_LCR */
 static int hf_pcap_aOA_LCR_Accuracy_Class = -1;   /* AOA_LCR_Accuracy_Class */
+static int hf_pcap_CellId_IRATMeasuredResultsSets_item = -1;  /* CellId_IRATMeasuredResultsInfoList */
+static int hf_pcap_gERAN_MeasuredResultsInfoList = -1;  /* GERAN_MeasuredResultsInfoList */
+static int hf_pcap_iE_Extenstions = -1;           /* ProtocolExtensionContainer */
+static int hf_pcap_GERAN_MeasuredResultsInfoList_item = -1;  /* GERAN_MeasuredResultsInfo */
+static int hf_pcap_gERANCellID = -1;              /* GERANCellGlobalID */
+static int hf_pcap_gERANPhysicalCellID = -1;      /* GERANPhysicalCellID */
+static int hf_pcap_gSM_RSSI = -1;                 /* GSM_RSSI */
+static int hf_pcap_plmn_Identity = -1;            /* PLMN_Identity */
+static int hf_pcap_locationAreaCode = -1;         /* BIT_STRING_SIZE_16 */
+static int hf_pcap_cellIdentity = -1;             /* BIT_STRING_SIZE_16 */
+static int hf_pcap_bsic = -1;                     /* GSM_BSIC */
+static int hf_pcap_arfcn = -1;                    /* GSM_BCCH_ARFCN */
+static int hf_pcap_networkColourCode = -1;        /* BIT_STRING_SIZE_3 */
+static int hf_pcap_baseStationColourCode = -1;    /* BIT_STRING_SIZE_3 */
 static int hf_pcap_requestedCellIDMeasurements = -1;  /* RequestedCellIDMeasurements */
 static int hf_pcap_fdd = -1;                      /* T_fdd */
 static int hf_pcap_roundTripTimeInfoWanted = -1;  /* BOOLEAN */
@@ -440,6 +471,7 @@ static int hf_pcap_rxTimingDeviation768InfoWanted = -1;  /* BOOLEAN */
 static int hf_pcap_rxTimingDeviation384extInfoWanted = -1;  /* BOOLEAN */
 static int hf_pcap_angleOfArrivalLCRWanted = -1;  /* BOOLEAN */
 static int hf_pcap_timingAdvanceLCRWanted = -1;   /* BOOLEAN */
+static int hf_pcap_rSSIMeasurementsWanted = -1;   /* BOOLEAN */
 static int hf_pcap_procedureCode = -1;            /* ProcedureCode */
 static int hf_pcap_triggeringMessage = -1;        /* TriggeringMessage */
 static int hf_pcap_procedureCriticality = -1;     /* Criticality */
@@ -515,6 +547,8 @@ static int hf_pcap_doppler1stOrder = -1;          /* INTEGER_M42_21 */
 static int hf_pcap_dopplerUncertainty = -1;       /* DopplerUncertainty */
 static int hf_pcap_azimuth = -1;                  /* INTEGER_0_31 */
 static int hf_pcap_elevation = -1;                /* INTEGER_0_7 */
+static int hf_pcap_azimuthLSB = -1;               /* INTEGER_0_15 */
+static int hf_pcap_elevationLSB = -1;             /* INTEGER_0_15 */
 static int hf_pcap_AuxInfoGANSS_ID1_item = -1;    /* AuxInfoGANSS_ID1_element */
 static int hf_pcap_svID = -1;                     /* INTEGER_0_63 */
 static int hf_pcap_signalsAvailable = -1;         /* BIT_STRING_SIZE_8 */
@@ -1401,10 +1435,18 @@ static gint ett_pcap_RxTimingDeviation768Info = -1;
 static gint ett_pcap_RxTimingDeviation384extInfo = -1;
 static gint ett_pcap_AddMeasurementInfo = -1;
 static gint ett_pcap_AngleOfArrivalLCR = -1;
+static gint ett_pcap_CellId_IRATMeasuredResultsSets = -1;
+static gint ett_pcap_CellId_IRATMeasuredResultsInfoList = -1;
+static gint ett_pcap_GERAN_MeasuredResultsInfoList = -1;
+static gint ett_pcap_GERAN_MeasuredResultsInfo = -1;
+static gint ett_pcap_GERANCellGlobalID = -1;
+static gint ett_pcap_GERANPhysicalCellID = -1;
+static gint ett_pcap_GSM_BSIC = -1;
 static gint ett_pcap_CellIDPositioning = -1;
 static gint ett_pcap_RequestedCellIDMeasurements = -1;
 static gint ett_pcap_T_fdd = -1;
 static gint ett_pcap_T_tdd = -1;
+static gint ett_pcap_RequestedCellIDGERANMeasurements = -1;
 static gint ett_pcap_CriticalityDiagnostics = -1;
 static gint ett_pcap_CriticalityDiagnostics_IE_List = -1;
 static gint ett_pcap_CriticalityDiagnostics_IE_List_item = -1;
@@ -1437,6 +1479,7 @@ static gint ett_pcap_AcquisitionSatInfoList = -1;
 static gint ett_pcap_AcquisitionSatInfo = -1;
 static gint ett_pcap_ExtraDopplerInfo = -1;
 static gint ett_pcap_AzimuthAndElevation = -1;
+static gint ett_pcap_AzimuthAndElevationLSB = -1;
 static gint ett_pcap_AuxInfoGANSS_ID1 = -1;
 static gint ett_pcap_AuxInfoGANSS_ID1_element = -1;
 static gint ett_pcap_AuxInfoGANSS_ID3 = -1;
@@ -1769,7 +1812,7 @@ static gint ett_pcap_Outcome = -1;
 /* Global variables */
 static guint32 ProcedureCode;
 static guint32 ProtocolIE_ID;
-static guint32 ProtocolExtensionID;
+/*static guint32 ProtocolExtensionID;*/
 
 /* Dissector tables */
 static dissector_table_t pcap_ies_dissector_table;
@@ -1934,9 +1977,6 @@ static const value_string pcap_ProtocolIE_ID_vals[] = {
   { id_OTDOA_AddMeasuredResultsInfo, "id-OTDOA-AddMeasuredResultsInfo" },
   { id_GPS_ReferenceLocation, "id-GPS-ReferenceLocation" },
   { id_OTDOA_MeasuredResultsSets, "id-OTDOA-MeasuredResultsSets" },
-  { id_Unknown_52, "id-Unknown-52" },
-  { id_Unknown_53, "id-Unknown-53" },
-  { id_Unknown_54, "id-Unknown-54" },
   { id_rxTimingDeviation384extInfo, "id-rxTimingDeviation384extInfo" },
   { id_ExtendedRoundTripTime, "id-ExtendedRoundTripTime" },
   { id_PeriodicPosCalcInfo, "id-PeriodicPosCalcInfo" },
@@ -2001,6 +2041,15 @@ static const value_string pcap_ProtocolIE_ID_vals[] = {
   { id_GANSS_AddADchoices, "id-GANSS-AddADchoices" },
   { id_OTDOA_ReferenceCellInfo, "id-OTDOA-ReferenceCellInfo" },
   { id_DGNSS_ValidityPeriod, "id-DGNSS-ValidityPeriod" },
+  { id_AzimuthAndElevationLSB, "id-AzimuthAndElevationLSB" },
+  { id_completeAlmanacProvided, "id-completeAlmanacProvided" },
+  { id_GPS_Week_Cycle, "id-GPS-Week-Cycle" },
+  { id_GANSS_Day_Cycle, "id-GANSS-Day-Cycle" },
+  { id_ganss_Delta_T, "id-ganss-Delta-T" },
+  { id_requestedCellIDGERANMeasurements, "id-requestedCellIDGERANMeasurements" },
+  { id_CellId_IRATMeasuredResultsSets, "id-CellId-IRATMeasuredResultsSets" },
+  { id_IMSI, "id-IMSI" },
+  { id_IMEI, "id-IMEI" },
   { 0, NULL }
 };
 
@@ -3269,6 +3318,143 @@ dissect_pcap_AngleOfArrivalLCR(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 
 
 static int
+dissect_pcap_PLMN_Identity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
+                                       3, 3, FALSE, NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t GERANCellGlobalID_sequence[] = {
+  { &hf_pcap_plmn_Identity  , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_pcap_PLMN_Identity },
+  { &hf_pcap_locationAreaCode, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_pcap_BIT_STRING_SIZE_16 },
+  { &hf_pcap_cellIdentity   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_pcap_BIT_STRING_SIZE_16 },
+  { &hf_pcap_iE_Extenstions , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_pcap_ProtocolExtensionContainer },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_pcap_GERANCellGlobalID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_pcap_GERANCellGlobalID, GERANCellGlobalID_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t GSM_BSIC_sequence[] = {
+  { &hf_pcap_networkColourCode, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_pcap_BIT_STRING_SIZE_3 },
+  { &hf_pcap_baseStationColourCode, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_pcap_BIT_STRING_SIZE_3 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_pcap_GSM_BSIC(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_pcap_GSM_BSIC, GSM_BSIC_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_pcap_GSM_BCCH_ARFCN(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 1023U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t GERANPhysicalCellID_sequence[] = {
+  { &hf_pcap_bsic           , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_pcap_GSM_BSIC },
+  { &hf_pcap_arfcn          , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_pcap_GSM_BCCH_ARFCN },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_pcap_GERANPhysicalCellID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_pcap_GERANPhysicalCellID, GERANPhysicalCellID_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_pcap_GSM_RSSI(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 63U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t GERAN_MeasuredResultsInfo_sequence[] = {
+  { &hf_pcap_gERANCellID    , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_pcap_GERANCellGlobalID },
+  { &hf_pcap_gERANPhysicalCellID, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_pcap_GERANPhysicalCellID },
+  { &hf_pcap_gSM_RSSI       , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_pcap_GSM_RSSI },
+  { &hf_pcap_iE_Extenstions , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_pcap_ProtocolExtensionContainer },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_pcap_GERAN_MeasuredResultsInfo(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_pcap_GERAN_MeasuredResultsInfo, GERAN_MeasuredResultsInfo_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t GERAN_MeasuredResultsInfoList_sequence_of[1] = {
+  { &hf_pcap_GERAN_MeasuredResultsInfoList_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_pcap_GERAN_MeasuredResultsInfo },
+};
+
+static int
+dissect_pcap_GERAN_MeasuredResultsInfoList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_pcap_GERAN_MeasuredResultsInfoList, GERAN_MeasuredResultsInfoList_sequence_of,
+                                                  1, maxReportedGERANCells, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t CellId_IRATMeasuredResultsInfoList_sequence[] = {
+  { &hf_pcap_gERAN_MeasuredResultsInfoList, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_pcap_GERAN_MeasuredResultsInfoList },
+  { &hf_pcap_iE_Extenstions , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_pcap_ProtocolExtensionContainer },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_pcap_CellId_IRATMeasuredResultsInfoList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_pcap_CellId_IRATMeasuredResultsInfoList, CellId_IRATMeasuredResultsInfoList_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t CellId_IRATMeasuredResultsSets_sequence_of[1] = {
+  { &hf_pcap_CellId_IRATMeasuredResultsSets_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_pcap_CellId_IRATMeasuredResultsInfoList },
+};
+
+static int
+dissect_pcap_CellId_IRATMeasuredResultsSets(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_pcap_CellId_IRATMeasuredResultsSets, CellId_IRATMeasuredResultsSets_sequence_of,
+                                                  1, maxNrOfIRATMeasurements, FALSE);
+
+  return offset;
+}
+
+
+
+static int
 dissect_pcap_BOOLEAN(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_boolean(tvb, offset, actx, tree, hf_index, NULL);
 
@@ -3348,6 +3534,21 @@ static int
 dissect_pcap_CellIDPositioning(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_pcap_CellIDPositioning, CellIDPositioning_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t RequestedCellIDGERANMeasurements_sequence[] = {
+  { &hf_pcap_rSSIMeasurementsWanted, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_pcap_BOOLEAN },
+  { &hf_pcap_iE_Extensions  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_pcap_ProtocolExtensionContainer },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_pcap_RequestedCellIDGERANMeasurements(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_pcap_RequestedCellIDGERANMeasurements, RequestedCellIDGERANMeasurements_sequence);
 
   return offset;
 }
@@ -3678,6 +3879,26 @@ static int
 dissect_pcap_DGNSS_ValidityPeriod(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_pcap_DGNSS_ValidityPeriod, DGNSS_ValidityPeriod_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_pcap_IMEI(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
+                                       3, 8, FALSE, NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_pcap_IMSI(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
+                                       8, 8, FALSE, NULL);
 
   return offset;
 }
@@ -4127,6 +4348,32 @@ static int
 dissect_pcap_GPS_AcquisitionAssistance(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_pcap_GPS_AcquisitionAssistance, GPS_AcquisitionAssistance_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_pcap_INTEGER_0_15(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 15U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t AzimuthAndElevationLSB_sequence[] = {
+  { &hf_pcap_azimuthLSB     , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_pcap_INTEGER_0_15 },
+  { &hf_pcap_elevationLSB   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_pcap_INTEGER_0_15 },
+  { &hf_pcap_iE_Extensions  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_pcap_ProtocolExtensionContainer },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_pcap_AzimuthAndElevationLSB(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_pcap_AzimuthAndElevationLSB, AzimuthAndElevationLSB_sequence);
 
   return offset;
 }
@@ -6483,6 +6730,26 @@ dissect_pcap_GANSS_MeasuredResultsList(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 }
 
 
+
+static int
+dissect_pcap_GANSS_Day_Cycle(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 7U, NULL, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_pcap_GANSS_Delta_T(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            -128, 127U, NULL, FALSE);
+
+  return offset;
+}
+
+
 static const value_string pcap_GANSS_UTRAN_TimeRelationshipUncertainty_vals[] = {
   {   0, "gANSS-UTRAN-TRU-50nano" },
   {   1, "gANSS-UTRAN-TRU-500nano" },
@@ -6516,6 +6783,15 @@ static int
 dissect_pcap_GANSS_UTRAN_TRU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_pcap_GANSS_UTRAN_TRU, GANSS_UTRAN_TRU_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_pcap_CompleteAlmanacProvided(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_boolean(tvb, offset, actx, tree, hf_index, NULL);
 
   return offset;
 }
@@ -6834,6 +7110,16 @@ dissect_pcap_GPS_ReferenceTime(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 }
 
 
+
+static int
+dissect_pcap_GPS_Week_Cycle(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 7U, NULL, FALSE);
+
+  return offset;
+}
+
+
 static const value_string pcap_UTRAN_GPS_DriftRate_vals[] = {
   {   0, "utran-GPSDrift0" },
   {   1, "utran-GPSDrift1" },
@@ -7031,16 +7317,6 @@ static int
 dissect_pcap_DGANSS_Sig_Id_Req(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
                                      8, 8, FALSE, NULL);
-
-  return offset;
-}
-
-
-
-static int
-dissect_pcap_INTEGER_0_15(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 15U, NULL, FALSE);
 
   return offset;
 }
@@ -12279,11 +12555,27 @@ static int dissect_AngleOfArrivalLCR_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _
   offset += 7; offset >>= 3;
   return offset;
 }
+static int dissect_CellId_IRATMeasuredResultsSets_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  offset = dissect_pcap_CellId_IRATMeasuredResultsSets(tvb, offset, &asn1_ctx, tree, hf_pcap_CellId_IRATMeasuredResultsSets_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
 static int dissect_CellIDPositioning_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
   int offset = 0;
   asn1_ctx_t asn1_ctx;
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
   offset = dissect_pcap_CellIDPositioning(tvb, offset, &asn1_ctx, tree, hf_pcap_CellIDPositioning_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+static int dissect_RequestedCellIDGERANMeasurements_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  offset = dissect_pcap_RequestedCellIDGERANMeasurements(tvb, offset, &asn1_ctx, tree, hf_pcap_RequestedCellIDGERANMeasurements_PDU);
   offset += 7; offset >>= 3;
   return offset;
 }
@@ -12308,6 +12600,22 @@ static int dissect_DGNSS_ValidityPeriod_PDU(tvbuff_t *tvb _U_, packet_info *pinf
   asn1_ctx_t asn1_ctx;
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
   offset = dissect_pcap_DGNSS_ValidityPeriod(tvb, offset, &asn1_ctx, tree, hf_pcap_DGNSS_ValidityPeriod_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+static int dissect_IMEI_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  offset = dissect_pcap_IMEI(tvb, offset, &asn1_ctx, tree, hf_pcap_IMEI_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+static int dissect_IMSI_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  offset = dissect_pcap_IMSI(tvb, offset, &asn1_ctx, tree, hf_pcap_IMSI_PDU);
   offset += 7; offset >>= 3;
   return offset;
 }
@@ -12356,6 +12664,14 @@ static int dissect_GANSS_PositioningDataSet_PDU(tvbuff_t *tvb _U_, packet_info *
   asn1_ctx_t asn1_ctx;
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
   offset = dissect_pcap_GANSS_PositioningDataSet(tvb, offset, &asn1_ctx, tree, hf_pcap_GANSS_PositioningDataSet_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+static int dissect_AzimuthAndElevationLSB_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  offset = dissect_pcap_AzimuthAndElevationLSB(tvb, offset, &asn1_ctx, tree, hf_pcap_AzimuthAndElevationLSB_PDU);
   offset += 7; offset >>= 3;
   return offset;
 }
@@ -12487,11 +12803,35 @@ static int dissect_GANSS_MeasuredResultsList_PDU(tvbuff_t *tvb _U_, packet_info 
   offset += 7; offset >>= 3;
   return offset;
 }
+static int dissect_GANSS_Day_Cycle_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  offset = dissect_pcap_GANSS_Day_Cycle(tvb, offset, &asn1_ctx, tree, hf_pcap_GANSS_Day_Cycle_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+static int dissect_GANSS_Delta_T_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  offset = dissect_pcap_GANSS_Delta_T(tvb, offset, &asn1_ctx, tree, hf_pcap_GANSS_Delta_T_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
 static int dissect_GANSS_UTRAN_TRU_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
   int offset = 0;
   asn1_ctx_t asn1_ctx;
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
   offset = dissect_pcap_GANSS_UTRAN_TRU(tvb, offset, &asn1_ctx, tree, hf_pcap_GANSS_UTRAN_TRU_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+static int dissect_CompleteAlmanacProvided_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  offset = dissect_pcap_CompleteAlmanacProvided(tvb, offset, &asn1_ctx, tree, hf_pcap_CompleteAlmanacProvided_PDU);
   offset += 7; offset >>= 3;
   return offset;
 }
@@ -12508,6 +12848,14 @@ static int dissect_GPS_ReferenceLocation_PDU(tvbuff_t *tvb _U_, packet_info *pin
   asn1_ctx_t asn1_ctx;
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
   offset = dissect_pcap_GPS_ReferenceLocation(tvb, offset, &asn1_ctx, tree, hf_pcap_GPS_ReferenceLocation_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+static int dissect_GPS_Week_Cycle_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
+  offset = dissect_pcap_GPS_Week_Cycle(tvb, offset, &asn1_ctx, tree, hf_pcap_GPS_Week_Cycle_PDU);
   offset += 7; offset >>= 3;
   return offset;
 }
@@ -13179,7 +13527,7 @@ static int dissect_ProtocolIEFieldValue(tvbuff_t *tvb, packet_info *pinfo, proto
 
 static int dissect_ProtocolExtensionFieldExtensionValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-  return (dissector_try_uint(pcap_extension_dissector_table, ProtocolExtensionID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_uint(pcap_extension_dissector_table, ProtocolIE_ID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
 }
 
 static int dissect_InitiatingMessageValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
@@ -13282,8 +13630,8 @@ proto_reg_handoff_pcap(void)
   dissector_add_uint("pcap.ies", id_UE_PositionEstimateInfo, new_create_dissector_handle(dissect_UE_PositionEstimateInfo_PDU, proto_pcap));
   dissector_add_uint("pcap.ies", id_OTDOA_MeasuredResultsSets, new_create_dissector_handle(dissect_OTDOA_MeasuredResultsSets_PDU, proto_pcap));
   dissector_add_uint("pcap.ies", id_PeriodicPosCalcInfo, new_create_dissector_handle(dissect_PeriodicPosCalcInfo_PDU, proto_pcap));
-  dissector_add_uint("pcap.ies", id_PeriodicLocationInfo, new_create_dissector_handle(dissect_PeriodicLocationInfo_PDU, proto_pcap));
-  dissector_add_uint("pcap.ies", id_MeasInstructionsUsed, new_create_dissector_handle(dissect_MeasInstructionsUsed_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_PeriodicLocationInfo, new_create_dissector_handle(dissect_PeriodicLocationInfo_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_MeasInstructionsUsed, new_create_dissector_handle(dissect_MeasInstructionsUsed_PDU, proto_pcap));
   dissector_add_uint("pcap.ies", id_PeriodicTerminationCause, new_create_dissector_handle(dissect_PeriodicTerminationCause_PDU, proto_pcap));
   dissector_add_uint("pcap.extension", id_IncludeVelocity, new_create_dissector_handle(dissect_IncludeVelocity_PDU, proto_pcap));
   dissector_add_uint("pcap.extension", id_AmountOfReporting, new_create_dissector_handle(dissect_AmountOfReporting_PDU, proto_pcap));
@@ -13344,6 +13692,15 @@ proto_reg_handoff_pcap(void)
   dissector_add_uint("pcap.extension", id_ganssAuxInfo_req, new_create_dissector_handle(dissect_GANSS_AuxInfo_req_PDU, proto_pcap));
   dissector_add_uint("pcap.extension", id_OTDOA_ReferenceCellInfo, new_create_dissector_handle(dissect_OTDOA_ReferenceCellInfoSAS_centric_PDU, proto_pcap));
   dissector_add_uint("pcap.extension", id_DGNSS_ValidityPeriod, new_create_dissector_handle(dissect_DGNSS_ValidityPeriod_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_AzimuthAndElevationLSB, new_create_dissector_handle(dissect_AzimuthAndElevationLSB_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_completeAlmanacProvided, new_create_dissector_handle(dissect_CompleteAlmanacProvided_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_GPS_Week_Cycle, new_create_dissector_handle(dissect_GPS_Week_Cycle_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_GANSS_Day_Cycle, new_create_dissector_handle(dissect_GANSS_Day_Cycle_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_ganss_Delta_T, new_create_dissector_handle(dissect_GANSS_Delta_T_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_requestedCellIDGERANMeasurements, new_create_dissector_handle(dissect_RequestedCellIDGERANMeasurements_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_CellId_IRATMeasuredResultsSets, new_create_dissector_handle(dissect_CellId_IRATMeasuredResultsSets_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_IMSI, new_create_dissector_handle(dissect_IMSI_PDU, proto_pcap));
+  dissector_add_uint("pcap.extension", id_IMEI, new_create_dissector_handle(dissect_IMEI_PDU, proto_pcap));
   dissector_add_uint("pcap.proc.imsg", id_PositionCalculation, new_create_dissector_handle(dissect_PositionCalculationRequest_PDU, proto_pcap));
   dissector_add_uint("pcap.proc.sout", id_PositionCalculation, new_create_dissector_handle(dissect_PositionCalculationResponse_PDU, proto_pcap));
   dissector_add_uint("pcap.proc.uout", id_PositionCalculation, new_create_dissector_handle(dissect_PositionCalculationFailure_PDU, proto_pcap));
@@ -13401,7 +13758,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_RoundTripTimeInfoWithType1_PDU,
-      { "RoundTripTimeInfoWithType1", "pcap.RoundTripTimeInfoWithType1",
+      { "RoundTripTimeInfoWithType1", "pcap.RoundTripTimeInfoWithType1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ExtendedTimingAdvanceLCR_PDU,
@@ -13409,23 +13766,31 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_RxTimingDeviation768Info_PDU,
-      { "RxTimingDeviation768Info", "pcap.RxTimingDeviation768Info",
+      { "RxTimingDeviation768Info", "pcap.RxTimingDeviation768Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_RxTimingDeviation384extInfo_PDU,
-      { "RxTimingDeviation384extInfo", "pcap.RxTimingDeviation384extInfo",
+      { "RxTimingDeviation384extInfo", "pcap.RxTimingDeviation384extInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_AddMeasurementInfo_PDU,
-      { "AddMeasurementInfo", "pcap.AddMeasurementInfo",
+      { "AddMeasurementInfo", "pcap.AddMeasurementInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_AngleOfArrivalLCR_PDU,
-      { "AngleOfArrivalLCR", "pcap.AngleOfArrivalLCR",
+      { "AngleOfArrivalLCR", "pcap.AngleOfArrivalLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
+    { &hf_pcap_CellId_IRATMeasuredResultsSets_PDU,
+      { "CellId-IRATMeasuredResultsSets", "pcap.CellId_IRATMeasuredResultsSets",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
     { &hf_pcap_CellIDPositioning_PDU,
-      { "CellIDPositioning", "pcap.CellIDPositioning",
+      { "CellIDPositioning", "pcap.CellIDPositioning_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_RequestedCellIDGERANMeasurements_PDU,
+      { "RequestedCellIDGERANMeasurements", "pcap.RequestedCellIDGERANMeasurements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ClientType_PDU,
@@ -13433,43 +13798,55 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_ClientType_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_CriticalityDiagnostics_PDU,
-      { "CriticalityDiagnostics", "pcap.CriticalityDiagnostics",
+      { "CriticalityDiagnostics", "pcap.CriticalityDiagnostics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_DGNSS_ValidityPeriod_PDU,
-      { "DGNSS-ValidityPeriod", "pcap.DGNSS_ValidityPeriod",
+      { "DGNSS-ValidityPeriod", "pcap.DGNSS_ValidityPeriod_element",
         FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_IMEI_PDU,
+      { "IMEI", "pcap.IMEI",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_IMSI_PDU,
+      { "IMSI", "pcap.IMSI",
+        FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_UE_PositionEstimate_PDU,
       { "UE-PositionEstimate", "pcap.UE_PositionEstimate",
         FT_UINT32, BASE_DEC, VALS(pcap_UE_PositionEstimate_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_UE_PositionEstimateInfo_PDU,
-      { "UE-PositionEstimateInfo", "pcap.UE_PositionEstimateInfo",
+      { "UE-PositionEstimateInfo", "pcap.UE_PositionEstimateInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_Reference_Time_Only_PDU,
-      { "GANSS-Reference-Time-Only", "pcap.GANSS_Reference_Time_Only",
+      { "GANSS-Reference-Time-Only", "pcap.GANSS_Reference_Time_Only_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionDataUEbased_PDU,
-      { "PositionDataUEbased", "pcap.PositionDataUEbased",
+      { "PositionDataUEbased", "pcap.PositionDataUEbased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionData_PDU,
-      { "PositionData", "pcap.PositionData",
+      { "PositionData", "pcap.PositionData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_PositioningDataSet_PDU,
       { "GANSS-PositioningDataSet", "pcap.GANSS_PositioningDataSet",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
+    { &hf_pcap_AzimuthAndElevationLSB_PDU,
+      { "AzimuthAndElevationLSB", "pcap.AzimuthAndElevationLSB_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
     { &hf_pcap_GANSS_Additional_Ionospheric_Model_PDU,
-      { "GANSS-Additional-Ionospheric-Model", "pcap.GANSS_Additional_Ionospheric_Model",
+      { "GANSS-Additional-Ionospheric-Model", "pcap.GANSS_Additional_Ionospheric_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_Additional_Navigation_Models_PDU,
-      { "GANSS-Additional-Navigation-Models", "pcap.GANSS_Additional_Navigation_Models",
+      { "GANSS-Additional-Navigation-Models", "pcap.GANSS_Additional_Navigation_Models_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_Additional_Time_Models_PDU,
@@ -13481,23 +13858,23 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_GANSS_Additional_UTC_Models_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_ALM_ECEFsbasAlmanacSet_PDU,
-      { "GANSS-ALM-ECEFsbasAlmanacSet", "pcap.GANSS_ALM_ECEFsbasAlmanacSet",
+      { "GANSS-ALM-ECEFsbasAlmanacSet", "pcap.GANSS_ALM_ECEFsbasAlmanacSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_ALM_GlonassAlmanacSet_PDU,
-      { "GANSS-ALM-GlonassAlmanacSet", "pcap.GANSS_ALM_GlonassAlmanacSet",
+      { "GANSS-ALM-GlonassAlmanacSet", "pcap.GANSS_ALM_GlonassAlmanacSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_ALM_MidiAlmanacSet_PDU,
-      { "GANSS-ALM-MidiAlmanacSet", "pcap.GANSS_ALM_MidiAlmanacSet",
+      { "GANSS-ALM-MidiAlmanacSet", "pcap.GANSS_ALM_MidiAlmanacSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_ALM_NAVKeplerianSet_PDU,
-      { "GANSS-ALM-NAVKeplerianSet", "pcap.GANSS_ALM_NAVKeplerianSet",
+      { "GANSS-ALM-NAVKeplerianSet", "pcap.GANSS_ALM_NAVKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_ALM_ReducedKeplerianSet_PDU,
-      { "GANSS-ALM-ReducedKeplerianSet", "pcap.GANSS_ALM_ReducedKeplerianSet",
+      { "GANSS-ALM-ReducedKeplerianSet", "pcap.GANSS_ALM_ReducedKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_Auxiliary_Information_PDU,
@@ -13505,11 +13882,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_GANSS_Auxiliary_Information_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_CommonAssistanceData_PDU,
-      { "GANSS-CommonAssistanceData", "pcap.GANSS_CommonAssistanceData",
+      { "GANSS-CommonAssistanceData", "pcap.GANSS_CommonAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_Earth_Orientation_Parameters_PDU,
-      { "GANSS-Earth-Orientation-Parameters", "pcap.GANSS_Earth_Orientation_Parameters",
+      { "GANSS-Earth-Orientation-Parameters", "pcap.GANSS_Earth_Orientation_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_GenericAssistanceDataList_PDU,
@@ -13517,35 +13894,51 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GanssCodePhaseAmbiguityExt_PDU,
-      { "GanssCodePhaseAmbiguityExt", "pcap.GanssCodePhaseAmbiguityExt",
+      { "GanssCodePhaseAmbiguityExt", "pcap.GanssCodePhaseAmbiguityExt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GanssIntegerCodePhaseExt_PDU,
-      { "GanssIntegerCodePhaseExt", "pcap.GanssIntegerCodePhaseExt",
+      { "GanssIntegerCodePhaseExt", "pcap.GanssIntegerCodePhaseExt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_MeasuredResultsList_PDU,
       { "GANSS-MeasuredResultsList", "pcap.GANSS_MeasuredResultsList",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
+    { &hf_pcap_GANSS_Day_Cycle_PDU,
+      { "GANSS-Day-Cycle", "pcap.GANSS_Day_Cycle",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_GANSS_Delta_T_PDU,
+      { "GANSS-Delta-T", "pcap.GANSS_Delta_T",
+        FT_INT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
     { &hf_pcap_GANSS_UTRAN_TRU_PDU,
-      { "GANSS-UTRAN-TRU", "pcap.GANSS_UTRAN_TRU",
+      { "GANSS-UTRAN-TRU", "pcap.GANSS_UTRAN_TRU_element",
         FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_CompleteAlmanacProvided_PDU,
+      { "CompleteAlmanacProvided", "pcap.CompleteAlmanacProvided",
+        FT_BOOLEAN, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_MeasuredResultsList_PDU,
       { "MeasuredResultsList", "pcap.MeasuredResultsList",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GPS_ReferenceLocation_PDU,
-      { "GPS-ReferenceLocation", "pcap.GPS_ReferenceLocation",
+      { "GPS-ReferenceLocation", "pcap.GPS_ReferenceLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_GPS_Week_Cycle_PDU,
+      { "GPS-Week-Cycle", "pcap.GPS_Week_Cycle",
+        FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_UTRAN_GPS_DriftRate_PDU,
       { "UTRAN-GPS-DriftRate", "pcap.UTRAN_GPS_DriftRate",
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &pcap_UTRAN_GPS_DriftRate_vals_ext, 0,
         NULL, HFILL }},
     { &hf_pcap_GPSReferenceTimeUncertainty_PDU,
-      { "GPSReferenceTimeUncertainty", "pcap.GPSReferenceTimeUncertainty",
+      { "GPSReferenceTimeUncertainty", "pcap.GPSReferenceTimeUncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GPS_UTRAN_TRU_PDU,
@@ -13553,15 +13946,15 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_GPS_UTRAN_TRU_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_AdditionalGPSAssistDataRequired_PDU,
-      { "AdditionalGPSAssistDataRequired", "pcap.AdditionalGPSAssistDataRequired",
+      { "AdditionalGPSAssistDataRequired", "pcap.AdditionalGPSAssistDataRequired_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_AdditionalGanssAssistDataRequired_PDU,
-      { "AdditionalGanssAssistDataRequired", "pcap.AdditionalGanssAssistDataRequired",
+      { "AdditionalGanssAssistDataRequired", "pcap.AdditionalGanssAssistDataRequired_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSSReq_AddIonosphericModel_PDU,
-      { "GANSSReq-AddIonosphericModel", "pcap.GANSSReq_AddIonosphericModel",
+      { "GANSSReq-AddIonosphericModel", "pcap.GANSSReq_AddIonosphericModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSSReq_EarthOrientPara_PDU,
@@ -13581,7 +13974,7 @@ void proto_register_pcap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_AddADchoices_PDU,
-      { "GANSS-AddADchoices", "pcap.GANSS_AddADchoices",
+      { "GANSS-AddADchoices", "pcap.GANSS_AddADchoices_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationExchangeID_PDU,
@@ -13589,7 +13982,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationReportCharacteristics_PDU,
-      { "InformationReportCharacteristics", "pcap.InformationReportCharacteristics",
+      { "InformationReportCharacteristics", "pcap.InformationReportCharacteristics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationType_PDU,
@@ -13597,11 +13990,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_InformationType_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_AddIonoModelReq_PDU,
-      { "GANSS-AddIonoModelReq", "pcap.GANSS_AddIonoModelReq",
+      { "GANSS-AddIonoModelReq", "pcap.GANSS_AddIonoModelReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_EarthOrientParaReq_PDU,
-      { "GANSS-EarthOrientParaReq", "pcap.GANSS_EarthOrientParaReq",
+      { "GANSS-EarthOrientParaReq", "pcap.GANSS_EarthOrientParaReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_SBAS_ID_PDU,
@@ -13609,15 +14002,15 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_GANSS_SBAS_ID_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_MeasInstructionsUsed_PDU,
-      { "MeasInstructionsUsed", "pcap.MeasInstructionsUsed",
+      { "MeasInstructionsUsed", "pcap.MeasInstructionsUsed_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_OTDOA_MeasurementGroup_PDU,
-      { "OTDOA-MeasurementGroup", "pcap.OTDOA_MeasurementGroup",
+      { "OTDOA-MeasurementGroup", "pcap.OTDOA_MeasurementGroup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_OTDOA_ReferenceCellInfoSAS_centric_PDU,
-      { "OTDOA-ReferenceCellInfoSAS-centric", "pcap.OTDOA_ReferenceCellInfoSAS_centric",
+      { "OTDOA-ReferenceCellInfoSAS-centric", "pcap.OTDOA_ReferenceCellInfoSAS_centric_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_OTDOA_MeasuredResultsSets_PDU,
@@ -13625,11 +14018,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_OTDOA_AddMeasuredResultsInfo_PDU,
-      { "OTDOA-AddMeasuredResultsInfo", "pcap.OTDOA_AddMeasuredResultsInfo",
+      { "OTDOA-AddMeasuredResultsInfo", "pcap.OTDOA_AddMeasuredResultsInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_UC_ID_PDU,
-      { "UC-ID", "pcap.UC_ID",
+      { "UC-ID", "pcap.UC_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_Extended_RNC_ID_PDU,
@@ -13637,15 +14030,15 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_AdditionalMeasurementInforLCR_PDU,
-      { "AdditionalMeasurementInforLCR", "pcap.AdditionalMeasurementInforLCR",
+      { "AdditionalMeasurementInforLCR", "pcap.AdditionalMeasurementInforLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PeriodicPosCalcInfo_PDU,
-      { "PeriodicPosCalcInfo", "pcap.PeriodicPosCalcInfo",
+      { "PeriodicPosCalcInfo", "pcap.PeriodicPosCalcInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PeriodicLocationInfo_PDU,
-      { "PeriodicLocationInfo", "pcap.PeriodicLocationInfo",
+      { "PeriodicLocationInfo", "pcap.PeriodicLocationInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PeriodicTerminationCause_PDU,
@@ -13653,7 +14046,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_PeriodicTerminationCause_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_PositioningMethod_PDU,
-      { "PositioningMethod", "pcap.PositioningMethod",
+      { "PositioningMethod", "pcap.PositioningMethod_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GNSS_PositioningMethod_PDU,
@@ -13665,11 +14058,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_PositioningPriority_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_RRCstateChange_PDU,
-      { "RRCstateChange", "pcap.RRCstateChange",
+      { "RRCstateChange", "pcap.RRCstateChange_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_RequestType_PDU,
-      { "RequestType", "pcap.RequestType",
+      { "RequestType", "pcap.RequestType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ResponseTime_PDU,
@@ -13681,7 +14074,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_UE_PositioningCapability_PDU,
-      { "UE-PositioningCapability", "pcap.UE_PositioningCapability",
+      { "UE-PositioningCapability", "pcap.UE_PositioningCapability_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_NetworkAssistedGANSSSupport_PDU,
@@ -13689,11 +14082,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_SBAS_IDs_PDU,
-      { "GANSS-SBAS-IDs", "pcap.GANSS_SBAS_IDs",
+      { "GANSS-SBAS-IDs", "pcap.GANSS_SBAS_IDs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_Signal_IDs_PDU,
-      { "GANSS-Signal-IDs", "pcap.GANSS_Signal_IDs",
+      { "GANSS-Signal-IDs", "pcap.GANSS_Signal_IDs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_SupportGANSSNonNativeADchoices_PDU,
@@ -13701,7 +14094,7 @@ void proto_register_pcap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_UTDOAPositioning_PDU,
-      { "UTDOAPositioning", "pcap.UTDOAPositioning",
+      { "UTDOAPositioning", "pcap.UTDOAPositioning_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_EnvironmentCharacterisation_PDU,
@@ -13709,11 +14102,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_EnvironmentCharacterisation_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_GPSPositioning_PDU,
-      { "GPSPositioning", "pcap.GPSPositioning",
+      { "GPSPositioning", "pcap.GPSPositioning_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSSPositioning_PDU,
-      { "GANSSPositioning", "pcap.GANSSPositioning",
+      { "GANSSPositioning", "pcap.GANSSPositioning_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSScarrierPhaseRequested_PDU,
@@ -13725,7 +14118,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_OTDOAAssistanceData_PDU,
-      { "OTDOAAssistanceData", "pcap.OTDOAAssistanceData",
+      { "OTDOAAssistanceData", "pcap.OTDOAAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_VerticalAccuracyCode_PDU,
@@ -13733,7 +14126,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_UTDOA_Group_PDU,
-      { "UTDOA-Group", "pcap.UTDOA_Group",
+      { "UTDOA-Group", "pcap.UTDOA_Group_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_Positioning_ResponseTime_PDU,
@@ -13753,27 +14146,27 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_VelocityEstimate_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_UTRAN_GPSReferenceTime_PDU,
-      { "UTRAN-GPSReferenceTime", "pcap.UTRAN_GPSReferenceTime",
+      { "UTRAN-GPSReferenceTime", "pcap.UTRAN_GPSReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_UTRAN_GANSSReferenceTimeResult_PDU,
-      { "UTRAN-GANSSReferenceTimeResult", "pcap.UTRAN_GANSSReferenceTimeResult",
+      { "UTRAN-GANSSReferenceTimeResult", "pcap.UTRAN_GANSSReferenceTimeResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionCalculationRequest_PDU,
-      { "PositionCalculationRequest", "pcap.PositionCalculationRequest",
+      { "PositionCalculationRequest", "pcap.PositionCalculationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionCalculationResponse_PDU,
-      { "PositionCalculationResponse", "pcap.PositionCalculationResponse",
+      { "PositionCalculationResponse", "pcap.PositionCalculationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionCalculationFailure_PDU,
-      { "PositionCalculationFailure", "pcap.PositionCalculationFailure",
+      { "PositionCalculationFailure", "pcap.PositionCalculationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationExchangeInitiationRequest_PDU,
-      { "InformationExchangeInitiationRequest", "pcap.InformationExchangeInitiationRequest",
+      { "InformationExchangeInitiationRequest", "pcap.InformationExchangeInitiationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationExchangeObjectType_InfEx_Rqst_PDU,
@@ -13781,11 +14174,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_InformationExchangeObjectType_InfEx_Rqst_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_UC_ID_InfEx_Rqst_PDU,
-      { "UC-ID-InfEx-Rqst", "pcap.UC_ID_InfEx_Rqst",
+      { "UC-ID-InfEx-Rqst", "pcap.UC_ID_InfEx_Rqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationExchangeInitiationResponse_PDU,
-      { "InformationExchangeInitiationResponse", "pcap.InformationExchangeInitiationResponse",
+      { "InformationExchangeInitiationResponse", "pcap.InformationExchangeInitiationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationExchangeObjectType_InfEx_Rsp_PDU,
@@ -13793,35 +14186,35 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_InformationExchangeObjectType_InfEx_Rsp_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_InformationExchangeInitiationFailure_PDU,
-      { "InformationExchangeInitiationFailure", "pcap.InformationExchangeInitiationFailure",
+      { "InformationExchangeInitiationFailure", "pcap.InformationExchangeInitiationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionInitiationRequest_PDU,
-      { "PositionInitiationRequest", "pcap.PositionInitiationRequest",
+      { "PositionInitiationRequest", "pcap.PositionInitiationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionInitiationResponse_PDU,
-      { "PositionInitiationResponse", "pcap.PositionInitiationResponse",
+      { "PositionInitiationResponse", "pcap.PositionInitiationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionInitiationFailure_PDU,
-      { "PositionInitiationFailure", "pcap.PositionInitiationFailure",
+      { "PositionInitiationFailure", "pcap.PositionInitiationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionActivationRequest_PDU,
-      { "PositionActivationRequest", "pcap.PositionActivationRequest",
+      { "PositionActivationRequest", "pcap.PositionActivationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionActivationResponse_PDU,
-      { "PositionActivationResponse", "pcap.PositionActivationResponse",
+      { "PositionActivationResponse", "pcap.PositionActivationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionActivationFailure_PDU,
-      { "PositionActivationFailure", "pcap.PositionActivationFailure",
+      { "PositionActivationFailure", "pcap.PositionActivationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationReport_PDU,
-      { "InformationReport", "pcap.InformationReport",
+      { "InformationReport", "pcap.InformationReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationExchangeObjectType_InfEx_Rprt_PDU,
@@ -13829,39 +14222,39 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_InformationExchangeObjectType_InfEx_Rprt_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_InformationExchangeTerminationRequest_PDU,
-      { "InformationExchangeTerminationRequest", "pcap.InformationExchangeTerminationRequest",
+      { "InformationExchangeTerminationRequest", "pcap.InformationExchangeTerminationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_InformationExchangeFailureIndication_PDU,
-      { "InformationExchangeFailureIndication", "pcap.InformationExchangeFailureIndication",
+      { "InformationExchangeFailureIndication", "pcap.InformationExchangeFailureIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ErrorIndication_PDU,
-      { "ErrorIndication", "pcap.ErrorIndication",
+      { "ErrorIndication", "pcap.ErrorIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionParameterModification_PDU,
-      { "PositionParameterModification", "pcap.PositionParameterModification",
+      { "PositionParameterModification", "pcap.PositionParameterModification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PrivateMessage_PDU,
-      { "PrivateMessage", "pcap.PrivateMessage",
+      { "PrivateMessage", "pcap.PrivateMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_Abort_PDU,
-      { "Abort", "pcap.Abort",
+      { "Abort", "pcap.Abort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionPeriodicReport_PDU,
-      { "PositionPeriodicReport", "pcap.PositionPeriodicReport",
+      { "PositionPeriodicReport", "pcap.PositionPeriodicReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionPeriodicResult_PDU,
-      { "PositionPeriodicResult", "pcap.PositionPeriodicResult",
+      { "PositionPeriodicResult", "pcap.PositionPeriodicResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PositionPeriodicTermination_PDU,
-      { "PositionPeriodicTermination", "pcap.PositionPeriodicTermination",
+      { "PositionPeriodicTermination", "pcap.PositionPeriodicTermination_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PCAP_PDU_PDU,
@@ -13885,7 +14278,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_32767", HFILL }},
     { &hf_pcap_ProtocolIE_Container_item,
-      { "ProtocolIE-Field", "pcap.ProtocolIE_Field",
+      { "ProtocolIE-Field", "pcap.ProtocolIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_id,
@@ -13897,11 +14290,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_Criticality_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_ie_field_value,
-      { "value", "pcap.value",
+      { "value", "pcap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ie_field_value", HFILL }},
     { &hf_pcap_ProtocolExtensionContainer_item,
-      { "ProtocolExtensionField", "pcap.ProtocolExtensionField",
+      { "ProtocolExtensionField", "pcap.ProtocolExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ext_id,
@@ -13909,11 +14302,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &pcap_ProtocolIE_ID_vals_ext, 0,
         "ProtocolIE_ID", HFILL }},
     { &hf_pcap_extensionValue,
-      { "extensionValue", "pcap.extensionValue",
+      { "extensionValue", "pcap.extensionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PrivateIE_Container_item,
-      { "PrivateIE-Field", "pcap.PrivateIE_Field",
+      { "PrivateIE-Field", "pcap.PrivateIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_private_id,
@@ -13921,11 +14314,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_PrivateIE_ID_vals), 0,
         "PrivateIE_ID", HFILL }},
     { &hf_pcap_private_value,
-      { "value", "pcap.value",
+      { "value", "pcap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_private_value", HFILL }},
     { &hf_pcap_gpsAlmanacAndSatelliteHealth,
-      { "gpsAlmanacAndSatelliteHealth", "pcap.gpsAlmanacAndSatelliteHealth",
+      { "gpsAlmanacAndSatelliteHealth", "pcap.gpsAlmanacAndSatelliteHealth_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPS_AlmanacAndSatelliteHealth", HFILL }},
     { &hf_pcap_satMask,
@@ -13961,15 +14354,15 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_CellId_MeasuredResultsInfoList_item,
-      { "CellId-MeasuredResultsInfo", "pcap.CellId_MeasuredResultsInfo",
+      { "CellId-MeasuredResultsInfo", "pcap.CellId_MeasuredResultsInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_uC_ID,
-      { "uC-ID", "pcap.uC_ID",
+      { "uC-ID", "pcap.uC_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_uTRANAccessPointPositionAltitude,
-      { "uTRANAccessPointPositionAltitude", "pcap.uTRANAccessPointPositionAltitude",
+      { "uTRANAccessPointPositionAltitude", "pcap.uTRANAccessPointPositionAltitude_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ue_PositionEstimate,
@@ -13977,15 +14370,15 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_UE_PositionEstimate_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_roundTripTimeInfo,
-      { "roundTripTimeInfo", "pcap.roundTripTimeInfo",
+      { "roundTripTimeInfo", "pcap.roundTripTimeInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_rxTimingDeviationInfo,
-      { "rxTimingDeviationInfo", "pcap.rxTimingDeviationInfo",
+      { "rxTimingDeviationInfo", "pcap.rxTimingDeviationInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_rxTimingDeviationLCRInfo,
-      { "rxTimingDeviationLCRInfo", "pcap.rxTimingDeviationLCRInfo",
+      { "rxTimingDeviationLCRInfo", "pcap.rxTimingDeviationLCRInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_pathloss,
@@ -13997,7 +14390,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ue_PositioningMeasQuality,
-      { "ue-PositioningMeasQuality", "pcap.ue_PositioningMeasQuality",
+      { "ue-PositioningMeasQuality", "pcap.ue_PositioningMeasQuality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_roundTripTime,
@@ -14025,11 +14418,11 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_5", HFILL }},
     { &hf_pcap_geographicalCoordinates,
-      { "geographicalCoordinates", "pcap.geographicalCoordinates",
+      { "geographicalCoordinates", "pcap.geographicalCoordinates_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ga_AltitudeAndDirection,
-      { "ga-AltitudeAndDirection", "pcap.ga_AltitudeAndDirection",
+      { "ga-AltitudeAndDirection", "pcap.ga_AltitudeAndDirection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_rxTimingDeviation,
@@ -14080,12 +14473,68 @@ void proto_register_pcap(void) {
       { "aOA-LCR-Accuracy-Class", "pcap.aOA_LCR_Accuracy_Class",
         FT_UINT32, BASE_DEC, VALS(pcap_AOA_LCR_Accuracy_Class_vals), 0,
         NULL, HFILL }},
+    { &hf_pcap_CellId_IRATMeasuredResultsSets_item,
+      { "CellId-IRATMeasuredResultsInfoList", "pcap.CellId_IRATMeasuredResultsInfoList_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_gERAN_MeasuredResultsInfoList,
+      { "gERAN-MeasuredResultsInfoList", "pcap.gERAN_MeasuredResultsInfoList",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_iE_Extenstions,
+      { "iE-Extenstions", "pcap.iE_Extenstions",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "ProtocolExtensionContainer", HFILL }},
+    { &hf_pcap_GERAN_MeasuredResultsInfoList_item,
+      { "GERAN-MeasuredResultsInfo", "pcap.GERAN_MeasuredResultsInfo_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_gERANCellID,
+      { "gERANCellID", "pcap.gERANCellID_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "GERANCellGlobalID", HFILL }},
+    { &hf_pcap_gERANPhysicalCellID,
+      { "gERANPhysicalCellID", "pcap.gERANPhysicalCellID_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_gSM_RSSI,
+      { "gSM-RSSI", "pcap.gSM_RSSI",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_plmn_Identity,
+      { "plmn-Identity", "pcap.plmn_Identity",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_pcap_locationAreaCode,
+      { "locationAreaCode", "pcap.locationAreaCode",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_16", HFILL }},
+    { &hf_pcap_cellIdentity,
+      { "cellIdentity", "pcap.cellIdentity",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_16", HFILL }},
+    { &hf_pcap_bsic,
+      { "bsic", "pcap.bsic_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "GSM_BSIC", HFILL }},
+    { &hf_pcap_arfcn,
+      { "arfcn", "pcap.arfcn",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "GSM_BCCH_ARFCN", HFILL }},
+    { &hf_pcap_networkColourCode,
+      { "networkColourCode", "pcap.networkColourCode",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_3", HFILL }},
+    { &hf_pcap_baseStationColourCode,
+      { "baseStationColourCode", "pcap.baseStationColourCode",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_3", HFILL }},
     { &hf_pcap_requestedCellIDMeasurements,
       { "requestedCellIDMeasurements", "pcap.requestedCellIDMeasurements",
         FT_UINT32, BASE_DEC, VALS(pcap_RequestedCellIDMeasurements_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_fdd,
-      { "fdd", "pcap.fdd",
+      { "fdd", "pcap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_roundTripTimeInfoWanted,
@@ -14109,7 +14558,7 @@ void proto_register_pcap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_pcap_tdd,
-      { "tdd", "pcap.tdd",
+      { "tdd", "pcap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_rxTimingDeviationInfoWanted,
@@ -14136,6 +14585,10 @@ void proto_register_pcap(void) {
       { "timingAdvanceLCRWanted", "pcap.timingAdvanceLCRWanted",
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
+    { &hf_pcap_rSSIMeasurementsWanted,
+      { "rSSIMeasurementsWanted", "pcap.rSSIMeasurementsWanted",
+        FT_BOOLEAN, BASE_NONE, NULL, 0,
+        "BOOLEAN", HFILL }},
     { &hf_pcap_procedureCode,
       { "procedureCode", "pcap.procedureCode",
         FT_UINT32, BASE_DEC, VALS(pcap_ProcedureCode_vals), 0,
@@ -14157,7 +14610,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "CriticalityDiagnostics_IE_List", HFILL }},
     { &hf_pcap_CriticalityDiagnostics_IE_List_item,
-      { "CriticalityDiagnostics-IE-List item", "pcap.CriticalityDiagnostics_IE_List_item",
+      { "CriticalityDiagnostics-IE-List item", "pcap.CriticalityDiagnostics_IE_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_iECriticality,
@@ -14193,7 +14646,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_DGPS_CorrectionSatInfoList_item,
-      { "DGPS-CorrectionSatInfo", "pcap.DGPS_CorrectionSatInfo",
+      { "DGPS-CorrectionSatInfo", "pcap.DGPS_CorrectionSatInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_satID,
@@ -14225,11 +14678,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_UDREValidityTime_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_point,
-      { "point", "pcap.point",
+      { "point", "pcap.point_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_Point", HFILL }},
     { &hf_pcap_pointWithUnCertainty,
-      { "pointWithUnCertainty", "pcap.pointWithUnCertainty",
+      { "pointWithUnCertainty", "pcap.pointWithUnCertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_PointWithUnCertainty", HFILL }},
     { &hf_pcap_polygon,
@@ -14237,19 +14690,19 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GA_Polygon", HFILL }},
     { &hf_pcap_pointWithUncertaintyEllipse,
-      { "pointWithUncertaintyEllipse", "pcap.pointWithUncertaintyEllipse",
+      { "pointWithUncertaintyEllipse", "pcap.pointWithUncertaintyEllipse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_PointWithUnCertaintyEllipse", HFILL }},
     { &hf_pcap_pointWithAltitude,
-      { "pointWithAltitude", "pcap.pointWithAltitude",
+      { "pointWithAltitude", "pcap.pointWithAltitude_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_PointWithAltitude", HFILL }},
     { &hf_pcap_pointWithAltitudeAndUncertaintyEllipsoid,
-      { "pointWithAltitudeAndUncertaintyEllipsoid", "pcap.pointWithAltitudeAndUncertaintyEllipsoid",
+      { "pointWithAltitudeAndUncertaintyEllipsoid", "pcap.pointWithAltitudeAndUncertaintyEllipsoid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_PointWithAltitudeAndUncertaintyEllipsoid", HFILL }},
     { &hf_pcap_ellipsoidArc,
-      { "ellipsoidArc", "pcap.ellipsoidArc",
+      { "ellipsoidArc", "pcap.ellipsoidArc_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_EllipsoidArc", HFILL }},
     { &hf_pcap_latitudeSign,
@@ -14293,11 +14746,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_100", HFILL }},
     { &hf_pcap_altitudeAndDirection,
-      { "altitudeAndDirection", "pcap.altitudeAndDirection",
+      { "altitudeAndDirection", "pcap.altitudeAndDirection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_AltitudeAndDirection", HFILL }},
     { &hf_pcap_uncertaintyEllipse,
-      { "uncertaintyEllipse", "pcap.uncertaintyEllipse",
+      { "uncertaintyEllipse", "pcap.uncertaintyEllipse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_UncertaintyEllipse", HFILL }},
     { &hf_pcap_uncertaintyAltitude,
@@ -14309,7 +14762,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_pcap_GA_Polygon_item,
-      { "GA-Polygon item", "pcap.GA_Polygon_item",
+      { "GA-Polygon item", "pcap.GA_Polygon_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_uncertaintySemi_major,
@@ -14333,7 +14786,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_UE_PositionEstimate_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_utran_GPSReferenceTimeResult,
-      { "utran-GPSReferenceTimeResult", "pcap.utran_GPSReferenceTimeResult",
+      { "utran-GPSReferenceTimeResult", "pcap.utran_GPSReferenceTimeResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gps_ReferenceTimeOnly,
@@ -14341,11 +14794,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_604799999_", HFILL }},
     { &hf_pcap_cell_Timing,
-      { "cell-Timing", "pcap.cell_Timing",
+      { "cell-Timing", "pcap.cell_Timing_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_extension_ReferenceTimeChoice,
-      { "extension-ReferenceTimeChoice", "pcap.extension_ReferenceTimeChoice",
+      { "extension-ReferenceTimeChoice", "pcap.extension_ReferenceTimeChoice_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_sfn,
@@ -14357,7 +14810,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_3599999", HFILL }},
     { &hf_pcap_ganssTimeID,
-      { "ganssTimeID", "pcap.ganssTimeID",
+      { "ganssTimeID", "pcap.ganssTimeID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSID", HFILL }},
     { &hf_pcap_positionData,
@@ -14389,7 +14842,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "AcquisitionSatInfoList", HFILL }},
     { &hf_pcap_AcquisitionSatInfoList_item,
-      { "AcquisitionSatInfo", "pcap.AcquisitionSatInfo",
+      { "AcquisitionSatInfo", "pcap.AcquisitionSatInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_doppler0thOrder,
@@ -14397,7 +14850,7 @@ void proto_register_pcap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M2048_2047", HFILL }},
     { &hf_pcap_extraDopplerInfo,
-      { "extraDopplerInfo", "pcap.extraDopplerInfo",
+      { "extraDopplerInfo", "pcap.extraDopplerInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_codePhase,
@@ -14417,7 +14870,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &pcap_CodePhaseSearchWindow_vals_ext, 0,
         NULL, HFILL }},
     { &hf_pcap_azimuthAndElevation,
-      { "azimuthAndElevation", "pcap.azimuthAndElevation",
+      { "azimuthAndElevation", "pcap.azimuthAndElevation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_doppler1stOrder,
@@ -14436,8 +14889,16 @@ void proto_register_pcap(void) {
       { "elevation", "pcap.elevation",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
+    { &hf_pcap_azimuthLSB,
+      { "azimuthLSB", "pcap.azimuthLSB",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_15", HFILL }},
+    { &hf_pcap_elevationLSB,
+      { "elevationLSB", "pcap.elevationLSB",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_15", HFILL }},
     { &hf_pcap_AuxInfoGANSS_ID1_item,
-      { "AuxInfoGANSS-ID1-element", "pcap.AuxInfoGANSS_ID1_element",
+      { "AuxInfoGANSS-ID1-element", "pcap.AuxInfoGANSS_ID1_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_svID,
@@ -14453,7 +14914,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionContainer", HFILL }},
     { &hf_pcap_AuxInfoGANSS_ID3_item,
-      { "AuxInfoGANSS-ID3-element", "pcap.AuxInfoGANSS_ID3_element",
+      { "AuxInfoGANSS-ID3-element", "pcap.AuxInfoGANSS_ID3_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_channelNumber,
@@ -14537,11 +14998,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_DGANSS_Information_item,
-      { "DGANSS-InformationItem", "pcap.DGANSS_InformationItem",
+      { "DGANSS-InformationItem", "pcap.DGANSS_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gANSS_SignalId,
-      { "gANSS-SignalId", "pcap.gANSS_SignalId",
+      { "gANSS-SignalId", "pcap.gANSS_SignalId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gANSS_StatusHealth,
@@ -14553,7 +15014,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_DGANSS_SignalInformation_item,
-      { "DGANSS-SignalInformationItem", "pcap.DGANSS_SignalInformationItem",
+      { "DGANSS-SignalInformationItem", "pcap.DGANSS_SignalInformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_satId,
@@ -14573,35 +15034,35 @@ void proto_register_pcap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M127_127", HFILL }},
     { &hf_pcap_navClockModel,
-      { "navClockModel", "pcap.navClockModel",
+      { "navClockModel", "pcap.navClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_cnavClockModel,
-      { "cnavClockModel", "pcap.cnavClockModel",
+      { "cnavClockModel", "pcap.cnavClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_glonassClockModel,
-      { "glonassClockModel", "pcap.glonassClockModel",
+      { "glonassClockModel", "pcap.glonassClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_sbasClockModel,
-      { "sbasClockModel", "pcap.sbasClockModel",
+      { "sbasClockModel", "pcap.sbasClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_navKeplerianSet,
-      { "navKeplerianSet", "pcap.navKeplerianSet",
+      { "navKeplerianSet", "pcap.navKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_NAVKeplerianSet", HFILL }},
     { &hf_pcap_cnavKeplerianSet,
-      { "cnavKeplerianSet", "pcap.cnavKeplerianSet",
+      { "cnavKeplerianSet", "pcap.cnavKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_CNAVKeplerianSet", HFILL }},
     { &hf_pcap_glonassECEF,
-      { "glonassECEF", "pcap.glonassECEF",
+      { "glonassECEF", "pcap.glonassECEF_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_GLONASSecef", HFILL }},
     { &hf_pcap_sbasECEF,
-      { "sbasECEF", "pcap.sbasECEF",
+      { "sbasECEF", "pcap.sbasECEF_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_SBASecef", HFILL }},
     { &hf_pcap_dataID,
@@ -14609,7 +15070,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_2", HFILL }},
     { &hf_pcap_alpha_beta_parameters,
-      { "alpha-beta-parameters", "pcap.alpha_beta_parameters",
+      { "alpha-beta-parameters", "pcap.alpha_beta_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPS_Ionospheric_Model", HFILL }},
     { &hf_pcap_non_broadcastIndication,
@@ -14621,19 +15082,19 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Ganss_Sat_Info_AddNavList", HFILL }},
     { &hf_pcap_GANSS_Additional_Time_Models_item,
-      { "GANSS-Time-Model", "pcap.GANSS_Time_Model",
+      { "GANSS-Time-Model", "pcap.GANSS_Time_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_utcModel1,
-      { "utcModel1", "pcap.utcModel1",
+      { "utcModel1", "pcap.utcModel1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTCmodelSet1", HFILL }},
     { &hf_pcap_utcModel2,
-      { "utcModel2", "pcap.utcModel2",
+      { "utcModel2", "pcap.utcModel2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTCmodelSet2", HFILL }},
     { &hf_pcap_utcModel3,
-      { "utcModel3", "pcap.utcModel3",
+      { "utcModel3", "pcap.utcModel3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTCmodelSet3", HFILL }},
     { &hf_pcap_sat_info_SBASecefList,
@@ -14669,11 +15130,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_GANSS_AlmanacModel_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_gANSS_keplerianParameters,
-      { "gANSS-keplerianParameters", "pcap.gANSS_keplerianParameters",
+      { "gANSS-keplerianParameters", "pcap.gANSS_keplerianParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_KeplerianParametersAlm", HFILL }},
     { &hf_pcap_extension_GANSS_AlmanacModel,
-      { "extension-GANSS-AlmanacModel", "pcap.extension_GANSS_AlmanacModel",
+      { "extension-GANSS-AlmanacModel", "pcap.extension_GANSS_AlmanacModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssID1,
@@ -14689,19 +15150,19 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_75", HFILL }},
     { &hf_pcap_GANSS_Clock_Model_item,
-      { "GANSS-SatelliteClockModelItem", "pcap.GANSS_SatelliteClockModelItem",
+      { "GANSS-SatelliteClockModelItem", "pcap.GANSS_SatelliteClockModelItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_Reference_Time,
-      { "ganss-Reference-Time", "pcap.ganss_Reference_Time",
+      { "ganss-Reference-Time", "pcap.ganss_Reference_Time_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_Ionospheric_Model,
-      { "ganss-Ionospheric-Model", "pcap.ganss_Ionospheric_Model",
+      { "ganss-Ionospheric-Model", "pcap.ganss_Ionospheric_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_Reference_Location,
-      { "ganss-Reference-Location", "pcap.ganss_Reference_Location",
+      { "ganss-Reference-Location", "pcap.ganss_Reference_Location_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssTod,
@@ -14713,7 +15174,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GANSS_DataBitAssistanceList", HFILL }},
     { &hf_pcap_GANSS_DataBitAssistanceList_item,
-      { "GANSS-DataBitAssistanceItem", "pcap.GANSS_DataBitAssistanceItem",
+      { "GANSS-DataBitAssistanceItem", "pcap.GANSS_DataBitAssistanceItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_dataBitAssistanceSgnList,
@@ -14721,11 +15182,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GANSS_DataBitAssistanceSgnList", HFILL }},
     { &hf_pcap_GANSS_DataBitAssistanceSgnList_item,
-      { "GANSS-DataBitAssistanceSgnItem", "pcap.GANSS_DataBitAssistanceSgnItem",
+      { "GANSS-DataBitAssistanceSgnItem", "pcap.GANSS_DataBitAssistanceSgnItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_SignalId,
-      { "ganss-SignalId", "pcap.ganss_SignalId",
+      { "ganss-SignalId", "pcap.ganss_SignalId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssDataBits,
@@ -14769,11 +15230,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_dopplerUncertainty_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_GenericAssistanceDataList_item,
-      { "GANSSGenericAssistanceData", "pcap.GANSSGenericAssistanceData",
+      { "GANSSGenericAssistanceData", "pcap.GANSSGenericAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssId,
-      { "ganssId", "pcap.ganssId",
+      { "ganssId", "pcap.ganssId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_Real_Time_Integrity,
@@ -14781,35 +15242,35 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_DataBitAssistance,
-      { "ganss-DataBitAssistance", "pcap.ganss_DataBitAssistance",
+      { "ganss-DataBitAssistance", "pcap.ganss_DataBitAssistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_Data_Bit_Assistance", HFILL }},
     { &hf_pcap_dganss_Corrections,
-      { "dganss-Corrections", "pcap.dganss_Corrections",
+      { "dganss-Corrections", "pcap.dganss_Corrections_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_AlmanacAndSatelliteHealth,
-      { "ganss-AlmanacAndSatelliteHealth", "pcap.ganss_AlmanacAndSatelliteHealth",
+      { "ganss-AlmanacAndSatelliteHealth", "pcap.ganss_AlmanacAndSatelliteHealth_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_ReferenceMeasurementInfo,
-      { "ganss-ReferenceMeasurementInfo", "pcap.ganss_ReferenceMeasurementInfo",
+      { "ganss-ReferenceMeasurementInfo", "pcap.ganss_ReferenceMeasurementInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_UTC_Model,
-      { "ganss-UTC-Model", "pcap.ganss_UTC_Model",
+      { "ganss-UTC-Model", "pcap.ganss_UTC_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_Time_Model,
-      { "ganss-Time-Model", "pcap.ganss_Time_Model",
+      { "ganss-Time-Model", "pcap.ganss_Time_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_Navigation_Model,
-      { "ganss-Navigation-Model", "pcap.ganss_Navigation_Model",
+      { "ganss-Navigation-Model", "pcap.ganss_Navigation_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GANSS_GenericMeasurementInfo_item,
-      { "GANSS-GenericMeasurementInfo item", "pcap.GANSS_GenericMeasurementInfo_item",
+      { "GANSS-GenericMeasurementInfo item", "pcap.GANSS_GenericMeasurementInfo_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssMeasurementSignalList,
@@ -14821,11 +15282,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
     { &hf_pcap_GANSSMeasurementSignalList_item,
-      { "GANSSMeasurementSignalList item", "pcap.GANSSMeasurementSignalList_item",
+      { "GANSSMeasurementSignalList item", "pcap.GANSSMeasurementSignalList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssSignalId,
-      { "ganssSignalId", "pcap.ganssSignalId",
+      { "ganssSignalId", "pcap.ganssSignalId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_SignalID", HFILL }},
     { &hf_pcap_ganssCodePhaseAmbiguity,
@@ -14853,7 +15314,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_12", HFILL }},
     { &hf_pcap_gANSS_IonosphereRegionalStormFlags,
-      { "gANSS-IonosphereRegionalStormFlags", "pcap.gANSS_IonosphereRegionalStormFlags",
+      { "gANSS-IonosphereRegionalStormFlags", "pcap.gANSS_IonosphereRegionalStormFlags_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_storm_flag_one,
@@ -14949,7 +15410,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_16", HFILL }},
     { &hf_pcap_GANSS_MeasurementParameters_item,
-      { "GANSS-MeasurementParametersItem", "pcap.GANSS_MeasurementParametersItem",
+      { "GANSS-MeasurementParametersItem", "pcap.GANSS_MeasurementParametersItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_cToNzero,
@@ -14989,7 +15450,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_64_127", HFILL }},
     { &hf_pcap_GANSS_MeasuredResultsList_item,
-      { "GANSS-MeasuredResults", "pcap.GANSS_MeasuredResults",
+      { "GANSS-MeasuredResults", "pcap.GANSS_MeasuredResults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_referenceTime,
@@ -14997,11 +15458,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_referenceTime_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_utranReferenceTime,
-      { "utranReferenceTime", "pcap.utranReferenceTime",
+      { "utranReferenceTime", "pcap.utranReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTRAN_GANSSReferenceTimeUL", HFILL }},
     { &hf_pcap_ganssReferenceTimeOnly,
-      { "ganssReferenceTimeOnly", "pcap.ganssReferenceTimeOnly",
+      { "ganssReferenceTimeOnly", "pcap.ganssReferenceTimeOnly_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_ReferenceTimeOnly", HFILL }},
     { &hf_pcap_ganssGenericMeasurementInfo,
@@ -15017,11 +15478,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GANSS_Sat_Info_Nav", HFILL }},
     { &hf_pcap_gANSS_keplerianParameters_01,
-      { "gANSS-keplerianParameters", "pcap.gANSS_keplerianParameters",
+      { "gANSS-keplerianParameters", "pcap.gANSS_keplerianParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_KeplerianParametersOrb", HFILL }},
     { &hf_pcap_GANSS_Real_Time_Integrity_item,
-      { "GANSS-RealTimeInformationItem", "pcap.GANSS_RealTimeInformationItem",
+      { "GANSS-RealTimeInformationItem", "pcap.GANSS_RealTimeInformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_bad_ganss_satId,
@@ -15049,11 +15510,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_pcap_ganssTimeId,
-      { "ganssTimeId", "pcap.ganssTimeId",
+      { "ganssTimeId", "pcap.ganssTimeId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSID", HFILL }},
     { &hf_pcap_utran_ganssreferenceTime,
-      { "utran-ganssreferenceTime", "pcap.utran_ganssreferenceTime",
+      { "utran-ganssreferenceTime", "pcap.utran_ganssreferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTRAN_GANSSReferenceTimeDL", HFILL }},
     { &hf_pcap_tutran_ganss_driftRate,
@@ -15065,7 +15526,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_3599999", HFILL }},
     { &hf_pcap_gANSS_timeId,
-      { "gANSS-timeId", "pcap.gANSS_timeId",
+      { "gANSS-timeId", "pcap.gANSS_timeId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSID", HFILL }},
     { &hf_pcap_gANSS_TimeUncertainty,
@@ -15097,7 +15558,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_3", HFILL }},
     { &hf_pcap_GANSS_SatelliteInformation_item,
-      { "GANSS-SatelliteInformationItem", "pcap.GANSS_SatelliteInformationItem",
+      { "GANSS-SatelliteInformationItem", "pcap.GANSS_SatelliteInformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssSatId,
@@ -15109,7 +15570,7 @@ void proto_register_pcap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M2048_2047", HFILL }},
     { &hf_pcap_extraDoppler,
-      { "extraDoppler", "pcap.extraDoppler",
+      { "extraDoppler", "pcap.extraDoppler_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_ExtraDoppler", HFILL }},
     { &hf_pcap_codePhase_01,
@@ -15125,11 +15586,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_31", HFILL }},
     { &hf_pcap_azimuthAndElevation_01,
-      { "azimuthAndElevation", "pcap.azimuthAndElevation",
+      { "azimuthAndElevation", "pcap.azimuthAndElevation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_AzimuthAndElevation", HFILL }},
     { &hf_pcap_GANSS_SatelliteInformationKP_item,
-      { "GANSS-SatelliteInformationKPItem", "pcap.GANSS_SatelliteInformationKPItem",
+      { "GANSS-SatelliteInformationKPItem", "pcap.GANSS_SatelliteInformationKPItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_e_alm,
@@ -15173,7 +15634,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_11", HFILL }},
     { &hf_pcap_GANSS_SAT_Info_Almanac_GLOkpList_item,
-      { "GANSS-SAT-Info-Almanac-GLOkp", "pcap.GANSS_SAT_Info_Almanac_GLOkp",
+      { "GANSS-SAT-Info-Almanac-GLOkp", "pcap.GANSS_SAT_Info_Almanac_GLOkp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gloAlmNA,
@@ -15229,7 +15690,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_2", HFILL }},
     { &hf_pcap_GANSS_SAT_Info_Almanac_MIDIkpList_item,
-      { "GANSS-SAT-Info-Almanac-MIDIkp", "pcap.GANSS_SAT_Info_Almanac_MIDIkp",
+      { "GANSS-SAT-Info-Almanac-MIDIkp", "pcap.GANSS_SAT_Info_Almanac_MIDIkp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_midiAlmE,
@@ -15281,7 +15742,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_1", HFILL }},
     { &hf_pcap_GANSS_SAT_Info_Almanac_NAVkpList_item,
-      { "GANSS-SAT-Info-Almanac-NAVkp", "pcap.GANSS_SAT_Info_Almanac_NAVkp",
+      { "GANSS-SAT-Info-Almanac-NAVkp", "pcap.GANSS_SAT_Info_Almanac_NAVkp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_navAlmE,
@@ -15325,7 +15786,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_11", HFILL }},
     { &hf_pcap_GANSS_SAT_Info_Almanac_REDkpList_item,
-      { "GANSS-SAT-Info-Almanac-REDkp", "pcap.GANSS_SAT_Info_Almanac_REDkp",
+      { "GANSS-SAT-Info-Almanac-REDkp", "pcap.GANSS_SAT_Info_Almanac_REDkp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_redAlmDeltaA,
@@ -15353,7 +15814,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_1", HFILL }},
     { &hf_pcap_GANSS_SAT_Info_Almanac_SBASecefList_item,
-      { "GANSS-SAT-Info-Almanac-SBASecef", "pcap.GANSS_SAT_Info_Almanac_SBASecef",
+      { "GANSS-SAT-Info-Almanac-SBASecef", "pcap.GANSS_SAT_Info_Almanac_SBASecef_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_sbasAlmDataID,
@@ -15393,7 +15854,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_11", HFILL }},
     { &hf_pcap_Ganss_Sat_Info_AddNavList_item,
-      { "Ganss-Sat-Info-AddNavList item", "pcap.Ganss_Sat_Info_AddNavList_item",
+      { "Ganss-Sat-Info-AddNavList item", "pcap.Ganss_Sat_Info_AddNavList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_svHealth,
@@ -15413,7 +15874,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_GANSS_AddOrbitModels_vals), 0,
         "GANSS_AddOrbitModels", HFILL }},
     { &hf_pcap_GANSS_Sat_Info_Nav_item,
-      { "GANSS-Sat-Info-Nav item", "pcap.GANSS_Sat_Info_Nav_item",
+      { "GANSS-Sat-Info-Nav item", "pcap.GANSS_Sat_Info_Nav_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_svHealth_01,
@@ -15821,7 +16282,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_32", HFILL }},
     { &hf_pcap_deltaUT1_01,
-      { "deltaUT1", "pcap.deltaUT1",
+      { "deltaUT1", "pcap.deltaUT1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_kp,
@@ -15865,7 +16326,7 @@ void proto_register_pcap(void) {
         FT_UINT64, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gANSS_TimeId,
-      { "gANSS-TimeId", "pcap.gANSS_TimeId",
+      { "gANSS-TimeId", "pcap.gANSS_TimeId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSID", HFILL }},
     { &hf_pcap_wn_a,
@@ -15881,7 +16342,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_364", HFILL }},
     { &hf_pcap_AlmanacSatInfoList_item,
-      { "AlmanacSatInfo", "pcap.AlmanacSatInfo",
+      { "AlmanacSatInfo", "pcap.AlmanacSatInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_e,
@@ -15949,7 +16410,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_1", HFILL }},
     { &hf_pcap_sf1Revd,
-      { "sf1Revd", "pcap.sf1Revd",
+      { "sf1Revd", "pcap.sf1Revd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SubFrame1Reserved", HFILL }},
     { &hf_pcap_t_GD,
@@ -16093,7 +16554,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_8", HFILL }},
     { &hf_pcap_MeasuredResultsList_item,
-      { "GPS-MeasuredResults", "pcap.GPS_MeasuredResults",
+      { "GPS-MeasuredResults", "pcap.GPS_MeasuredResults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gps_MeasurementParamList,
@@ -16101,7 +16562,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GPS_MeasurementParamList_item,
-      { "GPS-MeasurementParam", "pcap.GPS_MeasurementParam",
+      { "GPS-MeasurementParam", "pcap.GPS_MeasurementParam_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_satelliteID,
@@ -16133,7 +16594,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_pcap_GPS_NavigationModel_item,
-      { "NavigationModelSatInfo", "pcap.NavigationModelSatInfo",
+      { "NavigationModelSatInfo", "pcap.NavigationModelSatInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_satelliteStatus,
@@ -16141,7 +16602,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_SatelliteStatus_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_gps_clockAndEphemerisParms,
-      { "gps-clockAndEphemerisParms", "pcap.gps_clockAndEphemerisParms",
+      { "gps-clockAndEphemerisParms", "pcap.gps_clockAndEphemerisParms_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPS_ClockAndEphemerisParameters", HFILL }},
     { &hf_pcap_badSatellites,
@@ -16149,7 +16610,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "BadSatList", HFILL }},
     { &hf_pcap_noBadSatellites,
-      { "noBadSatellites", "pcap.noBadSatellites",
+      { "noBadSatellites", "pcap.noBadSatellites_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_BadSatList_item,
@@ -16165,7 +16626,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_GPS_TOW_AssistList_item,
-      { "GPS-TOW-Assist", "pcap.GPS_TOW_Assist",
+      { "GPS-TOW-Assist", "pcap.GPS_TOW_Assist_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tlm_Message,
@@ -16257,7 +16718,7 @@ void proto_register_pcap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_pcap_navModelAddDataRequest,
-      { "navModelAddDataRequest", "pcap.navModelAddDataRequest",
+      { "navModelAddDataRequest", "pcap.navModelAddDataRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModelAdditionalData", HFILL }},
     { &hf_pcap_ganssReferenceTime,
@@ -16281,7 +16742,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_2", HFILL }},
     { &hf_pcap_GanssRequestedGenericAssistanceDataList_item,
-      { "GanssReqGenericData", "pcap.GanssReqGenericData",
+      { "GanssReqGenericData", "pcap.GanssReqGenericData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssRealTimeIntegrity,
@@ -16309,7 +16770,7 @@ void proto_register_pcap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_pcap_ganssDataBits_01,
-      { "ganssDataBits", "pcap.ganssDataBits",
+      { "ganssDataBits", "pcap.ganssDataBits_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssUTCModel,
@@ -16317,7 +16778,7 @@ void proto_register_pcap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_pcap_ganssNavigationModelAdditionalData,
-      { "ganssNavigationModelAdditionalData", "pcap.ganssNavigationModelAdditionalData",
+      { "ganssNavigationModelAdditionalData", "pcap.ganssNavigationModelAdditionalData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavigationModelGANSS", HFILL }},
     { &hf_pcap_orbitModelID,
@@ -16337,7 +16798,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
     { &hf_pcap_dataBitAssistancelist_01,
-      { "dataBitAssistancelist", "pcap.dataBitAssistancelist",
+      { "dataBitAssistancelist", "pcap.dataBitAssistancelist_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReqDataBitAssistanceList", HFILL }},
     { &hf_pcap_ganssSignalID_01,
@@ -16385,47 +16846,47 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &pcap_ExplicitInformation_vals_ext, 0,
         NULL, HFILL }},
     { &hf_pcap_almanacAndSatelliteHealth,
-      { "almanacAndSatelliteHealth", "pcap.almanacAndSatelliteHealth",
+      { "almanacAndSatelliteHealth", "pcap.almanacAndSatelliteHealth_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_utcModel,
-      { "utcModel", "pcap.utcModel",
+      { "utcModel", "pcap.utcModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ionosphericModel,
-      { "ionosphericModel", "pcap.ionosphericModel",
+      { "ionosphericModel", "pcap.ionosphericModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_navigationModel,
-      { "navigationModel", "pcap.navigationModel",
+      { "navigationModel", "pcap.navigationModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_dgpsCorrections,
-      { "dgpsCorrections", "pcap.dgpsCorrections",
+      { "dgpsCorrections", "pcap.dgpsCorrections_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_referenceTime_01,
-      { "referenceTime", "pcap.referenceTime",
+      { "referenceTime", "pcap.referenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_acquisitionAssistance,
-      { "acquisitionAssistance", "pcap.acquisitionAssistance",
+      { "acquisitionAssistance", "pcap.acquisitionAssistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_realTimeIntegrity,
-      { "realTimeIntegrity", "pcap.realTimeIntegrity",
+      { "realTimeIntegrity", "pcap.realTimeIntegrity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_almanacAndSatelliteHealthSIB,
-      { "almanacAndSatelliteHealthSIB", "pcap.almanacAndSatelliteHealthSIB",
+      { "almanacAndSatelliteHealthSIB", "pcap.almanacAndSatelliteHealthSIB_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlmanacAndSatelliteHealthSIB_InfoType", HFILL }},
     { &hf_pcap_referenceLocation,
-      { "referenceLocation", "pcap.referenceLocation",
+      { "referenceLocation", "pcap.referenceLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_Common_DataReq,
-      { "ganss-Common-DataReq", "pcap.ganss_Common_DataReq",
+      { "ganss-Common-DataReq", "pcap.ganss_Common_DataReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSCommonDataReq", HFILL }},
     { &hf_pcap_ganss_Generic_DataList,
@@ -16457,55 +16918,55 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_eopReq_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_GANSSGenericDataList_item,
-      { "GANSSGenericDataReq", "pcap.GANSSGenericDataReq",
+      { "GANSSGenericDataReq", "pcap.GANSSGenericDataReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssID,
-      { "ganssID", "pcap.ganssID",
+      { "ganssID", "pcap.ganssID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_realTimeIntegrity,
-      { "ganss-realTimeIntegrity", "pcap.ganss_realTimeIntegrity",
+      { "ganss-realTimeIntegrity", "pcap.ganss_realTimeIntegrity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ganss_realTimeIntegrityReq", HFILL }},
     { &hf_pcap_ganss_dataBitAssistance,
-      { "ganss-dataBitAssistance", "pcap.ganss_dataBitAssistance",
+      { "ganss-dataBitAssistance", "pcap.ganss_dataBitAssistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GanssDataBits", HFILL }},
     { &hf_pcap_dganssCorrections,
-      { "dganssCorrections", "pcap.dganssCorrections",
+      { "dganssCorrections", "pcap.dganssCorrections_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DganssCorrectionsReq", HFILL }},
     { &hf_pcap_ganss_almanacAndSatelliteHealth,
-      { "ganss-almanacAndSatelliteHealth", "pcap.ganss_almanacAndSatelliteHealth",
+      { "ganss-almanacAndSatelliteHealth", "pcap.ganss_almanacAndSatelliteHealth_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ganss_almanacAndSatelliteHealthReq", HFILL }},
     { &hf_pcap_ganss_referenceMeasurementInfo,
-      { "ganss-referenceMeasurementInfo", "pcap.ganss_referenceMeasurementInfo",
+      { "ganss-referenceMeasurementInfo", "pcap.ganss_referenceMeasurementInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ganss_referenceMeasurementInfoReq", HFILL }},
     { &hf_pcap_ganss_utcModel,
-      { "ganss-utcModel", "pcap.ganss_utcModel",
+      { "ganss-utcModel", "pcap.ganss_utcModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ganss_utcModelReq", HFILL }},
     { &hf_pcap_ganss_TimeModel_Gnss_Gnss,
-      { "ganss-TimeModel-Gnss-Gnss", "pcap.ganss_TimeModel_Gnss_Gnss",
+      { "ganss-TimeModel-Gnss-Gnss", "pcap.ganss_TimeModel_Gnss_Gnss_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_navigationModel_01,
-      { "navigationModel", "pcap.navigationModel",
+      { "navigationModel", "pcap.navigationModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavigationModelGANSS", HFILL }},
     { &hf_pcap_ganss_AddNavModelsReq,
-      { "ganss-AddNavModelsReq", "pcap.ganss_AddNavModelsReq",
+      { "ganss-AddNavModelsReq", "pcap.ganss_AddNavModelsReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddNavigationModelsGANSS", HFILL }},
     { &hf_pcap_ganss_AddUtcModelsReq,
-      { "ganss-AddUtcModelsReq", "pcap.ganss_AddUtcModelsReq",
+      { "ganss-AddUtcModelsReq", "pcap.ganss_AddUtcModelsReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_AuxInfoReq,
-      { "ganss-AuxInfoReq", "pcap.ganss_AuxInfoReq",
+      { "ganss-AuxInfoReq", "pcap.ganss_AuxInfoReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_SBAS_ID,
@@ -16529,7 +16990,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "AddSatelliteRelatedDataListGANSS", HFILL }},
     { &hf_pcap_AddSatelliteRelatedDataListGANSS_item,
-      { "AddSatelliteRelatedDataGANSS", "pcap.AddSatelliteRelatedDataGANSS",
+      { "AddSatelliteRelatedDataGANSS", "pcap.AddSatelliteRelatedDataGANSS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssTimeModelGnssGnssExt,
@@ -16541,7 +17002,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_TransmissionTOWIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_navModelAdditionalData,
-      { "navModelAdditionalData", "pcap.navModelAdditionalData",
+      { "navModelAdditionalData", "pcap.navModelAdditionalData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gps_TOE,
@@ -16557,7 +17018,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SatelliteRelatedDataList", HFILL }},
     { &hf_pcap_SatelliteRelatedDataList_item,
-      { "SatelliteRelatedData", "pcap.SatelliteRelatedData",
+      { "SatelliteRelatedData", "pcap.SatelliteRelatedData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_satRelatedDataListGANSS,
@@ -16565,11 +17026,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SatelliteRelatedDataListGANSS", HFILL }},
     { &hf_pcap_SatelliteRelatedDataListGANSS_item,
-      { "SatelliteRelatedDataGANSS", "pcap.SatelliteRelatedDataGANSS",
+      { "SatelliteRelatedDataGANSS", "pcap.SatelliteRelatedDataGANSS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_MessageStructure_item,
-      { "MessageStructure item", "pcap.MessageStructure_item",
+      { "MessageStructure item", "pcap.MessageStructure_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_repetitionNumber_01,
@@ -16577,7 +17038,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MessageStructureRepetition", HFILL }},
     { &hf_pcap_measurementValidity,
-      { "measurementValidity", "pcap.measurementValidity",
+      { "measurementValidity", "pcap.measurementValidity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ue_State,
@@ -16585,7 +17046,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_ue_State_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_otdoa_ReferenceCellInfo,
-      { "otdoa-ReferenceCellInfo", "pcap.otdoa_ReferenceCellInfo",
+      { "otdoa-ReferenceCellInfo", "pcap.otdoa_ReferenceCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_otdoa_NeighbourCellInfoList,
@@ -16597,11 +17058,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tUTRANGPSMeasurementValueInfo,
-      { "tUTRANGPSMeasurementValueInfo", "pcap.tUTRANGPSMeasurementValueInfo",
+      { "tUTRANGPSMeasurementValueInfo", "pcap.tUTRANGPSMeasurementValueInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_OTDOA_NeighbourCellInfoList_item,
-      { "OTDOA-NeighbourCellInfo", "pcap.OTDOA_NeighbourCellInfo",
+      { "OTDOA-NeighbourCellInfo", "pcap.OTDOA_NeighbourCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_relativeTimingDifferenceInfo,
@@ -16613,11 +17074,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_OTDOA_MeasuredResultsInfoList_item,
-      { "OTDOA-MeasuredResultsInfo", "pcap.OTDOA_MeasuredResultsInfo",
+      { "OTDOA-MeasuredResultsInfo", "pcap.OTDOA_MeasuredResultsInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ue_SFNSFNTimeDifferenceType2Info,
-      { "ue-SFNSFNTimeDifferenceType2Info", "pcap.ue_SFNSFNTimeDifferenceType2Info",
+      { "ue-SFNSFNTimeDifferenceType2Info", "pcap.ue_SFNSFNTimeDifferenceType2Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_primaryCPICH_Info,
@@ -16641,11 +17102,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_65535", HFILL }},
     { &hf_pcap_sFNSFNMeasurementValueInfo,
-      { "sFNSFNMeasurementValueInfo", "pcap.sFNSFNMeasurementValueInfo",
+      { "sFNSFNMeasurementValueInfo", "pcap.sFNSFNMeasurementValueInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tUTRANGANSSMeasurementValueInfo,
-      { "tUTRANGANSSMeasurementValueInfo", "pcap.tUTRANGANSSMeasurementValueInfo",
+      { "tUTRANGANSSMeasurementValueInfo", "pcap.tUTRANGANSSMeasurementValueInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_sFNSFNValue,
@@ -16669,7 +17130,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tUTRANGPS,
-      { "tUTRANGPS", "pcap.tUTRANGPS",
+      { "tUTRANGPS", "pcap.tUTRANGPS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tUTRANGPSQuality,
@@ -16693,7 +17154,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_4294967295", HFILL }},
     { &hf_pcap_tUTRANGANSS,
-      { "tUTRANGANSS", "pcap.tUTRANGANSS",
+      { "tUTRANGANSS", "pcap.tUTRANGANSS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tUTRANGANSSQuality,
@@ -16713,7 +17174,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_angleOfArrivalLCR,
-      { "angleOfArrivalLCR", "pcap.angleOfArrivalLCR",
+      { "angleOfArrivalLCR", "pcap.angleOfArrivalLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_referenceNumber,
@@ -16745,11 +17206,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_new_ue_State_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_gps_UTC_Model,
-      { "gps-UTC-Model", "pcap.gps_UTC_Model",
+      { "gps-UTC-Model", "pcap.gps_UTC_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gps_Ionospheric_Model,
-      { "gps-Ionospheric-Model", "pcap.gps_Ionospheric_Model",
+      { "gps-Ionospheric-Model", "pcap.gps_Ionospheric_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gps_NavigationModel,
@@ -16757,15 +17218,15 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_dgpsCorrections_01,
-      { "dgpsCorrections", "pcap.dgpsCorrections",
+      { "dgpsCorrections", "pcap.dgpsCorrections_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_referenceTime_02,
-      { "referenceTime", "pcap.referenceTime",
+      { "referenceTime", "pcap.referenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPS_ReferenceTime", HFILL }},
     { &hf_pcap_gps_AcquisitionAssistance,
-      { "gps-AcquisitionAssistance", "pcap.gps_AcquisitionAssistance",
+      { "gps-AcquisitionAssistance", "pcap.gps_AcquisitionAssistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gps_RealTime_Integrity,
@@ -16773,7 +17234,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_GPS_RealTimeIntegrity_vals), 0,
         "GPS_RealTimeIntegrity", HFILL }},
     { &hf_pcap_almanacAndSatelliteHealthSIB_01,
-      { "almanacAndSatelliteHealthSIB", "pcap.almanacAndSatelliteHealthSIB",
+      { "almanacAndSatelliteHealthSIB", "pcap.almanacAndSatelliteHealthSIB_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gps_Transmission_TOW,
@@ -16781,15 +17242,15 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_informationAvailable,
-      { "informationAvailable", "pcap.informationAvailable",
+      { "informationAvailable", "pcap.informationAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_informationNotAvailable,
-      { "informationNotAvailable", "pcap.informationNotAvailable",
+      { "informationNotAvailable", "pcap.informationNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_requestedDataValue,
-      { "requestedDataValue", "pcap.requestedDataValue",
+      { "requestedDataValue", "pcap.requestedDataValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_event,
@@ -16837,7 +17298,7 @@ void proto_register_pcap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_pcap_NetworkAssistedGANSSSupport_item,
-      { "NetworkAssistedGANSSSupport item", "pcap.NetworkAssistedGANSSSupport_item",
+      { "NetworkAssistedGANSSSupport item", "pcap.NetworkAssistedGANSSSupport_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganssMode,
@@ -16845,7 +17306,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_ganssMode_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_ganssSignalID_02,
-      { "ganssSignalID", "pcap.ganssSignalID",
+      { "ganssSignalID", "pcap.ganssSignalID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_SignalID", HFILL }},
     { &hf_pcap_supportGANSSTimingOfCellFrame,
@@ -16873,7 +17334,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_gpsPositioningInstructions,
-      { "gpsPositioningInstructions", "pcap.gpsPositioningInstructions",
+      { "gpsPositioningInstructions", "pcap.gpsPositioningInstructions_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_horizontalAccuracyCode,
@@ -16893,7 +17354,7 @@ void proto_register_pcap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_pcap_ganssPositioningInstructions,
-      { "ganssPositioningInstructions", "pcap.ganssPositioningInstructions",
+      { "ganssPositioningInstructions", "pcap.ganssPositioningInstructions_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_PositioningInstructions", HFILL }},
     { &hf_pcap_ganssTimingOfCellWanted,
@@ -16905,11 +17366,11 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_8", HFILL }},
     { &hf_pcap_uE_Positioning_OTDOA_AssistanceData,
-      { "uE-Positioning-OTDOA-AssistanceData", "pcap.uE_Positioning_OTDOA_AssistanceData",
+      { "uE-Positioning-OTDOA-AssistanceData", "pcap.uE_Positioning_OTDOA_AssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ue_positioning_OTDOA_ReferenceCellInfo,
-      { "ue-positioning-OTDOA-ReferenceCellInfo", "pcap.ue_positioning_OTDOA_ReferenceCellInfo",
+      { "ue-positioning-OTDOA-ReferenceCellInfo", "pcap.ue_positioning_OTDOA_ReferenceCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ue_positioning_OTDOA_NeighbourCellList,
@@ -16925,11 +17386,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_modeSpecificInfo_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_fdd_01,
-      { "fdd", "pcap.fdd",
+      { "fdd", "pcap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_01", HFILL }},
     { &hf_pcap_tdd_01,
-      { "tdd", "pcap.tdd",
+      { "tdd", "pcap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_01", HFILL }},
     { &hf_pcap_cellParameterID,
@@ -16937,7 +17398,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_frequencyInfo,
-      { "frequencyInfo", "pcap.frequencyInfo",
+      { "frequencyInfo", "pcap.frequencyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_positioningMode,
@@ -16945,7 +17406,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_positioningMode_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_ueBased,
-      { "ueBased", "pcap.ueBased",
+      { "ueBased", "pcap.ueBased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_cellPosition,
@@ -16957,19 +17418,19 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_32766", HFILL }},
     { &hf_pcap_ueAssisted,
-      { "ueAssisted", "pcap.ueAssisted",
+      { "ueAssisted", "pcap.ueAssisted_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ue_positioning_IPDL_Paremeters,
-      { "ue-positioning-IPDL-Paremeters", "pcap.ue_positioning_IPDL_Paremeters",
+      { "ue-positioning-IPDL-Paremeters", "pcap.ue_positioning_IPDL_Paremeters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UE_Positioning_IPDL_Parameters", HFILL }},
     { &hf_pcap_ellipsoidPoint,
-      { "ellipsoidPoint", "pcap.ellipsoidPoint",
+      { "ellipsoidPoint", "pcap.ellipsoidPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GeographicalCoordinates", HFILL }},
     { &hf_pcap_ellipsoidPointWithAltitude,
-      { "ellipsoidPointWithAltitude", "pcap.ellipsoidPointWithAltitude",
+      { "ellipsoidPointWithAltitude", "pcap.ellipsoidPointWithAltitude_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_PointWithAltitude", HFILL }},
     { &hf_pcap_modeSpecificInfo_01,
@@ -16977,7 +17438,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_modeSpecificInfo_01_vals), 0,
         "T_modeSpecificInfo_01", HFILL }},
     { &hf_pcap_fdd_02,
-      { "fdd", "pcap.fdd",
+      { "fdd", "pcap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_02", HFILL }},
     { &hf_pcap_ip_Spacing,
@@ -16997,11 +17458,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_pcap_tdd_02,
-      { "tdd", "pcap.tdd",
+      { "tdd", "pcap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_02", HFILL }},
     { &hf_pcap_burstModeParameters,
-      { "burstModeParameters", "pcap.burstModeParameters",
+      { "burstModeParameters", "pcap.burstModeParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_burstStart,
@@ -17017,7 +17478,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_16", HFILL }},
     { &hf_pcap_UE_Positioning_OTDOA_NeighbourCellList_item,
-      { "UE-Positioning-OTDOA-NeighbourCellInfo", "pcap.UE_Positioning_OTDOA_NeighbourCellInfo",
+      { "UE-Positioning-OTDOA-NeighbourCellInfo", "pcap.UE_Positioning_OTDOA_NeighbourCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_modeSpecificInfo_02,
@@ -17025,15 +17486,15 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_modeSpecificInfo_02_vals), 0,
         "T_modeSpecificInfo_02", HFILL }},
     { &hf_pcap_fdd_03,
-      { "fdd", "pcap.fdd",
+      { "fdd", "pcap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_03", HFILL }},
     { &hf_pcap_tdd_03,
-      { "tdd", "pcap.tdd",
+      { "tdd", "pcap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_03", HFILL }},
     { &hf_pcap_sfn_SFN_RelTimeDifference,
-      { "sfn-SFN-RelTimeDifference", "pcap.sfn_SFN_RelTimeDifference",
+      { "sfn-SFN-RelTimeDifference", "pcap.sfn_SFN_RelTimeDifference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SFN_SFN_RelTimeDifference1", HFILL }},
     { &hf_pcap_sfn_Offset_Validity,
@@ -17053,7 +17514,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_positioningMode_01_vals), 0,
         "T_positioningMode_01", HFILL }},
     { &hf_pcap_ueBased_01,
-      { "ueBased", "pcap.ueBased",
+      { "ueBased", "pcap.ueBased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ueBased_01", HFILL }},
     { &hf_pcap_relativeNorth,
@@ -17073,7 +17534,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "FineSFNSFN", HFILL }},
     { &hf_pcap_ueAssisted_01,
-      { "ueAssisted", "pcap.ueAssisted",
+      { "ueAssisted", "pcap.ueAssisted_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ueAssisted_01", HFILL }},
     { &hf_pcap_sfn_Offset,
@@ -17093,11 +17554,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_modeSpecificInfo_03_vals), 0,
         "T_modeSpecificInfo_03", HFILL }},
     { &hf_pcap_fdd_04,
-      { "fdd", "pcap.fdd",
+      { "fdd", "pcap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "FrequencyInfoFDD", HFILL }},
     { &hf_pcap_tdd_04,
-      { "tdd", "pcap.tdd",
+      { "tdd", "pcap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "FrequencyInfoTDD", HFILL }},
     { &hf_pcap_uarfcn_UL,
@@ -17113,11 +17574,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_uTDOA_CELLDCH,
-      { "uTDOA-CELLDCH", "pcap.uTDOA_CELLDCH",
+      { "uTDOA-CELLDCH", "pcap.uTDOA_CELLDCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_uTDOA_CELLFACH,
-      { "uTDOA-CELLFACH", "pcap.uTDOA_CELLFACH",
+      { "uTDOA-CELLFACH", "pcap.uTDOA_CELLFACH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_uL_DPCHInfo,
@@ -17125,19 +17586,19 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_UL_DPCHInfo_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_compressedModeAssistanceData,
-      { "compressedModeAssistanceData", "pcap.compressedModeAssistanceData",
+      { "compressedModeAssistanceData", "pcap.compressedModeAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Compressed_Mode_Assistance_Data", HFILL }},
     { &hf_pcap_dCH_Information,
-      { "dCH-Information", "pcap.dCH_Information",
+      { "dCH-Information", "pcap.dCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_e_DPCH_Information,
-      { "e-DPCH-Information", "pcap.e_DPCH_Information",
+      { "e-DPCH-Information", "pcap.e_DPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_fdd_05,
-      { "fdd", "pcap.fdd",
+      { "fdd", "pcap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_04", HFILL }},
     { &hf_pcap_scramblingCodeType,
@@ -17157,7 +17618,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tdd_05,
-      { "tdd", "pcap.tdd",
+      { "tdd", "pcap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_04", HFILL }},
     { &hf_pcap_tFCI_Coding,
@@ -17193,11 +17654,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_dl_information,
-      { "dl-information", "pcap.dl_information",
+      { "dl-information", "pcap.dl_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_InformationFDD", HFILL }},
     { &hf_pcap_ul_information,
-      { "ul-information", "pcap.ul_information",
+      { "ul-information", "pcap.ul_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_InformationFDD", HFILL }},
     { &hf_pcap_primaryScramblingCode,
@@ -17213,7 +17674,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Transmission_Gap_Pattern_Sequence_Information", HFILL }},
     { &hf_pcap_activePatternSequenceInfo,
-      { "activePatternSequenceInfo", "pcap.activePatternSequenceInfo",
+      { "activePatternSequenceInfo", "pcap.activePatternSequenceInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Active_Pattern_Sequence_Information", HFILL }},
     { &hf_pcap_cFN,
@@ -17221,7 +17682,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_Transmission_Gap_Pattern_Sequence_Information_item,
-      { "Transmission-Gap-Pattern-Sequence-Information item", "pcap.Transmission_Gap_Pattern_Sequence_Information_item",
+      { "Transmission-Gap-Pattern-Sequence-Information item", "pcap.Transmission_Gap_Pattern_Sequence_Information_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tGPSID,
@@ -17261,7 +17722,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Transmission_Gap_Pattern_Sequence_Status_List", HFILL }},
     { &hf_pcap_Transmission_Gap_Pattern_Sequence_Status_List_item,
-      { "Transmission-Gap-Pattern-Sequence-Status-List item", "pcap.Transmission_Gap_Pattern_Sequence_Status_List_item",
+      { "Transmission-Gap-Pattern-Sequence-Status-List item", "pcap.Transmission_Gap_Pattern_Sequence_Status_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tGPRC,
@@ -17281,7 +17742,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "TrChInfoList", HFILL }},
     { &hf_pcap_TrChInfoList_item,
-      { "UL-TrCHInfo", "pcap.UL_TrCHInfo",
+      { "UL-TrCHInfo", "pcap.UL_TrCHInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_uL_TrCHtype,
@@ -17289,7 +17750,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_UL_TrCHType_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_tfs,
-      { "tfs", "pcap.tfs",
+      { "tfs", "pcap.tfs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TransportFormatSet", HFILL }},
     { &hf_pcap_maxSet_E_DPDCHs,
@@ -17301,7 +17762,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "PuncturingLimit", HFILL }},
     { &hf_pcap_e_TFCS_Information,
-      { "e-TFCS-Information", "pcap.e_TFCS_Information",
+      { "e-TFCS-Information", "pcap.e_TFCS_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_e_TTI,
@@ -17321,7 +17782,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_Reference_E_TFCI_Information_item,
-      { "Reference-E-TFCI-Information-Item", "pcap.Reference_E_TFCI_Information_Item",
+      { "Reference-E-TFCI-Information-Item", "pcap.Reference_E_TFCI_Information_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_reference_E_TFCI,
@@ -17341,7 +17802,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_pcap_UL_Timeslot_Information_item,
-      { "UL-Timeslot-InformationItem", "pcap.UL_Timeslot_InformationItem",
+      { "UL-Timeslot-InformationItem", "pcap.UL_Timeslot_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_timeSlot,
@@ -17361,7 +17822,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "TDD_UL_Code_Information", HFILL }},
     { &hf_pcap_type1,
-      { "type1", "pcap.type1",
+      { "type1", "pcap.type1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_midambleConfigurationBurstType1And3,
@@ -17373,11 +17834,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_midambleAllocationMode_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_defaultMidamble,
-      { "defaultMidamble", "pcap.defaultMidamble",
+      { "defaultMidamble", "pcap.defaultMidamble_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_commonMidamble,
-      { "commonMidamble", "pcap.commonMidamble",
+      { "commonMidamble", "pcap.commonMidamble_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ueSpecificMidamble,
@@ -17385,7 +17846,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MidambleShiftLong", HFILL }},
     { &hf_pcap_type2,
-      { "type2", "pcap.type2",
+      { "type2", "pcap.type2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_midambleConfigurationBurstType2,
@@ -17401,7 +17862,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MidambleShiftShort", HFILL }},
     { &hf_pcap_type3,
-      { "type3", "pcap.type3",
+      { "type3", "pcap.type3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_midambleAllocationMode_02,
@@ -17409,7 +17870,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_T_midambleAllocationMode_02_vals), 0,
         "T_midambleAllocationMode_02", HFILL }},
     { &hf_pcap_TDD_UL_Code_Information_item,
-      { "TDD-UL-Code-InformationItem", "pcap.TDD_UL_Code_InformationItem",
+      { "TDD-UL-Code-InformationItem", "pcap.TDD_UL_Code_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tdd_ChannelisationCode,
@@ -17425,11 +17886,11 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "C_RNTI", HFILL }},
     { &hf_pcap_uschParameters,
-      { "uschParameters", "pcap.uschParameters",
+      { "uschParameters", "pcap.uschParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_PRACHparameters_item,
-      { "PRACH-ChannelInfo", "pcap.PRACH_ChannelInfo",
+      { "PRACH-ChannelInfo", "pcap.PRACH_ChannelInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_pRACH_Info,
@@ -17437,11 +17898,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_PRACH_Info_vals), 0,
         NULL, HFILL }},
     { &hf_pcap_tFS,
-      { "tFS", "pcap.tFS",
+      { "tFS", "pcap.tFS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TransportFormatSet", HFILL }},
     { &hf_pcap_fdd_06,
-      { "fdd", "pcap.fdd",
+      { "fdd", "pcap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_05", HFILL }},
     { &hf_pcap_availableSignatures,
@@ -17465,7 +17926,7 @@ void proto_register_pcap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tdd_06,
-      { "tdd", "pcap.tdd",
+      { "tdd", "pcap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_05", HFILL }},
     { &hf_pcap_maxPRACH_MidambleShifts,
@@ -17481,11 +17942,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "TransportFormatSet_DynamicPartList", HFILL }},
     { &hf_pcap_semi_staticPart,
-      { "semi-staticPart", "pcap.semi_staticPart",
+      { "semi-staticPart", "pcap.semi_staticPart_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TransportFormatSet_Semi_staticPart", HFILL }},
     { &hf_pcap_TransportFormatSet_DynamicPartList_item,
-      { "TransportFormatSet-DynamicPartList item", "pcap.TransportFormatSet_DynamicPartList_item",
+      { "TransportFormatSet-DynamicPartList item", "pcap.TransportFormatSet_DynamicPartList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_rlc_Size,
@@ -17497,7 +17958,7 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxNrOfTFs_OF_TbsTTIInfo", HFILL }},
     { &hf_pcap_numberOfTbsTTIList_item,
-      { "TbsTTIInfo", "pcap.TbsTTIInfo",
+      { "TbsTTIInfo", "pcap.TbsTTIInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_tTIInfo,
@@ -17593,27 +18054,27 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_horizontalVelocity,
-      { "horizontalVelocity", "pcap.horizontalVelocity",
+      { "horizontalVelocity", "pcap.horizontalVelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_horizontalWithVerticalVelocity,
-      { "horizontalWithVerticalVelocity", "pcap.horizontalWithVerticalVelocity",
+      { "horizontalWithVerticalVelocity", "pcap.horizontalWithVerticalVelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_horizontalVelocityWithUncertainty,
-      { "horizontalVelocityWithUncertainty", "pcap.horizontalVelocityWithUncertainty",
+      { "horizontalVelocityWithUncertainty", "pcap.horizontalVelocityWithUncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_horizontalWithVerticalVelocityAndUncertainty,
-      { "horizontalWithVerticalVelocityAndUncertainty", "pcap.horizontalWithVerticalVelocityAndUncertainty",
+      { "horizontalWithVerticalVelocityAndUncertainty", "pcap.horizontalWithVerticalVelocityAndUncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_horizontalSpeedAndBearing,
-      { "horizontalSpeedAndBearing", "pcap.horizontalSpeedAndBearing",
+      { "horizontalSpeedAndBearing", "pcap.horizontalSpeedAndBearing_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_verticalVelocity,
-      { "verticalVelocity", "pcap.verticalVelocity",
+      { "verticalVelocity", "pcap.verticalVelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_uncertaintySpeed,
@@ -17657,7 +18118,7 @@ void proto_register_pcap(void) {
         FT_UINT64, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_ganss_Time_ID,
-      { "ganss-Time-ID", "pcap.ganss_Time_ID",
+      { "ganss-Time-ID", "pcap.ganss_Time_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSID", HFILL }},
     { &hf_pcap_protocolIEs,
@@ -17669,11 +18130,11 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionContainer", HFILL }},
     { &hf_pcap_referencePosition,
-      { "referencePosition", "pcap.referencePosition",
+      { "referencePosition", "pcap.referencePosition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RefPosition_InfEx_Rqst", HFILL }},
     { &hf_pcap_extension_InformationExchangeObjectType_InfEx_Rqst,
-      { "extension-InformationExchangeObjectType-InfEx-Rqst", "pcap.extension_InformationExchangeObjectType_InfEx_Rqst",
+      { "extension-InformationExchangeObjectType-InfEx-Rqst", "pcap.extension_InformationExchangeObjectType_InfEx_Rqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_referencePositionEstimate,
@@ -17681,15 +18142,15 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, VALS(pcap_UE_PositionEstimate_vals), 0,
         "UE_PositionEstimate", HFILL }},
     { &hf_pcap_referenceUC_ID,
-      { "referenceUC-ID", "pcap.referenceUC_ID",
+      { "referenceUC-ID", "pcap.referenceUC_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UC_ID", HFILL }},
     { &hf_pcap_referencePosition_01,
-      { "referencePosition", "pcap.referencePosition",
+      { "referencePosition", "pcap.referencePosition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RefPosition_InfEx_Rsp", HFILL }},
     { &hf_pcap_referencePosition_02,
-      { "referencePosition", "pcap.referencePosition",
+      { "referencePosition", "pcap.referencePosition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RefPosition_InfEx_Rprt", HFILL }},
     { &hf_pcap_requestedDataValueInformation,
@@ -17701,35 +18162,35 @@ void proto_register_pcap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "PrivateIE_Container", HFILL }},
     { &hf_pcap_initiatingMessage,
-      { "initiatingMessage", "pcap.initiatingMessage",
+      { "initiatingMessage", "pcap.initiatingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_successfulOutcome,
-      { "successfulOutcome", "pcap.successfulOutcome",
+      { "successfulOutcome", "pcap.successfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_unsuccessfulOutcome,
-      { "unsuccessfulOutcome", "pcap.unsuccessfulOutcome",
+      { "unsuccessfulOutcome", "pcap.unsuccessfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_outcome,
-      { "outcome", "pcap.outcome",
+      { "outcome", "pcap.outcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pcap_initiatingMessagevalue,
-      { "value", "pcap.value",
+      { "value", "pcap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InitiatingMessage_value", HFILL }},
     { &hf_pcap_successfulOutcome_value,
-      { "value", "pcap.value",
+      { "value", "pcap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SuccessfulOutcome_value", HFILL }},
     { &hf_pcap_unsuccessfulOutcome_value,
-      { "value", "pcap.value",
+      { "value", "pcap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnsuccessfulOutcome_value", HFILL }},
     { &hf_pcap_outcome_value,
-      { "value", "pcap.value",
+      { "value", "pcap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Outcome_value", HFILL }},
     { &hf_pcap_AvailableSignatures_signature15,
@@ -17878,10 +18339,18 @@ void proto_register_pcap(void) {
     &ett_pcap_RxTimingDeviation384extInfo,
     &ett_pcap_AddMeasurementInfo,
     &ett_pcap_AngleOfArrivalLCR,
+    &ett_pcap_CellId_IRATMeasuredResultsSets,
+    &ett_pcap_CellId_IRATMeasuredResultsInfoList,
+    &ett_pcap_GERAN_MeasuredResultsInfoList,
+    &ett_pcap_GERAN_MeasuredResultsInfo,
+    &ett_pcap_GERANCellGlobalID,
+    &ett_pcap_GERANPhysicalCellID,
+    &ett_pcap_GSM_BSIC,
     &ett_pcap_CellIDPositioning,
     &ett_pcap_RequestedCellIDMeasurements,
     &ett_pcap_T_fdd,
     &ett_pcap_T_tdd,
+    &ett_pcap_RequestedCellIDGERANMeasurements,
     &ett_pcap_CriticalityDiagnostics,
     &ett_pcap_CriticalityDiagnostics_IE_List,
     &ett_pcap_CriticalityDiagnostics_IE_List_item,
@@ -17914,6 +18383,7 @@ void proto_register_pcap(void) {
     &ett_pcap_AcquisitionSatInfo,
     &ett_pcap_ExtraDopplerInfo,
     &ett_pcap_AzimuthAndElevation,
+    &ett_pcap_AzimuthAndElevationLSB,
     &ett_pcap_AuxInfoGANSS_ID1,
     &ett_pcap_AuxInfoGANSS_ID1_element,
     &ett_pcap_AuxInfoGANSS_ID3,

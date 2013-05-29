@@ -151,7 +151,7 @@ static int hf_mux27010_extended_header_flag_ended_III = -1;
 static int hf_mux27010_dlciaddressflag = -1;
 static int hf_mux27010_eaaddressflag = -1;
 static int hf_mux27010_craddressflag = -1;
-static int hf_mux27010_addressdirection = -1;
+/* static int hf_mux27010_addressdirection = -1; */
 /*Control*/
 static int hf_mux27010_controlframetype = -1;
 static int hf_mux27010_controlframetypens = -1;
@@ -173,7 +173,7 @@ static int hf_mux27010_controlchannelvalue = -1;
 static int hf_mux27010_controlchanneldetailedvalue = -1;
 static int hf_mux27010_controlchanneldetailedvaluetestcommandversion = -1;
 static int hf_mux27010_controlchanneldetailedvaluemscdlci = -1;
-static int hf_mux27010_controlchanneldetailedvaluemscv24 = -1;
+/* static int hf_mux27010_controlchanneldetailedvaluemscv24 = -1; */
 static int hf_mux27010_controlchanneldetailedvaluemscv24fc = -1;
 static int hf_mux27010_controlchanneldetailedvaluemscv24rtc = -1;
 static int hf_mux27010_controlchanneldetailedvaluemscv24rtr = -1;
@@ -205,6 +205,8 @@ static gint ett_mux27010_controlchannellength = -1;
 static gint ett_mux27010_controlchannelvalue = -1;
 static gint ett_mux27010_information = -1;
 static gint ett_mux27010_checksum = -1;
+
+static expert_field ei_mux27010_message_illogical = EI_INIT;
 
 /*private MUX frame header (PPP)*/
 static guint8 sizeMuxPPPHeader = 0;
@@ -289,8 +291,7 @@ static gint ett_msg_fragments = -1;
     "Message fragments"
     };
 
-static GHashTable *msg_fragment_table = NULL;
-static GHashTable *msg_reassembled_table = NULL;
+static reassembly_table msg_reassembly_table;
 
 
 
@@ -1047,8 +1048,7 @@ dissect_mux27010(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     proto_item *pi;
                     pi = proto_tree_add_text(field_tree, tvb, tmpOffset-3, 2,
                         "Message start and end are illogical, aborting dissection");
-                    expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR,
-                                           "Message start and end are illogical");
+                    expert_add_info(pinfo, pi, &ei_mux27010_message_illogical);
                     continue;
                 }
 
@@ -1059,10 +1059,11 @@ dissect_mux27010(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
                 memcpy(&pinfo_tmp, pinfo, sizeof(*pinfo));
 
-                frag_msg = fragment_add_seq_check(tvb, tmpOffsetBegin, pinfo,
+                frag_msg = fragment_add_seq_check(&msg_reassembly_table,
+                    tvb, tmpOffsetBegin,
+                    pinfo,
                     msg_seqid,                       /* ID for fragments belonging together */
-                    msg_fragment_table,              /* list of message fragments */
-                    msg_reassembled_table,           /* list of reassembled messages */
+                    NULL,
                     msg_num,                         /* fragment sequence number */
                     (tmpOffsetEnd-tmpOffsetBegin)+1, /* fragment length */
                     msg_flag); /* More fragments? */
@@ -1074,7 +1075,7 @@ dissect_mux27010(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     NULL, mux27010_tree);
 
                 if (!frag_msg) { /* Not last packet of reassembled Message */
-                    g_snprintf(colInfoText, sizeof(colInfoText), "%s [Splitted Msg]", colInfoText);
+                    g_snprintf(colInfoText, sizeof(colInfoText), "%s [Split Msg]", colInfoText);
                 }
 
                 if (new_tvb) { /* take it all */
@@ -1134,8 +1135,8 @@ mux27010_init(void)
     /*
      * Initialize the fragment and reassembly tables.
      */
-    fragment_table_init(&msg_fragment_table);
-    reassembled_table_init(&msg_reassembled_table);
+    reassembly_table_init(&msg_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 /*Register the protocol*/
@@ -1275,9 +1276,11 @@ proto_register_mux27010 (void)
           { "C/R Address Flag", "mux27010.address.craddress",
             FT_BOOLEAN, 8, NULL, MUX27010_CR_ADDRESS_FLAG, NULL, HFILL }},
 
+#if 0
         { &hf_mux27010_addressdirection,
           { "Direction", "mux27010.address.direction",
             FT_UINT8, BASE_HEX, NULL, MUX27010_CR_ADDRESS_FLAG, NULL, HFILL }},
+#endif
 
         /*Control frame*/
 
@@ -1380,9 +1383,11 @@ proto_register_mux27010 (void)
           { "DLCI number (decimal)", "mux27010.controlchannel.value.detailedvaluemscdlci",
             FT_UINT8, BASE_DEC, NULL, MUX27010_VALUE_CONTROLCHANNEL_MSC_DCLI, NULL, HFILL }},
 
+#if 0
         { &hf_mux27010_controlchanneldetailedvaluemscv24,
           { "V.24 Signal", "mux27010.controlchannel.value.detailedvaluemscv24",
             FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+#endif
 
         { &hf_mux27010_controlchanneldetailedvaluemscv24fc,
           { "FC", "mux27010.controlchannel.value.detailedvaluemscv24.fc",
@@ -1515,6 +1520,12 @@ proto_register_mux27010 (void)
         &ett_msg_fragments
         };
 
+    static ei_register_info ei[] = {
+        { &ei_mux27010_message_illogical, { "mux27010.message_illogical", PI_MALFORMED, PI_ERROR, "Message start and end are illogical", EXPFILL }},
+    };
+
+    expert_module_t* expert_mux27010;
+
     /*Register protocoll*/
     proto_mux27010 = proto_register_protocol ("MUX27010 Protocol", "MUX27010", "mux27010");
 
@@ -1522,6 +1533,8 @@ proto_register_mux27010 (void)
     proto_register_field_array (proto_mux27010, hf, array_length (hf));
     proto_register_subtree_array (ett, array_length (ett));
     register_dissector("mux27010", dissect_mux27010, proto_mux27010);
+    expert_mux27010 = expert_register_protocol(proto_mux27010);
+    expert_register_field_array(expert_mux27010, ei, array_length(ei));
 
     register_init_routine(mux27010_init);
 }

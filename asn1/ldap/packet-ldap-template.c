@@ -29,7 +29,7 @@
  * it handles only the commands of version 2, but any additional characteristics of the ver3 command are supported.
  * It's also missing extensible search filters.
  *
- * There should probably be alot more error checking, I simply assume that if we have a full packet, it will be a complete
+ * There should probably be a lot more error checking, I simply assume that if we have a full packet, it will be a complete
  * and correct packet.
  *
  * AFAIK, it will handle all messages used by the OpenLDAP 1.2.9 server and libraries which was my goal. I do plan to add
@@ -96,6 +96,7 @@
 #include <epan/emem.h>
 #include <epan/oids.h>
 #include <epan/strutil.h>
+#include <epan/show_exception.h>
 #include <epan/dissectors/packet-frame.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/dissectors/packet-windows-common.h>
@@ -967,7 +968,7 @@ one_more_pdu:
      * same blob
      */
     if(tvb_length_remaining(tvb, offset)>=6){
-        tvb = tvb_new_subset(tvb, offset, tvb_length_remaining(tvb, offset), -1);
+        tvb = tvb_new_subset_remaining(tvb, offset);
 	offset = 0;
 
         goto one_more_pdu;
@@ -1052,7 +1053,7 @@ static void
 	length_remaining = tvb_ensure_length_remaining(tvb, offset);
 
 	/* It might still be a packet containing a SASL security layer
-	* but its just that we never saw the BIND packet.
+	* but it's just that we never saw the BIND packet.
 	* check if it looks like it could be a SASL blob here
 	* and in that case just assume it is GSS-SPNEGO
 	*/
@@ -2250,7 +2251,7 @@ void proto_register_ldap(void) {
 
   module_t *ldap_module;
   uat_t *attributes_uat;
-  
+
   /* Register protocol */
   proto_ldap = proto_register_protocol(PNAME, PSNAME, PFNAME);
   /* Register fields and subtrees */
@@ -2279,7 +2280,7 @@ void proto_register_ldap(void) {
                            sizeof(attribute_type_t),
                            "custom_ldap_attribute_types",
                            TRUE,
-                           (void*) &attribute_types,
+                           (void**) &attribute_types,
                            &num_attribute_types,
                            /* specifies named fields, so affects dissection
                               and the set of named fields */

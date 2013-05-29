@@ -30,8 +30,6 @@
 #include <epan/epan_dissect.h>
 #include <epan/dissectors/packet-dcerpc.h>
 
-#include "ui/simple_dialog.h"
-
 #include "ui/gtk/decode_as_dlg.h"
 #include "ui/gtk/dlg_utils.h"
 #include "ui/gtk/gui_utils.h"
@@ -83,7 +81,7 @@ decode_dcerpc_binding_clone(decode_dcerpc_bind_values_t *binding_in)
 {
     decode_dcerpc_bind_values_t *stored_binding;
 
-    stored_binding = g_malloc(sizeof(decode_dcerpc_bind_values_t));
+    stored_binding = g_new(decode_dcerpc_bind_values_t,1);
     *stored_binding = *binding_in;
     COPY_ADDRESS(&stored_binding->addr_a, &binding_in->addr_a);
     COPY_ADDRESS(&stored_binding->addr_b, &binding_in->addr_b);
@@ -97,7 +95,7 @@ decode_dcerpc_binding_clone(decode_dcerpc_bind_values_t *binding_in)
 void
 decode_dcerpc_binding_free(void *binding_in)
 {
-    decode_dcerpc_bind_values_t *binding = binding_in;
+    decode_dcerpc_bind_values_t *binding = (decode_dcerpc_bind_values_t *)binding_in;
 
     g_free((void *) binding->addr_a.data);
     g_free((void *) binding->addr_b.data);
@@ -111,8 +109,8 @@ decode_dcerpc_binding_free(void *binding_in)
 static gint
 decode_dcerpc_binding_cmp(gconstpointer a, gconstpointer b)
 {
-    const decode_dcerpc_bind_values_t *binding_a = a;
-    const decode_dcerpc_bind_values_t *binding_b = b;
+    const decode_dcerpc_bind_values_t *binding_a = (const decode_dcerpc_bind_values_t *)a;
+    const decode_dcerpc_bind_values_t *binding_b = (const decode_dcerpc_bind_values_t *)b;
 
 
     /* don't compare uuid and ver! */
@@ -146,7 +144,7 @@ decode_dcerpc_add_show_list_single(gpointer data, gpointer user_data)
     gchar      string1[20];
 
 
-    decode_dcerpc_bind_values_t *binding = data;
+    decode_dcerpc_bind_values_t *binding = (decode_dcerpc_bind_values_t *)data;
 
     g_snprintf(string1, sizeof(string1), "ctx_id: %u", binding->ctx_id);
 
@@ -179,7 +177,7 @@ decode_dcerpc_reset_all(void)
     decode_dcerpc_bind_values_t *binding;
 
     while(decode_dcerpc_bindings) {
-        binding = decode_dcerpc_bindings->data;
+        binding = (decode_dcerpc_bind_values_t *)decode_dcerpc_bindings->data;
 
         decode_dcerpc_binding_free(binding);
         decode_dcerpc_bindings = g_slist_remove(
@@ -206,7 +204,7 @@ decode_dcerpc_bind_values_t *binding)
     if(le == NULL)
         return;
 
-    old_binding = le->data;
+    old_binding = (decode_dcerpc_bind_values_t *)le->data;
 
     decode_dcerpc_bindings = g_slist_remove(decode_dcerpc_bindings, le->data);
 
@@ -289,11 +287,11 @@ decode_dcerpc(GtkWidget *notebook_pg)
     decode_dcerpc_bind_values_t *binding;
 
 
-    list = g_object_get_data(G_OBJECT(notebook_pg), E_PAGE_LIST);
+    list = (GtkWidget *)g_object_get_data(G_OBJECT(notebook_pg), E_PAGE_LIST);
     if (requested_action == E_DECODE_NO)
 	gtk_tree_selection_unselect_all(gtk_tree_view_get_selection(GTK_TREE_VIEW(list)));
 
-    binding = g_object_get_data(G_OBJECT(notebook_pg), E_PAGE_BINDING);
+    binding = (decode_dcerpc_bind_values_t *)g_object_get_data(G_OBJECT(notebook_pg), E_PAGE_BINDING);
 
     /*table_name = g_object_get_data(G_OBJECT(notebook_pg), E_PAGE_TABLE);*/
     table_name = "DCE-RPC";
@@ -311,7 +309,7 @@ static void
 decode_dcerpc_add_to_list(gpointer key, gpointer value, gpointer user_data)
 {
     /*dcerpc_uuid_key *k = key;*/
-    dcerpc_uuid_value *v = value;
+    dcerpc_uuid_value *v = (dcerpc_uuid_value *)value;
 
     if(strcmp(v->name, "(none)"))
         decode_add_to_list("DCE-RPC", v->name, key, user_data);
@@ -343,7 +341,7 @@ decode_dcerpc_add_page (packet_info *pinfo)
 
 
     /* clone binding */
-    binding = g_malloc(sizeof(decode_dcerpc_bind_values_t));
+    binding = g_new(decode_dcerpc_bind_values_t,1);
     COPY_ADDRESS(&binding->addr_a, &pinfo->src);
     COPY_ADDRESS(&binding->addr_b, &pinfo->dst);
     binding->ptype = pinfo->ptype;
@@ -358,8 +356,8 @@ decode_dcerpc_add_page (packet_info *pinfo)
     /* create page content */
     page_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5, FALSE);
     g_object_set_data(G_OBJECT(page_hb), E_PAGE_ACTION, decode_dcerpc);
-    g_object_set_data(G_OBJECT(page_hb), E_PAGE_TABLE, "DCE-RPC");
-    g_object_set_data(G_OBJECT(page_hb), E_PAGE_TITLE, "DCE-RPC");
+    g_object_set_data(G_OBJECT(page_hb), E_PAGE_TABLE, (gpointer)"DCE-RPC");
+    g_object_set_data(G_OBJECT(page_hb), E_PAGE_TITLE, (gpointer)"DCE-RPC");
     g_object_set_data(G_OBJECT(page_hb), E_PAGE_BINDING, binding);
 
     info_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 5, FALSE);

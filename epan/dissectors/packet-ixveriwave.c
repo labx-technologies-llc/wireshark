@@ -149,7 +149,7 @@ static int hf_ixveriwave_vw_l4id = -1;
 /*veriwave note:  i know the below method seems clunky, but
 they didn't have a item_format at the time to dynamically add the appropriate decode text*/
 static int hf_ixveriwave_vw_info_retryCount = -1;
-static int hf_ixveriwave_vw_info_tx_bit15 = -1;
+/* static int hf_ixveriwave_vw_info_tx_bit15 = -1; */
 
 static int hf_ixveriwave_vw_info_rx_1_bit8 = -1;
 static int hf_ixveriwave_vw_info_rx_1_bit9 = -1;
@@ -176,7 +176,7 @@ static int hf_radiotap_flags = -1;
 static int hf_radiotap_datarate = -1;
 static int hf_radiotap_dbm_antsignal = -1;
 static int hf_radiotap_txpower = -1;
-static int hf_radiotap_fcs_bad = -1;
+/* static int hf_radiotap_fcs_bad = -1; */
 
 static int hf_radiotap_flags_cfp = -1;
 static int hf_radiotap_flags_preamble = -1;
@@ -209,6 +209,7 @@ static int hf_radiotap_vw_info_rx_2_bit13 = -1;
 static int hf_radiotap_vw_info_rx_2_bit14 = -1;
 static int hf_radiotap_vw_info_rx_2_bit15 = -1;
 
+#if 0
 static int hf_radiotap_vw_errors_rx_1_bit0 = -1;
 static int hf_radiotap_vw_errors_rx_1_bit1 = -1;
 static int hf_radiotap_vw_errors_rx_1_bit2 = -1;
@@ -225,6 +226,7 @@ static int hf_radiotap_vw_errors_rx_1_bit12 = -1;
 static int hf_radiotap_vw_errors_rx_1_bit13 = -1;
 static int hf_radiotap_vw_errors_rx_1_bit14 = -1;
 static int hf_radiotap_vw_errors_rx_1_bit15 = -1;
+#endif
 
 static int hf_radiotap_vw_errors_rx_2_bit0 = -1;
 static int hf_radiotap_vw_errors_rx_2_bit1 = -1;
@@ -505,11 +507,11 @@ dissect_ixveriwave(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* Calculate the IFG */
 
     /* Check for an existing ifg value associated with the frame */
-    p_ifg_info = p_get_proto_data(pinfo->fd, proto_ixveriwave);
+    p_ifg_info = (ifg_info *)p_get_proto_data(pinfo->fd, proto_ixveriwave, 0);
     if (!p_ifg_info)
     {
         /* allocate the space */
-        p_ifg_info = se_alloc0(sizeof(struct ifg_info));
+        p_ifg_info = se_new0(struct ifg_info);
 
         /* Doesn't exist, so we need to calculate the value */
         if (previous_frame_data.previous_frame_num !=0 && (pinfo->fd->num - previous_frame_data.previous_frame_num == 1))
@@ -531,7 +533,7 @@ dissect_ixveriwave(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         p_ifg_info->current_start_time = vw_startt;
 
         /* Add the ifg onto the frame */
-        p_add_proto_data(pinfo->fd, proto_ixveriwave, p_ifg_info);
+        p_add_proto_data(pinfo->fd, proto_ixveriwave, 0, p_ifg_info);
     }
 
     if (tree) {
@@ -692,7 +694,7 @@ ethernettap_dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_t
     }
 
     /* Grab the rest of the frame. */
-    next_tvb = tvb_new_subset(tvb, length, -1, -1);
+    next_tvb = tvb_new_subset_remaining(tvb, length);
 
     /* dissect the ethernet header next */
     call_dissector(ethernet_handle, next_tvb, pinfo, tree);
@@ -702,9 +704,9 @@ static void
 wlantap_dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_tree *tap_tree)
 {
     proto_tree *ft, *flags_tree = NULL;
-    proto_item *hdr_fcs_ti      = NULL;
+/*    proto_item *hdr_fcs_ti      = NULL; */
     int         align_offset, offset;
-    guint32     calc_fcs;
+/*    guint32     calc_fcs; */
     tvbuff_t   *next_tvb;
     guint       length;
     guint32     rate;
@@ -943,10 +945,13 @@ wlantap_dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_tree 
         pinfo->pseudo_header->ieee_802_11.fcs_len = 0;
 
     /* Grab the rest of the frame. */
-    next_tvb = tvb_new_subset(tvb, length, -1, -1);
+    next_tvb = tvb_new_subset_remaining(tvb, length);
 
+#if 0  /* XXX: 'hdr_fcs_ti' is never set so the following code will never be executed ? */
     /* If we had an in-header FCS, check it. */
     if (hdr_fcs_ti) {
+        /* XXX: Also: 'sent fcs' always 0 ?                      */
+        /*            'hf_radiotap_fcs_bad' has no entry in hf[] */
         /* It would be very strange for the header to have an FCS for the
          * frame *and* the frame to have the FCS at the end, but it's possible, so
          * take that into account by using the FCS length recorded in pinfo. */
@@ -973,6 +978,7 @@ wlantap_dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_tree 
                 " [cannot verify - not enough data]");
         }
     }
+#endif
 
     /* dissect the 802.11 header next */
     call_dissector((rflags & IEEE80211_RADIOTAP_F_DATAPAD) ?
@@ -1108,7 +1114,7 @@ void proto_register_ixveriwave(void)
             FT_UINT16, BASE_HEX, NULL, 0x0, NULL, HFILL } },
 
         { &hf_ixveriwave_vw_info_retryCount,
-          { "Info field retry count", "ixveriwave.info",
+          { "Info field retry count", "ixveriwave.info.retrycount",
             FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL } },
 
 /* tx info decodes for VW510024 and 510012 */
@@ -1117,9 +1123,11 @@ void proto_register_ixveriwave(void)
    the frame was impressed on the enet tx media with one or more octets having tx_en
    framing signal deasserted.  this is caused by software setting the drain all register bit.
 */
+#if 0
         { &hf_ixveriwave_vw_info_tx_bit15,
           { "Info bit 15-frame was impressed on the ent tx media with one or more octets having tx_en framing signal deasserted.", "ixveriwave.info.bit15",
             FT_BOOLEAN, 16, NULL, 0x8000, NULL, HFILL } },
+#endif
 
         /* rx info decodes for fpga ver VW510024 */
         /*all are reserved*/
@@ -1309,6 +1317,7 @@ void proto_register_ixveriwave(void)
           { "Errors", "ixveriwave.errors",
             FT_UINT32, BASE_HEX, NULL, 0x0, NULL, HFILL } },
 
+#if 0
         /* rx error decodes for fpga ver VW510006 */
         { &hf_radiotap_vw_errors_rx_1_bit0,
           { "L1 error", "ixveriwave.errors.bit0",
@@ -1373,6 +1382,7 @@ void proto_register_ixveriwave(void)
         { &hf_radiotap_vw_errors_rx_1_bit15,
           { "Reserved", "ixveriwave.errors.bit15",
             FT_BOOLEAN, 16, NULL, 0x8000, NULL, HFILL } },
+#endif
         /* All other enumerations are reserved.*/
 
         /* rx error decodes for fpga ver VW510021 */

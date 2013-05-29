@@ -66,10 +66,11 @@ static void file_selection_browse_destroy_cb(GtkWidget *win, GtkWidget* file_te)
 /* Keys ... */
 #define E_FS_CALLER_PTR_KEY       "fs_caller_ptr"
 
-/* Create a file selection dialog box window that belongs to Wireshark's
-   main window. */
+/* Create a file selection dialog box window that belongs to a top-level
+   window. */
 GtkWidget *
-file_selection_new(const gchar *title, file_selection_action_t action)
+file_selection_new(const gchar *title, GtkWindow *parent,
+                   file_selection_action_t action)
 {
     GtkWidget *win;
     GtkFileChooserAction gtk_action;
@@ -92,7 +93,7 @@ file_selection_new(const gchar *title, file_selection_action_t action)
 
     case FILE_SELECTION_SAVE:
         gtk_action = GTK_FILE_CHOOSER_ACTION_SAVE;
-        ok_button_text = WIRESHARK_STOCK_FILE;
+        ok_button_text = WIRESHARK_STOCK_SAVE;
         break;
 
     case FILE_SELECTION_WRITE_BROWSE:
@@ -107,19 +108,20 @@ file_selection_new(const gchar *title, file_selection_action_t action)
 
     default:
         g_assert_not_reached();
-        gtk_action = -1;
+        gtk_action = (GtkFileChooserAction)-1;
         ok_button_text = NULL;
         break;
     }
-    win = gtk_file_chooser_dialog_new(title, GTK_WINDOW(top_level), gtk_action,
-#ifndef _WIN32
+    win = gtk_file_chooser_dialog_new(title, parent, gtk_action,
                                       GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
                                       ok_button_text, GTK_RESPONSE_ACCEPT,
-#else
-                                      ok_button_text, GTK_RESPONSE_ACCEPT,
-                                      GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-#endif
                                       NULL);
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(win),
+                                            GTK_RESPONSE_ACCEPT,
+                                            GTK_RESPONSE_CANCEL,
+                                            -1);
+    if (action == FILE_SELECTION_SAVE)
+        gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(win), TRUE);
 
     /* If we've opened a file before, start out by showing the files in the directory
        in which that file resided. */
@@ -158,7 +160,7 @@ file_selection_set_current_folder(GtkWidget *fs, const gchar *filename)
         new_filename = g_strdup(filename);
     }
 
-    /* this function is very pedantic about it's filename parameter */
+    /* this function is very pedantic about its filename parameter */
     /* no trailing '\' allowed, unless a win32 root dir "D:\" */
     ret = gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(fs), new_filename);
     g_free(new_filename);
@@ -339,7 +341,7 @@ file_target_unwritable_ui(GtkWidget *chooser_w, char *cf_name)
   if ((statbuf.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH)) == 0) {
     display_basename = g_filename_display_basename(cf_name);
     msg_dialog = gtk_message_dialog_new(GTK_WINDOW(chooser_w),
-                                        GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                        (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                         GTK_MESSAGE_QUESTION,
                                         GTK_BUTTONS_NONE,
                                         "The file \"%s\" is read-only.",
@@ -397,7 +399,7 @@ file_selection_browse(GtkWidget *file_bt, GtkWidget *file_te, const char *label,
     GtkWidget *fs;
     gchar     *f_name;
 
-    fs = file_selection_new(label, action);
+    fs = file_selection_new(label, GTK_WINDOW(caller), action);
 
     g_object_set_data(G_OBJECT(fs), PRINT_FILE_TE_KEY, file_te);
 
@@ -430,7 +432,7 @@ file_selection_browse_destroy_cb(GtkWidget *win, GtkWidget* parent_te)
     /* Get the widget that requested that we be popped up.
        (It should arrange to destroy us if it's destroyed, so
        that we don't get a pointer to a non-existent window here.) */
-    caller = g_object_get_data(G_OBJECT(win), E_FS_CALLER_PTR_KEY);
+    caller = (GtkWidget *)g_object_get_data(G_OBJECT(win), E_FS_CALLER_PTR_KEY);
 
     /* Tell it we no longer exist. */
     g_object_set_data(G_OBJECT(caller), E_FILE_SEL_DIALOG_PTR_KEY, NULL);

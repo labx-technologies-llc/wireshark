@@ -23,8 +23,6 @@
 
 #include "config.h"
 
-#include "globals.h"
-
 #include <glib.h>
 
 #include <epan/proto.h>
@@ -42,7 +40,7 @@
 //   win
 //   default
 
-#if defined(Q_WS_MAC) && 0
+#if defined(Q_OS_MAC) && 0
 // http://developer.apple.com/library/mac/#documentation/Cocoa/Reference/ApplicationKit/Classes/NSImage_Class/Reference/Reference.html
 // http://www.virtualbox.org/svn/vbox/trunk/src/VBox/Frontends/VirtualBox/src/platform/darwin/UICocoaSpecialControls.mm
 
@@ -106,7 +104,7 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
     //     DispalyFilterEdit
     //     Clear button
     //     Apply (right arrow) + Cancel (x) + Reload (arrowed circle)
-    //     Down Arrow
+    //     Combo drop-down
 
     // XXX - Move bookmark and apply buttons to the toolbar a la Firefox, Chrome & Safari?
     // XXX - Use native buttons on OS X?
@@ -116,7 +114,7 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
     bookmark_button_->setStyleSheet(QString(
             "QToolButton { /* all types of tool button */"
             "  border 0 0 0 0;"
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
             "  border-right: %1px solid gray;"
 #else
             "  border-right: %1px solid palette(shadow);"
@@ -133,11 +131,14 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
             "QToolButton:pressed {"
             "  image: url(:/dfilter/dfilter_bookmark_pressed.png) center;"
             "}"
+            "QToolButton:disabled {"
+            "  image: url(:/dfilter/dfilter_bookmark_disabled.png) center;"
+            "}"
 
 
             ).arg(plain_ ? 0 : 1)
             );
-    connect(bookmark_button_, SIGNAL(clicked()), this, SLOT(showDisplayFilterDialog()));
+    connect(bookmark_button_, SIGNAL(clicked()), this, SLOT(bookmarkClicked()));
 
     clear_button_ = new QToolButton(this);
     clear_button_->setCursor(Qt::ArrowCursor);
@@ -176,6 +177,9 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
                 "}"
                 "QToolButton:pressed {"
                 "  image: url(:/dfilter/dfilter_apply_pressed.png) center;"
+                "}"
+                "QToolButton:disabled {"
+                "  image: url(:/dfilter/dfilter_apply_disabled.png) center;"
                 "}"
                 );
         connect(apply_button_, SIGNAL(clicked()), this, SLOT(applyDisplayFilter()));
@@ -268,7 +272,7 @@ void DisplayFilterEdit::checkFilter(const QString& text)
         if (dfp != NULL) {
             depr = dfilter_deprecated_tokens(dfp);
         }
-        if (text.length() < 1) {
+        if (text.isEmpty()) {
             setSyntaxState(Empty);
         } else if (depr) {
             /* You keep using that word. I do not think it means what you think it means. */
@@ -292,14 +296,15 @@ void DisplayFilterEdit::checkFilter(const QString& text)
         emit pushFilterSyntaxStatus(invalidMsg);
     }
 
+    bookmark_button_->setEnabled(syntaxState() == Valid || syntaxState() == Deprecated);
     if (apply_button_) {
-        apply_button_->setEnabled(SyntaxState() == Empty || syntaxState() == Valid);
+        apply_button_->setEnabled(SyntaxState() != Invalid);
     }
 }
 
-void DisplayFilterEdit::showDisplayFilterDialog()
+void DisplayFilterEdit::bookmarkClicked()
 {
-    g_log(NULL, G_LOG_LEVEL_DEBUG, "FIX: implement display filter dialog for \"%s\"", this->text().toUtf8().constData());
+    emit addBookmark(text());
 }
 
 void DisplayFilterEdit::applyDisplayFilter()

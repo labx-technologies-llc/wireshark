@@ -26,16 +26,16 @@
 #ifndef __PACKET_SMB_H__
 #define __PACKET_SMB_H__
 
+#include "ws_symbol_export.h"
 
-WS_VAR_IMPORT gboolean sid_name_snooping;
+WS_DLL_PUBLIC gboolean sid_name_snooping;
 
 /* SMB command codes, from the SNIA CIFS spec. With MSVC and a
  * libwireshark.dll, we need a special declaration.
  */
-WS_VAR_IMPORT value_string_ext smb_cmd_vals_ext;
-WS_VAR_IMPORT value_string_ext trans2_cmd_vals_ext;
-WS_VAR_IMPORT value_string_ext nt_cmd_vals_ext;
-
+WS_DLL_PUBLIC value_string_ext smb_cmd_vals_ext;
+WS_DLL_PUBLIC value_string_ext trans2_cmd_vals_ext;
+WS_DLL_PUBLIC value_string_ext nt_cmd_vals_ext;
 
 #define SMB_COM_CREATE_DIRECTORY		0x00
 #define SMB_COM_DELETE_DIRECTORY		0x01
@@ -177,24 +177,23 @@ WS_VAR_IMPORT value_string_ext nt_cmd_vals_ext;
 #define SMBE_sharebufexc 36 /* A sharing buffer has been exceeded */
 #define SMBE_diskfull 39
 
-/* Used for SMB Export Object feature */
+/* used for SMB export object functionality */
 typedef struct _smb_eo_t {
-        guint8 cmd;
-        int     tid,uid,fid;
-        guint32  pkt_num;
-        gchar   *hostname;
-        gchar   *filename;
-        int fid_type;
-        gint64  end_of_file;
-        gchar   *content_type;
-        guint32  payload_len;
-        const guint8 *payload_data;
-        guint64 smb_file_offset;
-        guint32 smb_chunk_len;
+	guint	smbversion;
+	guint16 cmd;
+	int     tid,uid;
+	guint	fid;
+	guint32  pkt_num;
+	gchar   *hostname;
+	gchar   *filename;
+	int fid_type;
+	gint64  end_of_file;
+	gchar   *content_type;
+	guint32  payload_len;
+	const guint8 *payload_data;
+	guint64 smb_file_offset;
+	guint32 smb_chunk_len;
 } smb_eo_t;
-
-/* Strings that describes the SMB object type */
-WS_VAR_IMPORT const value_string smb_fid_types[];
 
 /* the information we need to keep around for NT transatcion commands */
 typedef struct {
@@ -434,5 +433,8 @@ extern int dissect_nt_notify_completion_filter(tvbuff_t *tvb, proto_tree *parent
 extern int dissect_sfi_SMB_FILE_PIPE_INFO(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int offset, guint16 *bcp, gboolean *trunc);
 extern int dissect_get_dfs_request_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, guint16 *bcp);
 extern int dissect_get_dfs_referral_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, guint16 *bcp);
+
+/* Returns an IP (v4 or v6) of the server in a SMB/SMB2 conversation */
+extern const gchar *tree_ip_str(packet_info *pinfo, guint16 cmd);
 
 #endif

@@ -82,6 +82,8 @@ static int hf_isis_lsp_root_id = -1;
 static int hf_isis_lsp_spb_link_metric = -1;
 static int hf_isis_lsp_spb_port_count = -1;
 static int hf_isis_lsp_spb_port_id = -1;
+static int hf_isis_lsp_spb_sr_bit = -1;
+static int hf_isis_lsp_spb_spvid = -1;
 
 static gint ett_isis_lsp = -1;
 static gint ett_isis_lsp_info = -1;
@@ -120,6 +122,9 @@ static gint ett_isis_lsp_clv_mt_reachable_IPv4_prefx = -1;  /* CLV 235 */
 static gint ett_isis_lsp_clv_mt_reachable_IPv6_prefx = -1;  /* CLV 237 */
 static gint ett_isis_lsp_clv_rt_capable_IPv4_prefx = -1;   /* CLV 242 */
 static gint ett_isis_lsp_clv_grp_address_IPv4_prefx = -1;  /* CLV 142 */
+static gint ett_isis_lsp_clv_mt_cap_spbv_mac_address = -1;
+
+static expert_field ie_isis_lsp_checksum_bad = EI_INIT;
 
 static const value_string isis_lsp_istype_vals[] = {
 	{ ISIS_LSP_TYPE_UNUSED0,	"Unused 0x0 (invalid)"},
@@ -1734,6 +1739,72 @@ dissect_isis_lsp_clv_mt_cap_spbm_service_identifier(tvbuff_t   *tvb,
 		}
 	}
 }
+static void
+dissect_isis_lsp_clv_mt_cap_spbv_mac_address(tvbuff_t   *tvb,
+	proto_tree *tree, int offset, int subtype, int sublen)
+{
+	guint16 fixed_data;
+	guint16 spvid;
+	guint8 sr_bit;
+	const int GMAC_LEN = 6; /* GMAC Address */
+	const int SPVID_LEN = 2; /* SPVID */
+	const int MAC_TUPLE_LEN = 7;
+
+	const int SPVID_OFFSET = 0;
+	const int FIXED_LEN    = SPVID_OFFSET + SPVID_LEN;
+
+	if (sublen < FIXED_LEN) {
+		isis_dissect_unknown( tvb, tree, offset,
+		                      "Short SPBV Mac Address subTLV (%d vs %d)", sublen, FIXED_LEN);
+		return;
+	}
+	else {
+		proto_tree *subtree, *ti;
+		int subofs = offset;
+		fixed_data = tvb_get_ntohs(tvb, subofs);
+		spvid = (fixed_data & 0x0FFF);
+		sr_bit = (fixed_data & 0x3000) >> 12;
+
+		/*************************/
+		ti = proto_tree_add_text( tree, tvb, offset-2, sublen+2,
+		                          "SPBV Mac Address: Type: 0x%02x, Length: %d", subtype, sublen);
+		subtree = proto_item_add_subtree(ti, ett_isis_lsp_clv_mt_cap_spbv_mac_address);
+
+		/*************************/
+		proto_tree_add_uint(subtree, hf_isis_lsp_spb_sr_bit,
+				            tvb, subofs, 1, sr_bit);
+		proto_tree_add_uint(subtree, hf_isis_lsp_spb_spvid,
+						            tvb, subofs, 2, spvid);
+
+		subofs += FIXED_LEN;
+		sublen -= FIXED_LEN;
+
+		/*************************/
+		while (sublen > 0) {
+			if (sublen < MAC_TUPLE_LEN) {
+				isis_dissect_unknown( tvb, subtree, offset,
+				                      "  Short MAC Address entry (%d vs %d)", sublen, MAC_TUPLE_LEN);
+				return;
+			}
+			else {
+				const guint32 tr_bit = tvb_get_guint8(tvb, subofs);
+				const guint8 *gmac   = tvb_get_ptr(tvb, subofs + 1, GMAC_LEN);
+				proto_tree_add_text( subtree, tvb, subofs, MAC_TUPLE_LEN,
+				                     "  T: %u, R: %u, MAC: %02x-%02x-%02x-%02x-%02x-%02x",
+				                     (tr_bit >> 7) & 1,
+				                     (tr_bit >> 6) & 1,
+									 gmac[0],
+									 gmac[1],
+									 gmac[2],
+									 gmac[3],
+									 gmac[4],
+									 gmac[5]);
+				subofs += MAC_TUPLE_LEN;
+				sublen -= MAC_TUPLE_LEN;
+			}
+		}
+	}
+}
 /*
  * Name: dissect_lsp_clv_mt_cap()
  *
@@ -1780,6 +1851,9 @@ dissect_isis_lsp_clv_mt_cap(tvbuff_t *tvb, proto_tree *tree, int offset,
 			}
 			else if (subtype == 0x03) { /* SPBM Service Identifier */
 				dissect_isis_lsp_clv_mt_cap_spbm_service_identifier(tvb, tree, offset, subtype, subtlvlen);
+			}
+			else if (subtype == 0x04) { /* SPBV Mac Address */
+				dissect_isis_lsp_clv_mt_cap_spbv_mac_address(tvb, tree, offset, subtype, subtlvlen);
 			}
 			else {
 				isis_dissect_unknown( tvb, tree, offset,
@@ -2570,7 +2644,7 @@ static void isis_lsp_checkum_additional_info(tvbuff_t * tvb, packet_info * pinfo
 	                              offset, 2, !is_cksum_correct);
 	PROTO_ITEM_SET_GENERATED(item);
 	if (!is_cksum_correct) {
-		expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR, "Bad checksum");
+		expert_add_info(pinfo, item, &ie_isis_lsp_checksum_bad);
 		col_append_str(pinfo->cinfo, COL_INFO, " [ISIS CHECKSUM INCORRECT]");
 	}
 }
@@ -2831,6 +2905,14 @@ isis_register_lsp(int proto_isis) {
 
 		{ &hf_isis_lsp_spb_port_id,
 		{ "Port Id", "isis.lsp.spb.port_id",
+			FT_UINT16, BASE_HEX_DEC, NULL, 0, NULL, HFILL }},
+
+		{ &hf_isis_lsp_spb_sr_bit,
+		{ "SR Bit", "isis.lsp.spb.sr_bit",
+			FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
+
+		{ &hf_isis_lsp_spb_spvid,
+		{ "SPVID", "isis.lsp.spb.spvid",
 			FT_UINT16, BASE_HEX_DEC, NULL, 0, NULL, HFILL }}
 
 	};
@@ -2871,9 +2953,18 @@ isis_register_lsp(int proto_isis) {
 		&ett_isis_lsp_clv_rt_capable_IPv4_prefx,
 		&ett_isis_lsp_clv_grp_address_IPv4_prefx,    /*CLV 142*/
 		&ett_isis_lsp_clv_mt_reachable_IPv4_prefx,
-		&ett_isis_lsp_clv_mt_reachable_IPv6_prefx
+		&ett_isis_lsp_clv_mt_reachable_IPv6_prefx,
+		&ett_isis_lsp_clv_mt_cap_spbv_mac_address
 	};
+
+	static ei_register_info ei[] = {
+		{ &ie_isis_lsp_checksum_bad, { "isis.lsp.checksum_bad.expert", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+	};
+
+	expert_module_t* expert_isis;
 
 	proto_register_field_array(proto_isis, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_isis = expert_register_protocol(proto_isis);
+	expert_register_field_array(expert_isis, ei, array_length(ei));
 }

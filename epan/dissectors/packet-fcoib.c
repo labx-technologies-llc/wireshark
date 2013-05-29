@@ -115,6 +115,8 @@ static int hf_fcoib_crc_good    = -1;
 static int ett_fcoib            = -1;
 static int ett_fcoib_crc        = -1;
 
+static expert_field ei_fcoib_crc = EI_INIT;
+
 static dissector_handle_t data_handle;
 static dissector_handle_t fc_handle;
 
@@ -212,9 +214,9 @@ dissect_fcoib(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
             return FALSE;   /* the sig field in the FCoIB Encap. header MUST be 2'b01*/
         if (!tvb_bytes_exist(tvb, eof_offset + 1, 3) || tvb_get_ntoh24(tvb, eof_offset + 1) != 0)
             return FALSE;   /* 3 bytes of RESERVED field immediately after eEOF MUST be 0 */
-        if (!match_strval(sof, fcoib_sof_vals))
+        if (!try_val_to_str(sof, fcoib_sof_vals))
             return FALSE;   /* invalid value for SOF */
-        if (!match_strval(eof, fcoib_eof_vals))
+        if (!try_val_to_str(eof, fcoib_eof_vals))
             return FALSE;   /* invalid value for EOF */
     }
 
@@ -289,7 +291,7 @@ dissect_fcoib(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
                                               "CRC: %8.8x "
                                               "[error: should be %8.8x]",
                                               crc, crc_computed);
-            expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR,
+            expert_add_info_format_text(pinfo, item, &ei_fcoib_crc,
                                    "Bad FC CRC %8.8x %8.x",
                                    crc, crc_computed);
         }
@@ -372,6 +374,12 @@ proto_register_fcoib(void)
         &ett_fcoib_crc
     };
 
+    static ei_register_info ei[] = {
+        { &ei_fcoib_crc, { "fcoib.crc.bad", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+    };
+
+    expert_module_t* expert_fcoib;
+
     /* Register the protocol name and description */
     proto_fcoib = proto_register_protocol("Fibre Channel over Infiniband",
         "FCoIB", "fcoib");
@@ -380,6 +388,8 @@ proto_register_fcoib(void)
      * subtrees used */
     proto_register_field_array(proto_fcoib, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_fcoib = expert_register_protocol(proto_fcoib);
+    expert_register_field_array(expert_fcoib, ei, array_length(ei));
 
     fcoib_module = prefs_register_protocol(proto_fcoib, proto_reg_handoff_fcoib);
 

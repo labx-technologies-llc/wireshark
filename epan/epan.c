@@ -28,7 +28,7 @@
 #endif
 
 #ifdef HAVE_LIBGCRYPT
-#include <gcrypt.h>
+#include <wsutil/wsgcrypt.h>
 #endif /* HAVE_LIBGCRYPT */
 
 #ifdef HAVE_LIBGNUTLS
@@ -51,7 +51,6 @@
 #include "oids.h"
 #include "emem.h"
 #include "wmem/wmem.h"
-#include "wmem/wmem_allocator_glib.h"
 #include "expert.h"
 
 #ifdef HAVE_LUA
@@ -104,13 +103,14 @@ epan_init(void (*register_all_protocols_func)(register_cb cb, gpointer client_da
 #endif
 	tap_init();
 	prefs_init();
+	expert_init();
 	proto_init(register_all_protocols_func, register_all_handoffs_func,
 	    cb, client_data);
 	packet_init();
 	dfilter_init();
 	final_registration_all_protocols();
-	host_name_lookup_init();
-	expert_init();
+	/*host_name_lookup_init();*//* We load the hostname file in cf_open, no need to do it here? */
+	expert_packet_init();
 #ifdef HAVE_LUA
 	wslua_init(cb, client_data);
 #endif
@@ -124,6 +124,7 @@ epan_cleanup(void)
 	proto_cleanup();
 	prefs_cleanup();
 	packet_cleanup();
+	expert_cleanup();
 	oid_resolv_cleanup();
 #ifdef HAVE_LIBGNUTLS
 	gnutls_global_deinit();
@@ -162,7 +163,7 @@ epan_dissect_init(epan_dissect_t *edt, const gboolean create_proto_tree, const g
 {
 	g_assert(edt);
 
-	edt->pi.pool = wmem_create_glib_allocator();
+	edt->pi.pool = wmem_allocator_new(WMEM_ALLOCATOR_SIMPLE);
 
 	if (create_proto_tree) {
 		edt->tree = proto_tree_create_root(&edt->pi);
@@ -198,6 +199,9 @@ void
 epan_dissect_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
         const guint8* data, frame_data *fd, column_info *cinfo)
 {
+#ifdef HAVE_LUA
+	wslua_prime_dfilter(edt); /* done before entering wmem scope */
+#endif
 	wmem_enter_packet_scope();
 	dissect_packet(edt, phdr, data, fd, cinfo);
 
@@ -268,6 +272,25 @@ epan_dissect_fill_in_columns(epan_dissect_t *edt, const gboolean fill_col_exprs,
 {
     col_custom_set_edt(edt, edt->pi.cinfo);
     col_fill_in(&edt->pi, fill_col_exprs, fill_fd_colums);
+}
+
+gboolean
+epan_dissect_packet_contains_field(epan_dissect_t* edt,
+                                   const char *field_name)
+{
+    GPtrArray* array;
+    int        field_id;
+    gboolean   contains_field;
+
+    if (!edt || !edt->tree)
+        return FALSE;
+    field_id = proto_get_id_by_filter_name(field_name);
+    if (field_id < 0)
+        return FALSE;
+    array = proto_find_finfo(edt->tree, field_id);
+    contains_field = (array->len > 0) ? TRUE : FALSE;
+    g_ptr_array_free(array, TRUE);
+    return contains_field;
 }
 
 /*

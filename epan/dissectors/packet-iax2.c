@@ -41,6 +41,7 @@
 #include <epan/to_str.h>
 #include <epan/emem.h>
 #include <epan/reassemble.h>
+#include <epan/expert.h>
 #include <epan/aftypes.h>
 #include <epan/tap.h>
 #include <epan/tap-voip.h>
@@ -507,7 +508,7 @@ typedef struct {
 
 /* tables */
 static GHashTable *iax_fid_table       = NULL;
-static GHashTable *iax_fragment_table  = NULL;
+static reassembly_table iax_reassembly_table;
 
 static GHashTable *iax_circuit_hashtab = NULL;
 static guint circuitcount = 0;
@@ -593,11 +594,11 @@ static guint iax_circuit_lookup(const address *address_p,
   key.port   = port;
   key.callno = callno;
 
-  circuit_id_p = g_hash_table_lookup(iax_circuit_hashtab, &key);
+  circuit_id_p = (guint32 *)g_hash_table_lookup(iax_circuit_hashtab, &key);
   if (! circuit_id_p) {
     iax_circuit_key *new_key;
 
-    new_key = se_alloc(sizeof(iax_circuit_key));
+    new_key = se_new(iax_circuit_key);
     new_key->addr.type = address_p->type;
     new_key->addr.len  = MIN(address_p->len, MAX_ADDRESS);
     new_key->addr.data = new_key->address_data;
@@ -606,7 +607,7 @@ static guint iax_circuit_lookup(const address *address_p,
     new_key->port      = port;
     new_key->callno    = callno;
 
-    circuit_id_p  = se_alloc(sizeof(iax_circuit_key));
+    circuit_id_p  = (guint32 *)se_new(iax_circuit_key);
     *circuit_id_p = ++circuitcount;
 
     g_hash_table_insert(iax_circuit_hashtab, new_key, circuit_id_p);
@@ -673,7 +674,8 @@ static void iax_init_hash( void )
     g_hash_table_destroy(iax_fid_table);
   iax_fid_table = g_hash_table_new(g_direct_hash, g_direct_equal);
 
-  fragment_table_init(&iax_fragment_table);
+  reassembly_table_init(&iax_reassembly_table,
+                        &addresses_reassembly_table_functions);
 }
 
 
@@ -691,14 +693,15 @@ static void iax_init_hash( void )
  * transferred.
  *
  */
-static circuit_t *iax2_new_circuit_for_call(guint circuit_id, guint framenum, iax_call_data *iax_call,
-                                            gboolean reversed)
+static circuit_t *iax2_new_circuit_for_call(packet_info *pinfo, proto_item * item, 
+                                            guint circuit_id, guint framenum, 
+                                            iax_call_data *iax_call, gboolean reversed)
 {
   circuit_t *res;
 
   if ((reversed && iax_call->n_reverse_circuit_ids >= IAX_MAX_TRANSFERS) ||
       (! reversed && iax_call->n_forward_circuit_ids >= IAX_MAX_TRANSFERS)) {
-    g_warning("Too many transfers for iax_call");
+    expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Too many transfers for iax_call");
     return NULL;
   }
 
@@ -746,7 +749,8 @@ static gboolean is_reverse_circuit(guint circuit_id,
 }
 
 
-static iax_call_data *iax_lookup_call_from_dest( guint src_circuit_id,
+static iax_call_data *iax_lookup_call_from_dest(packet_info *pinfo, proto_item * item,
+                                                 guint src_circuit_id,
                                                  guint dst_circuit_id,
                                                  guint framenum,
                                                  gboolean *reversed_p)
@@ -795,13 +799,13 @@ static iax_call_data *iax_lookup_call_from_dest( guint src_circuit_id,
               "new reverse circuit for this call");
 #endif
 
-      iax2_new_circuit_for_call(src_circuit_id, framenum, iax_call, TRUE);
+      iax2_new_circuit_for_call(pinfo, item, src_circuit_id, framenum, iax_call, TRUE);
 #ifdef DEBUG_HASHING
       g_debug("++ done");
 #endif
     } else if (!is_reverse_circuit(src_circuit_id, iax_call)) {
-      g_warning("IAX Packet %u from circuit ids %u->%u "
-                "conflicts with earlier call with circuit ids %u->%u",
+      expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, 
+                "IAX Packet %u from circuit ids %u->%u conflicts with earlier call with circuit ids %u->%u",
                 framenum,
                 src_circuit_id, dst_circuit_id,
                 iax_call->forward_circuit_ids[0],
@@ -816,8 +820,8 @@ static iax_call_data *iax_lookup_call_from_dest( guint src_circuit_id,
 
     reversed = FALSE;
     if (!is_forward_circuit(src_circuit_id, iax_call)) {
-      g_warning("IAX Packet %u from circuit ids %u->%u "
-                "conflicts with earlier call with circuit ids %u->%u",
+      expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, 
+                "IAX Packet %u from circuit ids %u->%u conflicts with earlier call with circuit ids %u->%u",
                 framenum,
                 src_circuit_id, dst_circuit_id,
                 iax_call->forward_circuit_ids[0],
@@ -870,7 +874,7 @@ static iax_call_data *iax_lookup_call( packet_info *pinfo,
     dst_circuit_id = iax_circuit_lookup(&pinfo->dst, pinfo->ptype,
                                         pinfo->destport, dcallno);
 
-    iax_call = iax_lookup_call_from_dest(src_circuit_id, dst_circuit_id,
+    iax_call = iax_lookup_call_from_dest(pinfo, NULL, src_circuit_id, dst_circuit_id,
                                          pinfo->fd->num, &reversed);
   } else {
     circuit_t *src_circuit;
@@ -944,8 +948,8 @@ static iax_call_data *iax_new_call( packet_info *pinfo,
   circuit_id = iax_circuit_lookup(&pinfo->src, pinfo->ptype,
                                   pinfo->srcport, scallno);
 
-  call = se_alloc(sizeof(iax_call_data));
-  call -> dataformat = 0;
+  call = se_new(iax_call_data);
+  call -> dataformat = AST_DATAFORMAT_NULL;
   call -> src_codec = 0;
   call -> dst_codec = 0;
   call -> n_forward_circuit_ids = 0;
@@ -956,7 +960,7 @@ static iax_call_data *iax_new_call( packet_info *pinfo,
   init_dir_data(&call->dirdata[0]);
   init_dir_data(&call->dirdata[1]);
 
-  iax2_new_circuit_for_call(circuit_id, pinfo->fd->num, call, FALSE);
+  iax2_new_circuit_for_call(pinfo, NULL, circuit_id, pinfo->fd->num, call, FALSE);
 
   return call;
 }
@@ -978,7 +982,7 @@ typedef struct iax_packet_data {
 
 static iax_packet_data *iax_new_packet_data(iax_call_data *call, gboolean reversed)
 {
-  iax_packet_data *p = se_alloc(sizeof(iax_packet_data));
+  iax_packet_data *p = se_new(iax_packet_data);
   p->first_time    = TRUE;
   p->call_data     = call;
   p->codec         = 0;
@@ -1175,8 +1179,8 @@ static proto_item *dissect_datetime_ie(tvbuff_t *tvb, guint32 offset, proto_tree
 
 
 /* dissect the information elements in an IAX frame. Returns the updated offset */
-static guint32 dissect_ies(tvbuff_t *tvb, guint32 offset,
-                           proto_tree *iax_tree,
+static guint32 dissect_ies(tvbuff_t *tvb, packet_info *pinfo, guint32 offset,
+                           proto_tree *iax_tree, proto_item * iax_item,
                            iax2_ie_data *ie_data)
 {
   DISSECTOR_ASSERT(ie_data);
@@ -1223,7 +1227,8 @@ static guint32 dissect_ies(tvbuff_t *tvb, guint32 offset,
             break;
 
           default:
-            g_warning("Not supported in IAX dissector: peer address family of %u", apparent_addr_family);
+            expert_add_info_format(pinfo, iax_item, PI_PROTOCOL, PI_WARN, 
+                "Not supported in IAX dissector: peer address family of %u", apparent_addr_family);
             break;
         }
         break;
@@ -1426,7 +1431,7 @@ static guint32 dissect_ies(tvbuff_t *tvb, guint32 offset,
                               ie_finfo->rep->representation);
         else {
           guint8 *ie_val = NULL;
-          ie_val = ep_alloc(ITEM_LABEL_LENGTH);
+          ie_val = (guint8 *)ep_alloc(ITEM_LABEL_LENGTH);
           proto_item_fill_label(ie_finfo, ie_val);
           proto_item_set_text(ti, "Information Element: %s",
                               ie_val);
@@ -1460,20 +1465,21 @@ static guint32 dissect_iax2_command(tvbuff_t *tvb, guint32 offset,
 {
   guint8         csub = tvb_get_guint8(tvb, offset);
   guint8         address_data[MAX_ADDRESS];
+  proto_item*    ti;
   iax2_ie_data   ie_data;
   iax_call_data *iax_call;
 
   ie_data.peer_address.type = AT_NONE;
   ie_data.peer_address.len  = 0;
   ie_data.peer_address.data = address_data;
-  ie_data.peer_ptype        = 0;
+  ie_data.peer_ptype        = PT_NONE;
   ie_data.peer_port         = 0;
   ie_data.peer_callno       = 0;
   ie_data.dataformat        = (guint32)-1;
   iax_call                  = iax_packet -> call_data;
 
   /* add the subclass */
-  proto_tree_add_uint(tree, hf_iax2_iax_csub, tvb, offset, 1, csub);
+  ti = proto_tree_add_uint(tree, hf_iax2_iax_csub, tvb, offset, 1, csub);
   offset++;
 
   if (check_col(pinfo->cinfo, COL_INFO))
@@ -1483,12 +1489,12 @@ static guint32 dissect_iax2_command(tvbuff_t *tvb, guint32 offset,
   if (offset >= tvb_reported_length(tvb))
     return offset;
 
-  offset = dissect_ies(tvb, offset, tree, &ie_data);
+  offset = dissect_ies(tvb, pinfo, offset, tree, ti, &ie_data);
 
   /* if this is a data call, set up a subdissector for the circuit */
   if (iax_call && ie_data.dataformat != (guint32)-1 && iax_call -> subdissector == NULL) {
     iax_call -> subdissector = dissector_get_uint_handle(iax2_dataformat_dissector_table, ie_data.dataformat);
-    iax_call -> dataformat = ie_data.dataformat;
+    iax_call -> dataformat = (iax_dataformat_t)ie_data.dataformat;
   }
 
   /* if this is a transfer request, record it in the call data */
@@ -1499,14 +1505,7 @@ static guint32 dissect_iax2_command(tvbuff_t *tvb, guint32 offset,
                                             ie_data.peer_port,
                                             ie_data.peer_callno);
 
-#if 0
-      g_debug("found transfer request for call %u->%u, to new id %u",
-                iax_call->forward_circuit_ids[0],
-                iax_call->reverse_circuit_ids[0],
-                tx_circuit);
-#endif
-
-      iax2_new_circuit_for_call(tx_circuit, pinfo->fd->num, iax_call, iax_packet->reversed);
+      iax2_new_circuit_for_call(pinfo, NULL, tx_circuit, pinfo->fd->num, iax_call, iax_packet->reversed);
     }
   }
 
@@ -1588,7 +1587,7 @@ dissect_fullpacket(tvbuff_t *tvb, guint32 offset,
   iax2_info->dcallno = dcallno;
 
   /* see if we've seen this packet before */
-  iax_packet = (iax_packet_data *)p_get_proto_data(pinfo->fd, proto_iax2);
+  iax_packet = (iax_packet_data *)p_get_proto_data(pinfo->fd, proto_iax2, 0);
   if (!iax_packet) {
     /* if not, find or create an iax_call info structure for this IAX session. */
 
@@ -1602,7 +1601,7 @@ dissect_fullpacket(tvbuff_t *tvb, guint32 offset,
     }
 
     iax_packet = iax_new_packet_data(iax_call, reversed);
-    p_add_proto_data(pinfo->fd, proto_iax2, iax_packet);
+    p_add_proto_data(pinfo->fd, proto_iax2, 0, iax_packet);
   } else {
     iax_call = iax_packet->call_data;
     reversed = iax_packet->reversed;
@@ -1654,7 +1653,7 @@ dissect_fullpacket(tvbuff_t *tvb, guint32 offset,
   case AST_FRAME_IAX:
     offset=dissect_iax2_command(tvb, offset+9, pinfo, packet_type_tree, iax_packet);
     iax2_info->messageName = val_to_str_ext(csub, &iax_iax_subclasses_ext, "unknown (0x%02x)");
-    iax2_info->callState   = csub;
+    iax2_info->callState   = (voip_call_state)csub;
     break;
 
   case AST_FRAME_DTMF_BEGIN:
@@ -1766,7 +1765,7 @@ static iax_packet_data *iax2_get_packet_data_for_minipacket(packet_info *pinfo,
                                                             gboolean video)
 {
   /* see if we've seen this packet before */
-  iax_packet_data *p = (iax_packet_data *)p_get_proto_data(pinfo->fd, proto_iax2);
+  iax_packet_data *p = (iax_packet_data *)p_get_proto_data(pinfo->fd, proto_iax2, 0);
 
   if (!p) {
     /* if not, find or create an iax_call info structure for this IAX session. */
@@ -1776,7 +1775,7 @@ static iax_packet_data *iax2_get_packet_data_for_minipacket(packet_info *pinfo,
     iax_call = iax_lookup_call(pinfo, scallno, 0, &reversed);
 
     p = iax_new_packet_data(iax_call, reversed);
-    p_add_proto_data(pinfo->fd, proto_iax2, p);
+    p_add_proto_data(pinfo->fd, proto_iax2, 0, p);
 
     /* set the codec for this frame to be whatever the last full frame used */
     if (iax_call) {
@@ -1962,7 +1961,7 @@ typedef struct _call_list {
 
 static call_list *call_list_append(call_list *list, guint16 scallno)
 {
-  call_list *node = ep_alloc0(sizeof(call_list));
+  call_list *node = ep_new0(call_list);
 
   node->scallno = scallno;
 
@@ -2158,8 +2157,7 @@ static void desegment_iax(tvbuff_t *tvb, packet_info *pinfo, proto_tree *iax2_tr
     }
 
     /* fragment_add checks for already-added */
-    fd_head = fragment_add(tvb, 0, pinfo, fid,
-                           iax_fragment_table,
+    fd_head = fragment_add(&iax_reassembly_table, tvb, 0, pinfo, fid, NULL,
                            frag_offset,
                            frag_len, !complete);
 
@@ -2179,7 +2177,7 @@ static void desegment_iax(tvbuff_t *tvb, packet_info *pinfo, proto_tree *iax2_tr
       if (pinfo->desegment_len &&
           (pinfo->desegment_offset < old_len)) {
         /* oops, it wasn't actually complete */
-        fragment_set_partial_reassembly(pinfo, fid, iax_fragment_table);
+        fragment_set_partial_reassembly(&iax_reassembly_table, pinfo, fid, NULL);
         if (pinfo->desegment_len == DESEGMENT_ONE_MORE_SEGMENT) {
           /* only one more byte should be enough for a retry */
           dirdata->current_frag_minlen = fd_head->datalen + 1;
@@ -2246,8 +2244,8 @@ static void desegment_iax(tvbuff_t *tvb, packet_info *pinfo, proto_tree *iax2_tr
       dirdata->current_frag_minlen = frag_len + pinfo->desegment_len;
     }
 
-    fd_head = fragment_add(tvb, deseg_offset, pinfo, fid,
-                           iax_fragment_table,
+    fd_head = fragment_add(&iax_reassembly_table,
+                           tvb, deseg_offset, pinfo, fid, NULL,
                            0, frag_len, TRUE);
 #ifdef DEBUG_DESEGMENT
     g_debug("Start offset of undissected bytes: %u; "

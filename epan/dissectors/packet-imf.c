@@ -126,9 +126,9 @@ static int hf_imf_message_text = -1;
 
 static int hf_imf_display_name = -1;
 static int hf_imf_address = -1;
-static int hf_imf_mailbox_list = -1;
+/* static int hf_imf_mailbox_list = -1; */
 static int hf_imf_mailbox_list_item = -1;
-static int hf_imf_address_list = -1;
+/* static int hf_imf_address_list = -1; */
 static int hf_imf_address_list_item = -1;
 
 /* draft-zeilenga-email-seclabel-04 */
@@ -149,6 +149,8 @@ static int ett_imf_address_list = -1;
 static int ett_imf_siolabel = -1;
 static int ett_imf_extension = -1;
 static int ett_imf_message_text = -1;
+
+static expert_field ei_imf_unknown_param = EI_INIT;
 
 struct imf_field {
   const char   *name;           /* field name - in lower case for matching purposes */
@@ -279,7 +281,7 @@ static GHashTable *custom_field_table = NULL;
 static void
 header_fields_update_cb(void *r, const char **err)
 {
-  header_field_t *rec = r;
+  header_field_t *rec = (header_field_t *)r;
   char c;
 
   if (rec->header_name == NULL) {
@@ -308,8 +310,8 @@ header_fields_update_cb(void *r, const char **err)
 static void *
 header_fields_copy_cb(void *n, const void *o, size_t siz _U_)
 {
-  header_field_t *new_rec = n;
-  const header_field_t *old_rec = o;
+  header_field_t *new_rec = (header_field_t *)n;
+  const header_field_t *old_rec = (const header_field_t *)o;
 
   new_rec->header_name = g_strdup(old_rec->header_name);
   new_rec->description = g_strdup(old_rec->description);
@@ -322,7 +324,7 @@ header_fields_copy_cb(void *n, const void *o, size_t siz _U_)
 static void
 header_fields_free_cb(void *r)
 {
-  header_field_t *rec = r;
+  header_field_t *rec = (header_field_t *)r;
 
   g_free(rec->header_name);
   g_free(rec->description);
@@ -330,8 +332,8 @@ header_fields_free_cb(void *r)
 
 UAT_CSTRING_CB_DEF(header_fields, header_name, header_field_t)
 UAT_CSTRING_CB_DEF(header_fields, description, header_field_t)
-UAT_VS_DEF(header_fields, header_format, header_field_t, 0, "Unstructured")
-UAT_VS_DEF(header_fields, add_to_col_info, header_field_t, 0, "No")
+UAT_VS_DEF(header_fields, header_format, header_field_t, guint, 0, "Unstructured")
+UAT_VS_DEF(header_fields, add_to_col_info, header_field_t, guint, 0, "No")
 
 
 /* Define media_type/Content type table */
@@ -554,7 +556,7 @@ dissect_imf_siolabel(tvbuff_t *tvb, int offset, int length, proto_item *item, pa
       label_string = ep_strbuf_append(label_string, label);
 
       if (tvb_get_guint8(tvb, item_offset + 5) == '*') { /* continuations */
-        int num = strtol(tvb_get_ephemeral_string(tvb, item_offset + 6, value_offset - item_offset + 6), NULL, 10);
+        int num = (int)strtol(tvb_get_ephemeral_string(tvb, item_offset + 6, value_offset - item_offset + 6), NULL, 10);
         proto_tree_add_string_format(tree, hf_imf_siolabel_label, tvb, value_offset, value_length,
                                      label, "Label[%d]: \"%s\"", num, label);
       } else {
@@ -563,7 +565,7 @@ dissect_imf_siolabel(tvbuff_t *tvb, int offset, int length, proto_item *item, pa
 
     } else {
       sub_item = proto_tree_add_item(tree, hf_imf_siolabel_unknown, tvb, item_offset, item_length, ENC_ASCII|ENC_NA);
-      expert_add_info_format(pinfo, sub_item, PI_PROTOCOL, PI_WARN, "Unknown parameter");
+      expert_add_info(pinfo, sub_item, &ei_imf_unknown_param);
     }
 
     if (end_offset != -1) {
@@ -877,10 +879,10 @@ header_fields_initialize_cb (void)
 
   if (num_header_fields) {
     custom_field_table = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, free_imf_field);
-    hf = g_malloc0 (sizeof (hf_register_info) * num_header_fields);
+    hf = (hf_register_info *)g_malloc0 (sizeof (hf_register_info) * num_header_fields);
 
     for (i = 0; i < num_header_fields; i++) {
-      hf_id = g_malloc (sizeof (gint));
+      hf_id = (gint *)g_malloc (sizeof (gint));
       *hf_id = -1;
       header_name = g_strdup (header_fields[i].header_name);
 
@@ -894,7 +896,7 @@ header_fields_initialize_cb (void)
       hf[i].hfinfo.same_name_prev = NULL;
       hf[i].hfinfo.same_name_next = NULL;
 
-      imffield = g_malloc (sizeof (struct imf_field));
+      imffield = (struct imf_field *)g_malloc (sizeof (struct imf_field));
       imffield->hf_id = hf_id;
       imffield->name = ascii_strdown_inplace (g_strdup (header_name));
       switch (header_fields[i].header_format) {
@@ -1149,15 +1151,19 @@ proto_register_imf(void)
     { &hf_imf_address,
       { "Address", "imf.address", FT_STRING,  BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
+#if 0
     { &hf_imf_address_list,
       { "Address List", "imf.address_list", FT_UINT32,  BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
+#endif
     { &hf_imf_address_list_item,
       { "Item", "imf.address_list.item", FT_STRING,  BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
+#if 0
     { &hf_imf_mailbox_list,
       { "Mailbox List", "imf.mailbox_list", FT_UINT32,  BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
+#endif
     { &hf_imf_mailbox_list_item,
       { "Item", "imf.mailbox_list.item", FT_STRING,  BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
@@ -1198,6 +1204,10 @@ proto_register_imf(void)
     &ett_imf_message_text,
   };
 
+  static ei_register_info ei[] = {
+     { &ei_imf_unknown_param, { "imf.unknown_param", PI_PROTOCOL, PI_WARN, "Unknown parameter", EXPFILL }},
+  };
+
   static uat_field_t attributes_flds[] = {
     UAT_FLD_CSTRING(header_fields, header_name, "Header name", "IMF header name"),
     UAT_FLD_CSTRING(header_fields, description, "Description", "Description of the value contained in the header"),
@@ -1210,7 +1220,7 @@ proto_register_imf(void)
                                sizeof(header_field_t),
                                "imf_header_fields",
                                TRUE,
-                               (void*) &header_fields,
+                               (void**) &header_fields,
                                &num_header_fields,
                                /* specifies named fields, so affects dissection
                                   and the set of named fields */
@@ -1223,12 +1233,15 @@ proto_register_imf(void)
                                attributes_flds);
 
   module_t *imf_module;
+  expert_module_t* expert_imf;
   struct imf_field *f;
 
   proto_imf = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
   proto_register_field_array(proto_imf, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_imf = expert_register_protocol(proto_imf);
+  expert_register_field_array(expert_imf, ei, array_length(ei));
 
   /* Allow dissector to find be found by name. */
   register_dissector(PFNAME, dissect_imf, proto_imf);

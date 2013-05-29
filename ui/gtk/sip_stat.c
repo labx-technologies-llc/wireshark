@@ -46,11 +46,11 @@
 
 #define SUM_STR_MAX  1024
 
-/* Ino about a table */
+/* Info about a grid */
 typedef struct {
-    GtkWidget  *table;
+    GtkWidget  *grid;
     guint       row_count;
-} tbl_info_t;
+} grid_info_t;
 
 /* Used to keep track of the statistics for an entire program interface */
 typedef struct _sip_stats_t {
@@ -69,14 +69,14 @@ typedef struct _sip_stats_t {
     GtkWidget   *resent_label;
     GtkWidget   *average_setup_time_label;
 
-    GtkWidget   *request_box;    /* container for INVITE, ... */
+    GtkWidget   *request_box;   /* container for INVITE, ... */
 
-    tbl_info_t   informational_table_info;   /* Status code between 100 and 199 */
-    tbl_info_t   success_table_info;         /*   200 and 299 */
-    tbl_info_t   redirection_table_info;     /*   300 and 399 */
-    tbl_info_t   client_error_table_info;    /*   400 and 499 */
-    tbl_info_t   server_errors_table_info;   /*   500 and 599 */
-    tbl_info_t   global_failures_table_info; /*   600 and 699 */
+    grid_info_t  informational_table_info;   /* Status code between 100 and 199 */
+    grid_info_t  success_table_info;         /*   200 and 299 */
+    grid_info_t  redirection_table_info;     /*   300 and 399 */
+    grid_info_t  client_error_table_info;    /*   400 and 499 */
+    grid_info_t  server_errors_table_info;   /*   500 and 599 */
+    grid_info_t  global_failures_table_info; /*   600 and 699 */
 } sipstat_t;
 
 /* Used to keep track of the stats for a specific response code
@@ -87,7 +87,7 @@ typedef struct _sip_response_code_t {
     guint        response_code;         /* 404 */
     const gchar *name;                  /* "Not Found" */
     GtkWidget   *widget;                /* Label where we display it */
-    tbl_info_t  *table_info;            /* Info about table in which we put it,
+    grid_info_t *table_info;            /* Info about table in which we put it,
                                            e.g. client_error_table_info */
     sipstat_t   *sp;                    /* Pointer back to main struct */
 } sip_response_code_t;
@@ -198,7 +198,7 @@ sip_init_hash(sipstat_t *sp)
     /* Add all response codes */
     for (i=0; vals_status_code[i].strptr; i++)
     {
-        sip_response_code_t *sc  = g_malloc(sizeof(sip_response_code_t));
+        sip_response_code_t *sc  = (sip_response_code_t *)g_malloc(sizeof(sip_response_code_t));
 
         sc->packets       = 0;
         sc->response_code = vals_status_code[i].value;
@@ -305,7 +305,7 @@ sip_draw_hash_responses(gint *key _U_ , sip_response_code_t *data, gchar *unused
         tmp = gtk_label_new(string_buff);
 
         /* Insert the label in the correct place in the table */
-        gtk_table_attach_defaults(GTK_TABLE(data->table_info->table), tmp,  0, 1, x, x+1);
+        ws_gtk_grid_attach_defaults(GTK_GRID(data->table_info->grid), tmp,  0, x, 1, 1);
         gtk_label_set_justify(GTK_LABEL(tmp), GTK_JUSTIFY_LEFT);
         gtk_widget_show(tmp);
 
@@ -314,7 +314,7 @@ sip_draw_hash_responses(gint *key _U_ , sip_response_code_t *data, gchar *unused
         data->widget = gtk_label_new(string_buff);
 
         /* Show this widget in the right place */
-        gtk_table_attach_defaults(GTK_TABLE(data->table_info->table), data->widget, 1, 2, x, x+1);
+        ws_gtk_grid_attach_defaults(GTK_GRID(data->table_info->grid), data->widget, 1, x, 1, 1);
         gtk_label_set_justify(GTK_LABEL(data->widget), GTK_JUSTIFY_RIGHT);
         gtk_widget_show(data->widget);
 
@@ -342,7 +342,7 @@ sip_reset_hash_requests(gchar *key _U_ , sip_request_method_t *data, gpointer pt
 static void
 sipstat_reset(void *psp)
 {
-    sipstat_t *sp = psp;
+    sipstat_t *sp = (sipstat_t *)psp;
     if (sp)
     {
         sp->packets               = 0;
@@ -361,7 +361,7 @@ sipstat_reset(void *psp)
 static int
 sipstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *pri)
 {
-    const sip_info_value_t *value = pri;
+    const sip_info_value_t *value = (sip_info_value_t *)pri;
     sipstat_t *sp = (sipstat_t *)psp;
 
     /* Total number of packets, including continuation packets */
@@ -407,7 +407,7 @@ sipstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const
         sip_response_code_t *sc;
 
         /* Look up response code in hash table */
-        sc = g_hash_table_lookup(sp->hash_responses, GUINT_TO_POINTER(value->response_code));
+        sc = (sip_response_code_t *)g_hash_table_lookup(sp->hash_responses, GUINT_TO_POINTER(value->response_code));
         if (sc == NULL)
         {
             /* Non-standard status code; we classify it as others
@@ -449,7 +449,7 @@ sipstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const
             }
 
             /* Now look up this fallback code to get its text description */
-            sc = g_hash_table_lookup(sp->hash_responses, GUINT_TO_POINTER(key));
+            sc = (sip_response_code_t *)g_hash_table_lookup(sp->hash_responses, GUINT_TO_POINTER(key));
             if (sc == NULL)
             {
                 return 0;
@@ -463,11 +463,11 @@ sipstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const
         sip_request_method_t *sc;
 
         /* Look up the request method in the table */
-        sc = g_hash_table_lookup(sp->hash_requests, value->request_method);
+        sc = (sip_request_method_t *)g_hash_table_lookup(sp->hash_requests, value->request_method);
         if (sc == NULL)
         {
             /* First of this type. Create structure and initialise */
-            sc = g_malloc(sizeof(sip_request_method_t));
+            sc = (sip_request_method_t *)g_malloc(sizeof(sip_request_method_t));
             sc->response = g_strdup(value->request_method);
             sc->packets  = 1;
             sc->widget   = NULL;
@@ -496,7 +496,7 @@ static void
 sipstat_draw(void *psp)
 {
     gchar      string_buff[SUM_STR_MAX];
-    sipstat_t *sp = psp;
+    sipstat_t *sp = (sipstat_t *)psp;
 
     /* Set summary label */
     g_snprintf(string_buff, sizeof(string_buff),
@@ -538,7 +538,7 @@ win_destroy_cb(GtkWindow *win _U_, gpointer data)
 
 
 static void
-init_table(GtkWidget *main_vb, gchar *title, tbl_info_t *tbl_info)
+init_table(GtkWidget *main_vb, const gchar *title, grid_info_t *tbl_info)
 {
     GtkWidget *fr;
 
@@ -546,8 +546,8 @@ init_table(GtkWidget *main_vb, gchar *title, tbl_info_t *tbl_info)
     gtk_box_pack_start(GTK_BOX(main_vb), fr, TRUE, TRUE, 0);
 
     /* table (within that frame) */
-    (*tbl_info).table = gtk_table_new(0, 2, FALSE);
-    gtk_container_add(GTK_CONTAINER(fr), (*tbl_info).table);
+    (*tbl_info).grid = ws_gtk_grid_new();
+    gtk_container_add(GTK_CONTAINER(fr), (*tbl_info).grid);
     (*tbl_info).row_count = 0;
 }
 
@@ -576,7 +576,7 @@ gtk_sipstat_init(const char *opt_arg, void *userdata _U_)
     }
 
     /* Create sip stats window structure */
-    sp = g_malloc(sizeof(sipstat_t));
+    sp = (sipstat_t *)g_malloc(sizeof(sipstat_t));
     sp->win = dlg_window_new("sip-stat");  /* transient_for top_level */
     gtk_window_set_destroy_with_parent(GTK_WINDOW(sp->win), TRUE);
 
@@ -631,8 +631,8 @@ gtk_sipstat_init(const char *opt_arg, void *userdata _U_)
     gtk_container_add(GTK_CONTAINER(request_fr), sp->request_box);
 
     sp->average_setup_time = 0;
-    sp->max_setup_time =0;
-    sp->min_setup_time =0;
+    sp->max_setup_time = 0;
+    sp->min_setup_time = 0;
     sp->average_setup_time_label = gtk_label_new("(Not calculated)");
     gtk_box_pack_start(GTK_BOX(main_vb), sp->average_setup_time_label, TRUE, TRUE, 0);
     gtk_widget_show(sp->average_setup_time_label);
@@ -660,7 +660,7 @@ gtk_sipstat_init(const char *opt_arg, void *userdata _U_)
     bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
     gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 
-    bt_close = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    bt_close = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(sp->win, bt_close, window_cancel_button_cb);
 
     g_signal_connect(sp->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -692,7 +692,7 @@ static tap_param_dlg sip_stat_dlg = {
 void
 register_tap_listener_gtksipstat(void)
 {
-    register_dfilter_stat(&sip_stat_dlg, "_SIP", REGISTER_STAT_GROUP_TELEPHONY);
+    register_param_stat(&sip_stat_dlg, "_SIP", REGISTER_STAT_GROUP_TELEPHONY);
 }
 
 void

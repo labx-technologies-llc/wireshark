@@ -51,7 +51,7 @@ static int hf_radiotap_pad = -1;
 static int hf_radiotap_length = -1;
 static int hf_radiotap_present = -1;
 static int hf_radiotap_mactime = -1;
-static int hf_radiotap_channel = -1;
+/* static int hf_radiotap_channel = -1; */
 static int hf_radiotap_channel_frequency = -1;
 static int hf_radiotap_channel_flags = -1;
 static int hf_radiotap_channel_flags_turbo = -1;
@@ -278,9 +278,9 @@ static const int ieee80211_vht_bw2rate_index[] = {
 };
 
 struct mcs_vht_info {
-	char  *modulation;
-	char  *coding_rate;
-	float  rates[4][2];
+	const char *modulation;
+	const char *coding_rate;
+	float       rates[4][2];
 };
 
 static const struct mcs_vht_info ieee80211_vhtinfo[MAX_MCS_VHT_INDEX+1] = {
@@ -874,7 +874,7 @@ capture_radiotap(const guchar * pd, int offset, int len, packet_counts * ld)
 		ld->other++;
 		return;
 	}
-	hdr = (void *)pd;
+	hdr = (struct ieee80211_radiotap_header *)pd;
 	it_len = pletohs(&hdr->it_len);
 	if (!BYTES_ARE_IN_FRAME(offset, len, it_len)) {
 		ld->other++;
@@ -894,8 +894,8 @@ capture_radiotap(const guchar * pd, int offset, int len, packet_counts * ld)
 	}
 
 	present = pletohl(&hdr->it_present);
-	offset += sizeof(struct ieee80211_radiotap_header);
-	it_len -= sizeof(struct ieee80211_radiotap_header);
+	offset += (int)sizeof(struct ieee80211_radiotap_header);
+	it_len -= (int)sizeof(struct ieee80211_radiotap_header);
 
 	/* skip over other present bitmaps */
 	xpresent = present;
@@ -961,7 +961,7 @@ static void
 dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 {
 	proto_tree *radiotap_tree     = NULL;
-	proto_tree *pt, *present_tree = NULL;
+	proto_tree *pt = NULL, *present_tree = NULL;
 	proto_tree *ft;
 	proto_item *ti                = NULL;
 	proto_item *hidden_item;
@@ -1028,7 +1028,7 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 	if (!data)
 		return;
 
-	if (ieee80211_radiotap_iterator_init(&iter, data, length, NULL)) {
+	if (ieee80211_radiotap_iterator_init(&iter, (struct ieee80211_radiotap_header *)data, length, NULL)) {
 		if (tree)
 			proto_item_append_text(ti, " (invalid)");
 		/* maybe the length was correct anyway ... */
@@ -1075,8 +1075,13 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 			if ((bmap & (BIT(IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE) |
 				     BIT(IEEE80211_RADIOTAP_VENDOR_NAMESPACE)))
 				== (BIT(IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE) |
-				    BIT(IEEE80211_RADIOTAP_VENDOR_NAMESPACE)))
+				    BIT(IEEE80211_RADIOTAP_VENDOR_NAMESPACE))) {
+				expert_add_info_format(pinfo, pt, PI_MALFORMED,
+						       PI_ERROR,
+						       "Both radiotap and vendor namespace specified in bitmask word %u",
+						       i);
 				goto malformed;
+			}
 
 			if (!rtap_ns)
 				goto always_bits;
@@ -1155,7 +1160,7 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 			/* Check if Reserved/Not Defined is not "zero" */
 			if(bmap & IEEE80211_RADIOTAP_NOTDEFINED)
 			{
-				expert_add_info_format(pinfo,ti, PI_UNDECODED, PI_NOTE,
+				expert_add_info_format(pinfo, pt, PI_UNDECODED, PI_NOTE,
 				"Unknown Radiotap fields, code not implemented, "
 				"Please check radiotap documentation, "
 				"Contact Wireshark developers if you want this supported" );
@@ -1906,6 +1911,9 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 	}
 
 	if (err != -ENOENT && tree) {
+		expert_add_info_format(pinfo, pt, PI_MALFORMED,
+				       PI_ERROR,
+				       "Radiotap data goes past the end of the radiotap header");
  malformed:
 		proto_item_append_text(ti, " (malformed)");
 	}
@@ -2177,10 +2185,12 @@ void proto_register_radiotap(void)
 		  FT_UINT32, BASE_HEX, NULL, 0x0,
 		  "Frame check sequence of this frame", HFILL}},
 
+#if 0
 		{&hf_radiotap_channel,
 		 {"Channel", "radiotap.channel",
 		  FT_UINT32, BASE_DEC, NULL, 0x0,
 		  "802.11 channel number that this frame was sent/received on", HFILL}},
+#endif
 
 		{&hf_radiotap_channel_frequency,
 		 {"Channel frequency", "radiotap.channel.freq",

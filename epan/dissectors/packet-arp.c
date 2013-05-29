@@ -41,6 +41,9 @@
 #include <epan/prefs.h>
 #include <epan/expert.h>
 
+void proto_register_arp(void);
+void proto_reg_handoff_arp(void);
+
 static int proto_arp = -1;
 static int hf_arp_hard_type = -1;
 static int hf_arp_proto_type = -1;
@@ -67,8 +70,6 @@ static int hf_arp_dst_hw_mac = -1;
 static int hf_arp_dst_proto = -1;
 static int hf_arp_dst_proto_ipv4 = -1;
 static int hf_drarp_error_status = -1;
-static int hf_arp_packet_storm = -1;
-static int hf_arp_duplicate_ip_address = -1;
 static int hf_arp_duplicate_ip_address_earlier_frame = -1;
 static int hf_arp_duplicate_ip_address_seconds_since_earlier_frame = -1;
 
@@ -86,6 +87,9 @@ static gint ett_arp = -1;
 static gint ett_atmarp_nsap = -1;
 static gint ett_atmarp_tl = -1;
 static gint ett_arp_duplicate_address = -1;
+
+static expert_field ei_seq_arp_dup_ip = EI_INIT;
+static expert_field ei_seq_arp_storm = EI_INIT;
 
 static dissector_handle_t atmarp_handle;
 
@@ -398,7 +402,7 @@ atmarpnum_to_str(const guint8 *ad, int ad_tl)
     /*
      * I'm assuming this means it's an ASCII (IA5) string.
      */
-    cur = ep_alloc(MAX_E164_STR_LEN+3+1);
+    cur = (gchar *)ep_alloc(MAX_E164_STR_LEN+3+1);
     if (ad_len > MAX_E164_STR_LEN) {
       /* Can't show it all. */
       memcpy(cur, ad, MAX_E164_STR_LEN);
@@ -607,15 +611,15 @@ address_equal_func(gconstpointer v, gconstpointer v2)
 static guint
 duplicate_result_hash_func(gconstpointer v)
 {
-  duplicate_result_key *key = (duplicate_result_key*)v;
+  const duplicate_result_key *key = (const duplicate_result_key*)v;
   return (key->frame_number + key->ip_address);
 }
 
 static gint
 duplicate_result_equal_func(gconstpointer v, gconstpointer v2)
 {
-  duplicate_result_key *key1 = (duplicate_result_key*)v;
-  duplicate_result_key *key2 = (duplicate_result_key*)v2;
+  const duplicate_result_key *key1 = (const duplicate_result_key*)v;
+  const duplicate_result_key *key2 = (const duplicate_result_key*)v2;
 
   return (memcmp(key1, key2, sizeof(duplicate_result_key)) == 0);
 }
@@ -637,7 +641,7 @@ check_for_duplicate_addresses(packet_info *pinfo, proto_tree *tree,
 
   /* Look up existing result */
   if (pinfo->fd->flags.visited) {
-      result = g_hash_table_lookup(duplicate_result_hash_table,
+      result = (address_hash_value *)g_hash_table_lookup(duplicate_result_hash_table,
                                    &result_key);
   }
   else {
@@ -645,7 +649,7 @@ check_for_duplicate_addresses(packet_info *pinfo, proto_tree *tree,
          store result */
 
       /* Look up current assignment of IP address */
-      value = g_hash_table_lookup(address_hash_table, GUINT_TO_POINTER(ip));
+      value = (address_hash_value *)g_hash_table_lookup(address_hash_table, GUINT_TO_POINTER(ip));
 
       /* If MAC matches table, just update details */
       if (value != NULL)
@@ -661,10 +665,10 @@ check_for_duplicate_addresses(packet_info *pinfo, proto_tree *tree,
           else
           {
             /* Create result and store in result table */
-            duplicate_result_key *persistent_key = se_alloc(sizeof(duplicate_result_key));
+            duplicate_result_key *persistent_key = se_new(duplicate_result_key);
             memcpy(persistent_key, &result_key, sizeof(duplicate_result_key));
 
-            result = se_alloc(sizeof(address_hash_value));
+            result = se_new(address_hash_value);
             memcpy(result, value, sizeof(address_hash_value));
 
             g_hash_table_insert(duplicate_result_hash_table, persistent_key, result);
@@ -674,7 +678,7 @@ check_for_duplicate_addresses(packet_info *pinfo, proto_tree *tree,
       else
       {
         /* No existing entry. Prepare one */
-        value = se_alloc(sizeof(struct address_hash_value));
+        value = se_new(struct address_hash_value);
         memcpy(value->mac, mac, 6);
         value->frame_num = pinfo->fd->num;
         value->time_of_entry = pinfo->fd->abs_ts.secs;
@@ -689,8 +693,7 @@ check_for_duplicate_addresses(packet_info *pinfo, proto_tree *tree,
     proto_tree *duplicate_tree;
 
     /* Create subtree */
-    proto_item *ti = proto_tree_add_none_format(tree, hf_arp_duplicate_ip_address,
-                                                tvb, 0, 0,
+    proto_item *ti = proto_tree_add_text(tree, tvb, 0, 0,
                                                 "Duplicate IP address detected for %s (%s) - also in use by %s (frame %u)",
                                                 arpproaddr_to_str((guint8*)&ip, 4, ETHERTYPE_IP),
                                                 ether_to_str(mac),
@@ -703,8 +706,8 @@ check_for_duplicate_addresses(packet_info *pinfo, proto_tree *tree,
     ti = proto_tree_add_uint(duplicate_tree, hf_arp_duplicate_ip_address_earlier_frame,
                              tvb, 0, 0, result->frame_num);
     PROTO_ITEM_SET_GENERATED(ti);
-    expert_add_info_format(pinfo, ti,
-                           PI_SEQUENCE, PI_WARN,
+    expert_add_info_format_text(pinfo, ti,
+                           &ei_seq_arp_dup_ip,
                            "Duplicate IP address configured (%s)",
                            arpproaddr_to_str((guint8*)&ip, 4, ETHERTYPE_IP));
 
@@ -753,7 +756,7 @@ static void
 request_seen(packet_info *pinfo)
 {
   /* Don't count frame again after already recording first time around. */
-  if (p_get_proto_data(pinfo->fd, proto_arp) == 0)
+  if (p_get_proto_data(pinfo->fd, proto_arp, 0) == 0)
   {
     arp_request_count++;
   }
@@ -765,10 +768,10 @@ check_for_storm_count(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
   gboolean report_storm = FALSE;
 
-  if (p_get_proto_data(pinfo->fd, proto_arp) != 0)
+  if (p_get_proto_data(pinfo->fd, proto_arp, 0) != 0)
   {
     /* Read any previous stored packet setting */
-    report_storm = (p_get_proto_data(pinfo->fd, proto_arp) == (void*)STORM);
+    report_storm = (p_get_proto_data(pinfo->fd, proto_arp, 0) == (void*)STORM);
   }
   else
   {
@@ -784,7 +787,7 @@ check_for_storm_count(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       /* Time period elapsed without threshold being exceeded */
       arp_request_count = 1;
       time_at_start_of_count = pinfo->fd->abs_ts;
-      p_add_proto_data(pinfo->fd, proto_arp, (void*)NO_STORM);
+      p_add_proto_data(pinfo->fd, proto_arp, 0, (void*)NO_STORM);
       return;
     }
     else
@@ -792,27 +795,26 @@ check_for_storm_count(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       {
         /* Storm detected, record and reset start time. */
         report_storm = TRUE;
-        p_add_proto_data(pinfo->fd, proto_arp, (void*)STORM);
+        p_add_proto_data(pinfo->fd, proto_arp, 0, (void*)STORM);
         time_at_start_of_count = pinfo->fd->abs_ts;
       }
       else
       {
         /* Threshold not exceeded yet - no storm */
-        p_add_proto_data(pinfo->fd, proto_arp, (void*)NO_STORM);
+        p_add_proto_data(pinfo->fd, proto_arp, 0, (void*)NO_STORM);
       }
   }
 
   if (report_storm)
   {
     /* Report storm and reset counter */
-    proto_item *ti = proto_tree_add_none_format(tree, hf_arp_packet_storm, tvb, 0, 0,
+    proto_item *ti = proto_tree_add_text(tree, tvb, 0, 0,
                                                 "Packet storm detected (%u packets in < %u ms)",
                                                 global_arp_detect_request_storm_packets,
                                                 global_arp_detect_request_storm_period);
     PROTO_ITEM_SET_GENERATED(ti);
-
-    expert_add_info_format(pinfo, ti,
-                           PI_SEQUENCE, PI_NOTE,
+    expert_add_info_format_text(pinfo, ti,
+                           &ei_seq_arp_storm,
                            "ARP packet storm detected (%u packets in < %u ms)",
                            global_arp_detect_request_storm_packets,
                            global_arp_detect_request_storm_period);
@@ -1115,7 +1117,7 @@ dissect_atmarp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 
   if (tree) {
-    if ((op_str = match_strval(ar_op, atmop_vals)))
+    if ((op_str = try_val_to_str(ar_op, atmop_vals)))
       ti = proto_tree_add_protocol_format(tree, proto_arp, tvb, 0, tot_len,
                                           "ATM Address Resolution Protocol (%s)",
                                           op_str);
@@ -1355,7 +1357,7 @@ dissect_ax25arp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 
   if (tree) {
-    if ((op_str = match_strval(ar_op, op_vals)))  {
+    if ((op_str = try_val_to_str(ar_op, op_vals)))  {
       if (is_gratuitous && (ar_op == ARPOP_REQUEST))
         op_str = "request/gratuitous ARP";
       if (is_gratuitous && (ar_op == ARPOP_REPLY))
@@ -1554,7 +1556,8 @@ dissect_arp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         && ar_op != ARPOP_REQUEST)
     {
       add_ether_byip(ip, mac);
-      if (global_arp_detect_duplicate_ip_addresses)
+      /* If Gratuitous, don't report duplicate for same IP address twice */
+      if (global_arp_detect_duplicate_ip_addresses && (duplicate_ip!=ip))
       {
         duplicate_detected =
           check_for_duplicate_addresses(pinfo, tree, tvb, mac, ip,
@@ -1724,7 +1727,7 @@ dissect_arp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 
   if (tree) {
-    if ((op_str = match_strval(ar_op, op_vals)))  {
+    if ((op_str = try_val_to_str(ar_op, op_vals)))  {
       if (is_gratuitous && (ar_op == ARPOP_REQUEST))
         op_str = "request/gratuitous ARP";
       if (is_gratuitous && (ar_op == ARPOP_REPLY))
@@ -1962,16 +1965,6 @@ proto_register_arp(void)
         FT_UINT16,      BASE_DEC,      VALS(drarp_status),   0x0,
         NULL, HFILL }},
 
-    { &hf_arp_packet_storm,
-      { "Packet storm detected",        "arp.packet-storm-detected",
-        FT_NONE,        BASE_NONE,      NULL,   0x0,
-        NULL, HFILL }},
-
-    { &hf_arp_duplicate_ip_address,
-      { "Duplicate IP address detected",        "arp.duplicate-address-detected",
-        FT_NONE,        BASE_NONE,      NULL,   0x0,
-        NULL, HFILL }},
-
     { &hf_arp_duplicate_ip_address_earlier_frame,
       { "Frame showing earlier use of IP address",      "arp.duplicate-address-frame",
         FT_FRAMENUM,    BASE_NONE,      NULL,   0x0,
@@ -1991,12 +1984,21 @@ proto_register_arp(void)
     &ett_arp_duplicate_address
   };
 
+  static ei_register_info ei[] = {
+     { &ei_seq_arp_dup_ip, { "arp.duplicate-address-detected", PI_SEQUENCE, PI_WARN, "Duplicate IP address configured", EXPFILL }},
+     { &ei_seq_arp_storm, { "arp.packet-storm-detected", PI_SEQUENCE, PI_NOTE, "ARP packet storm detected", EXPFILL }},
+  };
+
   module_t *arp_module;
+  expert_module_t* expert_arp;
 
   proto_arp = proto_register_protocol("Address Resolution Protocol",
                                       "ARP/RARP", "arp");
   proto_register_field_array(proto_arp, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+
+  expert_arp = expert_register_protocol(proto_arp);
+  expert_register_field_array(expert_arp, ei, array_length(ei));
 
   atmarp_handle = create_dissector_handle(dissect_atmarp, proto_arp);
   ax25arp_handle = create_dissector_handle(dissect_ax25arp, proto_arp);

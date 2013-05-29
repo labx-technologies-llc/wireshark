@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-h450-ros.c                                                          */
 /* ../../tools/asn2wrs.py -p h450.ros -c ./h450-ros.cnf -s ./packet-h450-ros-template -D . -O ../../epan/dissectors ../ros/Remote-Operations-Information-Objects.asn Remote-Operations-Apdus.asn */
 
@@ -597,19 +597,19 @@ void proto_register_h450_ros(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h450_ros_invoke,
-      { "invoke", "h450.ros.invoke",
+      { "invoke", "h450.ros.invoke_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h450_ros_returnResult,
-      { "returnResult", "h450.ros.returnResult",
+      { "returnResult", "h450.ros.returnResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h450_ros_returnError,
-      { "returnError", "h450.ros.returnError",
+      { "returnError", "h450.ros.returnError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h450_ros_reject,
-      { "reject", "h450.ros.reject",
+      { "reject", "h450.ros.reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h450_ros_invokeIdConstrained,
@@ -633,7 +633,7 @@ void proto_register_h450_ros(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_h450_ros_result,
-      { "result", "h450.ros.result",
+      { "result", "h450.ros.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h450_ros_resultArgument,

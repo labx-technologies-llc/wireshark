@@ -62,8 +62,8 @@ static int hf_svcctl_service_type_win32_share_process = -1;
 static int hf_svcctl_service_type_interactive_process = -1;
 static int hf_svcctl_service_state = -1;
 static int hf_svcctl_buffer = -1;
-static int hf_svcctl_bytes_needed = -1;
-static int hf_svcctl_services_returned = -1;
+/* static int hf_svcctl_bytes_needed = -1; */
+/* static int hf_svcctl_services_returned = -1; */
 static int hf_svcctl_resume = -1;
 static int hf_svcctl_service_name = -1;
 static int hf_svcctl_display_name = -1;
@@ -212,7 +212,7 @@ svcctl_dissect_pointer_long(tvbuff_t *tvb, int offset,
 {
 	dcerpc_info *di;
 
-	di=pinfo->private_data;
+	di=(dcerpc_info *)pinfo->private_data;
         offset = dissect_ndr_uint32 (tvb, offset, pinfo, tree, drep,
                                      di->hf_index, NULL);
 	return offset;
@@ -261,7 +261,7 @@ svcctl_dissect_OpenSCManager_rqst(tvbuff_t *tvb, int offset,
 		dissect_ndr_char_cvstring, NDR_POINTER_UNIQUE,
 		"MachineName", hf_svcctl_machinename, cb_str_postprocess,
 		GINT_TO_POINTER(CB_STR_COL_INFO | CB_STR_SAVE | 1));
-	mn=dcv->private_data;
+	mn=(const char *)dcv->private_data;
 	if(!mn)
 		mn="";
 
@@ -272,7 +272,7 @@ svcctl_dissect_OpenSCManager_rqst(tvbuff_t *tvb, int offset,
 		dissect_ndr_char_cvstring, NDR_POINTER_UNIQUE,
 		"Database", hf_svcctl_database, cb_str_postprocess,
 		GINT_TO_POINTER(CB_STR_COL_INFO | 1));
-	dn=dcv->private_data;
+	dn=(const char *)dcv->private_data;
 	if(!dn)
 		dn="";
 
@@ -347,7 +347,7 @@ svcctl_dissect_OpenSCManagerW_rqst(tvbuff_t *tvb, int offset,
 		dissect_ndr_wchar_cvstring, NDR_POINTER_UNIQUE,
 		"MachineName", hf_svcctl_machinename, cb_wstr_postprocess,
 		GINT_TO_POINTER(CB_STR_COL_INFO | CB_STR_SAVE | 1));
-	mn=dcv->private_data;
+	mn=(const char *)dcv->private_data;
 	if(!mn)
 		mn="";
 
@@ -358,7 +358,7 @@ svcctl_dissect_OpenSCManagerW_rqst(tvbuff_t *tvb, int offset,
 		dissect_ndr_wchar_cvstring, NDR_POINTER_UNIQUE,
 		"Database", hf_svcctl_database, cb_wstr_postprocess,
 		GINT_TO_POINTER(CB_STR_COL_INFO | 1));
-	dn=dcv->private_data;
+	dn=(const char *)dcv->private_data;
 	if(!dn)
 		dn="";
 
@@ -959,12 +959,14 @@ proto_register_dcerpc_svcctl(void)
 	  { &hf_svcctl_buffer,
 	    { "Buffer", "svcctl.buffer", FT_UINT32, BASE_DEC,
 	      NULL, 0x0, "SVCCTL buffer", HFILL }},
+#if 0
 	  { &hf_svcctl_bytes_needed,
 	    { "Bytes Needed", "svcctl.bytes_needed", FT_UINT32, BASE_DEC,
 	      NULL, 0x0, "SVCCTL bytes needed", HFILL }},
 	  { &hf_svcctl_services_returned,
 	    { "Services Returned", "svcctl.services_returned", FT_UINT32, BASE_DEC,
 	      NULL, 0x0, "SVCCTL services returned", HFILL }},
+#endif
 	  { &hf_svcctl_service_name,
 	    { "Service Name", "svcctl.servicename", FT_STRING, BASE_NONE,
 	      NULL, 0x0, "SVCCTL name of service", HFILL }},

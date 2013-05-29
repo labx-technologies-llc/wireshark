@@ -178,7 +178,7 @@ dissect_spnego_krb5(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	guint16 token_id;
 	const char *oid;
 	tvbuff_t *krb5_tvb;
-	gint8 class;
+	gint8 ber_class;
 	gboolean pc, ind = 0;
 	gint32 tag;
 	guint32 len;
@@ -220,12 +220,12 @@ dissect_spnego_krb5(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/*
 	 * Get the first header ...
 	 */
-	get_ber_identifier(tvb, offset, &class, &pc, &tag);
-	if (class == BER_CLASS_APP && pc) {
+	get_ber_identifier(tvb, offset, &ber_class, &pc, &tag);
+	if (ber_class == BER_CLASS_APP && pc) {
 	    /*
 	     * [APPLICATION <tag>]
 	     */
-	    offset = dissect_ber_identifier(pinfo, subtree, tvb, offset, &class, &pc, &tag);
+	    offset = dissect_ber_identifier(pinfo, subtree, tvb, offset, &ber_class, &pc, &tag);
 	    offset = dissect_ber_length(pinfo, subtree, tvb, offset, &len, &ind);
 
 	    switch (tag) {
@@ -258,7 +258,7 @@ dissect_spnego_krb5(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	    default:
 		proto_tree_add_text(subtree, tvb, offset, 0,
 			"Unknown header (class=%d, pc=%d, tag=%d)",
-			class, pc, tag);
+			ber_class, pc, tag);
 		goto done;
 	    }
 	} else {
@@ -337,23 +337,23 @@ arcfour_mic_key(void *key_data, size_t key_size, int key_type,
 	memcpy(L40 + 10, T, sizeof(T));
 	md5_hmac(
                 L40, 14,
-                key_data,
+                (guint8 *)key_data,
                 key_size,
-	    	k5_data);
+	        k5_data);
 	memset(&k5_data[7], 0xAB, 9);
     } else {
 	md5_hmac(
                 T, 4,
-                key_data,
+                (guint8 *)key_data,
                 key_size,
-	    	k5_data);
+	        k5_data);
     }
 
     md5_hmac(
-	cksum_data, cksum_size,
-	k5_data,
+	(guint8 *)cksum_data, cksum_size,
+	(guint8 *)k5_data,
 	16,
-	key6_data);
+	(guint8 *)key6_data);
 
     return 0;
 }
@@ -402,9 +402,9 @@ arcfour_mic_cksum(guint8 *key_data, int key_length,
     t[2] = (rc4_usage >> 16) & 0xFF;
     t[3] = (rc4_usage >> 24) & 0xFF;
     md5_append(&ms, t, 4);
-    md5_append(&ms, v1, l1);
-    md5_append(&ms, v2, l2);
-    md5_append(&ms, v3, l3);
+    md5_append(&ms, (guint8 *)v1, l1);
+    md5_append(&ms, (guint8 *)v2, l2);
+    md5_append(&ms, (guint8 *)v3, l3);
     md5_finish(&ms, digest);
     md5_hmac(digest, 16, ksign_c, 16, cksum);
 
@@ -418,11 +418,11 @@ arcfour_mic_cksum(guint8 *key_data, int key_length,
  */
 static int
 gssapi_verify_pad(unsigned char *wrapped_data, int wrapped_length,
-		   size_t datalen,
-		   size_t *padlen)
+		   int datalen,
+		   int *padlen)
 {
     unsigned char *pad;
-    size_t padlength;
+    int padlength;
     int i;
 
     pad = wrapped_data + wrapped_length - 1;
@@ -449,14 +449,14 @@ decrypt_arcfour(packet_info *pinfo,
 {
     guint8 Klocaldata[16];
     int ret;
-    size_t datalen;
+    int datalen;
     guint8 k6_data[16];
     guint32 SND_SEQ[2];
     guint8 Confounder[8];
     guint8 cksum_data[8];
     int cmp;
     int conf_flag;
-    size_t padlen = 0;
+    int padlen = 0;
 
     datalen = tvb_length(pinfo->gssapi_encrypted_tvb);
 
@@ -592,12 +592,12 @@ decrypt_gssapi_krb_arcfour_wrap(proto_tree *tree, packet_info *pinfo, tvbuff_t *
 	/* XXX we should only do this for first time, then store somewhere */
 	/* XXX We also need to re-read the keytab when the preference changes */
 
-	cryptocopy=ep_alloc(length);
+	cryptocopy=(guint8 *)ep_alloc(length);
 	if(output_message_buffer){
 		g_free(output_message_buffer);
 		output_message_buffer=NULL;
 	}
-	output_message_buffer=g_malloc(length);
+	output_message_buffer=(guint8 *)g_malloc(length);
 
 	for(ek=enc_key_list;ek;ek=ek->next){
 		/* shortcircuit and bail out if enctypes are not matching */
@@ -652,7 +652,7 @@ rrc_rotate(void *data, int len, guint16 rrc, int unrotate)
 	if (rrc <= sizeof(buf)) {
 		tmp = buf;
 	} else {
-		tmp = g_malloc(rrc);
+		tmp = (unsigned char *)g_malloc(rrc);
 		if (tmp == NULL)
 			return -1;
 	}
@@ -702,7 +702,7 @@ decrypt_gssapi_krb_cfx_wrap(proto_tree *tree _U_,
 
 	datalen = tvb_length(checksum_tvb) + tvb_length(encrypted_tvb);
 
-	rotated = g_malloc(datalen);
+	rotated = (guint8 *)g_malloc(datalen);
 
 	tvb_memcpy(checksum_tvb, rotated,
 		   0, tvb_length(checksum_tvb));
@@ -726,7 +726,7 @@ decrypt_gssapi_krb_cfx_wrap(proto_tree *tree _U_,
 	if (output) {
 		guint8 *outdata;
 
-		outdata = g_memdup(output, tvb_length(encrypted_tvb));
+		outdata = (guint8 *)g_memdup(output, tvb_length(encrypted_tvb));
 		g_free(output);
 
 		pinfo->gssapi_decrypted_tvb=tvb_new_child_real_data(encrypted_tvb,
@@ -1273,7 +1273,7 @@ dissect_spnego(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	 * It has to be per-frame as there can be more than one GSS-API
 	 * negotiation in a conversation.
 	 */
-	next_level_value = p_get_proto_data(pinfo->fd, proto_spnego);
+	next_level_value = (gssapi_oid_value *)p_get_proto_data(pinfo->fd, proto_spnego, 0);
 	if (!next_level_value && !pinfo->fd->flags.visited) {
 	    /*
 	     * No handle attached to this frame, but it's the first
@@ -1286,10 +1286,10 @@ dissect_spnego(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 					     pinfo->destport, 0);
 
 	    if (conversation) {
-		next_level_value = conversation_get_proto_data(conversation,
+		next_level_value = (gssapi_oid_value *)conversation_get_proto_data(conversation,
 							       proto_spnego);
 		if (next_level_value)
-		    p_add_proto_data(pinfo->fd, proto_spnego, next_level_value);
+		    p_add_proto_data(pinfo->fd, proto_spnego, 0, next_level_value);
 	    }
 	}
 
@@ -1325,7 +1325,7 @@ dissect_spnego(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	 * as well. Naughty, naughty.
 	 *
 	 */
-	offset = dissect_spnego_NegotiationToken(FALSE, tvb, offset, &asn1_ctx, subtree, -1);
+	dissect_spnego_NegotiationToken(FALSE, tvb, offset, &asn1_ctx, subtree, -1);
 
 }
 

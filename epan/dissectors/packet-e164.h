@@ -27,6 +27,7 @@
 #define __PACKET_E164_H__
 
 #include <epan/value_string.h>
+#include "ws_symbol_export.h"
 
 extern const value_string E164_country_code_value[];
 extern const value_string E164_International_Networks_vals[];
@@ -40,12 +41,12 @@ typedef enum {
 typedef struct {
 	e164_number_type_t e164_number_type;
 	guint nature_of_address;
-	char *E164_number_str;		/* E164 number string */
+	const char *E164_number_str;	/* E164 number string */
 	guint E164_number_length;	/* Length of the E164_number string */
 } e164_info_t;
 
 
 extern void dissect_e164_number(tvbuff_t *tvb, proto_tree *tree, int offset, int length,
 											  e164_info_t e164_info);
-extern void dissect_e164_cc(tvbuff_t *tvb, proto_tree *tree, int offset, gboolean bcd_coded);
+WS_DLL_PUBLIC void dissect_e164_cc(tvbuff_t *tvb, proto_tree *tree, int offset, gboolean bcd_coded);
 #endif

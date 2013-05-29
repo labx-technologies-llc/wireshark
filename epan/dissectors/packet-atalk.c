@@ -45,9 +45,11 @@
 #include "packet-atalk.h"
 #include "packet-afp.h"
 
+void proto_register_atalk(void);
+void proto_reg_handoff_atalk(void);
+
 /* Tables for reassembly of fragments. */
-static GHashTable *atp_fragment_table = NULL;
-static GHashTable *atp_reassembled_table = NULL;
+static reassembly_table atp_reassembly_table;
 
 /* desegmentation of ATP */
 static gboolean atp_defragment = TRUE;
@@ -148,7 +150,7 @@ static int hf_zip_network = -1;
 static int hf_zip_network_start = -1;
 static int hf_zip_network_end = -1;
 
-static int hf_zip_flags = -1;
+/* static int hf_zip_flags = -1; */
 
 static int hf_zip_flags_zone_invalid  = -1;
 static int hf_zip_flags_use_broadcast = -1;
@@ -818,10 +820,10 @@ dissect_atp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
          we have both a request for 1 packet and a request for n packets,
          hopefully most of the time ATP_EOM will be set in the last packet.
       */
-      new_request_key = se_alloc(sizeof(asp_request_key));
+      new_request_key = se_new(asp_request_key);
       *new_request_key = request_key;
 
-      request_val = se_alloc(sizeof(asp_request_val));
+      request_val = se_new(asp_request_val);
       request_val->value = nbe;
 
       g_hash_table_insert(atp_request_hash, new_request_key,request_val);
@@ -893,9 +895,8 @@ dissect_atp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     if (frag_number != 0)
       hdr += 4; /* asp header */
     len = tvb_reported_length_remaining(tvb, hdr);
-    fd_head = fragment_add_seq_check(tvb, hdr, pinfo, tid,
-                                     atp_fragment_table,
-                                     atp_reassembled_table,
+    fd_head = fragment_add_seq_check(&atp_reassembly_table,
+                                     tvb, hdr, pinfo, tid, NULL,
                                      frag_number,
                                      len,
                                      more_fragment);
@@ -1270,7 +1271,7 @@ dissect_pap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 static struct aspinfo *
 get_transaction(tvbuff_t *tvb, packet_info *pinfo)
 {
-  struct aspinfo  *aspinfo = pinfo->private_data;
+  struct aspinfo  *aspinfo = (struct aspinfo *)pinfo->private_data;
   conversation_t  *conversation;
   asp_request_key  request_key, *new_request_key;
   asp_request_val *request_val;
@@ -1292,10 +1293,10 @@ get_transaction(tvbuff_t *tvb, packet_info *pinfo)
   request_val = (asp_request_val *) g_hash_table_lookup(asp_request_hash, &request_key);
   if (!request_val && !aspinfo->reply )  {
     fn = tvb_get_guint8(tvb, 0);
-    new_request_key = se_alloc(sizeof(asp_request_key));
+    new_request_key = se_new(asp_request_key);
     *new_request_key = request_key;
 
-    request_val = se_alloc(sizeof(asp_request_val));
+    request_val = se_new(asp_request_val);
     request_val->value = fn;
 
     g_hash_table_insert(asp_request_hash, new_request_key, request_val);
@@ -1861,8 +1862,8 @@ static void
 atp_init(void)
 {
   /* fragment */
-  fragment_table_init(&atp_fragment_table);
-  reassembled_table_init(&atp_reassembled_table);
+  reassembly_table_init(&atp_reassembly_table,
+                        &addresses_reassembly_table_functions);
   /* bitmap */
   if (atp_request_hash)
     g_hash_table_destroy(atp_request_hash);
@@ -2279,9 +2280,11 @@ proto_register_atalk(void)
       { "Network end",  "zip.network_end", FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
 
+#if 0
     { &hf_zip_flags,
       { "Flags",        "zip.flags", FT_BOOLEAN, 8, NULL, 0xC0,
         NULL, HFILL }},
+#endif
 
     { &hf_zip_last_flag,
       { "Last Flag",    "zip.last_flag", FT_BOOLEAN, BASE_NONE, NULL, 0x0,

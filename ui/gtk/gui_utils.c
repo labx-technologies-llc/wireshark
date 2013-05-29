@@ -50,25 +50,17 @@
 #include "ui/gtk/gtkglobals.h"
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/font_utils.h"
+#include "ui/gtk/color_utils.h"
 
 #include "ui/gtk/old-gtk-compat.h"
 
-#include "image/wsicon16.xpm"
-#include "image/wsicon32.xpm"
-#include "image/wsicon48.xpm"
-#include "image/wsicon64.xpm"
+#include "ui/gtk/wsicon.h"
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
 #define WINDOW_GEOM_KEY "window_geom"
-
-
-/* load the geometry values for a window from previously saved values */
-static gboolean window_geom_load(const gchar *name, window_geometry_t *geom);
-
-
 
 /* Set our window icon.  The GDK documentation doesn't provide any
    actual documentation for gdk_window_set_icon(), so we'll steal
@@ -121,13 +113,13 @@ window_icon_realize_cb(GtkWidget *win,
     GList     *ws_icon_list = NULL;
     GdkPixbuf *icon;
 
-    icon = gdk_pixbuf_new_from_xpm_data((const char **)wsicon16_xpm);
+    icon = gdk_pixbuf_new_from_inline(-1, wsicon_16_pb_data, FALSE, NULL);
     ws_icon_list = g_list_append(ws_icon_list, icon);
-    icon = gdk_pixbuf_new_from_xpm_data((const char **)wsicon32_xpm);
+    icon = gdk_pixbuf_new_from_inline(-1, wsicon_32_pb_data, FALSE, NULL);
     ws_icon_list = g_list_append(ws_icon_list, icon);
-    icon = gdk_pixbuf_new_from_xpm_data((const char **)wsicon48_xpm);
+    icon = gdk_pixbuf_new_from_inline(-1, wsicon_48_pb_data, FALSE, NULL);
     ws_icon_list = g_list_append(ws_icon_list, icon);
-    icon = gdk_pixbuf_new_from_xpm_data((const char **)wsicon64_xpm);
+    icon = gdk_pixbuf_new_from_inline(-1, wsicon_64_pb_data, FALSE, NULL);
     ws_icon_list = g_list_append(ws_icon_list, icon);
 
     gtk_window_set_icon_list(GTK_WINDOW(win), ws_icon_list);
@@ -247,7 +239,7 @@ window_present(GtkWidget *win)
     gtk_window_present(GTK_WINDOW(win));
 
     /* do we have a previously saved size and position of this window? */
-    name = g_object_get_data(G_OBJECT(win), WINDOW_GEOM_KEY);
+    name = (const gchar *)g_object_get_data(G_OBJECT(win), WINDOW_GEOM_KEY);
     if(name) {
         if(window_geom_load(name, &geom)) {
             /* XXX - use prefs to select which values to set? */
@@ -377,7 +369,7 @@ window_get_geometry(GtkWidget         *widget,
                           &geom->height);
 #endif
     state = gdk_window_get_state(widget_window);
-    geom->maximized = (state == GDK_WINDOW_STATE_MAXIMIZED);
+    geom->maximized = ((state & GDK_WINDOW_STATE_MAXIMIZED) != 0);
 }
 
 
@@ -433,134 +425,6 @@ window_set_geometry(GtkWidget         *widget,
     }
 }
 
-
-/* the geometry hashtable for all known window classes,
- * the window name is the key, and the geometry struct is the value */
-static GHashTable *window_geom_hash = NULL;
-
-
-/* save the window and it's current geometry into the geometry hashtable */
-static void
-window_geom_save(const gchar *name, window_geometry_t *geom)
-{
-    gchar *key;
-    window_geometry_t *work;
-
-    /* init hashtable, if not already done */
-    if(!window_geom_hash) {
-        window_geom_hash = g_hash_table_new(g_str_hash, g_str_equal);
-    }
-    /* if we have an old one, remove and free it first */
-    work = g_hash_table_lookup(window_geom_hash, name);
-    if(work) {
-        g_hash_table_remove(window_geom_hash, name);
-        g_free(work->key);
-        g_free(work);
-    }
-
-    /* g_malloc and insert the new one */
-    work = g_malloc(sizeof(*geom));
-    *work = *geom;
-    key = g_strdup(name);
-    work->key = key;
-    g_hash_table_insert(window_geom_hash, key, work);
-}
-
-
-/* load the desired geometry for this window from the geometry hashtable */
-static gboolean
-window_geom_load(const gchar       *name,
-                 window_geometry_t *geom)
-{
-    window_geometry_t *p;
-
-    /* init hashtable, if not already done */
-    if(!window_geom_hash) {
-        window_geom_hash = g_hash_table_new(g_str_hash, g_str_equal);
-    }
-
-    p = g_hash_table_lookup(window_geom_hash, name);
-    if(p) {
-        *geom = *p;
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
-
-
-/* read in a single key value pair from the recent file into the geometry hashtable */
-void
-window_geom_recent_read_pair(const char *name,
-                             const char *key,
-                             const char *value)
-{
-    window_geometry_t geom;
-
-
-    /* find window geometry maybe already in hashtable */
-    if(!window_geom_load(name, &geom)) {
-        /* not in table, init geom with "basic" values */
-        geom.key        = NULL;    /* Will be set in window_geom_save() */
-        geom.set_pos    = FALSE;
-        geom.x          = -1;
-        geom.y          = -1;
-        geom.set_size   = FALSE;
-        geom.width      = -1;
-        geom.height     = -1;
-
-        geom.set_maximized = FALSE;/* this is valid in GTK2 only */
-        geom.maximized  = FALSE;   /* this is valid in GTK2 only */
-    }
-
-    if (strcmp(key, "x") == 0) {
-        geom.x = strtol(value, NULL, 10);
-        geom.set_pos = TRUE;
-    } else if (strcmp(key, "y") == 0) {
-        geom.y = strtol(value, NULL, 10);
-        geom.set_pos = TRUE;
-    } else if (strcmp(key, "width") == 0) {
-        geom.width = strtol(value, NULL, 10);
-        geom.set_size = TRUE;
-    } else if (strcmp(key, "height") == 0) {
-        geom.height = strtol(value, NULL, 10);
-        geom.set_size = TRUE;
-    } else if (strcmp(key, "maximized") == 0) {
-        if (g_ascii_strcasecmp(value, "true") == 0) {
-            geom.maximized = TRUE;
-        }
-        else {
-            geom.maximized = FALSE;
-        }
-        geom.set_maximized = TRUE;
-    } else {
-        /*
-         * Silently ignore the bogus key.  We shouldn't abort here,
-         * as this could be due to a corrupt recent file.
-         *
-         * XXX - should we print a message about this?
-         */
-        return;
-    }
-
-    /* save / replace geometry in hashtable */
-    window_geom_save(name, &geom);
-}
-
-
-/* write all geometry values of all windows from the hashtable to the recent file */
-void
-window_geom_recent_write_all(gpointer rf)
-{
-    /* init hashtable, if not already done */
-    if(!window_geom_hash) {
-        window_geom_hash = g_hash_table_new(g_str_hash, g_str_equal);
-    }
-
-    g_hash_table_foreach(window_geom_hash, write_recent_geom, rf);
-}
-
-
 void
 window_destroy(GtkWidget *win)
 {
@@ -577,7 +441,7 @@ window_destroy(GtkWidget *win)
     if(gtk_widget_get_has_window(win) && gtk_widget_get_visible(win)) {
         window_get_geometry(win, &geom);
 
-        name = g_object_get_data(G_OBJECT(win), WINDOW_GEOM_KEY);
+        name = (const gchar *)g_object_get_data(G_OBJECT(win), WINDOW_GEOM_KEY);
         if(name) {
             window_geom_save(name, &geom);
             g_free((gpointer)name);
@@ -586,26 +450,6 @@ window_destroy(GtkWidget *win)
 
     gtk_widget_destroy(win);
 }
-
-#if 0
-/* Do we need this one ? */
-/* convert an xpm to a GtkWidget, using the window settings from it's parent */
-/* (be sure that the parent window is already being displayed) */
-GtkWidget *
-xpm_to_widget_from_parent(GtkWidget   *parent,
-                          const char **xpm)
-{
-    GdkPixbuf *pixbuf;
-    GdkPixmap *pixmap;
-    GdkBitmap *bitmap;
-
-
-    pixbuf = gdk_pixbuf_new_from_xpm_data(xpm);
-    gdk_pixbuf_render_pixmap_and_mask_for_colormap(pixbuf, gtk_widget_get_colormap(parent), &pixmap, &bitmap, 128);
-
-    return gtk_image_new_from_pixmap(pixmap, bitmap);
-}
-#endif
 
 static GtkWidget *
 _gtk_image_new_from_pixbuf_unref(GdkPixbuf *pixbuf) {
@@ -789,7 +633,7 @@ pipe_input_cb(GIOChannel   *source _U_,
               GIOCondition  condition _U_,
               gpointer      data)
 {
-    pipe_input_t *pipe_input = data;
+    pipe_input_t *pipe_input = (pipe_input_t *)data;
 
 
     /* avoid reentrancy problems and stack overflow */
@@ -799,7 +643,7 @@ pipe_input_cb(GIOChannel   *source _U_,
         /* restore pipe handler */
         pipe_input->pipe_input_id = g_io_add_watch_full(pipe_input->channel,
                                                         G_PRIORITY_HIGH,
-                                                        G_IO_IN|G_IO_ERR|G_IO_HUP,
+                                                        (GIOCondition)(G_IO_IN|G_IO_ERR|G_IO_HUP),
                                                         pipe_input_cb,
                                                         pipe_input,
                                                         NULL);
@@ -834,7 +678,7 @@ pipe_input_set_handler(gint             source,
     g_io_channel_set_encoding(pipe_input.channel, NULL, NULL);
     pipe_input.pipe_input_id = g_io_add_watch_full(pipe_input.channel,
                                                    G_PRIORITY_HIGH,
-                                                   G_IO_IN|G_IO_ERR|G_IO_HUP,
+                                                   (GIOCondition)(G_IO_IN|G_IO_ERR|G_IO_HUP),
                                                    pipe_input_cb,
                                                    &pipe_input,
                                                    NULL);
@@ -880,7 +724,6 @@ static GList *scrolled_windows;
 
 static void setup_scrolled_window(GtkWidget *scrollw);
 static void forget_scrolled_window(GtkWidget *scrollw, gpointer data);
-static void set_scrollbar_placement_scrollw(GtkWidget *scrollw);
 
 /* Create a GtkScrolledWindow, set its scrollbar placement appropriately,
    and remember it. */
@@ -900,8 +743,6 @@ scrolled_window_new(GtkAdjustment *hadjustment,
 static void
 setup_scrolled_window(GtkWidget *scrollw)
 {
-    set_scrollbar_placement_scrollw(scrollw);
-
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrollw),
                                    GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
 
@@ -918,35 +759,6 @@ forget_scrolled_window(GtkWidget *scrollw,
                        gpointer   data _U_)
 {
     scrolled_windows = g_list_remove(scrolled_windows, scrollw);
-}
-
-/* Set the scrollbar placement of a GtkScrolledWindow based upon user
-   preference. */
-static void
-set_scrollbar_placement_scrollw(GtkWidget *scrollw)
-{
-    if (prefs.gui_scrollbar_on_right) {
-        gtk_scrolled_window_set_placement(GTK_SCROLLED_WINDOW(scrollw),
-                                          GTK_CORNER_TOP_LEFT);
-    } else {
-        gtk_scrolled_window_set_placement(GTK_SCROLLED_WINDOW(scrollw),
-                                          GTK_CORNER_TOP_RIGHT);
-    }
-}
-
-static void
-set_scrollbar_placement_cb(gpointer data,
-                           gpointer user_data _U_)
-{
-    set_scrollbar_placement_scrollw((GtkWidget *)data);
-}
-
-/* Set the scrollbar placement of all GtkScrolledWindows based on
-   user preference. */
-void
-set_scrollbar_placement_all(void)
-{
-    g_list_foreach(scrolled_windows, set_scrollbar_placement_cb, NULL);
 }
 
 /* List of all CTrees/TreeViews, so we can globally set the line and
@@ -1204,9 +1016,7 @@ static void
 copy_binary_free_cb(GtkClipboard  *clipboard _U_,
                          gpointer  user_data_or_owner)
 {
-    copy_binary_t* copy_data;
-    copy_data = user_data_or_owner;
-    destroy_copy_binary_t(copy_data);
+    destroy_copy_binary_t((copy_binary_t*)user_data_or_owner);
 }
 
 static void
@@ -1217,7 +1027,7 @@ copy_binary_get_cb(GtkClipboard     *clipboard _U_,
 {
     copy_binary_t* copy_data;
 
-    copy_data = user_data_or_owner;
+    copy_data = (copy_binary_t*)user_data_or_owner;
 
     /* Just do a dumb set as binary data */
     gtk_selection_data_set(selection_data, GDK_NONE, 8, copy_data->data, copy_data->len);
@@ -1228,10 +1038,11 @@ copy_binary_to_clipboard(const guint8 *data_p,
                          int           len)
 {
     static GtkTargetEntry target_entry[] = {
-         {"application/octet_stream", 0, 0}}; /* XXX - this not understood by most applications,
-                                             * but can be pasted into the better hex editors - is
-                                             * there something better that we can do?
-                                             */
+         {(char *)"application/octet-stream", 0, 0}};
+	     /* XXX - this is not understood by most applications,
+              * but can be pasted into the better hex editors - is
+              * there something better that we can do?
+              */
 
     GtkClipboard  *cb;
     copy_binary_t *copy_data;
@@ -1410,7 +1221,7 @@ switch_to_fixed_col(GtkTreeView *view)
     columns = gtk_tree_view_get_columns(GTK_TREE_VIEW(view));
     list = columns;
     while(columns) {
-        column = columns->data;
+        column = (GtkTreeViewColumn *)columns->data;
         size = gtk_tree_view_column_get_width(column);
         gtk_tree_view_column_set_sizing(column,GTK_TREE_VIEW_COLUMN_FIXED);
         if (size > gtk_tree_view_column_get_fixed_width(column))
@@ -1441,7 +1252,7 @@ get_default_col_size(GtkWidget   *view,
 
 /*
  * This function can be called from gtk_tree_view_column_set_cell_data_func()
- * the user data must be the colum number.
+ * the user data must be the column number.
  * Present floats with two decimals
  */
 void
@@ -1476,7 +1287,7 @@ float_data_func(GtkTreeViewColumn *column _U_,
 
 /*
  * This function can be called from gtk_tree_view_column_set_cell_data_func()
- * the user data must be the colum number.
+ * the user data must be the column number.
  * Present value as hexadecimal.
  */
 void
@@ -1930,7 +1741,7 @@ gdk_pixbuf_get_from_surface(cairo_surface_t *surface,
     g_return_val_if_fail(surface != NULL, NULL);
     g_return_val_if_fail(width > 0 && height > 0, NULL);
 
-    content = cairo_surface_get_content(surface) | CAIRO_CONTENT_COLOR;
+    content = (cairo_content_t)(cairo_surface_get_content(surface) | CAIRO_CONTENT_COLOR);
     dest    = gdk_pixbuf_new(GDK_COLORSPACE_RGB,
                              !!(content & CAIRO_CONTENT_ALPHA),
                              8,
@@ -2028,5 +1839,110 @@ gtk_separator_new(GtkOrientation orientation)
     } else {
         return gtk_vseparator_new();
     }
+}
+#endif /* GTK_CHECK_VERSION(3,0,0) */
+
+GtkWidget *
+frame_new(const gchar *title) {
+    GtkWidget *frame, *frame_lb;
+    GString *mu_title = g_string_new("");
+
+    frame = gtk_frame_new(NULL);
+    gtk_frame_set_shadow_type(GTK_FRAME(frame), GTK_SHADOW_NONE);
+    if (title) {
+#if defined(_WIN32) || defined(__APPLE__)
+        g_string_printf(mu_title, "%s", title);
+#else
+        g_string_printf(mu_title, "<b>%s</b>", title);
+#endif
+        frame_lb = gtk_label_new(NULL);
+        gtk_label_set_markup(GTK_LABEL(frame_lb), mu_title->str);
+        gtk_frame_set_label_widget(GTK_FRAME(frame), frame_lb);
+    }
+    g_string_free(mu_title, TRUE);
+
+    return frame;
+}
+
+
+/* ---------------------------------
+ * ws_gtk_grid...() wrappers
+ * See gui_utils.h
+ */
+
+#if !GTK_CHECK_VERSION(3,0,0)
+#else  /* GTK3 */
+
+void
+ws_gtk_grid_attach_defaults(GtkGrid *grid, GtkWidget *child, gint left, gint top, gint width, gint height)
+{
+    /* Use defaults for [x|y]options and [x|y]padding which match those for gtk_table_attach_defaults() */
+    ws_gtk_grid_attach_extended(grid, child, left, top, width, height,
+          (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), 0, 0);
+}
+
+void
+ws_gtk_grid_attach_extended(GtkGrid *grid, GtkWidget *child,
+                            gint left, gint top, gint width, gint height,
+                            GtkAttachOptions xoptions, GtkAttachOptions yoptions,
+                            guint xpadding, guint ypadding)
+{
+    gtk_grid_attach(grid, child, left, top, width, height);
+
+    /* XXX: On Gtk3, there's Some trickyness about EXPAND which I probably don't
+     *      really understand.
+     *      It seems that:
+     *       Default for EXPAND is "not set".
+     *         In this case "computed expand" based on any child(ren) of this widget will
+     *         affect this widget.
+     *       If EXPAND is set (either TRUE or FALSE) then the value overrides any effect
+     *         from children.
+     */
+
+    /* Note: widget defaults are FALSE  */
+    if (xoptions & GTK_EXPAND)
+        gtk_widget_set_hexpand(child, TRUE);
+    if (yoptions & GTK_EXPAND)
+        gtk_widget_set_vexpand(child, TRUE);
+
+    /* Note: widget default is GTK_FILL */
+    /* XXX: Is an  'align' ignored if the corresponding 'fill; is FALSE ? */
+    /* XXX: don't set FILL(since is dedault) but just clear if not set ?? */
+    /*      ToDo: review effect of explicit set/clear vs explict clear only */
+    gtk_widget_set_halign(child, (xoptions & GTK_FILL) ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(child, (yoptions & GTK_FILL) ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER);
+
+    if (xpadding != 0) {
+        gtk_widget_set_margin_left(child, xpadding);
+        gtk_widget_set_margin_right(child, xpadding);
+    }
+    if (ypadding != 0) {
+        gtk_widget_set_margin_top(child, ypadding);
+        gtk_widget_set_margin_bottom(child, ypadding);
+    }
+}
+
+void
+ws_gtk_grid_set_homogeneous(GtkGrid *grid, gboolean homogeneous)
+{
+    gtk_grid_set_row_homogeneous(grid, homogeneous);
+    gtk_grid_set_column_homogeneous(grid, homogeneous);
+}
+#endif /* !GTK_CHECK_VERSION(3,0,0) */
+
+/*
+ * Wrap gdk_cairo_set_source_color() with the GTK 3 equivalent
+ * to be used in GTK2
+ */
+#if !GTK_CHECK_VERSION(3,0,0)
+void
+gdk_cairo_set_source_rgba(cairo_t *cr, const GdkRGBA *rgba)
+{
+	GdkColor color;
+
+	gdkRGBAcolor_to_GdkColor(&color, rgba);
+
+	gdk_cairo_set_source_color(cr, &color);
+
 }
 #endif /* GTK_CHECK_VERSION(3,0,0) */

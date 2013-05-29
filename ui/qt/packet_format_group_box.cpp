@@ -1,8 +1,30 @@
+/* packet_format_group_box.cpp
+ *
+ * $Id$
+ *
+ * Wireshark - Network traffic analyzer
+ * By Gerald Combs <gerald@wireshark.org>
+ * Copyright 1998 Gerald Combs
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
 #include "packet_format_group_box.h"
 #include "ui_packet_format_group_box.h"
 
 #include <QStyle>
-#include <QDebug>
 
 PacketFormatGroupBox::PacketFormatGroupBox(QWidget *parent) :
     QGroupBox(parent),
@@ -10,11 +32,13 @@ PacketFormatGroupBox::PacketFormatGroupBox(QWidget *parent) :
 {
     pf_ui_->setupUi(this);
 
+    QStyleOption style_opt;
+    int cb_label_offset =  pf_ui_->detailsCheckBox->style()->subElementRect(QStyle::SE_CheckBoxContents, &style_opt).left();
     setStyleSheet(QString(
                       "QRadioButton {"
                       "  padding-left: %1px;"
                       "}"
-                      ).arg(style()->pixelMetric(QStyle::PM_LayoutLeftMargin)));
+                      ).arg(cb_label_offset));
 }
 
 PacketFormatGroupBox::~PacketFormatGroupBox()

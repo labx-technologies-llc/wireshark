@@ -87,8 +87,8 @@ static int hf_iuup_errorevt_cause_val = -1;
 static int hf_iuup_time_align = -1;
 static int hf_iuup_spare_bytes = -1;
 static int hf_iuup_spare_03 = -1;
-static int hf_iuup_spare_0f = -1;
-static int hf_iuup_spare_c0 = -1;
+/* static int hf_iuup_spare_0f = -1; */
+/* static int hf_iuup_spare_c0 = -1; */
 static int hf_iuup_spare_e0 = -1;
 static int hf_iuup_spare_ff = -1;
 
@@ -146,6 +146,9 @@ static gint ett_time = -1;
 static gint ett_rfciinds = -1;
 static gint ett_payload = -1;
 static gint ett_payload_subflows = -1;
+
+static expert_field ei_iuup_hdr_crc_bad = EI_INIT;
+static expert_field ei_iuup_payload_crc_bad = EI_INIT;
 
 static GHashTable* circuits = NULL;
 
@@ -324,7 +327,7 @@ iuup_proto_tree_add_bits(proto_tree* tree, int hf, tvbuff_t* tvb, int offset, in
 
     DISSECTOR_ASSERT(bit_offset < 8);
 
-    shifted_buffer = ep_tvb_memdup(tvb,offset,len+1);
+    shifted_buffer = (guint8 *)ep_tvb_memdup(tvb,offset,len+1);
 
     for(i = 0; i < len; i++) {
         shifted_buffer[i] <<= bit_offset;
@@ -355,7 +358,7 @@ static void dissect_iuup_payload(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tr
     if ( ! dissect_fields ) {
         return;
     } else if ( ! pinfo->circuit_id
-                || ! ( iuup_circuit  = g_hash_table_lookup(circuits,GUINT_TO_POINTER(pinfo->circuit_id)) ) ) {
+                || ! ( iuup_circuit  = (iuup_circuit_t *)g_hash_table_lookup(circuits,GUINT_TO_POINTER(pinfo->circuit_id)) ) ) {
         proto_item_set_expert_flags(pi, PI_UNDECODED, PI_WARN);
         return;
     }
@@ -409,7 +412,7 @@ static guint dissect_rfcis(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tree* tr
     guint i;
 
     do {
-        iuup_rfci_t *rfci = se_alloc0(sizeof(iuup_rfci_t));
+        iuup_rfci_t *rfci = se_new0(iuup_rfci_t);
         guint len = 0;
 
         DISSECTOR_ASSERT(c < 64);
@@ -474,15 +477,15 @@ static void dissect_iuup_init(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tre
     iuup_circuit_t* iuup_circuit = NULL;
 
     if (pinfo->circuit_id) {
-        iuup_circuit = g_hash_table_lookup(circuits,GUINT_TO_POINTER(pinfo->circuit_id));
+        iuup_circuit = (iuup_circuit_t *)g_hash_table_lookup(circuits,GUINT_TO_POINTER(pinfo->circuit_id));
 
         if (iuup_circuit) {
             g_hash_table_remove(circuits,GUINT_TO_POINTER(pinfo->circuit_id));
         }
 
-        iuup_circuit = se_alloc0(sizeof(iuup_circuit_t));
+        iuup_circuit = se_new0(iuup_circuit_t);
     } else {
-        iuup_circuit = ep_alloc0(sizeof(iuup_circuit_t));
+        iuup_circuit = ep_new0(iuup_circuit_t);
     }
 
     iuup_circuit->id = pinfo->circuit_id;
@@ -563,7 +566,7 @@ static void add_hdr_crc(tvbuff_t* tvb, packet_info* pinfo, proto_item* iuup_tree
     crc_item = proto_tree_add_item(iuup_tree,hf_iuup_hdr_crc,tvb,2,1,ENC_BIG_ENDIAN);
     if (crccheck) {
         proto_item_append_text(crc_item, "%s", " [incorrect]");
-        expert_add_info_format(pinfo, crc_item, PI_CHECKSUM, PI_ERROR, "Bad checksum");
+        expert_add_info(pinfo, crc_item, &ei_iuup_hdr_crc_bad);
     }
 }
 
@@ -577,7 +580,7 @@ static void add_payload_crc(tvbuff_t* tvb, packet_info* pinfo, proto_item* iuup_
     crc_item = proto_tree_add_item(iuup_tree,hf_iuup_payload_crc,tvb,2,2,ENC_BIG_ENDIAN);
     if (crccheck) {
         proto_item_append_text(crc_item, "%s", " [incorrect]");
-        expert_add_info_format(pinfo, crc_item, PI_CHECKSUM, PI_ERROR, "Bad checksum");
+        expert_add_info(pinfo, crc_item, &ei_iuup_payload_crc_bad);
     }
 }
 
@@ -905,8 +908,12 @@ void proto_register_iuup(void) {
         { &hf_iuup_data_pdu_type, { "RFCI Data Pdu Type", "iuup.data_pdu_type", FT_UINT8, BASE_HEX, VALS(iuup_payload_pdu_type),0xF0,NULL,HFILL}},
 
         { &hf_iuup_spare_03, { "Spare", "iuup.spare", FT_UINT8, BASE_HEX, NULL,0x03,NULL,HFILL}},
+#if 0
         { &hf_iuup_spare_0f, { "Spare", "iuup.spare", FT_UINT8, BASE_HEX, NULL,0x0f,NULL,HFILL}},
+#endif
+#if 0
         { &hf_iuup_spare_c0, { "Spare", "iuup.spare", FT_UINT8, BASE_HEX, NULL,0xc0,NULL,HFILL}},
+#endif
         { &hf_iuup_spare_e0, { "Spare", "iuup.spare", FT_UINT8, BASE_HEX, NULL,0xe0,NULL,HFILL}},
         { &hf_iuup_spare_ff, { "Spare", "iuup.spare", FT_UINT8, BASE_HEX, NULL,0xff,NULL,HFILL}},
         { &hf_iuup_spare_bytes, { "Spare", "iuup.spare_bytes", FT_BYTES, BASE_NONE, NULL,0x0,NULL,HFILL}},
@@ -966,12 +973,19 @@ void proto_register_iuup(void) {
         &ett_payload_subflows
     };
 
-    module_t* iuup_module;
+    static ei_register_info ei[] = {
+        { &ei_iuup_hdr_crc_bad, { "iuup.hdr.crc.bad", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+        { &ei_iuup_payload_crc_bad, { "iuup.payload.crc.bad", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+    };
 
+    module_t *iuup_module;
+    expert_module_t* expert_iuup;
 
     proto_iuup = proto_register_protocol("IuUP", "IuUP", "iuup");
     proto_register_field_array(proto_iuup, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_iuup = expert_register_protocol(proto_iuup);
+    expert_register_field_array(expert_iuup, ei, array_length(ei));
     register_dissector("iuup", dissect_iuup, proto_iuup);
     register_dissector("find_iuup", find_iuup, proto_iuup);
 

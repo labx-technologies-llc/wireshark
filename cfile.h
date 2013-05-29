@@ -43,9 +43,9 @@ typedef enum {
 
 /* Character set for text search. */
 typedef enum {
-  SCS_ASCII_AND_UNICODE,
-  SCS_ASCII,
-  SCS_UNICODE
+  SCS_NARROW_AND_WIDE,
+  SCS_NARROW,
+  SCS_WIDE
   /* add EBCDIC when it's implemented */
 } search_charset_t;
 
@@ -90,7 +90,8 @@ typedef struct _capture_file {
   gboolean     has_snap;        /* TRUE if maximum capture packet length is known */
   int          snap;            /* Maximum captured packet length */
   wtap        *wth;             /* Wiretap session */
-  dfilter_t   *rfcode;          /* Compiled read (display) filter program */
+  dfilter_t   *rfcode;          /* Compiled read filter program */
+  dfilter_t   *dfcode;          /* Compiled display filter program */
   gchar       *dfilter;         /* Display filter string */
   gboolean     redissecting;    /* TRUE if currently redissecting (cf_redissect_packets) */
   /* search */

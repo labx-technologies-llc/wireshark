@@ -26,6 +26,9 @@
 
 #ifndef PACKET_tcap_H
 #define PACKET_tcap_H
+
+#include "ws_symbol_export.h"
+
 /* TCAP component type */
 #define TCAP_COMP_INVOKE	0xa1
 #define TCAP_COMP_RRL		0xa2
@@ -61,7 +64,7 @@
 
 struct tcap_private_t {
   gboolean acv; /* Is the Application Context Version present */
-  void * oid;
+  const void * oid;
   guint32 session_id;
   void * context;
   gchar *TransactionID_str;
@@ -77,10 +80,10 @@ extern dissector_handle_t get_itu_tcap_subdissector(guint32 ssn);
 dissector_handle_t get_ansi_tcap_subdissector(guint32 ssn);
 
 extern void add_ansi_tcap_subdissector(guint32 ssn, dissector_handle_t dissector);
-extern void add_itu_tcap_subdissector(guint32 ssn, dissector_handle_t dissector);
+WS_DLL_PUBLIC void add_itu_tcap_subdissector(guint32 ssn, dissector_handle_t dissector);
 
 extern void delete_ansi_tcap_subdissector(guint32 ssn, dissector_handle_t dissector);
-extern void delete_itu_tcap_subdissector(guint32 ssn, dissector_handle_t dissector);
+WS_DLL_PUBLIC void delete_itu_tcap_subdissector(guint32 ssn, dissector_handle_t dissector);
 
 extern void call_tcap_dissector(dissector_handle_t, tvbuff_t*, packet_info*, proto_tree*);
 

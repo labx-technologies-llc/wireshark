@@ -667,7 +667,7 @@ dissect_mmc4_readdiscinformation (tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 {
     if (iscdb) {
         proto_tree_add_item (tree, hf_scsi_alloclen16, tvb, offset + 6, 2, ENC_BIG_ENDIAN);
-        if (cdata) {
+        if (cdata && cdata->itlq) {
             cdata->itlq->alloc_len = tvb_get_ntohs(tvb, offset + 6);
         }
         proto_tree_add_bitmask(tree, tvb, offset+8, hf_scsi_control,
@@ -690,7 +690,7 @@ dissect_mmc4_readdiscinformation (tvbuff_t *tvb, packet_info *pinfo, proto_tree 
             NULL
         };
 
-        TRY_SCSI_CDB_ALLOC_LEN(pinfo, tvb, offset, cdata->itlq->alloc_len);
+        TRY_SCSI_CDB_ALLOC_LEN(pinfo, tvb, offset, (cdata && cdata->itlq) ? cdata->itlq->alloc_len : 0);
         proto_tree_add_item (tree, hf_scsi_mmc_data_length, tvb, 0, 2, ENC_BIG_ENDIAN);
 
         proto_tree_add_bitmask(tree, tvb, offset + 2, hf_scsi_mmc_disk_flags,
@@ -1312,6 +1312,7 @@ const value_string scsi_mmc_vals[] = {
     {SCSI_MMC4_GETEVENTSTATUSNOTIFY  , "Get Event Status Notification"},
     {SCSI_MMC4_GETPERFORMANCE        , "Get Performance"},
     {SCSI_SPC_INQUIRY               , "Inquiry"},
+    {SCSI_SPC_MGMT_PROTOCOL_IN      , "Mgmt Protocol In"},
     {SCSI_SPC_MODESELECT10          , "Mode Select(10)"},
     {SCSI_SPC_MODESENSE10           , "Mode Sense(10)"},
     {SCSI_SPC_MODESENSE6            , "Mode Sense(6)"},
@@ -1520,7 +1521,7 @@ scsi_cdb_table_t scsi_mmc_table[256] = {
 /*SPC 0xa0*/{dissect_spc_reportluns},
 /*MMC 0xa1*/{NULL},
 /*MMC 0xa2*/{NULL},
-/*MMC 0xa3*/{NULL},
+/*SPC 0xa3*/{dissect_spc_mgmt_protocol_in},
 /*MMC 0xa4*/{dissect_mmc4_reportkey},
 /*MMC 0xa5*/{NULL},
 /*MMC 0xa6*/{NULL},

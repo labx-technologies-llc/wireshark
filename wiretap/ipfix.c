@@ -159,6 +159,29 @@ ipfix_read_message_header(ipfix_message_header_t *pfx_hdr, FILE_T fh, int *err, 
 }
 
 
+/* Read IPFIX message header from file and fill in the struct wtap_pkthdr
+ * for the packet.  Return true on success.  Set *err to 0 on EOF, any
+ * other value for "real" errors (EOF is ok, since return value is still
+ * FALSE)
+ */
+static gboolean
+ipfix_read_and_process_message_header(FILE_T fh, struct wtap_pkthdr *phdr, int *err, gchar **err_info)
+{
+    ipfix_message_header_t msg_hdr;
+
+    if (!ipfix_read_message_header(&msg_hdr, fh, err, err_info))
+        return FALSE;
+
+    phdr->presence_flags = WTAP_HAS_TS;
+    phdr->len = msg_hdr.message_length;
+    phdr->caplen = msg_hdr.message_length;
+    phdr->ts.secs = msg_hdr.export_time_secs;
+    phdr->ts.nsecs = 0;
+
+    return TRUE;
+}
+
+
 
 /* classic wtap: open capture file.  Return 1 on success, 0 on normal failure
  * like malformed format, -1 on bad error like file system
@@ -197,14 +220,19 @@ ipfix_open(wtap *wth, int *err, gchar **err_info)
                 *err_info = NULL;
                 return 0;
             }
-            if (*err != 0)
+            if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
                 return -1; /* real failure */
             /* else it's EOF */
             if (i < 1) {
                 /* we haven't seen enough to prove this is a ipfix file */
                 return 0;
             }
-            /* if we got here, it's EOF and we think it's an ipfix file */
+            /*
+             * If we got here, it's EOF and we haven't yet seen anything
+             * that doesn't look like an IPFIX record - i.e. everything
+             * we've seen looks like an IPFIX record - so we assume this
+             * is an IPFIX file.
+             */
             break;
         }
         if (file_seek(wth->fh, IPFIX_MSG_HDR_SIZE, SEEK_CUR, err) == -1) {
@@ -222,7 +250,7 @@ ipfix_open(wtap *wth, int *err, gchar **err_info)
                 ((set_hdr.set_length + checked_len) > msg_hdr.message_length))  {
                 ipfix_debug1("ipfix_open: found invalid set_length of %d",
                              set_hdr.set_length);
-                             return 0;
+                return 0;
             }
 
             if (file_seek(wth->fh, set_hdr.set_length - IPFIX_SET_HDR_SIZE,
@@ -258,30 +286,18 @@ ipfix_open(wtap *wth, int *err, gchar **err_info)
 static gboolean
 ipfix_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 {
-    ipfix_message_header_t msg_hdr;
-
     *data_offset = file_tell(wth->fh);
     ipfix_debug1("ipfix_read: data_offset is initially %" G_GINT64_MODIFIER "d", *data_offset);
 
-    if (!ipfix_read_message_header(&msg_hdr, wth->fh, err, err_info)) {
+    if (!ipfix_read_and_process_message_header(wth->fh, &wth->phdr, err, err_info)) {
         ipfix_debug2("ipfix_read: couldn't read message header with code: %d\n, and error '%s'",
                      *err, *err_info);
         return FALSE;
     }
 
-    buffer_assure_space(wth->frame_buffer, msg_hdr.message_length);
+    buffer_assure_space(wth->frame_buffer, wth->phdr.caplen);
     wtap_file_read_expected_bytes(buffer_start_ptr(wth->frame_buffer),
-                   msg_hdr.message_length, wth->fh, err, err_info);
-
-    wth->phdr.presence_flags = 0;
-    wth->phdr.len = msg_hdr.message_length;
-    wth->phdr.caplen = msg_hdr.message_length;
-    wth->phdr.ts.secs =  0;
-    wth->phdr.ts.nsecs = 0;
-
-    /*ipfix_debug2("Read length: %u Packet length: %u", msg_hdr.message_length, wth->phdr.caplen);*/
-    ipfix_debug1("ipfix_read: data_offset is finally %" G_GINT64_MODIFIER "d", file_tell(wth->fh));
-
+                   wth->phdr.caplen, wth->fh, err, err_info);
     return TRUE;
 }
 
@@ -289,11 +305,9 @@ ipfix_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 /* classic wtap: seek to file position and read packet */
 static gboolean
 ipfix_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr _U_, guint8 *pd, int length _U_,
+    struct wtap_pkthdr *phdr, guint8 *pd, int length,
     int *err, gchar **err_info)
 {
-    ipfix_message_header_t msg_hdr;
-
     /* seek to the right file position */
     if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1) {
         ipfix_debug2("ipfix_seek_read: couldn't read message header with code: %d\n, and error '%s'",
@@ -303,15 +317,15 @@ ipfix_seek_read(wtap *wth, gint64 seek_off,
 
     ipfix_debug1("ipfix_seek_read: reading at offset %" G_GINT64_MODIFIER "u", seek_off);
 
-    if (!ipfix_read_message_header(&msg_hdr, wth->random_fh, err, err_info)) {
-        ipfix_debug0("ipfix_read: couldn't read message header");
+    if (!ipfix_read_and_process_message_header(wth->random_fh, phdr, err, err_info)) {
+        ipfix_debug0("ipfix_seek_read: couldn't read message header");
         return FALSE;
     }
 
-    if(length != (int)msg_hdr.message_length) {
+    if(length != (int)phdr->caplen) {
         *err = WTAP_ERR_BAD_FILE;
         *err_info = g_strdup_printf("ipfix: record length %u doesn't match requested length %d",
-                                    msg_hdr.message_length, length);
+                                    phdr->caplen, length);
         ipfix_debug1("ipfix_seek_read: %s", *err_info);
         return FALSE;
     }

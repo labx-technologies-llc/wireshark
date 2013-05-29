@@ -54,9 +54,11 @@
 #include "ui/gtk/main.h"
 #include "ui/gtk/menus.h"
 #include "ui/gtk/main_welcome.h"
+#include "ui/gtk/main_toolbar.h"
 #include "ui/gtk/help_dlg.h"
 #include "ui/gtk/capture_file_dlg.h"
 #include "ui/gtk/stock_icons.h"
+#include "ui/gtk/wssplash.h"
 #ifdef HAVE_LIBPCAP
 #include "ui/gtk/capture_dlg.h"
 #include "ui/gtk/capture_if_dlg.h"
@@ -64,7 +66,6 @@
 #include "ui/gtk/webbrowser.h"
 #endif
 #endif /* HAVE_LIBPCAP */
-#include "../../image/wssplash-dev.xpm"
 #include "../version_info.h"
 
 #ifdef _WIN32
@@ -163,7 +164,7 @@ scroll_box_dynamic_add(GtkWidget *parent_box)
     guint scrollw_y_size;
     GList *childs;
 
-    child_box = g_object_get_data(G_OBJECT(parent_box), SCROLL_BOX_CHILD_BOX);
+    child_box = (GtkWidget *)g_object_get_data(G_OBJECT(parent_box), SCROLL_BOX_CHILD_BOX);
     max_cnt = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(parent_box), SCROLL_BOX_MAX_CHILDS));
 
     /* get the current number of children */
@@ -185,8 +186,11 @@ scroll_box_dynamic_add(GtkWidget *parent_box)
         /* move child_box from parent_box into scrolled window */
         g_object_ref(child_box);
         gtk_container_remove(GTK_CONTAINER(parent_box), child_box);
-        gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrollw),
-                                              child_box);
+#if ! GTK_CHECK_VERSION(3,8,0)
+        gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrollw), child_box);
+#else
+        gtk_container_add(GTK_CONTAINER(scrollw), child_box);
+#endif
         gtk_widget_show_all(scrollw);
     }
 
@@ -200,8 +204,8 @@ scroll_box_dynamic_reset(GtkWidget *parent_box)
     GtkWidget *child_box, *scrollw;
 
 
-    child_box = g_object_get_data(G_OBJECT(parent_box), SCROLL_BOX_CHILD_BOX);
-    scrollw = g_object_get_data(G_OBJECT(parent_box), SCROLL_BOX_SCROLLW);
+    child_box = (GtkWidget *)g_object_get_data(G_OBJECT(parent_box), SCROLL_BOX_CHILD_BOX);
+    scrollw = (GtkWidget *)g_object_get_data(G_OBJECT(parent_box), SCROLL_BOX_SCROLLW);
 
     if(scrollw != NULL) {
         /* move the child_box back from scrolled window into the parent_box */
@@ -307,7 +311,7 @@ welcome_button(const gchar *stock_item,
 static gboolean
 welcome_button_callback_helper(GtkWidget *w, GdkEventButton *event _U_, gpointer user_data)
 {
-    void (*funct)(GtkWidget *, gpointer) = user_data;
+    void (*funct)(GtkWidget *, gpointer) = (void (*)(GtkWidget *,gpointer))user_data;
     (*funct)(w, NULL);
     return TRUE;
 }
@@ -366,8 +370,7 @@ welcome_header_new(void)
     item_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0, FALSE);
     gtk_box_pack_start(GTK_BOX(item_vb), item_hb, FALSE, FALSE, 10);
 
-    /*icon = xpm_to_widget_from_parent(top_level, wssplash_xpm);*/
-    icon = xpm_to_widget(wssplash_xpm);
+    icon = pixbuf_to_widget(wssplash_pb_data);
     gtk_box_pack_start(GTK_BOX(item_hb), icon, FALSE, FALSE, 10);
 
     header_lb = gtk_label_new(NULL);
@@ -404,7 +407,7 @@ welcome_header_pop_msg(void) {
     }
 
     if (status_messages) {
-        msg = status_messages->data;
+        msg = (gchar *)status_messages->data;
     }
 
     welcome_header_set_message(msg);
@@ -478,7 +481,7 @@ welcome_topic_new(const char *header, GtkWidget **to_fill)
 static gboolean
 welcome_filename_link_press_cb(GtkWidget *widget _U_, GdkEventButton *event _U_, gpointer data)
 {
-    menu_open_filename(data);
+    menu_open_filename((gchar *)data);
 
     return FALSE;
 }
@@ -517,7 +520,7 @@ static void *get_recent_item_status(void *data)
     g_mutex_lock(recent_mtx);
     ri_stat->err = err;
     if(err == 0) {
-        size_str = format_size(stat_buf.st_size, format_size_unit_bytes|format_size_prefix_si);
+        size_str = format_size(stat_buf.st_size, (format_size_flags_e)(format_size_unit_bytes|format_size_prefix_si));
 
         /* pango format string */
         g_string_prepend(ri_stat->str, "<span foreground='blue'>");
@@ -626,7 +629,7 @@ welcome_filename_link_new(const gchar *filename, GtkWidget **label, GObject *men
     gtk_misc_set_alignment (GTK_MISC(w), 0.0f, 0.0f);
     gtk_widget_set_sensitive(w, FALSE);
 
-    ri_stat = g_malloc(sizeof(recent_item_status));
+    ri_stat = (recent_item_status *)g_malloc(sizeof(recent_item_status));
     ri_stat->filename = g_strdup(filename);
     ri_stat->label = w;
     ri_stat->menu_item = menu_item;
@@ -678,7 +681,7 @@ main_welcome_reset_recent_capture_files(void)
         child_list_item = child_list;
 
         while(child_list_item) {
-            gtk_container_remove(GTK_CONTAINER(child_box), child_list_item->data);
+            gtk_container_remove(GTK_CONTAINER(child_box), (GtkWidget *)child_list_item->data);
             child_list_item = g_list_next(child_list_item);
         }
 
@@ -704,11 +707,12 @@ main_welcome_add_recent_capture_file(const char *widget_cf_name, GObject *menu_i
 }
 
 #ifdef HAVE_LIBPCAP
-gboolean on_selection_changed(GtkTreeSelection *selection _U_,
-                              GtkTreeModel *model,
-                              GtkTreePath *path,
-                              gboolean path_currently_selected,
-                              gpointer data _U_)
+static gboolean
+on_selection_changed(GtkTreeSelection *selection _U_,
+                     GtkTreeModel *model,
+                     GtkTreePath *path,
+                     gboolean path_currently_selected,
+                     gpointer data _U_)
 {
     GtkTreeIter  iter;
     gchar *if_name;
@@ -749,7 +753,19 @@ gboolean on_selection_changed(GtkTreeSelection *selection _U_,
             break;
         }
     }
+    set_sensitivity_for_start_icon();
     return TRUE;
+}
+
+void
+set_sensitivity_for_start_icon(void)
+{
+#ifdef HAVE_LIBPCAP
+    gboolean enable = (global_capture_opts.num_selected > 0);
+
+    set_start_button_sensitive(enable);
+    set_menus_capture_start_sensitivity(enable);
+#endif
 }
 
 static gboolean activate_ifaces(GtkTreeModel  *model,
@@ -762,7 +778,7 @@ static gboolean activate_ifaces(GtkTreeModel  *model,
     GtkTreeSelection *selection;
     selected_name_t  *entry = (selected_name_t *)userdata;
 
-    view = g_object_get_data(G_OBJECT(welcome_hb), TREE_VIEW_INTERFACES);
+    view = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), TREE_VIEW_INTERFACES);
     selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view));
     gtk_tree_model_get (model, iter, IFACE_NAME, &if_name, -1);
     if (strcmp(if_name, entry->name) == 0) {
@@ -782,7 +798,7 @@ void change_interface_selection(gchar* name, gboolean activate)
     GtkTreeModel     *model;
     selected_name_t  entry;
 
-    view = g_object_get_data(G_OBJECT(welcome_hb), TREE_VIEW_INTERFACES);
+    view = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), TREE_VIEW_INTERFACES);
     model = gtk_tree_view_get_model(GTK_TREE_VIEW(view));
     entry.name = g_strdup(name);
     entry.activate = activate;
@@ -792,9 +808,17 @@ void change_interface_selection(gchar* name, gboolean activate)
 void change_selection_for_all(gboolean enable)
 {
     guint i;
+    gboolean all = FALSE;
+    interface_t device;
 
     for (i = 0; i < global_capture_opts.all_ifaces->len; i++) {
-        change_interface_selection(g_array_index(global_capture_opts.all_ifaces, interface_t, i).name, enable);
+        device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
+        all = strcmp(device.name, "any");
+        if (all) {
+            change_interface_selection(device.name, enable);
+        } else {
+            change_interface_selection(device.name, FALSE);
+        }
     }
 }
 #endif
@@ -810,7 +834,7 @@ change_interface_name(gchar *oldname, guint indx)
     GtkTreeSelection *entry;
     gchar            *optname;
 
-    view = g_object_get_data(G_OBJECT(welcome_hb), TREE_VIEW_INTERFACES);
+    view = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), TREE_VIEW_INTERFACES);
     entry = gtk_tree_view_get_selection(GTK_TREE_VIEW(view));
     model = gtk_tree_view_get_model(GTK_TREE_VIEW(view));
 
@@ -861,19 +885,19 @@ clear_capture_box(void)
 {
     GtkWidget         *item_hb;
 
-    item_hb = g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_INTERFACE_LIST);
+    item_hb = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_INTERFACE_LIST);
     if (item_hb) {
         gtk_widget_destroy(item_hb);
     }
-    item_hb = g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_START);
+    item_hb = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_START);
     if (item_hb) {
         gtk_widget_destroy(item_hb);
     }
-    item_hb = g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_CAPTURE);
+    item_hb = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_CAPTURE);
     if (item_hb) {
         gtk_widget_destroy(item_hb);
     }
-    item_hb = g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_REFRESH);
+    item_hb = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_REFRESH);
     if (item_hb) {
         gtk_widget_destroy(item_hb);
     }
@@ -917,18 +941,17 @@ static void
 update_capture_box(void)
 {
     guint               i;
-    GtkListStore        *store = NULL;
+    GtkListStore        *store;
     GtkTreeIter         iter;
     GtkTreeSelection    *entry;
     interface_t         device;
     gboolean            changed = FALSE;
 
-    entry = gtk_tree_view_get_selection(GTK_TREE_VIEW(if_view));
-    gtk_tree_selection_unselect_all(GTK_TREE_SELECTION(entry));
     store = gtk_list_store_new(NUMCOLUMNS, GDK_TYPE_PIXBUF, G_TYPE_STRING, G_TYPE_STRING);
 
     gtk_list_store_clear(store);
     gtk_tree_view_set_model(GTK_TREE_VIEW(if_view), GTK_TREE_MODEL (store));
+    entry = gtk_tree_view_get_selection(GTK_TREE_VIEW(if_view));
     for (i = 0; i < global_capture_opts.all_ifaces->len; i++) {
         device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
         if (!device.hidden) {
@@ -966,11 +989,11 @@ static void fill_capture_box(void)
     DWORD ce_size = sizeof(chimney_enabled);
 #endif
 
-    label = g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_LABEL);
+    label = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_LABEL);
     if (label) {
         gtk_widget_destroy(label);
     }
-    box_to_fill = g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_VIEW);
+    box_to_fill = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_VIEW);
     if (global_capture_opts.all_ifaces->len > 0) {
         item_hb_interface_list = welcome_button(WIRESHARK_STOCK_CAPTURE_INTERFACES,
                                                 "Interface List",
@@ -1140,7 +1163,7 @@ welcome_if_panel_reload(void)
             update_capture_box();
         } else {
             GtkWidget *item_hb;
-            item_hb = g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_REFRESH);
+            item_hb = (GtkWidget *)g_object_get_data(G_OBJECT(welcome_hb), CAPTURE_HB_BOX_REFRESH);
             if (item_hb) {
                 gtk_widget_destroy(item_hb);
             }
@@ -1401,12 +1424,15 @@ welcome_new(void)
     /* the end */
     gtk_widget_show_all(welcome_eb);
 
-    gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(welcome_scrollw),
-                                          welcome_eb);
+#if ! GTK_CHECK_VERSION(3,8,0)
+    gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(welcome_scrollw), welcome_eb);
+#else
+    gtk_container_add(GTK_CONTAINER(welcome_scrollw), welcome_eb);
+#endif
     gtk_widget_show_all(welcome_scrollw);
 
 #if GLIB_CHECK_VERSION(2,31,0)
-    recent_mtx = g_malloc(sizeof(GMutex));
+    recent_mtx = (GMutex *)g_malloc(sizeof(GMutex));
     g_mutex_init(recent_mtx);
 #else
     recent_mtx = g_mutex_new();

@@ -1,4 +1,9 @@
 /*
+ * We don't use input, so don't generate code for it.
+ */
+%option noinput
+
+/*
  * We don't use unput, so don't generate code for it.
  */
 %option nounput
@@ -66,6 +71,7 @@
 #endif
 
 static uat_t* uat;
+static gboolean valid_record;
 static guint colnum;
 static gchar* ptrx;
 static guint len;
@@ -81,7 +87,8 @@ static guint parse_str_pos;
 	{ const gchar* errx; \
 	if (uat->fields[colnum].cb.chk) { \
 		if ( ! uat->fields[colnum].cb.chk(record, ptrx, len, uat->fields[colnum].cbdata.chk, uat->fields[colnum].fld_data, &errx) ) { \
-			ERROR(("%s",errx)); \
+			error = ep_strdup_printf("%s:%d: %s",uat->filename,linenum,ep_strdup_printf("%s",errx)); \
+			valid_record = FALSE; \
 		}\
 	}\
 	uat->fields[colnum].cb.set(record, ptrx, len, uat->fields[colnum].cbdata.chk, uat->fields[colnum].fld_data);\
@@ -165,7 +172,7 @@ comment #[^\n]*\n
 }
 
 <START_OF_LINE,NEXT_FIELD>{newline}   {
-	ptrx = "";
+	ptrx = g_strdup("");
 	len = 0;
 
 	BEGIN END_OF_RECORD;
@@ -238,15 +245,16 @@ comment #[^\n]*\n
 
 	SET_FIELD();
 
-	rec = uat_add_record(uat, record);
+	rec = uat_add_record(uat, record, valid_record);
 
-	if (uat->update_cb)
+	if ((uat->update_cb) && (rec != NULL))
 		uat->update_cb(rec,&err);
 
 	if (err) {
 		ERROR(("%s",err));
 	}
 
+	valid_record = TRUE;
 	colnum = 0;
 	ptrx = NULL;
 	len = 0;
@@ -273,7 +281,7 @@ comment #[^\n]*\n
 
 
 gboolean
-uat_load(uat_t *uat_in, char **errx)
+uat_load(uat_t *uat_in, const char **errx)
 {
 	gchar *fname = uat_get_actual_filename(uat_in, FALSE);
 
@@ -297,6 +305,7 @@ uat_load(uat_t *uat_in, char **errx)
 	}
 
 	error = NULL;
+	valid_record = TRUE;
 	colnum = 0;
 	g_free(record);
 	record = g_malloc0(uat->record_size);
@@ -335,6 +344,7 @@ uat_load_str(uat_t *uat_in, char *entry, char **err)
 	yyin = NULL;
 
 	error = NULL;
+	valid_record = TRUE;
 	colnum = 0;
 	g_free(record);
 	record = g_malloc0(uat->record_size);

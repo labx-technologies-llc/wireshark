@@ -26,18 +26,35 @@
 #ifndef __WMEM_ALLOCATOR_H__
 #define __WMEM_ALLOCATOR_H__
 
+#include <glib.h>
 #include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-struct _wmem_allocator_t {
-    void *(*alloc)(void *private_data, const size_t size);
-    void  (*free_all)(void *private_data);
-    void  (*destroy)(struct _wmem_allocator_t *allocator);
+enum _wmem_allocator_type_t;
+struct _wmem_user_cb_container_t;
 
-    void *private_data;
+/* See section "4. Internal Design" of doc/README.wmem for details
+ * on this structure */
+struct _wmem_allocator_t {
+    /* Consumer functions */
+    void *(*alloc)(void *private_data, const size_t size);
+    void  (*free)(void *private_data, void *ptr);
+    void *(*realloc)(void *private_data, void *ptr, const size_t size);
+
+    /* Producer/Manager functions */
+    void  (*free_all)(void *private_data);
+    void  (*gc)(void *private_data);
+    void  (*cleanup)(void *private_data);
+
+    /* Callback List */
+    struct _wmem_user_cb_container_t *callbacks;
+
+    /* Implementation details */
+    void                        *private_data;
+    enum _wmem_allocator_type_t  type;
 };
 
 #ifdef __cplusplus

@@ -74,7 +74,7 @@ static int hf_usb_hid_globalitem_pop = -1;
 
 static int hf_usb_hid_localitem_usage = -1;
 static int hf_usb_hid_localitem_usage_min = -1;
-static int hf_usb_hid_localitem_usage_max = -1;
+/* static int hf_usb_hid_localitem_usage_max = -1; */
 static int hf_usb_hid_localitem_desig_index = -1;
 static int hf_usb_hid_localitem_desig_min = -1;
 static int hf_usb_hid_localitem_desig_max = -1;
@@ -455,7 +455,7 @@ dissect_usb_hid_report_item(packet_info *pinfo _U_, proto_tree *parent_tree, tvb
 	struct usb_hid_global_state cur_global;
 	memcpy(&cur_global, global, sizeof(struct usb_hid_global_state));
 
-	while (tvb_reported_length_remaining(tvb, offset))
+	while (tvb_reported_length_remaining(tvb, offset) > 0)
 	{
 		old_offset=offset;
 
@@ -759,7 +759,7 @@ dissect_usb_hid_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 
 	is_request = (pinfo->srcport==NO_ENDPOINT);
 
-	usb_conv_info = pinfo->usb_conv_info;
+	usb_conv_info = (usb_conv_info_t *)pinfo->usb_conv_info;
 	usb_trans_info = usb_conv_info->usb_trans_info;
 
 	/* See if we can find a class specific dissector for this request */
@@ -965,9 +965,11 @@ proto_register_usb_hid(void)
 			{ "Usage minimum", "usbhid.item.local.usage_min", FT_UINT8, BASE_HEX,
 				NULL, 0, NULL, HFILL }},
 
+#if 0
 		{ &hf_usb_hid_localitem_usage_max,
 			{ "Usage maximum", "usbhid.item.local.usage_max", FT_UINT8, BASE_HEX,
 				NULL, 0, NULL, HFILL }},
+#endif
 
 		{ &hf_usb_hid_localitem_desig_index,
 			{ "Designator index", "usbhid.item.local.desig_index", FT_UINT8, BASE_HEX,

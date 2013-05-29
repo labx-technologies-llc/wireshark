@@ -47,7 +47,6 @@
 #include <epan/funnel.h>
 
 #include "../timestats.h"
-#include "ui/simple_dialog.h"
 #include "../file.h"
 #include "../stat_menu.h"
 #include "ui/progress_dlg.h"
@@ -85,7 +84,7 @@ struct _funnel_node_t {
 };
 
 static void text_window_cancel_button_cb(GtkWidget *bt _U_, gpointer data) {
-    funnel_text_window_t* tw = data;
+    funnel_text_window_t* tw = (funnel_text_window_t *)data;
 
     window_destroy(GTK_WIDGET(tw->win));
     tw->win = NULL;
@@ -95,8 +94,8 @@ static void text_window_cancel_button_cb(GtkWidget *bt _U_, gpointer data) {
 }
 
 static void unref_text_win_cancel_bt_cb(GtkWidget *bt _U_, gpointer data) {
-    funnel_text_window_t* tw = data;
-    unsigned i;
+    funnel_text_window_t* tw = (funnel_text_window_t *)data;
+    guint i;
 
     window_destroy(GTK_WIDGET(tw->win));
     tw->win = NULL;
@@ -105,7 +104,7 @@ static void unref_text_win_cancel_bt_cb(GtkWidget *bt _U_, gpointer data) {
         tw->close_cb(tw->close_data);
 
     for (i = 0; i < tw->buttons->len; i++) {
-        funnel_bt_t* cbd = g_ptr_array_index(tw->buttons,i);
+        funnel_bt_t* cbd = (funnel_bt_t *)g_ptr_array_index(tw->buttons,i);
         /* XXX a free cb should be passed somehow */
         if (cbd->data && cbd->free_data_fcn) cbd->free_data_fcn(cbd->data);
         if (cbd->free_fcn) cbd->free_fcn(cbd);
@@ -116,8 +115,8 @@ static void unref_text_win_cancel_bt_cb(GtkWidget *bt _U_, gpointer data) {
 
 
 static gboolean text_window_unref_del_event_cb(GtkWidget *win _U_, GdkEvent *event _U_, gpointer user_data) {
-    funnel_text_window_t* tw = user_data;
-    unsigned i;
+    funnel_text_window_t* tw = (funnel_text_window_t *)user_data;
+    guint i;
 
     window_destroy(GTK_WIDGET(tw->win));
     tw->win = NULL;
@@ -126,7 +125,7 @@ static gboolean text_window_unref_del_event_cb(GtkWidget *win _U_, GdkEvent *eve
         tw->close_cb(tw->close_data);
 
     for (i = 0; i < tw->buttons->len; i++) {
-        funnel_bt_t* cbd = g_ptr_array_index(tw->buttons,i);
+        funnel_bt_t* cbd = (funnel_bt_t *)g_ptr_array_index(tw->buttons,i);
         /* XXX a free cb should be passed somehow */
         if (cbd->data && cbd->free_data_fcn) cbd->free_data_fcn(cbd->data);
         if (cbd->free_fcn) cbd->free_fcn(cbd);
@@ -139,7 +138,7 @@ static gboolean text_window_unref_del_event_cb(GtkWidget *win _U_, GdkEvent *eve
 
 static gboolean text_window_delete_event_cb(GtkWidget *win _U_, GdkEvent *event _U_, gpointer user_data)
 {
-    funnel_text_window_t* tw = user_data;
+    funnel_text_window_t* tw = (funnel_text_window_t *)user_data;
 
     window_destroy(GTK_WIDGET(tw->win));
     tw->win = NULL;
@@ -151,7 +150,7 @@ static gboolean text_window_delete_event_cb(GtkWidget *win _U_, GdkEvent *event 
 }
 
 static funnel_text_window_t* new_text_window(const gchar* title) {
-    funnel_text_window_t* tw = g_malloc(sizeof(funnel_text_window_t));
+    funnel_text_window_t* tw = (funnel_text_window_t *)g_malloc(sizeof(funnel_text_window_t));
     GtkWidget *txt_scrollw, *main_vb, *hbox;
 
     tw->close_cb = NULL;
@@ -320,13 +319,13 @@ static void text_window_destroy(funnel_text_window_t*  tw) {
         g_signal_connect(tw->bt_close, "clicked", G_CALLBACK(unref_text_win_cancel_bt_cb), tw);
         g_signal_connect(tw->win, "delete-event", G_CALLBACK(text_window_unref_del_event_cb), tw);
     } else {
-        unsigned i;
+        guint i;
         /*
          * we have no window anymore a human user closed
          * the window already just free the container
          */
         for (i = 0; i < tw->buttons->len; i++) {
-            funnel_bt_t* cbd = g_ptr_array_index(tw->buttons,i);
+            funnel_bt_t* cbd = (funnel_bt_t *)g_ptr_array_index(tw->buttons,i);
             /* XXX a free cb should be passed somehow */
             if (cbd->data && cbd->free_data_fcn) cbd->free_data_fcn(cbd->data);
             if (cbd->free_fcn) cbd->free_fcn(cbd);
@@ -343,7 +342,7 @@ static void text_window_set_editable(funnel_text_window_t*  tw, gboolean editabl
 
 static gboolean text_window_button_cb(GtkWidget *bt _U_, gpointer user_data)
 {
-    funnel_bt_t* cbd = user_data;
+    funnel_bt_t* cbd = (funnel_bt_t *)user_data;
 
     if (cbd->func) {
         return cbd->func(cbd->tw,cbd->data);
@@ -378,13 +377,13 @@ struct _funnel_dlg_data {
 
 static gboolean funnel_dlg_cb(GtkWidget *win _U_, gpointer user_data)
 {
-    struct _funnel_dlg_data* dd = user_data;
+    struct _funnel_dlg_data* dd = (struct _funnel_dlg_data *)user_data;
     guint i;
     guint len = dd->entries->len;
     GPtrArray* returns = g_ptr_array_new();
 
     for(i=0; i<len; i++) {
-        GtkEntry* entry = g_ptr_array_index(dd->entries,i);
+        GtkEntry* entry = (GtkEntry *)g_ptr_array_index(dd->entries,i);
         g_ptr_array_add(returns,g_strdup(gtk_entry_get_text(entry)));
     }
 
@@ -401,7 +400,7 @@ static gboolean funnel_dlg_cb(GtkWidget *win _U_, gpointer user_data)
 }
 
 static void funnel_cancel_btn_cb(GtkWidget *bt _U_, gpointer data) {
-    GtkWidget* win = data;
+    GtkWidget* win = (GtkWidget *)data;
 
     window_destroy(GTK_WIDGET(win));
 }
@@ -410,16 +409,16 @@ static void funnel_new_dialog(const gchar* title,
                                           const gchar** fieldnames,
                                           funnel_dlg_cb_t dlg_cb,
                                           void* data) {
-    GtkWidget *win, *main_tb, *main_vb, *bbox, *bt_cancel, *bt_ok;
+    GtkWidget *win, *main_grid, *main_vb, *bbox, *bt_cancel, *bt_ok;
     guint i;
     const gchar* fieldname;
-    struct _funnel_dlg_data* dd = g_malloc(sizeof(struct _funnel_dlg_data));
+    struct _funnel_dlg_data* dd = (struct _funnel_dlg_data *)g_malloc(sizeof(struct _funnel_dlg_data));
 
     dd->entries = g_ptr_array_new();
     dd->dlg_cb = dlg_cb;
     dd->data = data;
 
-    for (i=0;fieldnames[i];i++);
+    for (i=0; fieldnames[i]; i++);
 
     win = dlg_window_new(title);
 
@@ -431,37 +430,37 @@ static void funnel_new_dialog(const gchar* title,
     gtk_container_add(GTK_CONTAINER(win), main_vb);
     gtk_container_set_border_width(GTK_CONTAINER(main_vb), 6);
 
-    main_tb = gtk_table_new(i+1, 2, FALSE);
-    gtk_box_pack_start(GTK_BOX(main_vb), main_tb, FALSE, FALSE, 0);
-    gtk_table_set_row_spacings(GTK_TABLE(main_tb), 10);
-    gtk_table_set_col_spacings(GTK_TABLE(main_tb), 15);
+    main_grid = ws_gtk_grid_new();
+    gtk_box_pack_start(GTK_BOX(main_vb), main_grid, FALSE, FALSE, 0);
+    ws_gtk_grid_set_row_spacing(GTK_GRID(main_grid), 10);
+    ws_gtk_grid_set_column_spacing(GTK_GRID(main_grid), 15);
 
     for (i = 0; (fieldname = fieldnames[i]) ; i++) {
         GtkWidget *entry, *label;
 
         label = gtk_label_new(fieldname);
         gtk_misc_set_alignment(GTK_MISC(label), 1.0f, 0.5f);
-        gtk_table_attach_defaults(GTK_TABLE(main_tb), label, 0, 1, i+1, i + 2);
+        ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), label, 0, i+1, 1, 1);
         gtk_widget_show(label);
 
         entry = gtk_entry_new();
         g_ptr_array_add(dd->entries,entry);
-        gtk_table_attach_defaults(GTK_TABLE(main_tb), entry, 1, 2, i+1, i + 2);
+        ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), entry, 1, i+1, 1, 1);
         gtk_widget_show(entry);
     }
 
     bbox = dlg_button_row_new(GTK_STOCK_CANCEL,GTK_STOCK_OK, NULL);
     gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 
-    bt_ok = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+    bt_ok = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
     g_signal_connect(bt_ok, "clicked", G_CALLBACK(funnel_dlg_cb), dd);
     gtk_widget_grab_default(bt_ok);
 
-    bt_cancel = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+    bt_cancel = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
     g_signal_connect(bt_cancel, "clicked", G_CALLBACK(funnel_cancel_btn_cb), win);
     gtk_widget_grab_default(bt_cancel);
 
-    gtk_widget_show(main_tb);
+    gtk_widget_show(main_grid);
     gtk_widget_show(main_vb);
     gtk_widget_show(win);
 }
@@ -539,8 +538,6 @@ static gboolean funnel_open_file(const char* fname, const char* filter, const ch
     return TRUE;
 }
 
-typedef struct progdlg _funnel_progress_window_t;
-
 static funnel_progress_window_t* funnel_new_progress_window(const gchar* label, const gchar* task, gboolean terminate_is_stop, gboolean *stop_flag) {
     return (funnel_progress_window_t*)create_progress_dlg(top_level, label, task, terminate_is_stop, stop_flag);
 }
@@ -594,35 +591,18 @@ typedef struct _menu_cb_t {
 } menu_cb_t;
 
 static void our_menu_callback(void* unused _U_, gpointer data) {
-    menu_cb_t* mcb = data;
+    menu_cb_t* mcb = (menu_cb_t *)data;
     mcb->callback(mcb->callback_data);
     if (mcb->retap) cf_retap_packets(&cfile);
 }
 
-static const char* stat_group_name(register_stat_group_t group) {
-    /* See make_menu_xml() for an explanation of the string format */
-    static const value_string group_name_vals[] = {
-        {REGISTER_ANALYZE_GROUP_UNSORTED,            "/Menubar/AnalyzeMenu|Analyze"},                                                              /* unsorted analyze stuff */
-        {REGISTER_ANALYZE_GROUP_CONVERSATION_FILTER, "/Menubar/AnalyzeMenu|Analyze/ConversationFilterMenu|Analyze#ConversationFilter"},            /* conversation filters */
-        {REGISTER_STAT_GROUP_UNSORTED,               "/Menubar/StatisticsMenu|Statistics"},                                                        /* unsorted statistic function */
-        {REGISTER_STAT_GROUP_GENERIC,                "/Menubar/StatisticsMenu|Statistics"},                                                        /* generic statistic function, not specific to a protocol */
-        {REGISTER_STAT_GROUP_CONVERSATION_LIST,      "/Menubar/StatisticsMenu|Statistics/ConversationListMenu|Statistics#ConversationList"},       /* member of the conversation list */
-        {REGISTER_STAT_GROUP_ENDPOINT_LIST,          "/Menubar/StatisticsMenu|Statistics/EndpointListMenu|Statistics#EndpointList"},               /* member of the endpoint list */
-        {REGISTER_STAT_GROUP_RESPONSE_TIME,          "/Menubar/StatisticsMenu|Statistics/ServiceResponseTimeMenu|Statistics#ServiceResponseTime"}, /* member of the service response time list */
-        {REGISTER_STAT_GROUP_TELEPHONY,              "/Menubar/TelephonyMenu|Telephony"},                                                          /* telephony specific */
-        {REGISTER_TOOLS_GROUP_UNSORTED,              "/Menubar/ToolsMenu|Tools"},                                                                  /* unsorted tools */
-        {0, NULL}
-    };
-    return val_to_str_const(group, group_name_vals, "/Menubar/ToolsMenu|Tools");
-}
-
 static void register_menu_cb(const char *name,
-                             register_stat_group_t group _U_,
+                             register_stat_group_t group,
                              void (*callback)(gpointer),
                              gpointer callback_data,
                              gboolean retap) {
 
-    menu_cb_t* mcb = g_malloc(sizeof(menu_cb_t));
+    menu_cb_t* mcb = (menu_cb_t *)g_malloc(sizeof(menu_cb_t));
     const char *label = NULL, *str = NULL;
 
     mcb->callback = callback;
@@ -636,7 +616,7 @@ static void register_menu_cb(const char *name,
         label = name;
     }
 
-    register_lua_menu_bar_menu_items(
+    register_menu_bar_menu_items(
         stat_group_name(group), /* GUI path to the place holder in the menu */
         name, /* Action name */
         NULL, /* Stock id */

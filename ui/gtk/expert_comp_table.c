@@ -217,7 +217,7 @@ error_select_filter_cb(GtkWidget *widget _U_, gpointer callback_data, guint call
                 return;
             }
         }
-        msg = g_malloc(escape_string_len(procedure->entries[1]));
+        msg = (char *)g_malloc(escape_string_len(procedure->entries[1]));
         escape_string(msg, procedure->entries[1]);
         switch(type){
         case ACTYPE_SELECTED:
@@ -345,7 +345,7 @@ error_select_filter_cb(GtkWidget *widget _U_, gpointer callback_data, guint call
 static gboolean
 error_show_popup_menu_cb(void *widg _U_, GdkEvent *event, gpointer user_data)
 {
-    error_equiv_table *err = user_data;
+    error_equiv_table *err = (error_equiv_table *)user_data;
     GdkEventButton *bevent = (GdkEventButton *)event;
 
     if(event->type==GDK_BUTTON_PRESS && bevent->button==3){
@@ -606,7 +606,7 @@ error_create_popup_menu(error_equiv_table *err)
 
     action_group = gtk_action_group_new ("ExpertFilterPopupActionGroup");
     gtk_action_group_add_actions (action_group,                            /* the action group */
-                                (gpointer)expert_popup_entries,            /* an array of action descriptions */
+                                (GtkActionEntry *)expert_popup_entries,    /* an array of action descriptions */
                                 G_N_ELEMENTS(expert_popup_entries),        /* the number of entries */
                                 err);                                      /* data to pass to the action callbacks */
 
@@ -742,7 +742,7 @@ void
 init_error_table_row(error_equiv_table *err, const expert_info_t *expert_data)
 {
     guint old_num_procs=err->num_procs;
-    gint row=0;
+    gint row;
     error_procedure_t *procedure;
     GtkTreeStore *store;
     GtkTreeIter   new_iter;
@@ -769,9 +769,9 @@ init_error_table_row(error_equiv_table *err, const expert_info_t *expert_data)
         store = GTK_TREE_STORE(gtk_tree_view_get_model(err->tree_view)); /* Get store */
         gtk_tree_store_append (store, &procedure->iter, NULL);  /* Acquire an iterator */
 
-        /* match_strval return a static constant  or null */
+        /* try_val_to_str return a static constant  or null */
         gtk_tree_store_set (store, &procedure->iter,
-                    GROUP_COLUMN, match_strval(expert_data->group, expert_group_vals),
+                    GROUP_COLUMN, try_val_to_str(expert_data->group, expert_group_vals),
                     PROTOCOL_COLUMN, procedure->entries[0],
                     SUMMARY_COLUMN,  procedure->entries[1], -1);
 

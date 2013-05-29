@@ -47,7 +47,7 @@
 
 /* Initialize the protocol and registered fields */
 static int proto_fcdns              = -1;
-static int hf_fcdns_gssubtype       = -1;
+/* static int hf_fcdns_gssubtype       = -1; */
 static int hf_fcdns_opcode          = -1;
 static int hf_fcdns_reason          = -1;
 static int hf_fcdns_vendor          = -1;
@@ -136,8 +136,8 @@ static dissector_handle_t data_handle;
 static gint
 fcdns_equal(gconstpointer v, gconstpointer w)
 {
-  const fcdns_conv_key_t *v1 = v;
-  const fcdns_conv_key_t *v2 = w;
+  const fcdns_conv_key_t *v1 = (const fcdns_conv_key_t *)v;
+  const fcdns_conv_key_t *v2 = (const fcdns_conv_key_t *)w;
 
   return (v1->conv_idx == v2->conv_idx);
 }
@@ -145,7 +145,7 @@ fcdns_equal(gconstpointer v, gconstpointer w)
 static guint
 fcdns_hash (gconstpointer v)
 {
-    const fcdns_conv_key_t *key = v;
+    const fcdns_conv_key_t *key = (const fcdns_conv_key_t *)v;
     guint val;
 
     val = key->conv_idx;
@@ -1506,10 +1506,10 @@ dissect_fcdns (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             cdata->opcode = opcode;
         }
         else {
-            req_key = se_alloc (sizeof(fcdns_conv_key_t));
+            req_key = se_new(fcdns_conv_key_t);
             req_key->conv_idx = conversation->index;
 
-            cdata = se_alloc (sizeof(fcdns_conv_data_t));
+            cdata = se_new(fcdns_conv_data_t);
             cdata->opcode = opcode;
 
             g_hash_table_insert (fcdns_req_hash, req_key, cdata);
@@ -1730,9 +1730,11 @@ proto_register_fcdns (void)
 {
 
     static hf_register_info hf[] = {
+#if 0
         { &hf_fcdns_gssubtype,
           {"GS_Subtype", "fcdns.gssubtype", FT_UINT8, BASE_HEX,
            VALS (fc_dns_subtype_val), 0x0, NULL, HFILL}},
+#endif
         {&hf_fcdns_opcode,
          {"Opcode", "fcdns.opcode", FT_UINT16, BASE_HEX, VALS (fc_dns_opcode_val),
           0x0, NULL, HFILL}},

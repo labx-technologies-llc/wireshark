@@ -44,6 +44,7 @@
 #include <epan/dissectors/packet-isup.h>
 
 #include <epan/sctpppids.h>
+#include "ws_symbol_export.h"
 
 typedef struct _gcp_hf_ett_t {
     struct {
@@ -168,7 +169,7 @@ typedef struct _gcp_terms_t {
 
 typedef struct _gcp_cmd_t {
     guint offset;
-    gchar* str;
+    const gchar* str;
     gcp_cmd_type_t type;
     gcp_terms_t terms;
     struct _gcp_msg_t* msg;
@@ -186,8 +187,8 @@ typedef struct _gcp_ctx_t {
     gcp_terms_t terms;
 } gcp_ctx_t;
 
-WS_VAR_IMPORT const value_string gcp_cmd_type[];
-WS_VAR_IMPORT const value_string gcp_term_types[];
+WS_DLL_PUBLIC const value_string gcp_cmd_type[];
+WS_DLL_PUBLIC const value_string gcp_term_types[];
 
 extern void gcp_init(void);
 extern gcp_msg_t* gcp_msg(packet_info* pinfo, int o, gboolean persistent);
@@ -197,8 +198,8 @@ extern gcp_cmd_t* gcp_cmd(gcp_msg_t* m, gcp_trx_t* t, gcp_ctx_t* c, gcp_cmd_type
 extern gcp_term_t* gcp_cmd_add_term(gcp_msg_t* m, gcp_trx_t* tr, gcp_cmd_t* c, gcp_term_t* t, gcp_wildcard_t wildcard, gboolean persistent);
 extern void gcp_analyze_msg(proto_tree* gcp_tree, tvbuff_t* gcp_tvb, gcp_msg_t* m, gcp_hf_ett_t* ids);
 
-extern gchar* gcp_cmd_to_str(gcp_cmd_t* c, gboolean persistent);
-extern gchar* gcp_msg_to_str(gcp_msg_t* m, gboolean persistent);
+extern const gchar* gcp_cmd_to_str(gcp_cmd_t* c, gboolean persistent);
+extern const gchar* gcp_msg_to_str(gcp_msg_t* m, gboolean persistent);
 
 #define gcp_cmd_set_error(c,e) (c->error = e)
 #define gcp_trx_set_error(t,e) (t->error = e)

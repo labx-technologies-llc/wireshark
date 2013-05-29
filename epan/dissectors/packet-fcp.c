@@ -81,10 +81,10 @@ static int hf_fcp_rsp_flags_res_vld = -1;
 static int hf_fcp_request_in = -1;
 static int hf_fcp_response_in = -1;
 static int hf_fcp_time = -1;
-static int hf_fcp_srr_op = -1;
+/* static int hf_fcp_srr_op = -1; */
 static int hf_fcp_srr_ox_id = -1;
 static int hf_fcp_srr_rx_id = -1;
-static int hf_fcp_srr_r_ctl = -1;
+/* static int hf_fcp_srr_r_ctl = -1; */
 
 /* Initialize the subtree pointers */
 static gint ett_fcp = -1;
@@ -99,9 +99,9 @@ typedef struct fcp_request_data {
    guint32 request_frame;
    guint32 response_frame;
    nstime_t request_time;
-   /* XXX - keep for "backwards compatility", but not sure it really 
+   /* XXX - keep for "backwards compatility", but not sure it really
       needs to be part of the persistent data */
-   itl_nexus_t *itl; 
+   itl_nexus_t *itl;
 } fcp_request_data_t;
 
 static dissector_table_t fcp_dissector;
@@ -429,18 +429,18 @@ dissect_fcp_cmnd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, pro
         fchdr->itlq->lun = lun;
 
     if (!pinfo->fd->flags.visited) {
-        proto_data = se_alloc(sizeof(fcp_proto_data_t));
+        proto_data = se_new(fcp_proto_data_t);
         proto_data->lun = lun;
-        p_add_proto_data(pinfo->fd, proto_fcp, proto_data);
+        p_add_proto_data(pinfo->fd, proto_fcp, 0, proto_data);
     }
 
     request_data = (fcp_request_data_t*)se_tree_lookup32(fcp_conv_data->luns, lun);
     if (!request_data) {
-        request_data = se_alloc(sizeof(fcp_request_data_t));
+        request_data = se_new(fcp_request_data_t);
         request_data->request_frame = pinfo->fd->num;
         request_data->response_frame = 0;
         request_data->request_time = pinfo->fd->abs_ts;
-        request_data->itl = se_alloc(sizeof(itl_nexus_t));
+        request_data->itl = se_new(itl_nexus_t);
         request_data->itl->cmdset = 0xff;
         request_data->itl->conversation = conversation;
         se_tree_insert32(fcp_conv_data->luns, lun, request_data);
@@ -704,10 +704,10 @@ dissect_fcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                      pinfo->ptype, pinfo->srcport,
                      pinfo->destport, 0);
     if (fc_conv != NULL) {
-        fcp_conv_data = conversation_get_proto_data(fc_conv, proto_fcp);
+        fcp_conv_data = (fcp_conv_data_t *)conversation_get_proto_data(fc_conv, proto_fcp);
     }
     if (!fcp_conv_data) {
-        fcp_conv_data = se_alloc(sizeof(fcp_conv_data_t));
+        fcp_conv_data = se_new(fcp_conv_data_t);
         fcp_conv_data->luns = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "FCP Luns");
         conversation_add_proto_data(fc_conv, proto_fcp, fcp_conv_data);
     }
@@ -716,11 +716,11 @@ dissect_fcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
        The only way that consistently works is to save the lun on the first pass when packets
        are guaranteed to be parsed consecutively */
     if (!pinfo->fd->flags.visited) {
-        proto_data = se_alloc(sizeof(fcp_proto_data_t));
+        proto_data = se_new(fcp_proto_data_t);
         proto_data->lun = fchdr->itlq->lun;
-        p_add_proto_data(pinfo->fd, proto_fcp, proto_data);
+        p_add_proto_data(pinfo->fd, proto_fcp, 0, proto_data);
     } else {
-        proto_data = p_get_proto_data(pinfo->fd, proto_fcp);
+        proto_data = (fcp_proto_data_t *)p_get_proto_data(pinfo->fd, proto_fcp, 0);
         fchdr->itlq->lun = proto_data->lun;
     }
 
@@ -986,10 +986,12 @@ proto_register_fcp(void)
             FT_RELATIVE_TIME, BASE_NONE, NULL, 0,
             "Time since the FCP_CMND frame", HFILL }},
 
+#if 0
         { &hf_fcp_srr_op,
           {"Opcode", "fcp.els.op",
            FT_UINT8, BASE_HEX, NULL, 0x0,
            NULL, HFILL}},
+#endif
 
         { &hf_fcp_srr_ox_id,
           {"OX_ID", "fcp.els.srr.ox_id",
@@ -1001,10 +1003,12 @@ proto_register_fcp(void)
            FT_UINT16, BASE_HEX, NULL, 0x0,
            NULL, HFILL}},
 
+#if 0
         { &hf_fcp_srr_r_ctl,
           {"R_CTL", "fcp.els.srr.r_ctl",
            FT_UINT8, BASE_HEX, NULL, 0x0,
            NULL, HFILL}},
+#endif
     };
 
     /* Setup protocol subtree array */

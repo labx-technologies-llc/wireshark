@@ -51,7 +51,7 @@ UAT_FILES="
 
 TEST_KEYS_DIR="$PWD/keys/"
 if [ "$WS_SYSTEM" == "Windows" ] ; then
-    TEST_KEYS_DIR="`cygpath -w $TEST_KEYS_DIR`"
+	TEST_KEYS_DIR="`cygpath -w $TEST_KEYS_DIR`"
 fi
 
 #TS_ARGS="-Tfields -e frame.number -e frame.time_epoch -e frame.time_delta"
@@ -72,7 +72,7 @@ decryption_step_80211_wpa_psk() {
 		-o "wlan.enable_decryption: TRUE" \
 		-Tfields -e http.request.uri \
 		-r captures/wpa-Induction.pcap.gz \
-		-R http \
+		-Y http \
 		| grep favicon.ico > /dev/null 2>&1
 	RETURNVALUE=$?
 	if [ ! $RETURNVALUE -eq $EXIT_OK ]; then
@@ -87,7 +87,7 @@ decryption_step_80211_wpa_psk() {
 decryption_step_dtls() {
 	env $TS_DC_ENV $TSHARK $TS_DC_ARGS \
 		-Tfields -e data.data \
-		-r captures/snakeoil-dtls.pcap -R http \
+		-r captures/snakeoil-dtls.pcap -Y http \
 		| grep "69:74:20:77:6f:72:6b:20:21:0a" > /dev/null 2>&1
 	RETURNVALUE=$?
 	if [ ! $RETURNVALUE -eq $EXIT_OK ]; then
@@ -100,7 +100,7 @@ decryption_step_dtls() {
 # SSL
 # http://wiki.wireshark.org/SampleCaptures?action=AttachFile&do=view&target=snakeoil2_070531.tgz
 decryption_step_ssl() {
-	env $TS_DC_ENV $TSHARK $TS_DC_ARGS -Tfields -e http.request.uri -r captures/rsasnakeoil2.pcap -R http | grep favicon.ico > /dev/null 2>&1
+	env $TS_DC_ENV $TSHARK $TS_DC_ARGS -Tfields -e http.request.uri -r captures/rsasnakeoil2.pcap -Y http | grep favicon.ico > /dev/null 2>&1
 	RETURNVALUE=$?
 	if [ ! $RETURNVALUE -eq $EXIT_OK ]; then
 		test_step_failed "Failed to decrypt SSL"
@@ -115,7 +115,7 @@ decryption_step_zigbee() {
 	env $TS_DC_ENV $TSHARK $TS_DC_ARGS \
 		-r captures/sample_control4_2012-03-24.pcap \
 		-Tfields -e data.data \
-		-R zbee_aps \
+		-Y zbee_aps \
 		| grep "30:67:63:63:38:65:20:63:34:2e:64:6d:2e:74:76:20" > /dev/null 2>&1
 	RETURNVALUE=$?
 	if [ ! $RETURNVALUE -eq $EXIT_OK ]; then
@@ -163,13 +163,16 @@ decryption_suite() {
 	test_suite_add "TShark decryption" tshark_decryption_suite
 }
 
-# Editor modelines
 #
-# Local Variables:
-# sh-basic-offset: 8
+# Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+#
+# Local variables:
+# c-basic-offset: 8
 # tab-width: 8
 # indent-tabs-mode: t
 # End:
 #
-# ex: set shiftwidth=8 tabstop=8 noexpandtab:
+# vi: set shiftwidth=8 tabstop=8 noexpandtab:
 # :indentSize=8:tabSize=8:noTabs=false:
+#
+

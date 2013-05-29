@@ -43,6 +43,7 @@
 
 #include "proto.h"
 #include "emem.h"
+#include "wmem/wmem.h"
 
 #ifdef _WIN32
 #include <windows.h>	/* VirtualAlloc, VirtualProtect */
@@ -112,7 +113,6 @@ static int dev_zero_fd;
 typedef struct _emem_chunk_t {
 	struct _emem_chunk_t *next;
 	char		*buf;
-	char            *org;
 	size_t           size;
 	unsigned int	amount_free_init;
 	unsigned int	amount_free;
@@ -215,7 +215,7 @@ emem_canary_next(guint8 *mem_canary, guint8 *canary, int *len)
 			memcpy(&ptr, &canary[i+1], sizeof(void *));
 
 			if (len)
-				*len = i + 1 + sizeof(void *);
+				*len = i + 1 + (int)sizeof(void *);
 			return ptr;
 		}
 
@@ -367,7 +367,7 @@ emem_init(void)
 
 #elif defined(USE_GUARD_PAGES)
 	pagesize = sysconf(_SC_PAGESIZE);
-	if (pagesize == -1) 
+	if (pagesize == -1)
 		fprintf(stderr, "Warning: call to sysconf() for _SC_PAGESIZE has failed...\n");
 #ifdef NEED_DEV_ZERO
 	dev_zero_fd = ws_open("/dev/zero", O_RDWR);
@@ -382,7 +382,7 @@ static guint allocations[NUM_ALLOC_DIST] = { 0 };
 static guint total_no_chunks = 0;
 
 static void
-print_alloc_stats()
+print_alloc_stats(void)
 {
 	guint num_chunks = 0;
 	guint num_allocs = 0;
@@ -469,7 +469,7 @@ print_alloc_stats()
 			int len;
 
 			while (ptr != NULL) {
-				ptr = emem_canary_next(se_packet_mem.canary, ptr, &len);
+				ptr = emem_canary_next(se_packet_mem.canary, (guint8*)ptr, &len);
 
 				if (ptr == (void *) -1)
 					g_error("Memory corrupted");
@@ -546,7 +546,7 @@ print_alloc_stats()
 static gboolean
 emem_verify_pointer_list(const emem_chunk_t *chunk_list, const void *ptr)
 {
-	const gchar *cptr = ptr;
+	const gchar *cptr = (gchar *)ptr;
 	const emem_chunk_t *chunk;
 
 	for (chunk = chunk_list; chunk; chunk = chunk->next) {
@@ -584,7 +584,7 @@ static void
 emem_scrub_memory(char *buf, size_t size, gboolean alloc)
 {
 	guint scrubbed_value;
-	guint offset;
+	size_t offset;
 
 	if (!debug_use_memory_scrubber)
 		return;
@@ -639,7 +639,7 @@ emem_create_chunk(size_t size)
 	 */
 
 	/* XXX - is MEM_COMMIT|MEM_RESERVE correct? */
-	npc->buf = VirtualAlloc(NULL, size,
+	npc->buf = (char *)VirtualAlloc(NULL, size,
 		MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
 	if (npc->buf == NULL) {
@@ -651,7 +651,7 @@ emem_create_chunk(size_t size)
 	}
 
 #elif defined(USE_GUARD_PAGES)
-	npc->buf = mmap(NULL, size,
+	npc->buf = (char *)mmap(NULL, size,
 		PROT_READ|PROT_WRITE, ANON_PAGE_MODE, ANON_FD, 0);
 
 	if (npc->buf == MAP_FAILED) {
@@ -674,28 +674,6 @@ emem_create_chunk(size_t size)
 	npc->amount_free = npc->amount_free_init = (unsigned int) size;
 	npc->free_offset = npc->free_offset_init = 0;
 	return npc;
-}
-
-static void
-emem_destroy_chunk(emem_chunk_t *npc)
-{
-#if defined (_WIN32)
-	VirtualFree(npc->buf, 0, MEM_RELEASE);
-#elif defined(USE_GUARD_PAGES)
-
-	/* we cannot recover from a munmap() failure, but we	*/
-	/* can print an informative error message to stderr	*/
-
-	if (munmap(npc->buf, npc->amount_free_init) != 0) 
-		fprintf(stderr, "Warning: Unable to unmap memory chunk which has address %p and size %u\n",
-			npc->buf, npc->amount_free_init); 
-#else
-	g_free(npc->buf);
-#endif
-#ifdef SHOW_EMEM_STATS
-	total_no_chunks--;
-#endif
-	g_free(npc);
 }
 
 static emem_chunk_t *
@@ -739,8 +717,8 @@ emem_create_chunk_gp(size_t size)
 	ret = mprotect(prot2, pagesize, PROT_NONE);
 	g_assert(ret != -1);
 
-	npc->amount_free_init = prot2 - prot1 - pagesize;
-	npc->free_offset_init = (prot1 - npc->buf) + pagesize;
+	npc->amount_free_init = (unsigned int)(prot2 - prot1 - pagesize);
+	npc->free_offset_init = (unsigned int)((prot1 - npc->buf) + pagesize);
 #else
 	npc->amount_free_init = size;
 	npc->free_offset_init = 0;
@@ -849,13 +827,13 @@ emem_alloc_glib(size_t size, emem_pool_t *mem)
 
 	npc=g_new(emem_chunk_t, 1);
 	npc->next=mem->used_list;
-	npc->buf=g_malloc(size);
+	npc->buf=(char *)g_malloc(size);
 	npc->canary_last = NULL;
 	mem->used_list=npc;
 	/* There's no padding/alignment involved (from our point of view) when
 	 * we fetch the memory directly from the system pool, so WYSIWYG */
-	npc->free_offset = npc->free_offset_init = 0;
-	npc->amount_free = npc->amount_free_init = (unsigned int) size;
+	npc->amount_free = npc->free_offset_init = 0;
+	npc->free_offset = npc->amount_free_init = (unsigned int) size;
 
 	return npc->buf;
 }
@@ -864,12 +842,27 @@ emem_alloc_glib(size_t size, emem_pool_t *mem)
 static void *
 emem_alloc(size_t size, emem_pool_t *mem)
 {
-	void *buf = mem->memory_alloc(size, mem);
+	void *buf;
+	
+#if 0
+	/* For testing wmem, effectively redirects most emem memory to wmem.
+	 * You will also have to comment out several assertions in
+	 * wmem_packet_scope() and wmem_file_scope() since they are much
+	 * stricter about when they are permitted to be called. */
+	if (mem == &ep_packet_mem) {
+		return wmem_alloc(wmem_packet_scope(), size);
+	}
+	else if (mem == &se_packet_mem) {
+		return wmem_alloc(wmem_file_scope(), size);
+	}
+#endif
+
+	buf = mem->memory_alloc(size, mem);
 
 	/*  XXX - this is a waste of time if the allocator function is going to
 	 *  memset this straight back to 0.
 	 */
-	emem_scrub_memory(buf, size, TRUE);
+	emem_scrub_memory((char *)buf, size, TRUE);
 
 	return buf;
 }
@@ -893,52 +886,6 @@ se_alloc(size_t size)
 }
 
 void *
-sl_alloc(struct ws_memory_slab *mem_chunk)
-{
-	emem_chunk_t *chunk;
-	void *ptr;
-
-	/* XXX, debug_use_slices -> fallback to g_slice_alloc0 */
-
-	if ((mem_chunk->freed != NULL)) {
-		ptr = mem_chunk->freed;
-		memcpy(&mem_chunk->freed, ptr, sizeof(void *));
-		return ptr;
-	}
-
-	if (!(chunk = mem_chunk->chunk_list) || chunk->amount_free < (guint) mem_chunk->item_size) {
-		size_t alloc_size = mem_chunk->item_size * mem_chunk->count;
-
-		/* align to page-size */
-#if defined (_WIN32) || defined(USE_GUARD_PAGES)
-		alloc_size = (alloc_size + (pagesize - 1)) & ~(pagesize - 1);
-#endif
-
-		chunk = emem_create_chunk(alloc_size);	/* NOTE: using version without guard pages! */
-		chunk->next = mem_chunk->chunk_list;
-		mem_chunk->chunk_list = chunk;
-	}
-
-	ptr = chunk->buf + chunk->free_offset;
-	chunk->free_offset += mem_chunk->item_size;
-	chunk->amount_free -= mem_chunk->item_size;
-
-	return ptr;
-}
-
-void
-sl_free(struct ws_memory_slab *mem_chunk, gpointer ptr)
-{
-	/* XXX, debug_use_slices -> fallback to g_slice_free1 */
-
-	/* XXX, abort if ptr not found in emem_verify_pointer_list()? */
-	if (ptr != NULL /* && emem_verify_pointer_list(mem_chunk->chunk_list, ptr) */) {
-		memcpy(ptr, &(mem_chunk->freed), sizeof(void *));
-		mem_chunk->freed = ptr;
-	}
-}
-
-void *
 ep_alloc0(size_t size)
 {
 	return memset(ep_alloc(size),'\0',size);
@@ -948,12 +895,6 @@ void *
 se_alloc0(size_t size)
 {
 	return memset(se_alloc(size),'\0',size);
-}
-
-void *
-sl_alloc0(struct ws_memory_slab *mem_chunk)
-{
-	return memset(sl_alloc(mem_chunk), '\0', mem_chunk->item_size);
 }
 
 static gchar *
@@ -966,10 +907,10 @@ emem_strdup(const gchar *src, void *allocator(size_t))
 	 * have to bother checking it.
 	 */
 	if(!src)
-		return "<NULL>";
+		src = "<NULL>";
 
 	len = (guint) strlen(src);
-	dst = memcpy(allocator(len+1), src, len+1);
+	dst = (gchar *)memcpy(allocator(len+1), src, len+1);
 
 	return dst;
 }
@@ -989,7 +930,7 @@ se_strdup(const gchar *src)
 static gchar *
 emem_strndup(const gchar *src, size_t len, void *allocator(size_t))
 {
-	gchar *dst = allocator(len+1);
+	gchar *dst = (gchar *)allocator(len+1);
 	guint i;
 
 	for (i = 0; (i < len) && src[i]; i++)
@@ -1037,7 +978,7 @@ emem_strdup_vprintf(const gchar *fmt, va_list ap, void *allocator(size_t))
 
 	len = g_printf_string_upper_bound(fmt, ap);
 
-	dst = allocator(len+1);
+	dst = (gchar *)allocator(len+1);
 	g_vsnprintf (dst, (gulong) len, fmt, ap2);
 	va_end(ap2);
 
@@ -1178,7 +1119,7 @@ ep_strconcat(const gchar *string1, ...)
 	}
 	va_end(args);
 
-	concat = ep_alloc(l);
+	concat = (gchar *)ep_alloc(l);
 	ptr = concat;
 
 	ptr = g_stpcpy(ptr, string1);
@@ -1217,7 +1158,7 @@ emem_free_all(emem_pool_t *mem)
 	while (npc != NULL) {
 		if (use_chunks) {
 			while (npc->canary_last != NULL) {
-				npc->canary_last = emem_canary_next(mem->canary, npc->canary_last, NULL);
+				npc->canary_last = emem_canary_next(mem->canary, (guint8 *)npc->canary_last, NULL);
 				/* XXX, check if canary_last is inside allocated memory? */
 
 				if (npc->canary_last == (void *) -1)
@@ -1271,21 +1212,6 @@ se_free_all(void)
 	emem_free_all(&se_packet_mem);
 }
 
-void
-sl_free_all(struct ws_memory_slab *mem_chunk)
-{
-	emem_chunk_t *chunk_list = mem_chunk->chunk_list;
-
-	mem_chunk->chunk_list = NULL;
-	mem_chunk->freed = NULL;
-	while (chunk_list) {
-		emem_chunk_t *chunk = chunk_list;
-
-		chunk_list = chunk_list->next;
-		emem_destroy_chunk(chunk);
-	}
-}
-
 ep_stack_t
 ep_stack_new(void) {
 	ep_stack_t s = ep_new(struct _ep_stack_frame_t*);
@@ -1335,7 +1261,7 @@ se_tree_create(int type, const char *name)
 {
 	emem_tree_t *tree_list;
 
-	tree_list=g_malloc(sizeof(emem_tree_t));
+	tree_list=(emem_tree_t *)g_malloc(sizeof(emem_tree_t));
 	tree_list->next=se_packet_mem.trees;
 	tree_list->type=type;
 	tree_list->tree=NULL;
@@ -1639,7 +1565,7 @@ emem_tree_insert32(emem_tree_t *se_tree, guint32 key, void *data)
 
 	/* is this the first node ?*/
 	if(!node){
-		node=se_tree->malloc(sizeof(emem_tree_node_t));
+		node=(emem_tree_node_t *)se_tree->malloc(sizeof(emem_tree_node_t));
 		switch(se_tree->type){
 		case EMEM_TREE_TYPE_RED_BLACK:
 			node->u.rb_color=EMEM_TREE_RB_COLOR_BLACK;
@@ -1668,7 +1594,7 @@ emem_tree_insert32(emem_tree_t *se_tree, guint32 key, void *data)
 			if(!node->left){
 				/* new node to the left */
 				emem_tree_node_t *new_node;
-				new_node=se_tree->malloc(sizeof(emem_tree_node_t));
+				new_node=(emem_tree_node_t *)se_tree->malloc(sizeof(emem_tree_node_t));
 				node->left=new_node;
 				new_node->parent=node;
 				new_node->left=NULL;
@@ -1686,7 +1612,7 @@ emem_tree_insert32(emem_tree_t *se_tree, guint32 key, void *data)
 			if(!node->right){
 				/* new node to the right */
 				emem_tree_node_t *new_node;
-				new_node=se_tree->malloc(sizeof(emem_tree_node_t));
+				new_node=(emem_tree_node_t *)se_tree->malloc(sizeof(emem_tree_node_t));
 				node->right=new_node;
 				new_node->parent=node;
 				new_node->left=NULL;
@@ -1720,7 +1646,7 @@ lookup_or_insert32(emem_tree_t *se_tree, guint32 key, void*(*func)(void*),void* 
 
 	/* is this the first node ?*/
 	if(!node){
-		node=se_tree->malloc(sizeof(emem_tree_node_t));
+		node=(emem_tree_node_t *)se_tree->malloc(sizeof(emem_tree_node_t));
 		switch(se_tree->type){
 			case EMEM_TREE_TYPE_RED_BLACK:
 				node->u.rb_color=EMEM_TREE_RB_COLOR_BLACK;
@@ -1748,7 +1674,7 @@ lookup_or_insert32(emem_tree_t *se_tree, guint32 key, void*(*func)(void*),void* 
 			if(!node->left){
 				/* new node to the left */
 				emem_tree_node_t *new_node;
-				new_node=se_tree->malloc(sizeof(emem_tree_node_t));
+				new_node=(emem_tree_node_t *)se_tree->malloc(sizeof(emem_tree_node_t));
 				node->left=new_node;
 				new_node->parent=node;
 				new_node->left=NULL;
@@ -1766,7 +1692,7 @@ lookup_or_insert32(emem_tree_t *se_tree, guint32 key, void*(*func)(void*),void* 
 			if(!node->right){
 				/* new node to the right */
 				emem_tree_node_t *new_node;
-				new_node=se_tree->malloc(sizeof(emem_tree_node_t));
+				new_node=(emem_tree_node_t *)se_tree->malloc(sizeof(emem_tree_node_t));
 				node->right=new_node;
 				new_node->parent=node;
 				new_node->left=NULL;
@@ -1801,7 +1727,7 @@ se_tree_create_non_persistent(int type, const char *name)
 {
 	emem_tree_t *tree_list;
 
-	tree_list=se_alloc(sizeof(emem_tree_t));
+	tree_list=(emem_tree_t *)se_alloc(sizeof(emem_tree_t));
 	tree_list->next=NULL;
 	tree_list->type=type;
 	tree_list->tree=NULL;
@@ -1836,7 +1762,7 @@ emem_tree_create_subtree(emem_tree_t *parent_tree, const char *name)
 {
 	emem_tree_t *tree_list;
 
-	tree_list=parent_tree->malloc(sizeof(emem_tree_t));
+	tree_list=(emem_tree_t *)parent_tree->malloc(sizeof(emem_tree_t));
 	tree_list->next=NULL;
 	tree_list->type=parent_tree->type;
 	tree_list->tree=NULL;
@@ -1849,7 +1775,7 @@ emem_tree_create_subtree(emem_tree_t *parent_tree, const char *name)
 static void *
 create_sub_tree(void* d)
 {
-	emem_tree_t *se_tree = d;
+	emem_tree_t *se_tree = (emem_tree_t *)d;
 	return emem_tree_create_subtree(se_tree, "subtree");
 }
 
@@ -1875,7 +1801,7 @@ emem_tree_insert32_array(emem_tree_t *se_tree, emem_tree_key_t *key, void *data)
 			if (!insert_tree) {
 				insert_tree = se_tree;
 			} else {
-				insert_tree = lookup_or_insert32(insert_tree, insert_key32, create_sub_tree, se_tree, EMEM_TREE_NODE_IS_SUBTREE);
+				insert_tree = (emem_tree_t *)lookup_or_insert32(insert_tree, insert_key32, create_sub_tree, se_tree, EMEM_TREE_NODE_IS_SUBTREE);
 			}
 			insert_key32 = cur_key->key[i];
 		}
@@ -1909,7 +1835,7 @@ emem_tree_lookup32_array(emem_tree_t *se_tree, emem_tree_key_t *key)
 			if (!lookup_tree) {
 				lookup_tree = se_tree;
 			} else {
-				lookup_tree = emem_tree_lookup32(lookup_tree, lookup_key32);
+				lookup_tree = (emem_tree_t *)emem_tree_lookup32(lookup_tree, lookup_key32);
 				if (!lookup_tree) {
 					return NULL;
 				}
@@ -1945,7 +1871,7 @@ emem_tree_lookup32_array_le(emem_tree_t *se_tree, emem_tree_key_t *key)
 			if (!lookup_tree) {
 				lookup_tree = se_tree;
 			} else {
-				lookup_tree = emem_tree_lookup32_le(lookup_tree, lookup_key32);
+				lookup_tree = (emem_tree_t *)emem_tree_lookup32_le(lookup_tree, lookup_key32);
 				if (!lookup_tree) {
 					return NULL;
 				}
@@ -1981,7 +1907,7 @@ emem_tree_insert_string(emem_tree_t* se_tree, const gchar* k, void* v, guint32 f
 	guint32 i;
 	guint32 tmp;
 
-	aligned = g_malloc(divx * sizeof (guint32));
+	aligned = (guint32 *)g_malloc(divx * sizeof (guint32));
 
 	/* pack the bytes one one by one into guint32s */
 	tmp = 0;
@@ -2034,7 +1960,7 @@ emem_tree_lookup_string(emem_tree_t* se_tree, const gchar* k, guint32 flags)
 	guint32 tmp;
 	void *ret;
 
-	aligned = g_malloc(divx * sizeof (guint32));
+	aligned = (guint32 *)g_malloc(divx * sizeof (guint32));
 
 	/* pack the bytes one one by one into guint32s */
 	tmp = 0;
@@ -2093,7 +2019,7 @@ emem_tree_foreach_nodes(emem_tree_node_t* node, tree_foreach_func callback, void
 	}
 
 	if (node->u.is_subtree == EMEM_TREE_NODE_IS_SUBTREE) {
-		stop_traverse = emem_tree_foreach(node->data, callback, user_data);
+		stop_traverse = emem_tree_foreach((emem_tree_t *)node->data, callback, user_data);
 	} else {
 		stop_traverse = callback(node->data, user_data);
 	}
@@ -2147,7 +2073,7 @@ emem_tree_print_nodes(const char *prefix, emem_tree_node_t* node, guint32 level)
 		emem_tree_print_nodes("R-", node->right, level+1);
 
 	if (node->u.is_subtree)
-		emem_print_subtree(node->data, level+1);
+		emem_print_subtree((emem_tree_t *)node->data, level+1);
 }
 
 static void
@@ -2214,7 +2140,7 @@ ep_strbuf_grow(emem_strbuf_t *strbuf, gsize wanted_alloc_len)
 	}
 
 	new_alloc_len = next_size(strbuf->alloc_len, wanted_alloc_len, strbuf->max_alloc_len);
-	new_str = ep_alloc(new_alloc_len);
+	new_str = (gchar *)ep_alloc(new_alloc_len);
 	g_strlcpy(new_str, strbuf->str, new_alloc_len);
 
 	strbuf->alloc_len = new_alloc_len;
@@ -2226,7 +2152,7 @@ ep_strbuf_sized_new(gsize alloc_len, gsize max_alloc_len)
 {
 	emem_strbuf_t *strbuf;
 
-	strbuf = ep_alloc(sizeof(emem_strbuf_t));
+	strbuf = ep_new(emem_strbuf_t);
 
 	if ((max_alloc_len == 0) || (max_alloc_len > MAX_STRBUF_LEN))
 		max_alloc_len = MAX_STRBUF_LEN;
@@ -2235,7 +2161,7 @@ ep_strbuf_sized_new(gsize alloc_len, gsize max_alloc_len)
 	else if (alloc_len > max_alloc_len)
 		alloc_len = max_alloc_len;
 
-	strbuf->str = ep_alloc(alloc_len);
+	strbuf->str = (char *)ep_alloc(alloc_len);
 	strbuf->str[0] = '\0';
 
 	strbuf->len = 0;

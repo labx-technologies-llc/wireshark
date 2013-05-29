@@ -78,7 +78,7 @@ static int hf_cba_disconnectme_in = -1;
 static int hf_cba_data_first_in = -1;
 static int hf_cba_data_last_in = -1;
 
-static int hf_cba_acco_server_pICBAAccoCallback = -1;
+/* static int hf_cba_acco_server_pICBAAccoCallback = -1; */
 
 static int hf_cba_acco_server_first_connect = -1;
 
@@ -91,7 +91,7 @@ static int hf_cba_acco_serversrt_cr_flags = -1;
 static int hf_cba_acco_serversrt_cr_flags_timestamped = -1;
 static int hf_cba_acco_serversrt_cr_flags_reconfigure = -1;
 static int hf_cba_acco_serversrt_record_length = -1;
-static int hf_cba_acco_serversrt_action = -1;
+/* static int hf_cba_acco_serversrt_action = -1; */
 static int hf_cba_acco_serversrt_last_connect = -1;
 
 static int hf_cba_getprovconnout = -1;
@@ -413,7 +413,7 @@ cba_pdev_find(packet_info *pinfo, const guint8 *ip, e_uuid_t *ipid)
 
     interf = dcom_interface_find(pinfo, ip, ipid);
     if (interf != NULL) {
-        pdev = interf->parent->private_data;
+        pdev = (cba_pdev_t *)interf->parent->private_data;
         if (pdev == NULL) {
             expert_add_info_format(pinfo, NULL, PI_UNDECODED, PI_NOTE, "pdev_find: no pdev for IP:%s IPID:%s",
                 ip_to_str(ip), guids_resolve_uuid_to_str(ipid));
@@ -437,14 +437,14 @@ cba_pdev_add(packet_info *pinfo, const guint8 *ip)
 
     /* find pdev */
     for(cba_iter = cba_pdevs; cba_iter != NULL; cba_iter = g_list_next(cba_iter)) {
-        pdev = cba_iter->data;
+        pdev = (cba_pdev_t *)cba_iter->data;
         if (memcmp(pdev->ip, ip, 4) == 0) {
             return pdev;
         }
     }
 
     /* not found, create a new */
-    pdev = se_alloc(sizeof(cba_pdev_t));
+    pdev = (cba_pdev_t *)se_alloc(sizeof(cba_pdev_t));
     memcpy( (void *) (pdev->ip), ip, 4);
     pdev->first_packet = pinfo->fd->num;
     pdev->ldevs        = NULL;
@@ -459,7 +459,7 @@ void
 cba_pdev_link(packet_info *pinfo _U_, cba_pdev_t *pdev, dcom_interface_t *pdev_interf)
 {
 
-    /* "crosslink" pdev interface and it's object */
+    /* "crosslink" pdev interface and its object */
     pdev->object = pdev_interf->parent;
     pdev_interf->private_data = pdev;
     if (pdev_interf->parent) {
@@ -472,7 +472,7 @@ void
 cba_ldev_link(packet_info *pinfo _U_, cba_ldev_t *ldev, dcom_interface_t *ldev_interf)
 {
 
-    /* "crosslink" interface and it's object */
+    /* "crosslink" interface and its object */
     ldev->ldev_object = ldev_interf->parent;
     ldev_interf->private_data = ldev;
     if (ldev_interf->parent) {
@@ -485,7 +485,7 @@ void
 cba_ldev_link_acco(packet_info *pinfo _U_, cba_ldev_t *ldev, dcom_interface_t *acco_interf)
 {
 
-    /* "crosslink" interface and it's object */
+    /* "crosslink" interface and its object */
     ldev->acco_object = acco_interf->parent;
     acco_interf->private_data = ldev;
     if (acco_interf->parent) {
@@ -503,14 +503,14 @@ cba_ldev_add(packet_info *pinfo, cba_pdev_t *pdev, const char *name)
 
     /* find ldev */
     for(cba_iter = pdev->ldevs; cba_iter != NULL; cba_iter = g_list_next(cba_iter)) {
-        ldev = cba_iter->data;
+        ldev = (cba_ldev_t *)cba_iter->data;
         if (strcmp(ldev->name, name) == 0) {
             return ldev;
         }
     }
 
     /* not found, create a new */
-    ldev = se_alloc(sizeof(cba_ldev_t));
+    ldev = (cba_ldev_t *)se_alloc(sizeof(cba_ldev_t));
     ldev->name         = se_strdup(name);
     ldev->first_packet = pinfo->fd->num;
     ldev->ldev_object  = NULL;
@@ -529,26 +529,26 @@ cba_ldev_add(packet_info *pinfo, cba_pdev_t *pdev, const char *name)
 
 
 cba_ldev_t *
-cba_ldev_find(packet_info *pinfo, const guint8 *ip, e_uuid_t *ipid) {
+cba_ldev_find(packet_info *pinfo, const void *ip, e_uuid_t *ipid) {
     /*dcerpc_info *info = (dcerpc_info *)pinfo->private_data;*/
     dcom_interface_t *interf;
     cba_ldev_t       *ldev;
 
 
-    interf = dcom_interface_find(pinfo, ip, ipid);
+    interf = dcom_interface_find(pinfo, (const guint8 *)ip, ipid);
     if (interf != NULL) {
-        ldev = interf->private_data;
+        ldev = (cba_ldev_t *)interf->private_data;
 
         if (ldev == NULL) {
-            ldev = interf->parent->private_data;
+            ldev = (cba_ldev_t *)interf->parent->private_data;
         }
         if (ldev == NULL) {
             expert_add_info_format(pinfo, NULL, PI_UNDECODED, PI_NOTE, "Unknown LDev of %s",
-                ip_to_str(ip));
+                ip_to_str((const guint8 *)ip));
         }
     } else {
         expert_add_info_format(pinfo, NULL, PI_UNDECODED, PI_NOTE, "Unknown IPID of %s",
-            ip_to_str(ip));
+            ip_to_str((const guint8 *)ip));
         ldev = NULL;
     }
 
@@ -677,7 +677,7 @@ cba_frame_connect(packet_info *pinfo, cba_ldev_t *cons_ldev, cba_ldev_t *prov_ld
 
     /* find frame */
     for(cba_iter = cons_ldev->consframes; cba_iter != NULL; cba_iter = g_list_next(cba_iter)) {
-        frame = cba_iter->data;
+        frame = (cba_frame_t *)cba_iter->data;
         if ( frame->conscrid == conscrid &&
             memcmp(frame->consmac, consmac, 6) == 0 &&
             cba_packet_in_range(pinfo, frame->packet_connect, frame->packet_disconnect, frame->packet_disconnectme)) {
@@ -685,7 +685,7 @@ cba_frame_connect(packet_info *pinfo, cba_ldev_t *cons_ldev, cba_ldev_t *prov_ld
         }
     }
 
-    frame = se_alloc(sizeof(cba_frame_t));
+    frame = (cba_frame_t *)se_alloc(sizeof(cba_frame_t));
 
     frame->consparent          = cons_ldev;
     frame->provparent          = prov_ldev;
@@ -738,7 +738,7 @@ cba_frame_disconnectme(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, cba_
 
 
     for(frames = cons_ldev->consframes; frames != NULL; frames = g_list_next(frames)) {
-        frame = frames->data;
+        frame = (cba_frame_t *)frames->data;
 
         if ( frame->provparent == prov_ldev &&
             cba_packet_in_range(pinfo, frame->packet_connect, frame->packet_disconnect, frame->packet_disconnectme)) {
@@ -771,15 +771,15 @@ cba_frame_find_by_cons(packet_info *pinfo, const guint8 *consmac, guint16 conscr
 
     /* find pdev */
     for(pdevs = cba_pdevs; pdevs != NULL; pdevs = g_list_next(pdevs)) {
-        pdev = pdevs->data;
+        pdev = (cba_pdev_t *)pdevs->data;
 
         /* find ldev */
         for(ldevs = pdev->ldevs; ldevs != NULL; ldevs = g_list_next(ldevs)) {
-            ldev = ldevs->data;
+            ldev = (cba_ldev_t *)ldevs->data;
 
             /* find frame */
             for(frames = ldev->consframes; frames != NULL; frames = g_list_next(frames)) {
-                frame = frames->data;
+                frame = (cba_frame_t *)frames->data;
 
                 if ( frame->conscrid == conscrid &&
                     memcmp(frame->consmac, consmac, 6) == 0 &&
@@ -806,7 +806,7 @@ cba_frame_find_by_provcrid(packet_info *pinfo, cba_ldev_t *prov_ldev, guint32 pr
     }
 
     for(frames = prov_ldev->provframes; frames != NULL; frames = g_list_next(frames)) {
-        frame = frames->data;
+        frame = (cba_frame_t *)frames->data;
 
         if ( frame->provcrid == provcrid &&
             cba_packet_in_range(pinfo, frame->packet_connect, frame->packet_disconnect, frame->packet_disconnectme)) {
@@ -903,7 +903,7 @@ cba_connection_connect(packet_info *pinfo, cba_ldev_t *cons_ldev, cba_ldev_t *pr
     if (cons_frame != NULL) {
         /* SRT: search in frame */
         for(cba_iter = cons_frame->conns; cba_iter != NULL; cba_iter = g_list_next(cba_iter)) {
-            conn = cba_iter->data;
+            conn = (cba_connection_t *)cba_iter->data;
             if (conn->consid == consid) {
                 return conn;
             }
@@ -911,7 +911,7 @@ cba_connection_connect(packet_info *pinfo, cba_ldev_t *cons_ldev, cba_ldev_t *pr
     } else {
         /* DCOM: search in ldev */
         for(cba_iter = cons_ldev->consconns; cba_iter != NULL; cba_iter = g_list_next(cba_iter)) {
-            conn = cba_iter->data;
+            conn = (cba_connection_t *)cba_iter->data;
             if ( conn->consid == consid &&
                 cba_packet_in_range(pinfo, conn->packet_connect, conn->packet_disconnect, conn->packet_disconnectme)) {
                 return conn;
@@ -919,7 +919,7 @@ cba_connection_connect(packet_info *pinfo, cba_ldev_t *cons_ldev, cba_ldev_t *pr
         }
     }
 
-    conn = se_alloc(sizeof(cba_connection_t));
+    conn = (cba_connection_t *)se_alloc(sizeof(cba_connection_t));
 
     conn->consparentacco      = cons_ldev;
     conn->provparentacco      = prov_ldev;
@@ -980,7 +980,7 @@ cba_connection_disconnectme(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 
     for(conns = cons_ldev->consconns; conns != NULL; conns = g_list_next(conns)) {
-        conn = conns->data;
+        conn = (cba_connection_t *)conns->data;
 
         if ( conn->provparentacco == prov_ldev &&
             cba_packet_in_range(pinfo, conn->packet_connect, conn->packet_disconnect, conn->packet_disconnectme)) {
@@ -1008,7 +1008,7 @@ cba_connection_find_by_provid(tvbuff_t *tvb _U_, packet_info *pinfo, proto_tree 
 
 
     for(cba_iter = prov_ldev->provconns; cba_iter != NULL; cba_iter = g_list_next(cba_iter)) {
-        conn = cba_iter->data;
+        conn = (cba_connection_t *)cba_iter->data;
         if ( conn->provid == provid &&
             cba_packet_in_range(pinfo, conn->packet_connect, conn->packet_disconnect, conn->packet_disconnectme)) {
             return conn;
@@ -1250,7 +1250,7 @@ dissect_ICBAAccoServer_Connect_rqst(tvbuff_t *tvb, int offset,
     offset = dissect_dcom_LPWSTR(tvb, offset, pinfo, tree, drep,
                        hf_cba_acco_conn_consumer, szCons, u32MaxConsLen);
 
-    /* find the consumer ldev by it's name */
+    /* find the consumer ldev by its name */
     cons_ldev = cba_acco_add(pinfo, szCons);
 
     offset = dissect_dcom_WORD(tvb, offset, pinfo, tree, drep,
@@ -1266,7 +1266,7 @@ dissect_ICBAAccoServer_Connect_rqst(tvbuff_t *tvb, int offset,
             "Server_Connect: consumer interface invalid");
     }
 
-    /* "crosslink" consumer interface and it's object */
+    /* "crosslink" consumer interface and its object */
     if (cons_interf != NULL && cons_ldev != NULL) {
         cba_ldev_link_acco(pinfo, cons_ldev, cons_interf);
     }
@@ -1279,7 +1279,7 @@ dissect_ICBAAccoServer_Connect_rqst(tvbuff_t *tvb, int offset,
 
     /* link connections infos to the call */
     if (prov_ldev != NULL && cons_ldev != NULL) {
-        call = se_alloc(sizeof(server_connect_call_t) + u32ArraySize * sizeof(cba_connection_t *));
+        call = (server_connect_call_t *)se_alloc(sizeof(server_connect_call_t) + u32ArraySize * sizeof(cba_connection_t *));
         call->conn_count = 0;
         call->frame      = NULL;
         call->conns      = (cba_connection_t **) (call+1);
@@ -1328,7 +1328,7 @@ dissect_ICBAAccoServer_Connect_rqst(tvbuff_t *tvb, int offset,
             conn = cba_connection_connect(pinfo, cons_ldev, prov_ldev, /*cons_frame*/ NULL,
                 u16QoSType, u16QoSValue, szItem, u32ConsID, 0,
                 /* XXX - VarType must be translated to new type description if it includes an array (0x2000) */
-                se_memdup(&u16VarType, 2), 1);
+                (guint16 *)se_memdup(&u16VarType, 2), 1);
 
             cba_connection_info(tvb, pinfo, sub_tree, conn);
         } else {
@@ -1403,7 +1403,7 @@ dissect_ICBAAccoServer2_Connect2_rqst(tvbuff_t *tvb, int offset,
     offset = dissect_dcom_LPWSTR(tvb, offset, pinfo, tree, drep,
                        hf_cba_acco_conn_consumer, szCons, u32MaxConsLen);
 
-    /* find the consumer ldev by it's name */
+    /* find the consumer ldev by its name */
     cons_ldev = cba_acco_add(pinfo, szCons);
 
     offset = dissect_dcom_WORD(tvb, offset, pinfo, tree, drep,
@@ -1426,7 +1426,7 @@ dissect_ICBAAccoServer2_Connect2_rqst(tvbuff_t *tvb, int offset,
         cons_interf = NULL;
     }
 
-    /* "crosslink" consumer interface and it's object */
+    /* "crosslink" consumer interface and its object */
     if (cons_interf != NULL && cons_ldev != NULL) {
         cba_ldev_link_acco(pinfo, cons_ldev, cons_interf);
     }
@@ -1439,7 +1439,7 @@ dissect_ICBAAccoServer2_Connect2_rqst(tvbuff_t *tvb, int offset,
 
     /* link connection infos to the call */
     if (prov_ldev != NULL && cons_ldev != NULL) {
-        call = se_alloc(sizeof(server_connect_call_t) + u32ArraySize * sizeof(cba_connection_t *));
+        call = (server_connect_call_t *)se_alloc(sizeof(server_connect_call_t) + u32ArraySize * sizeof(cba_connection_t *));
         call->conn_count = 0;
         call->frame      = NULL;
         call->conns      = (cba_connection_t **) (call+1);
@@ -1481,7 +1481,7 @@ dissect_ICBAAccoServer2_Connect2_rqst(tvbuff_t *tvb, int offset,
 
             /* limit the allocation to a reasonable size */
             if (u32ArraySize2 < 1000) {
-                typedesc = se_alloc0(u32ArraySize2 * 2);
+                typedesc = (guint16 *)se_alloc0(u32ArraySize2 * 2);
                 typedesclen = u32ArraySize2;
             } else {
                 typedesc = NULL;
@@ -1566,7 +1566,7 @@ dissect_ICBAAccoServer_Connect_resp(tvbuff_t *tvb, int offset,
     proto_item  *item;
     dcerpc_info *info         = (dcerpc_info *)pinfo->private_data;
     cba_connection_t *conn;
-    server_connect_call_t *call = info->call_data->private_data;
+    server_connect_call_t *call = (server_connect_call_t *)info->call_data->private_data;
 
 
     offset = dissect_dcom_that(tvb, offset, pinfo, tree, drep);
@@ -1675,7 +1675,7 @@ dissect_ICBAAccoServer_Disconnect_rqst(tvbuff_t *tvb, int offset,
 
     /* link connection infos to the call */
     if (prov_ldev != NULL) {
-        call = se_alloc(sizeof(server_connect_call_t) + u32ArraySize * sizeof(cba_connection_t *));
+        call = (server_connect_call_t *)se_alloc(sizeof(server_connect_call_t) + u32ArraySize * sizeof(cba_connection_t *));
         call->conn_count = 0;
         call->frame      = NULL;
         call->conns      = (cba_connection_t **) (call+1);
@@ -1720,7 +1720,7 @@ dissect_ICBAAccoServer_Disconnect_resp(tvbuff_t *tvb, int offset,
     proto_item  *item;
     dcerpc_info *info = (dcerpc_info *)pinfo->private_data;
     cba_connection_t *conn;
-    server_connect_call_t *call = info->call_data->private_data;
+    server_connect_call_t *call = (server_connect_call_t *)info->call_data->private_data;
 
 
     offset = dissect_dcom_that(tvb, offset, pinfo, tree, drep);
@@ -1832,11 +1832,11 @@ dissect_ICBAAccoServer_DisconnectMe_rqst(tvbuff_t *tvb, int offset,
     offset = dissect_dcom_LPWSTR(tvb, offset, pinfo, tree, drep,
         hf_cba_acco_conn_consumer, szStr, u32MaxStr);
 
-    /* find the consumer ldev by it's name */
+    /* find the consumer ldev by its name */
     cons_ldev = cba_acco_add(pinfo, szStr);
 
     if (prov_ldev != NULL && cons_ldev != NULL) {
-        call = se_alloc(sizeof(server_disconnectme_call_t));
+        call = (server_disconnectme_call_t *)se_alloc(sizeof(server_disconnectme_call_t));
         call->cons = cons_ldev;
         call->prov = prov_ldev;
         info->call_data->private_data = call;
@@ -1868,7 +1868,7 @@ dissect_ICBAAccoServer_DisconnectMe_resp(tvbuff_t *tvb, int offset,
     offset = dissect_dcom_HRESULT(tvb, offset, pinfo, tree, drep,
                     &u32HResult);
 
-    call = info->call_data->private_data;
+    call = (server_disconnectme_call_t *)info->call_data->private_data;
     if (call) {
         cba_connection_disconnectme(tvb, pinfo, tree, call->cons, call->prov);
     }
@@ -1905,11 +1905,11 @@ dissect_ICBAAccoServerSRT_DisconnectMe_rqst(tvbuff_t *tvb, int offset,
     offset = dissect_dcom_LPWSTR(tvb, offset, pinfo, tree, drep,
         hf_cba_acco_conn_consumer, szStr, u32MaxStr);
 
-    /* find the consumer ldev by it's name */
+    /* find the consumer ldev by its name */
     cons_ldev = cba_acco_add(pinfo, szStr);
 
     if (prov_ldev != NULL && cons_ldev != NULL) {
-        call = se_alloc(sizeof(server_disconnectme_call_t));
+        call = (server_disconnectme_call_t *)se_alloc(sizeof(server_disconnectme_call_t));
         call->cons = cons_ldev;
         call->prov = prov_ldev;
         info->call_data->private_data = call;
@@ -1941,7 +1941,7 @@ dissect_ICBAAccoServerSRT_DisconnectMe_resp(tvbuff_t *tvb, int offset,
     offset = dissect_dcom_HRESULT(tvb, offset, pinfo, tree, drep,
                     &u32HResult);
 
-    call = info->call_data->private_data;
+    call = (server_disconnectme_call_t *)info->call_data->private_data;
     if (call) {
         cba_frame_disconnectme(tvb, pinfo, tree, call->cons, call->prov);
     }
@@ -2124,7 +2124,7 @@ dissect_ICBAAccoServerSRT_ConnectCR_rqst(tvbuff_t *tvb, int offset,
     offset = dissect_dcom_LPWSTR(tvb, offset, pinfo, tree, drep,
                        hf_cba_acco_conn_consumer, szCons, u32MaxConsLen);
 
-    /* find the consumer ldev by it's name */
+    /* find the consumer ldev by its name */
     cons_ldev = cba_acco_add(pinfo, szCons);
 
     offset = dissect_dcom_WORD(tvb, offset, pinfo, tree, drep,
@@ -2138,7 +2138,7 @@ dissect_ICBAAccoServerSRT_ConnectCR_rqst(tvbuff_t *tvb, int offset,
             "ServerSRT_ConnectCR: consumer interface invalid");
     }
 
-    /* "crosslink" consumer interface and it's object */
+    /* "crosslink" consumer interface and its object */
     if (cons_interf != NULL && cons_ldev != NULL) {
         cba_ldev_link_acco(pinfo, cons_ldev, cons_interf);
     }
@@ -2172,7 +2172,7 @@ dissect_ICBAAccoServerSRT_ConnectCR_rqst(tvbuff_t *tvb, int offset,
 
     /* link frame infos to the call */
     if (prov_ldev != NULL && cons_ldev != NULL && u32ArraySize < 100) {
-        call = se_alloc(sizeof(server_frame_call_t) + u32ArraySize * sizeof(cba_frame_t *));
+        call = (server_frame_call_t *)se_alloc(sizeof(server_frame_call_t) + u32ArraySize * sizeof(cba_frame_t *));
         call->frame_count = 0;
         call->frames = (cba_frame_t **) (call+1);
         info->call_data->private_data = call;
@@ -2243,7 +2243,7 @@ dissect_ICBAAccoServerSRT_ConnectCR_resp(tvbuff_t *tvb, int offset,
     proto_item  *item;
     cba_frame_t *frame;
     dcerpc_info *info        = (dcerpc_info *)pinfo->private_data;
-    server_frame_call_t *call = info->call_data->private_data;
+    server_frame_call_t *call = (server_frame_call_t *)info->call_data->private_data;
 
 
     offset = dissect_dcom_that(tvb, offset, pinfo, tree, drep);
@@ -2361,7 +2361,7 @@ dissect_ICBAAccoServerSRT_DisconnectCR_rqst(tvbuff_t *tvb, int offset,
 
     /* link frame infos to the call */
     if (prov_ldev != NULL) {
-        call = se_alloc(sizeof(server_frame_call_t) + u32ArraySize * sizeof(cba_frame_t *));
+        call = (server_frame_call_t *)se_alloc(sizeof(server_frame_call_t) + u32ArraySize * sizeof(cba_frame_t *));
         call->frame_count = 0;
         call->frames      = (cba_frame_t **) (call+1);
         info->call_data->private_data = call;
@@ -2404,7 +2404,7 @@ dissect_ICBAAccoServerSRT_DisconnectCR_resp(tvbuff_t *tvb, int offset,
     cba_frame_t *frame;
     proto_item  *item;
     dcerpc_info *info         = (dcerpc_info *)pinfo->private_data;
-    server_frame_call_t *call = info->call_data->private_data;
+    server_frame_call_t *call = (server_frame_call_t *)info->call_data->private_data;
 
 
     offset = dissect_dcom_that(tvb, offset, pinfo, tree, drep);
@@ -2514,7 +2514,7 @@ dissect_ICBAAccoServerSRT_Connect_rqst(tvbuff_t *tvb, int offset,
 
     /* link connections infos to the call */
     if (frame != NULL) {
-        call = se_alloc(sizeof(server_connect_call_t) + u32ArraySize * sizeof(cba_connection_t *));
+        call = (server_connect_call_t *)se_alloc(sizeof(server_connect_call_t) + u32ArraySize * sizeof(cba_connection_t *));
         call->conn_count = 0;
         call->frame = frame;
         call->conns = (cba_connection_t **) (call+1);
@@ -2554,7 +2554,7 @@ dissect_ICBAAccoServerSRT_Connect_rqst(tvbuff_t *tvb, int offset,
             u32VariableOffset = dissect_dcom_dcerpc_array_size(tvb, u32VariableOffset, pinfo, sub_tree, drep,
                                 &u32ArraySize2);
 
-            typedesc = se_alloc0(u32ArraySize2 * 2);
+            typedesc = (guint16 *)se_alloc0(u32ArraySize2 * 2);
             typedesclen = u32ArraySize2;
 
             /* extended type description will build an array here */
@@ -2635,7 +2635,7 @@ dissect_ICBAAccoServerSRT_Connect_resp(tvbuff_t *tvb, int offset,
     proto_item  *item;
     dcerpc_info *info = (dcerpc_info *)pinfo->private_data;
 
-    server_connect_call_t *call = info->call_data->private_data;
+    server_connect_call_t *call = (server_connect_call_t *)info->call_data->private_data;
     cba_connection_t      *conn;
 
 
@@ -3112,7 +3112,7 @@ dissect_CBA_Connection_Data(tvbuff_t *tvb,
             /* XXX - expensive! */
             cba_frame_incoming_data(tvb, pinfo, sub_tree, frame);
             for(conns = frame->conns; conns != NULL; conns = g_list_next(conns)) {
-                conn = conns->data;
+                conn = (cba_connection_t *)conns->data;
                 if (conn->frame_offset == item_offset) {
                     cba_connection_info(tvb, pinfo, sub_tree, conn);
                     break;
@@ -3123,7 +3123,7 @@ dissect_CBA_Connection_Data(tvbuff_t *tvb,
             /* XXX - expensive! */
             if (cons_ldev != NULL) {
                 for(conns = cons_ldev->consconns; conns != NULL; conns = g_list_next(conns)) {
-                    conn = conns->data;
+                    conn = (cba_connection_t *)conns->data;
                     if (conn->consid == u32ID) {
                         cba_connection_info(tvb, pinfo, sub_tree, conn);
                         cba_connection_incoming_data(tvb, pinfo, sub_tree, conn);
@@ -3181,7 +3181,7 @@ dissect_CBA_Connection_Data_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "PN-CBA");
 
-    frame = cba_frame_find_by_cons(pinfo, pinfo->dl_dst.data, u16FrameID);
+    frame = cba_frame_find_by_cons(pinfo, (const guint8 *)pinfo->dl_dst.data, u16FrameID);
 
     dissect_CBA_Connection_Data(tvb, pinfo, tree, frame ? frame->consparent : NULL, frame);
 
@@ -3318,7 +3318,7 @@ dissect_ICBAAccoServer2_GetConnectionData_rqst(tvbuff_t *tvb, int offset,
 
     /* link ldev to the call */
     if (cons_ldev != NULL) {
-        call = se_alloc(sizeof(cba_ldev_t *));
+        call = (cba_ldev_t **)se_alloc(sizeof(cba_ldev_t *));
         *call = cons_ldev;
         info->call_data->private_data = call;
     }
@@ -3341,7 +3341,7 @@ dissect_ICBAAccoServer2_GetConnectionData_resp(tvbuff_t *tvb, int offset,
     guint32       u32HResult;
     proto_item   *item;
     dcerpc_info  *info      = (dcerpc_info *)pinfo->private_data;
-    cba_ldev_t  **call      = info->call_data->private_data;
+    cba_ldev_t  **call      = (cba_ldev_t **)info->call_data->private_data;
     cba_ldev_t   *cons_ldev = (call!=NULL) ? *call : NULL;
 
 
@@ -4726,11 +4726,13 @@ proto_register_dcom_cba_acco (void)
     };
 
     static hf_register_info hf_cba_acco_server[] = {
+#if 0
         { &hf_cba_acco_server_pICBAAccoCallback,
           { "pICBAAccoCallback", "cba.acco.server_pICBAAccoCallback",
             FT_BYTES, BASE_NONE, NULL, 0x0,
             NULL, HFILL }
         },
+#endif
         { &hf_cba_acco_server_first_connect,
           { "FirstConnect", "cba.acco.server_first_connect",
             FT_UINT8, BASE_HEX, NULL, 0x0,
@@ -4786,11 +4788,13 @@ proto_register_dcom_cba_acco (void)
             FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL }
         },
+#if 0
         { &hf_cba_acco_serversrt_action,
           { "Action", "cba.acco.serversrt_action",
             FT_UINT32, BASE_DEC, VALS(cba_acco_serversrt_action_vals), 0x0,
             NULL, HFILL }
         },
+#endif
         { &hf_cba_acco_serversrt_last_connect,
           { "LastConnect", "cba.acco.serversrt_last_connect",
             FT_UINT8, BASE_DEC, VALS(cba_acco_serversrt_last_connect_vals), 0x0,

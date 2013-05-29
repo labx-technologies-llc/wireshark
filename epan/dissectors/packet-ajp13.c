@@ -34,6 +34,8 @@
 #include <epan/conversation.h>
 #include "packet-tcp.h"
 
+void proto_register_ajp13(void);
+void proto_reg_handoff_ajp13(void);
 
 
 /* IMPORTANT IMPLEMENTATION NOTES
@@ -791,7 +793,7 @@ dissect_ajp13_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
    * state for use later on when we're called out of order (see
    * comments at top of this file)
    */
-  fd = (ajp13_frame_data*)p_get_proto_data(pinfo->fd, proto_ajp13);
+  fd = (ajp13_frame_data*)p_get_proto_data(pinfo->fd, proto_ajp13, 0);
   if (!fd) {
     /*printf("ajp13:dissect_ajp13_common():no frame data, adding");*/
     /* since there's no per-packet user data, this must be the first
@@ -799,7 +801,7 @@ dissect_ajp13_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      * pass through the data.
      */
     fd = se_new(ajp13_frame_data);
-    p_add_proto_data(pinfo->fd, proto_ajp13, fd);
+    p_add_proto_data(pinfo->fd, proto_ajp13, 0, fd);
     fd->is_request_body = FALSE;
     if (cd->content_length) {
       /* this is screwy, see AJPv13.html. the idea is that if the

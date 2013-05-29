@@ -78,13 +78,13 @@ goto_frame_cb(GtkWidget *w _U_, gpointer d _U_)
 
   gtk_widget_show(bbox);
 
-  ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_JUMP_TO);
+  ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_JUMP_TO);
   g_signal_connect(ok_bt, "clicked", G_CALLBACK(goto_frame_ok_cb), goto_frame_w);
 
-  cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+  cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
   window_set_cancel_button(goto_frame_w, cancel_bt, window_cancel_button_cb);
 
-  help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+  help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
   g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_GOTO_DIALOG);
 
   gtk_widget_grab_default(ok_bt);
@@ -118,12 +118,13 @@ goto_frame_ok_cb(GtkWidget *ok_bt _U_, gpointer parent_w)
   fnumber_te = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_GOTO_FNUMBER_KEY);
 
   fnumber_text = gtk_entry_get_text(GTK_ENTRY(fnumber_te));
-  fnumber = strtoul(fnumber_text, &p, 10);
+  fnumber = (guint) strtoul(fnumber_text, &p, 10);
   if (p == fnumber_text || *p != '\0') {
     /* Illegal number.
        XXX - what about negative numbers (which "strtoul()" allows)?
        Can we hack up signal handlers for the widget to make it
-       reject attempts to type in characters other than digits? */
+       reject attempts to type in characters other than digits?
+       What about numbers > the maximum possible guint? */
     simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
 		"The packet number you entered isn't a valid number.");
     return;

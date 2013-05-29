@@ -50,6 +50,9 @@
  * for some more information on CDP version 2.
  */
 
+void proto_register_cdp(void);
+void proto_reg_handoff_cdp(void);
+
 /* Offsets in TLV structure. */
 #define TLV_TYPE        0
 #define TLV_LENGTH      2
@@ -242,7 +245,7 @@ dissect_cdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if (data_length & 1) {
         guint8 *padded_buffer;
         /* Allocate new buffer */
-        padded_buffer = ep_alloc(data_length+1);
+        padded_buffer = (guint8 *)ep_alloc(data_length+1);
         tvb_memcpy(tvb, padded_buffer, 0, data_length);
         /* Swap bytes in last word */
         padded_buffer[data_length] = padded_buffer[data_length-1];
@@ -1018,7 +1021,6 @@ dissect_address_tlv(tvbuff_t *tvb, int offset, int length, proto_tree *tree)
     /* XXX - the Cisco document seems to be saying that, for 802.2-format
        protocol types, 0xAAAA03 0x000000 0x0800 is IPv6, but 0x0800 is
        the Ethernet protocol type for IPv4. */
-    length = 2 + protocol_length + 2 + address_length;
     address_type_str = NULL;
     address_str = NULL;
     if ((protocol_type == PROTO_TYPE_NLPID) && (protocol_length == 1)) {
@@ -1288,7 +1290,7 @@ proto_register_cdp(void)
         },
 
         { &hf_cdp_spare_poe_tlv_poe,
-        { "PSE Four-Wire PoE", "csp.spare_poe_tlv.poe", FT_BOOLEAN, 8,
+        { "PSE Four-Wire PoE", "cdp.spare_poe_tlv.poe", FT_BOOLEAN, 8,
                 TFS(&tfs_supported_not_supported), 0x01, NULL, HFILL }
         },
 

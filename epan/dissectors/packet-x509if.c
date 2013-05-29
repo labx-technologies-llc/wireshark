@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-x509if.c                                                            */
 /* ../../tools/asn2wrs.py -b -p x509if -c ./x509if.cnf -s ./packet-x509if-template -D . -O ../../epan/dissectors InformationFramework.asn ServiceAdministration.asn */
 
@@ -666,7 +666,7 @@ dissect_x509if_AttributeValueAssertion(gboolean implicit_tag _U_, tvbuff_t *tvb 
 #line 408 "../../asn1/x509if/x509if.cnf"
 
 	ava_hf_index = hf_index;
-	last_ava = ep_alloc(MAX_AVA_STR_LEN); *last_ava = '\0';
+	last_ava = (char *)ep_alloc(MAX_AVA_STR_LEN); *last_ava = '\0';
 	register_frame_end_routine (actx->pinfo, x509if_frame_end);
 
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
@@ -746,7 +746,7 @@ dissect_x509if_T_type_02(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
     if((fmt = val_to_str(hf_index, fmt_vals, "")) && *fmt) {
       /* we have a format */
-      last_ava = ep_alloc(MAX_AVA_STR_LEN); *last_ava = '\0';
+      last_ava = (char *)ep_alloc(MAX_AVA_STR_LEN); *last_ava = '\0';
       register_frame_end_routine (actx->pinfo, x509if_frame_end);
 
       g_snprintf(last_ava, MAX_AVA_STR_LEN, "%s %s", name, fmt);
@@ -800,7 +800,7 @@ dissect_x509if_T_atadv_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
       /* we have a format */
 
       if (!last_ava) {
-        last_ava = ep_alloc(MAX_AVA_STR_LEN);
+        last_ava = (char *)ep_alloc(MAX_AVA_STR_LEN);
       }
 
       if(!(name = oid_resolved_from_string(object_identifier_id)))
@@ -911,7 +911,7 @@ dissect_x509if_RelativeDistinguishedName(gboolean implicit_tag _U_, tvbuff_t *tv
 
   rdn_one_value = FALSE;
   top_of_rdn = tree;
-  last_rdn = ep_alloc(MAX_DN_STR_LEN); *last_rdn = '\0';
+  last_rdn = (char *)ep_alloc(MAX_DN_STR_LEN); *last_rdn = '\0';
   register_frame_end_routine (actx->pinfo, x509if_frame_end);
 
     offset = dissect_ber_set_of(implicit_tag, actx, tree, tvb, offset,
@@ -924,7 +924,7 @@ dissect_x509if_RelativeDistinguishedName(gboolean implicit_tag _U_, tvbuff_t *tv
   /* now append this to the DN */
   if (last_dn) {
     if(*last_dn) {
-      temp_dn = ep_alloc(MAX_DN_STR_LEN); /* is there a better way to use ep_alloc here ? */
+      temp_dn = (char *)ep_alloc(MAX_DN_STR_LEN); /* is there a better way to use ep_alloc here ? */
       g_snprintf(temp_dn, MAX_DN_STR_LEN, "%s,%s", last_rdn, last_dn);
       last_dn[0] = '\0';
       g_strlcat(last_dn, temp_dn, MAX_DN_STR_LEN);
@@ -972,7 +972,7 @@ dissect_x509if_RDNSequence(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
   const char *fmt; 
 
   dn_one_rdn = FALSE; /* reset */
-  last_dn = ep_alloc(MAX_DN_STR_LEN); *last_dn = '\0';
+  last_dn = (char *)ep_alloc(MAX_DN_STR_LEN); *last_dn = '\0';
   top_of_dn = NULL;
   register_frame_end_routine (actx->pinfo, x509if_frame_end);
 
@@ -2151,7 +2151,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_SubtreeSpecification_PDU,
-      { "SubtreeSpecification", "x509if.SubtreeSpecification",
+      { "SubtreeSpecification", "x509if.SubtreeSpecification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_HierarchyLevel_PDU,
@@ -2171,7 +2171,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_values_item,
-      { "values item", "x509if.values_item",
+      { "values item", "x509if.values_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_valuesWithContext,
@@ -2179,11 +2179,11 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_valuesWithContext_item,
-      { "valuesWithContext item", "x509if.valuesWithContext_item",
+      { "valuesWithContext item", "x509if.valuesWithContext_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_valuesWithContext_item", HFILL }},
     { &hf_x509if_value,
-      { "value", "x509if.value",
+      { "value", "x509if.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_contextList,
@@ -2191,7 +2191,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_MAX_OF_Context", HFILL }},
     { &hf_x509if_contextList_item,
-      { "Context", "x509if.Context",
+      { "Context", "x509if.Context_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_contextType,
@@ -2203,7 +2203,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_contextValues_item,
-      { "contextValues item", "x509if.contextValues_item",
+      { "contextValues item", "x509if.contextValues_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_fallback,
@@ -2215,7 +2215,7 @@ void proto_register_x509if(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "T_type_01", HFILL }},
     { &hf_x509if_assertion,
-      { "assertion", "x509if.assertion",
+      { "assertion", "x509if.assertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_assertedContexts,
@@ -2223,7 +2223,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, VALS(x509if_T_assertedContexts_vals), 0,
         NULL, HFILL }},
     { &hf_x509if_allContexts,
-      { "allContexts", "x509if.allContexts",
+      { "allContexts", "x509if.allContexts_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_selectedContexts,
@@ -2231,7 +2231,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_MAX_OF_ContextAssertion", HFILL }},
     { &hf_x509if_selectedContexts_item,
-      { "ContextAssertion", "x509if.ContextAssertion",
+      { "ContextAssertion", "x509if.ContextAssertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_ca_contextType,
@@ -2243,7 +2243,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "T_ca_contextValues", HFILL }},
     { &hf_x509if_ca_contextValues_item,
-      { "contextValues item", "x509if.contextValues_item",
+      { "contextValues item", "x509if.contextValues_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ca_contextValues_item", HFILL }},
     { &hf_x509if_type_02,
@@ -2255,7 +2255,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_ContextAssertion", HFILL }},
     { &hf_x509if_ata_assertedContexts_item,
-      { "ContextAssertion", "x509if.ContextAssertion",
+      { "ContextAssertion", "x509if.ContextAssertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_rdnSequence,
@@ -2267,7 +2267,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_RelativeDistinguishedName_item,
-      { "RelativeDistinguishedName item", "x509if.RelativeDistinguishedName_item",
+      { "RelativeDistinguishedName item", "x509if.RelativeDistinguishedName_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_type_03,
@@ -2275,7 +2275,7 @@ void proto_register_x509if(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "T_type_02", HFILL }},
     { &hf_x509if_atadv_value,
-      { "value", "x509if.value",
+      { "value", "x509if.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_atadv_value", HFILL }},
     { &hf_x509if_primaryDistinguished,
@@ -2287,11 +2287,11 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "T_valWithContext", HFILL }},
     { &hf_x509if_valueswithContext_item,
-      { "valuesWithContext item", "x509if.valuesWithContext_item",
+      { "valuesWithContext item", "x509if.valuesWithContext_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_valWithContext_item", HFILL }},
     { &hf_x509if_distingAttrValue,
-      { "distingAttrValue", "x509if.distingAttrValue",
+      { "distingAttrValue", "x509if.distingAttrValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_chopSpecificExclusions,
@@ -2435,7 +2435,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "T_ra_selectedValues", HFILL }},
     { &hf_x509if_ra_selectedValues_item,
-      { "selectedValues item", "x509if.selectedValues_item",
+      { "selectedValues item", "x509if.selectedValues_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ra_selectedValues_item", HFILL }},
     { &hf_x509if_defaultValues,
@@ -2443,7 +2443,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_defaultValues_item,
-      { "defaultValues item", "x509if.defaultValues_item",
+      { "defaultValues item", "x509if.defaultValues_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_entryType,
@@ -2455,7 +2455,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "T_ra_values", HFILL }},
     { &hf_x509if_ra_values_item,
-      { "values item", "x509if.values_item",
+      { "values item", "x509if.values_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ra_values_item", HFILL }},
     { &hf_x509if_contexts,
@@ -2463,7 +2463,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_0_MAX_OF_ContextProfile", HFILL }},
     { &hf_x509if_contexts_item,
-      { "ContextProfile", "x509if.ContextProfile",
+      { "ContextProfile", "x509if.ContextProfile_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_contextCombination,
@@ -2475,7 +2475,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_MatchingUse", HFILL }},
     { &hf_x509if_matchingUse_item,
-      { "MatchingUse", "x509if.MatchingUse",
+      { "MatchingUse", "x509if.MatchingUse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_contextType_01,
@@ -2487,7 +2487,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_contextValue_item,
-      { "contextValue item", "x509if.contextValue_item",
+      { "contextValue item", "x509if.contextValue_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_context,
@@ -2519,7 +2519,7 @@ void proto_register_x509if(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_restrictionValue,
-      { "restrictionValue", "x509if.restrictionValue",
+      { "restrictionValue", "x509if.restrictionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_attribute,
@@ -2559,11 +2559,11 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_selectedValues_item,
-      { "selectedValues item", "x509if.selectedValues_item",
+      { "selectedValues item", "x509if.selectedValues_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_matchedValuesOnly,
-      { "matchedValuesOnly", "x509if.matchedValuesOnly",
+      { "matchedValuesOnly", "x509if.matchedValuesOnly_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_contexts_01,
@@ -2571,15 +2571,15 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_ContextProfile", HFILL }},
     { &hf_x509if_serviceControls,
-      { "serviceControls", "x509if.serviceControls",
+      { "serviceControls", "x509if.serviceControls_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ServiceControlOptions", HFILL }},
     { &hf_x509if_searchOptions,
-      { "searchOptions", "x509if.searchOptions",
+      { "searchOptions", "x509if.searchOptions_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SearchControlOptions", HFILL }},
     { &hf_x509if_hierarchyOptions,
-      { "hierarchyOptions", "x509if.hierarchyOptions",
+      { "hierarchyOptions", "x509if.hierarchyOptions_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HierarchySelections", HFILL }},
     { &hf_x509if_default,
@@ -2591,7 +2591,7 @@ void proto_register_x509if(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_x509if_basic,
-      { "basic", "x509if.basic",
+      { "basic", "x509if.basic_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MRMapping", HFILL }},
     { &hf_x509if_tightenings,
@@ -2599,7 +2599,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_MRMapping", HFILL }},
     { &hf_x509if_tightenings_item,
-      { "MRMapping", "x509if.MRMapping",
+      { "MRMapping", "x509if.MRMapping_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_relaxations,
@@ -2607,7 +2607,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_MRMapping", HFILL }},
     { &hf_x509if_relaxations_item,
-      { "MRMapping", "x509if.MRMapping",
+      { "MRMapping", "x509if.MRMapping_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_maximum_relaxation,
@@ -2623,7 +2623,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_Mapping", HFILL }},
     { &hf_x509if_mapping_item,
-      { "Mapping", "x509if.Mapping",
+      { "Mapping", "x509if.Mapping_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_substitution,
@@ -2631,7 +2631,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_MRSubstitution", HFILL }},
     { &hf_x509if_substitution_item,
-      { "MRSubstitution", "x509if.MRSubstitution",
+      { "MRSubstitution", "x509if.MRSubstitution_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_mappingFunction,
@@ -2679,7 +2679,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_0_MAX_OF_RequestAttribute", HFILL }},
     { &hf_x509if_inputAttributeTypes_item,
-      { "RequestAttribute", "x509if.RequestAttribute",
+      { "RequestAttribute", "x509if.RequestAttribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_attributeCombination,
@@ -2691,31 +2691,31 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_ResultAttribute", HFILL }},
     { &hf_x509if_outputAttributeTypes_item,
-      { "ResultAttribute", "x509if.ResultAttribute",
+      { "ResultAttribute", "x509if.ResultAttribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_defaultControls,
-      { "defaultControls", "x509if.defaultControls",
+      { "defaultControls", "x509if.defaultControls_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ControlOptions", HFILL }},
     { &hf_x509if_mandatoryControls,
-      { "mandatoryControls", "x509if.mandatoryControls",
+      { "mandatoryControls", "x509if.mandatoryControls_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ControlOptions", HFILL }},
     { &hf_x509if_searchRuleControls,
-      { "searchRuleControls", "x509if.searchRuleControls",
+      { "searchRuleControls", "x509if.searchRuleControls_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ControlOptions", HFILL }},
     { &hf_x509if_familyGrouping,
-      { "familyGrouping", "x509if.familyGrouping",
+      { "familyGrouping", "x509if.familyGrouping_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_familyReturn,
-      { "familyReturn", "x509if.familyReturn",
+      { "familyReturn", "x509if.familyReturn_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_relaxation,
-      { "relaxation", "x509if.relaxation",
+      { "relaxation", "x509if.relaxation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RelaxationPolicy", HFILL }},
     { &hf_x509if_additionalControl,
@@ -2735,7 +2735,7 @@ void proto_register_x509if(void) {
         FT_UINT32, BASE_DEC, VALS(x509if_ImposedSubset_vals), 0,
         NULL, HFILL }},
     { &hf_x509if_entryLimit,
-      { "entryLimit", "x509if.entryLimit",
+      { "entryLimit", "x509if.entryLimit_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509if_name,

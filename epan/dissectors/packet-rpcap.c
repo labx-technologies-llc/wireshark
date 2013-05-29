@@ -551,7 +551,7 @@ dissect_rpcap_filterbpf_insn (tvbuff_t *tvb, packet_info *pinfo _U_,
 {
   proto_tree *tree, *code_tree;
   proto_item *ti, *code_ti;
-  guint8 class;
+  guint8 inst_class;
 
   ti = proto_tree_add_item (parent_tree, hf_filterbpf_insn, tvb, offset, 8, ENC_NA);
   tree = proto_item_add_subtree (ti, ett_filterbpf_insn);
@@ -559,9 +559,9 @@ dissect_rpcap_filterbpf_insn (tvbuff_t *tvb, packet_info *pinfo _U_,
   code_ti = proto_tree_add_item (tree, hf_code, tvb, offset, 2, ENC_BIG_ENDIAN);
   code_tree = proto_item_add_subtree (code_ti, ett_filterbpf_insn_code);
   proto_tree_add_item (code_tree, hf_code_class, tvb, offset, 2, ENC_BIG_ENDIAN);
-  class = tvb_get_guint8 (tvb, offset + 1) & 0x07;
-  proto_item_append_text (ti, ": %s", val_to_str_const (class, bpf_class, ""));
-  switch (class) {
+  inst_class = tvb_get_guint8 (tvb, offset + 1) & 0x07;
+  proto_item_append_text (ti, ": %s", val_to_str_const (inst_class, bpf_class, ""));
+  switch (inst_class) {
   case 0x00: /* ld */
   case 0x01: /* ldx */
     proto_tree_add_item (code_tree, hf_code_ld_size, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -1020,7 +1020,7 @@ check_rpcap_heur (tvbuff_t *tvb, gboolean tcp)
     /* UDP is only used for packets */
     return FALSE;
   }
-  if (match_strval(msg_type, message_type) == NULL)
+  if (try_val_to_str(msg_type, message_type) == NULL)
     /* Unknown message type */
     return FALSE;
   offset++;
@@ -1029,7 +1029,7 @@ check_rpcap_heur (tvbuff_t *tvb, gboolean tcp)
   if (msg_value > 0) {
     if (msg_type == RPCAP_MSG_ERROR) {
       /* Must have a valid error code */
-      if (match_strval(msg_value, error_codes) == NULL)
+      if (try_val_to_str(msg_value, error_codes) == NULL)
 	return FALSE;
     } else if (msg_type != RPCAP_MSG_FINDALLIF_REPLY) {
       return FALSE;

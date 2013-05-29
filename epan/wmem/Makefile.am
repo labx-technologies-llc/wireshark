@@ -27,9 +27,16 @@ endif
 
 include Makefile.common
 
-AM_CPPFLAGS = $(LIBWMEM_CFLAGS)
+AM_CPPFLAGS = \
+	-I$(top_srcdir) \
+	$(LIBWMEM_CFLAGS)
 
 noinst_LTLIBRARIES = libwmem.la
+
+noinst_PROGRAMS = wmem_test
+wmem_test_LDADD = \
+	libwmem.la \
+	$(GLIB_LIBS)
 
 CLEANFILES = \
 	libwmem.a	\
@@ -41,15 +48,14 @@ DISTCLEANFILES =
 MAINTAINERCLEANFILES =	\
 	Makefile.in
 
-INCLUDES = -I$(top_srcdir)
-
 libwmem_la_SOURCES =	\
 	$(LIBWMEM_SRC)	\
 	$(LIBWMEM_INCLUDES)
 
 EXTRA_DIST = \
 	Makefile.common	\
-	Makefile.nmake
+	Makefile.nmake \
+	wmem_test.c
 
 checkapi:
 	$(PERL) ../../tools/checkAPIs.pl -g termoutput -build \

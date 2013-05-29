@@ -38,7 +38,7 @@
 #include <epan/packet.h>
 
 #include "packet-gmr1_common.h"
-
+#include "packet-gsm_sms.h"
 
 /* GMR-1 RR and CCCH proto */
 static int proto_gmr1_rr = -1;
@@ -94,41 +94,74 @@ enum gmr1_ie_rr_idx {
 	NUM_GMR1_IE_RR	/* Terminator */
 };
 
-const value_string gmr1_ie_rr_strings[] = {
-	{ 0, "Channel Description" },		/* [1] 11.5.2.5   */
-	{ 0, "Channel Mode" },			/* [1] 11.5.2.6   */
-	{ 0, "Cipher Mode Setting" },		/* [4] 10.5.2.9   */
-	{ 0, "Cipher Response" },		/* [4] 10.5.2.10  */
-	{ 0, "L2 Pseudo Length" },		/* [1] 11.5.2.19  */
-	{ 0, "Page Mode" },			/* [1] 11.5.2.26  */
-	{ 0, "Request Reference" },		/* [1] 11.5.2.30  */
-	{ 0, "RR Cause" },			/* [1] 11.5.2.31  */
-	{ 0, "Timing Offset" },			/* [1] 11.5.2.40  */
-	{ 0, "TMSI/P-TMSI" },			/* [4] 10.5.2.42  */
-	{ 0, "Wait Indication" },		/* [4] 10.5.2.43  */
-	{ 0, "MES Information Flag" },		/* [1] 11.5.2.44  */
-	{ 0, "Frequency Offset" },		/* [1] 11.5.2.49  */
-	{ 0, "Paging Information" },		/* [1] 11.5.2.51  */
-	{ 0, "Position Display" },		/* [1] 11.5.2.52  */
-	{ 0, "Position Update Information" },	/* [1] 11.5.2.54  */
-	{ 0, "BCCH Carrier Specification"},	/* [1] 11.5.2.55  */
-	{ 0, "Reject Cause" },			/* [1] 11.5.2.56  */
-	{ 0, "GPS timestamp" },			/* [1] 11.5.2.57  */
-	{ 0, "Power Control Params" },		/* [1] 11.5.2.60  */
-	{ 0, "TMSI Availability Mask" },	/* [1] 11.5.2.62  */
-	{ 0, "GPS Almanac Data" },		/* [1] 11.5.2.63  */
-	{ 0, "MSC ID" },			/* [1] 11.5.2.100 */
-	{ 0, "GPS Discriminator" },		/* [1] 11.5.2.101 */
-	{ 0, "Packet Imm. Ass. Type 3 Params" },/* [3] 11.5.2.105 */
-	{ 0, "Packet Frequency Parameters" },	/* [3] 11.5.2.106 */
-	{ 0, "Packet Imm. Ass. Type 2 Params" },/* [3] 11.5.2.107 */
-	{ 0, "USF" },				/* [3] 11.5.2.110 */
-	{ 0, "Timing Advance Index" },		/* [3] 10.1.18.3.4 */
-	{ 0, "TLLI" },				/* [5] 12.16      */
-	{ 0, "Packet Power Control Params" },	/* [3] 10.1.18.3.3 */
-	{ 0, "Persistence Level" },		/* [3] 10.1.18.4.2 */
+static const value_string gmr1_ie_rr_strings[] = {
+	{ GMR1_IE_RR_CHAN_DESC,
+	  "Channel Description" },		/* [1] 11.5.2.5   */
+	{ GMR1_IE_RR_CHAN_MODE,
+	  "Channel Mode" },			/* [1] 11.5.2.6   */
+	{ GMR1_IE_RR_CIPH_MODE_SETTING,
+	  "Cipher Mode Setting" },		/* [4] 10.5.2.9   */
+	{ GMR1_IE_RR_CIPH_RESP,
+	  "Cipher Response" },			/* [4] 10.5.2.10  */
+	{ GMR1_IE_RR_L2_PSEUDO_LEN,
+	  "L2 Pseudo Length" },			/* [1] 11.5.2.19  */
+	{ GMR1_IE_RR_PAGE_MODE,
+	  "Page Mode" },			/* [1] 11.5.2.26  */
+	{ GMR1_IE_RR_REQ_REF,
+	  "Request Reference" },		/* [1] 11.5.2.30  */
+	{ GMR1_IE_RR_CAUSE,
+	  "RR Cause" },				/* [1] 11.5.2.31  */
+	{ GMR1_IE_RR_TIMING_OFS,
+	  "Timing Offset" },			/* [1] 11.5.2.40  */
+	{ GMR1_IE_RR_TMSI_PTMSI,
+	  "TMSI/P-TMSI" },			/* [4] 10.5.2.42  */
+	{ GMR1_IE_RR_WAIT_IND,
+	  "Wait Indication" },			/* [4] 10.5.2.43  */
+	{ GMR1_IE_RR_MES_INFO_FLG,
+	  "MES Information Flag" },		/* [1] 11.5.2.44  */
+	{ GMR1_IE_RR_FREQ_OFS,
+	  "Frequency Offset" },			/* [1] 11.5.2.49  */
+	{ GMR1_IE_RR_PAGE_INFO,
+	  "Paging Information" },		/* [1] 11.5.2.51  */
+	{ GMR1_IE_RR_POS_DISPLAY,
+	  "Position Display" },			/* [1] 11.5.2.52  */
+	{ GMR1_IE_RR_POS_UPD_INFO,
+	  "Position Update Information" },	/* [1] 11.5.2.54  */
+	{ GMR1_IE_RR_BCCH_CARRIER,
+	  "BCCH Carrier Specification"},	/* [1] 11.5.2.55  */
+	{ GMR1_IE_RR_REJECT_CAUSE,
+	  "Reject Cause" },			/* [1] 11.5.2.56  */
+	{ GMR1_IE_RR_GPS_TIMESTAMP,
+	  "GPS timestamp" },			/* [1] 11.5.2.57  */
+	{ GMR1_IE_RR_PWR_CTRL_PRM,
+	  "Power Control Params" },		/* [1] 11.5.2.60  */
+	{ GMR1_IE_RR_TMSI_AVAIL_MSK,
+	  "TMSI Availability Mask" },		/* [1] 11.5.2.62  */
+	{ GMR1_IE_RR_GPS_ALMANAC,
+	  "GPS Almanac Data" },			/* [1] 11.5.2.63  */
+	{ GMR1_IE_RR_MSC_ID,
+	  "MSC ID" },				/* [1] 11.5.2.100 */
+	{ GMR1_IE_RR_GPS_DISCR,
+	  "GPS Discriminator" },		/* [1] 11.5.2.101 */
+	{ GMR1_IE_RR_PKT_IMM_ASS_3_PRM,
+	  "Packet Imm. Ass. Type 3 Params" },	/* [3] 11.5.2.105 */
+	{ GMR1_IE_RR_PKT_FREQ_PRM,
+	  "Packet Frequency Parameters" },	/* [3] 11.5.2.106 */
+	{ GMR1_IE_RR_PKT_IMM_ASS_2_PRM,
+	  "Packet Imm. Ass. Type 2 Params" },	/* [3] 11.5.2.107 */
+	{ GMR1_IE_RR_USF,		
+	  "USF" },				/* [3] 11.5.2.110 */
+	{ GMR1_IE_RR_TIMING_ADV_IDX,
+	  "Timing Advance Index" },		/* [3] 10.1.18.3.4 */
+	{ GMR1_IE_RR_TLLI,
+	  "TLLI" },				/* [5] 12.16      */
+	{ GMR1_IE_RR_PKT_PWR_CTRL_PRM,
+	  "Packet Power Control Params" },	/* [3] 10.1.18.3.3 */
+	{ GMR1_IE_RR_PERSISTENCE_LVL,
+	  "Persistence Level" },		/* [3] 10.1.18.4.2 */
 	{ 0, NULL },
 };
+value_string_ext gmr1_ie_rr_strings_ext = VALUE_STRING_EXT_INIT(gmr1_ie_rr_strings);
 
 gint ett_gmr1_ie_rr[NUM_GMR1_IE_RR];
 
@@ -610,14 +643,6 @@ static const value_string rr_pos_display_flag_vals[] = {
 	{ 0, NULL }
 };
 
-extern int
-gsm_sms_char_7bit_unpack(
-	unsigned int offset, unsigned int in_length, unsigned int out_length,
-	const guint8 *input, unsigned char *output);
-
-extern gchar *
-gsm_sms_chars_to_utf8(const unsigned char* src, int len);
-
 GMR1_IE_FUNC(gmr1_ie_rr_pos_display)
 {
 	const unsigned char *txt_raw;
@@ -638,8 +663,8 @@ GMR1_IE_FUNC(gmr1_ie_rr_pos_display)
 	out_len = gsm_sms_char_7bit_unpack(0, 11, 12, txt_packed, txt_unpacked);
 
 	/* Display it */
-	proto_tree_add_string(tree, hf_rr_pos_display_text,
-	                      tvb, offset, 11, gsm_sms_chars_to_utf8(txt_unpacked, out_len));
+	proto_tree_add_unicode_string(tree, hf_rr_pos_display_text,
+	                              tvb, offset, 11, gsm_sms_chars_to_utf8(txt_unpacked, out_len));
 
 	return 11;
 }
@@ -1734,10 +1759,10 @@ gmr1_get_msg_rr_params(guint8 oct, int dcch, const gchar **msg_str,
 	gint idx;
 
 	if (dcch)
-		m = match_strval_idx((guint32)oct | 0x100, gmr1_msg_rr_strings, &idx);
+		m = try_val_to_str_idx((guint32)oct | 0x100, gmr1_msg_rr_strings, &idx);
 
 	if (!m)
-		m = match_strval_idx((guint32)oct, gmr1_msg_rr_strings, &idx);
+		m = try_val_to_str_idx((guint32)oct, gmr1_msg_rr_strings, &idx);
 
 	*msg_str = m;
 	*hf_idx = hf_rr_msg_type;

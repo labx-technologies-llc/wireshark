@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-gnm.c                                                               */
 /* ../../tools/asn2wrs.py -b -p gnm -c ./gnm.cnf -s ./packet-gnm-template -D . -O ../../epan/dissectors GNM.asn */
 
@@ -48,6 +48,9 @@
 #define PNAME  "ITU M.3100 Generic Network Information Model"
 #define PSNAME "GNM"
 #define PFNAME "gnm"
+
+void proto_register_gnm(void);
+void proto_reg_handoff_gnm(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_gnm = -1;
@@ -225,7 +228,7 @@ static int hf_gnm_TransmissionCharacteristics_dCME = -1;
 static int hf_gnm_TransmissionCharacteristics_echoControl = -1;
 
 /*--- End of included file: packet-gnm-hf.c ---*/
-#line 48 "../../asn1/gnm/packet-gnm-template.c"
+#line 51 "../../asn1/gnm/packet-gnm-template.c"
 
 /* Initialize the subtree pointers */
 
@@ -299,7 +302,7 @@ static gint ett_gnm_TpsInGtpList = -1;
 static gint ett_gnm_TransmissionCharacteristics = -1;
 
 /*--- End of included file: packet-gnm-ett.c ---*/
-#line 51 "../../asn1/gnm/packet-gnm-template.c"
+#line 54 "../../asn1/gnm/packet-gnm-template.c"
 
 
 /*--- Included file: packet-gnm-fn.c ---*/
@@ -2027,7 +2030,7 @@ static void dissect_Version_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto
 
 
 /*--- End of included file: packet-gnm-fn.c ---*/
-#line 53 "../../asn1/gnm/packet-gnm-template.c"
+#line 56 "../../asn1/gnm/packet-gnm-template.c"
 
 
 
@@ -2042,7 +2045,7 @@ dissect_gnm_attribute_ObjectInstance(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
 }
 
-void
+static void
 dissect_gnm(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_)
 {
   /* Dymmy function */
@@ -2206,7 +2209,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_SystemTimingSource_PDU,
-      { "SystemTimingSource", "gnm.SystemTimingSource",
+      { "SystemTimingSource", "gnm.SystemTimingSource_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_TpsInGtpList_PDU,
@@ -2278,7 +2281,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(gnm_AlarmSeverityCode_vals), 0,
         "AlarmSeverityCode", HFILL }},
     { &hf_gnm_AlarmSeverityAssignmentList_item,
-      { "AlarmSeverityAssignment", "gnm.AlarmSeverityAssignment",
+      { "AlarmSeverityAssignment", "gnm.AlarmSeverityAssignment_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_characteristicInfoType,
@@ -2290,15 +2293,15 @@ void proto_register_gnm(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_gnm_pointToPoint,
-      { "pointToPoint", "gnm.pointToPoint",
+      { "pointToPoint", "gnm.pointToPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_pointToMultipoint,
-      { "pointToMultipoint", "gnm.pointToMultipoint",
+      { "pointToMultipoint", "gnm.pointToMultipoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_ConnectInformation_item,
-      { "ConnectInformation item", "gnm.ConnectInformation_item",
+      { "ConnectInformation item", "gnm.ConnectInformation_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_itemType,
@@ -2314,7 +2317,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(gnm_ConnectionTypeBi_vals), 0,
         "ConnectionTypeBi", HFILL }},
     { &hf_gnm_addleg,
-      { "addleg", "gnm.addleg",
+      { "addleg", "gnm.addleg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_administrativeState,
@@ -2322,7 +2325,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_AdministrativeState_vals), 0,
         NULL, HFILL }},
     { &hf_gnm_namedCrossConnection,
-      { "namedCrossConnection", "gnm.namedCrossConnection",
+      { "namedCrossConnection", "gnm.namedCrossConnection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_userLabel,
@@ -2338,7 +2341,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "AdditionalInformation", HFILL }},
     { &hf_gnm_none,
-      { "none", "gnm.none",
+      { "none", "gnm.none_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_single,
@@ -2354,19 +2357,19 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         NULL, HFILL }},
     { &hf_gnm_explicitPToP,
-      { "explicitPToP", "gnm.explicitPToP",
+      { "explicitPToP", "gnm.explicitPToP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_ptoTpPool,
-      { "ptoTpPool", "gnm.ptoTpPool",
+      { "ptoTpPool", "gnm.ptoTpPool_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_explicitPtoMP,
-      { "explicitPtoMP", "gnm.explicitPtoMP",
+      { "explicitPtoMP", "gnm.explicitPtoMP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_ptoMPools,
-      { "ptoMPools", "gnm.ptoMPools",
+      { "ptoMPools", "gnm.ptoMPools_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_notConnected,
@@ -2386,7 +2389,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(gnm_AlarmStatus_vals), 0,
         NULL, HFILL }},
     { &hf_gnm_CurrentProblemList_item,
-      { "CurrentProblem", "gnm.CurrentProblem",
+      { "CurrentProblem", "gnm.CurrentProblem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_DisconnectResult_item,
@@ -2454,7 +2457,7 @@ void proto_register_gnm(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "PrintableString", HFILL }},
     { &hf_gnm_logicalProblem,
-      { "logicalProblem", "gnm.logicalProblem",
+      { "logicalProblem", "gnm.logicalProblem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_resourceProblem,
@@ -2462,7 +2465,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(gnm_ResourceProblem_vals), 0,
         NULL, HFILL }},
     { &hf_gnm_holderEmpty,
-      { "holderEmpty", "gnm.holderEmpty",
+      { "holderEmpty", "gnm.holderEmpty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_inTheAcceptableList,
@@ -2474,7 +2477,7 @@ void proto_register_gnm(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "CircuitPackType", HFILL }},
     { &hf_gnm_unknownType,
-      { "unknownType", "gnm.unknownType",
+      { "unknownType", "gnm.unknownType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_ListOfCharacteristicInformation_item,
@@ -2534,7 +2537,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         NULL, HFILL }},
     { &hf_gnm_diverse,
-      { "diverse", "gnm.diverse",
+      { "diverse", "gnm.diverse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_downstream,
@@ -2554,7 +2557,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         "ObjectInstance", HFILL }},
     { &hf_gnm_null,
-      { "null", "gnm.null",
+      { "null", "gnm.null_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_fromTp_01,
@@ -2574,7 +2577,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_toTps_item,
-      { "toTps item", "gnm.toTps_item",
+      { "toTps item", "gnm.toTps_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_tp,
@@ -2590,7 +2593,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         "ObjectInstance", HFILL }},
     { &hf_gnm_unknown,
-      { "unknown", "gnm.unknown",
+      { "unknown", "gnm.unknown_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_integerValue,
@@ -2606,7 +2609,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         "ObjectInstance", HFILL }},
     { &hf_gnm_notAvailable,
-      { "notAvailable", "gnm.notAvailable",
+      { "notAvailable", "gnm.notAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_relatedObject,
@@ -2618,7 +2621,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         NULL, HFILL }},
     { &hf_gnm_SignalRateAndMappingList_item,
-      { "SignalRateAndMappingList item", "gnm.SignalRateAndMappingList_item",
+      { "SignalRateAndMappingList item", "gnm.SignalRateAndMappingList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_signalRate,
@@ -2638,7 +2641,7 @@ void proto_register_gnm(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "CharacteristicInformation", HFILL }},
     { &hf_gnm_bundle,
-      { "bundle", "gnm.bundle",
+      { "bundle", "gnm.bundle_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_complex,
@@ -2646,11 +2649,11 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_Bundle", HFILL }},
     { &hf_gnm_complex_item,
-      { "Bundle", "gnm.Bundle",
+      { "Bundle", "gnm.Bundle_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_notApplicable,
-      { "notApplicable", "gnm.notApplicable",
+      { "notApplicable", "gnm.notApplicable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_softwareInstances,
@@ -2682,11 +2685,11 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         "ObjectInstance", HFILL }},
     { &hf_gnm_primaryTimingSource,
-      { "primaryTimingSource", "gnm.primaryTimingSource",
+      { "primaryTimingSource", "gnm.primaryTimingSource_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SystemTiming", HFILL }},
     { &hf_gnm_secondaryTimingSource,
-      { "secondaryTimingSource", "gnm.secondaryTimingSource",
+      { "secondaryTimingSource", "gnm.secondaryTimingSource_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SystemTiming", HFILL }},
     { &hf_gnm_toTpOrGTP,
@@ -2698,7 +2701,7 @@ void proto_register_gnm(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         "ObjectInstance", HFILL }},
     { &hf_gnm_ToTPPools_item,
-      { "ToTPPools item", "gnm.ToTPPools_item",
+      { "ToTPPools item", "gnm.ToTPPools_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_gnm_tpPoolId,
@@ -2727,7 +2730,7 @@ void proto_register_gnm(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-gnm-hfarr.c ---*/
-#line 80 "../../asn1/gnm/packet-gnm-template.c"
+#line 83 "../../asn1/gnm/packet-gnm-template.c"
   };
 
   /* List of subtrees */
@@ -2803,7 +2806,7 @@ void proto_register_gnm(void) {
     &ett_gnm_TransmissionCharacteristics,
 
 /*--- End of included file: packet-gnm-ettarr.c ---*/
-#line 85 "../../asn1/gnm/packet-gnm-template.c"
+#line 88 "../../asn1/gnm/packet-gnm-template.c"
   };
 
   /* Register protocol */
@@ -2892,7 +2895,7 @@ void proto_reg_handoff_gnm(void) {
 
 
 /*--- End of included file: packet-gnm-dis-tab.c ---*/
-#line 100 "../../asn1/gnm/packet-gnm-template.c"
+#line 103 "../../asn1/gnm/packet-gnm-template.c"
 	/* Wrapper to call CMIP */
 	register_ber_oid_dissector("0.0.13.3100.0.7.9", dissect_gnm_attribute_ObjectInstance, proto_gnm, "clientConnection(9)");
 	register_ber_oid_dissector("0.0.13.3100.0.7.10", dissect_gnm_attribute_ObjectInstance, proto_gnm, "clientTrail(10)");

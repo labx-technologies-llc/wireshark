@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-lpp.c                                                               */
 /* ../../tools/asn2wrs.py -p lpp -c ./lpp.cnf -s ./packet-lpp-template -D . -O ../../epan/dissectors LPP.asn */
 
@@ -8,7 +8,7 @@
 #line 1 "../../asn1/lpp/packet-lpp-template.c"
 /* packet-lpp.c
  * Routines for 3GPP LTE Positioning Protocol (LLP) packet dissection
- * Copyright 2011, Pascal Quantin <pascal.quantin@gmail.com>
+ * Copyright 2011-2013 Pascal Quantin <pascal.quantin@gmail.com>
  *
  * $Id$
  *
@@ -30,7 +30,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Ref 3GPP TS 36.355 version 11.0.0 Release 11
+ * Ref 3GPP TS 36.355 version 11.2.0 Release 11
  * http://www.3gpp.org
  */
 
@@ -59,8 +59,13 @@ static int proto_lpp = -1;
 #line 1 "../../asn1/lpp/packet-lpp-hf.c"
 static int hf_lpp_LPP_Message_PDU = -1;           /* LPP_Message */
 static int hf_lpp_lpp_Ellipsoid_Point_PDU = -1;   /* Ellipsoid_Point */
+static int hf_lpp_lpp_Ellipsoid_PointWithUncertaintyCircle_PDU = -1;  /* Ellipsoid_PointWithUncertaintyCircle */
+static int hf_lpp_lpp_EllipsoidPointWithUncertaintyEllipse_PDU = -1;  /* EllipsoidPointWithUncertaintyEllipse */
 static int hf_lpp_lpp_EllipsoidPointWithAltitude_PDU = -1;  /* EllipsoidPointWithAltitude */
+static int hf_lpp_lpp_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid_PDU = -1;  /* EllipsoidPointWithAltitudeAndUncertaintyEllipsoid */
+static int hf_lpp_lpp_EllipsoidArc_PDU = -1;      /* EllipsoidArc */
 static int hf_lpp_lpp_HorizontalVelocity_PDU = -1;  /* HorizontalVelocity */
+static int hf_lpp_lpp_Polygon_PDU = -1;           /* Polygon */
 static int hf_lpp_transactionID = -1;             /* LPP_TransactionID */
 static int hf_lpp_endTransaction = -1;            /* BOOLEAN */
 static int hf_lpp_sequenceNumber = -1;            /* SequenceNumber */
@@ -261,6 +266,7 @@ static int hf_lpp_earfcnRef = -1;                 /* ARFCN_ValueEUTRA */
 static int hf_lpp_antennaPortConfig = -1;         /* T_antennaPortConfig */
 static int hf_lpp_cpLength = -1;                  /* T_cpLength */
 static int hf_lpp_prsInfo = -1;                   /* PRS_Info */
+static int hf_lpp_earfcnRef_v9a0 = -1;            /* ARFCN_ValueEUTRA_v9a0 */
 static int hf_lpp_prs_Bandwidth = -1;             /* T_prs_Bandwidth */
 static int hf_lpp_prs_ConfigurationIndex = -1;    /* INTEGER_0_4095 */
 static int hf_lpp_numDL_Frames = -1;              /* T_numDL_Frames */
@@ -278,6 +284,7 @@ static int hf_lpp_slotNumberOffset = -1;          /* INTEGER_0_19 */
 static int hf_lpp_prs_SubframeOffset = -1;        /* INTEGER_0_1279 */
 static int hf_lpp_expectedRSTD = -1;              /* INTEGER_0_16383 */
 static int hf_lpp_expectedRSTD_Uncertainty = -1;  /* INTEGER_0_1023 */
+static int hf_lpp_earfcn_v9a0 = -1;               /* ARFCN_ValueEUTRA_v9a0 */
 static int hf_lpp_otdoaSignalMeasurementInformation = -1;  /* OTDOA_SignalMeasurementInformation */
 static int hf_lpp_systemFrameNumber = -1;         /* BIT_STRING_SIZE_10 */
 static int hf_lpp_physCellIdRef = -1;             /* INTEGER_0_503 */
@@ -290,6 +297,7 @@ static int hf_lpp_cellGlobalIdNeighbour = -1;     /* ECGI */
 static int hf_lpp_earfcnNeighbour = -1;           /* ARFCN_ValueEUTRA */
 static int hf_lpp_rstd = -1;                      /* INTEGER_0_12711 */
 static int hf_lpp_rstd_Quality = -1;              /* OTDOA_MeasQuality */
+static int hf_lpp_earfcnNeighbour_v9a0 = -1;      /* ARFCN_ValueEUTRA_v9a0 */
 static int hf_lpp_error_Resolution = -1;          /* BIT_STRING_SIZE_2 */
 static int hf_lpp_error_Value = -1;               /* BIT_STRING_SIZE_5 */
 static int hf_lpp_error_NumSamples = -1;          /* BIT_STRING_SIZE_3 */
@@ -297,7 +305,10 @@ static int hf_lpp_assistanceAvailability = -1;    /* BOOLEAN */
 static int hf_lpp_otdoa_Mode = -1;                /* T_otdoa_Mode */
 static int hf_lpp_supportedBandListEUTRA = -1;    /* SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA */
 static int hf_lpp_supportedBandListEUTRA_item = -1;  /* SupportedBandEUTRA */
-static int hf_lpp_bandEUTRA = -1;                 /* INTEGER_1_64 */
+static int hf_lpp_supportedBandListEUTRA_v9a0 = -1;  /* SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA_v9a0 */
+static int hf_lpp_supportedBandListEUTRA_v9a0_item = -1;  /* SupportedBandEUTRA_v9a0 */
+static int hf_lpp_bandEUTRA = -1;                 /* INTEGER_1_maxFBI */
+static int hf_lpp_bandEUTRA_v9a0 = -1;            /* INTEGER_maxFBI_Plus1_maxFBI2 */
 static int hf_lpp_locationServerErrorCauses = -1;  /* OTDOA_LocationServerErrorCauses */
 static int hf_lpp_targetDeviceErrorCauses = -1;   /* OTDOA_TargetDeviceErrorCauses */
 static int hf_lpp_cause = -1;                     /* T_cause */
@@ -829,6 +840,7 @@ static int hf_lpp_arfcnEUTRA = -1;                /* ARFCN_ValueEUTRA */
 static int hf_lpp_rsrp_Result = -1;               /* INTEGER_0_97 */
 static int hf_lpp_rsrq_Result = -1;               /* INTEGER_0_34 */
 static int hf_lpp_ue_RxTxTimeDiff = -1;           /* INTEGER_0_4095 */
+static int hf_lpp_arfcnEUTRA_v9a0 = -1;           /* ARFCN_ValueEUTRA_v9a0 */
 static int hf_lpp_requestedMeasurements = -1;     /* T_requestedMeasurements */
 static int hf_lpp_ecid_MeasSupported = -1;        /* T_ecid_MeasSupported */
 static int hf_lpp_locationServerErrorCauses_02 = -1;  /* ECID_LocationServerErrorCauses */
@@ -883,6 +895,7 @@ static int hf_lpp_T_requestedMeasurements_ueRxTxReq = -1;
 static int hf_lpp_T_ecid_MeasSupported_rsrpSup = -1;
 static int hf_lpp_T_ecid_MeasSupported_rsrqSup = -1;
 static int hf_lpp_T_ecid_MeasSupported_ueRxTxSup = -1;
+static int hf_lpp_dummy_eag_field = -1; /* never registered */ 
 
 /*--- End of included file: packet-lpp-hf.c ---*/
 #line 50 "../../asn1/lpp/packet-lpp-template.c"
@@ -1007,7 +1020,9 @@ static gint ett_lpp_OTDOA_RequestLocationInformation = -1;
 static gint ett_lpp_OTDOA_ProvideCapabilities = -1;
 static gint ett_lpp_T_otdoa_Mode = -1;
 static gint ett_lpp_SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA = -1;
+static gint ett_lpp_SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA_v9a0 = -1;
 static gint ett_lpp_SupportedBandEUTRA = -1;
+static gint ett_lpp_SupportedBandEUTRA_v9a0 = -1;
 static gint ett_lpp_OTDOA_RequestCapabilities = -1;
 static gint ett_lpp_OTDOA_Error = -1;
 static gint ett_lpp_OTDOA_LocationServerErrorCauses = -1;
@@ -1196,9 +1211,15 @@ static gint ett_lpp_ECID_TargetDeviceErrorCauses = -1;
 
 /*--- Included file: packet-lpp-val.h ---*/
 #line 1 "../../asn1/lpp/packet-lpp-val.h"
+#define maxEARFCN                      65535
+#define maxEARFCN_Plus1                65536
+#define maxEARFCN2                     262143
 #define maxEPDU                        16
 #define maxFreqLayers                  3
 #define maxBands                       64
+#define maxFBI                         64
+#define maxFBI_Plus1                   65
+#define maxFBI2                        256
 
 /*--- End of included file: packet-lpp-val.h ---*/
 #line 61 "../../asn1/lpp/packet-lpp-template.c"
@@ -1345,7 +1366,7 @@ dissect_lpp_ECID_RequestCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 
 static int
 dissect_lpp_EPDU_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 98 "../../asn1/lpp/lpp.cnf"
+#line 108 "../../asn1/lpp/lpp.cnf"
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             1U, 256U, &lpp_epdu_id, FALSE);
 
@@ -1384,7 +1405,7 @@ dissect_lpp_EPDU_Identifier(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 
 static int
 dissect_lpp_EPDU_Body(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 104 "../../asn1/lpp/lpp.cnf"
+#line 114 "../../asn1/lpp/lpp.cnf"
   tvbuff_t *lppe_tvb = NULL;
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
                                        NO_BOUND, NO_BOUND, FALSE, &lppe_tvb);
@@ -1530,7 +1551,7 @@ static const per_sequence_t RequestCapabilities_sequence[] = {
 
 static int
 dissect_lpp_RequestCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 66 "../../asn1/lpp/lpp.cnf"
+#line 76 "../../asn1/lpp/lpp.cnf"
 
   col_append_sep_str(actx->pinfo->cinfo, COL_INFO, NULL, "Request Capabilities");
 
@@ -2185,16 +2206,16 @@ dissect_lpp_T_otdoa_Mode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 
 
 static int
-dissect_lpp_INTEGER_1_64(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lpp_INTEGER_1_maxFBI(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            1U, 64U, NULL, FALSE);
+                                                            1U, maxFBI, NULL, FALSE);
 
   return offset;
 }
 
 
 static const per_sequence_t SupportedBandEUTRA_sequence[] = {
-  { &hf_lpp_bandEUTRA       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_1_64 },
+  { &hf_lpp_bandEUTRA       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_1_maxFBI },
   { NULL, 0, 0, NULL }
 };
 
@@ -2221,9 +2242,48 @@ dissect_lpp_SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA(tvbuff_t *tvb _U_, in
 }
 
 
+
+static int
+dissect_lpp_INTEGER_maxFBI_Plus1_maxFBI2(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            maxFBI_Plus1, maxFBI2, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t SupportedBandEUTRA_v9a0_sequence[] = {
+  { &hf_lpp_bandEUTRA_v9a0  , ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lpp_INTEGER_maxFBI_Plus1_maxFBI2 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lpp_SupportedBandEUTRA_v9a0(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lpp_SupportedBandEUTRA_v9a0, SupportedBandEUTRA_v9a0_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA_v9a0_sequence_of[1] = {
+  { &hf_lpp_supportedBandListEUTRA_v9a0_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lpp_SupportedBandEUTRA_v9a0 },
+};
+
+static int
+dissect_lpp_SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA_v9a0(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lpp_SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA_v9a0, SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA_v9a0_sequence_of,
+                                                  1, maxBands, FALSE);
+
+  return offset;
+}
+
+
 static const per_sequence_t OTDOA_ProvideCapabilities_sequence[] = {
   { &hf_lpp_otdoa_Mode      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_T_otdoa_Mode },
   { &hf_lpp_supportedBandListEUTRA, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lpp_SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA },
+  { &hf_lpp_supportedBandListEUTRA_v9a0, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lpp_SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA_v9a0 },
   { NULL, 0, 0, NULL }
 };
 
@@ -2346,7 +2406,7 @@ static const per_sequence_t ProvideCapabilities_sequence[] = {
 
 static int
 dissect_lpp_ProvideCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 70 "../../asn1/lpp/lpp.cnf"
+#line 80 "../../asn1/lpp/lpp.cnf"
 
   col_append_sep_str(actx->pinfo->cinfo, COL_INFO, NULL, "Provide Capabilities");
 
@@ -3107,7 +3167,7 @@ static const per_sequence_t RequestAssistanceData_sequence[] = {
 
 static int
 dissect_lpp_RequestAssistanceData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 74 "../../asn1/lpp/lpp.cnf"
+#line 84 "../../asn1/lpp/lpp.cnf"
 
   col_append_sep_str(actx->pinfo->cinfo, COL_INFO, NULL, "Request Assistance Data");
 
@@ -3147,6 +3207,16 @@ static int
 dissect_lpp_INTEGER_0_86399(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 86399U, NULL, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lpp_INTEGER_1_64(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, 64U, NULL, FALSE);
 
   return offset;
 }
@@ -3367,7 +3437,30 @@ dissect_lpp_CellGlobalIdEUTRA_AndUTRA(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
 int
 dissect_lpp_ARFCN_ValueEUTRA(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 65535U, NULL, FALSE);
+                                                            0U, maxEARFCN, NULL, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lpp_ARFCN_ValueEUTRA_v9a0(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            maxEARFCN_Plus1, maxEARFCN2, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_eag_1_sequence[] = {
+  { &hf_lpp_earfcn_v9a0     , ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lpp_ARFCN_ValueEUTRA_v9a0 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lpp_T_eag_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence_eag(tvb, offset, actx, tree, T_eag_1_sequence);
 
   return offset;
 }
@@ -3377,6 +3470,7 @@ static const per_sequence_t T_eUTRA_sequence[] = {
   { &hf_lpp_physCellId      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_503 },
   { &hf_lpp_cellGlobalIdEUTRA, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_CellGlobalIdEUTRA_AndUTRA },
   { &hf_lpp_earfcn          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_ARFCN_ValueEUTRA },
+  { &hf_lpp_dummy_eag_field , ASN1_NOT_EXTENSION_ROOT, ASN1_NOT_OPTIONAL, dissect_lpp_T_eag_1 },
   { NULL, 0, 0, NULL }
 };
 
@@ -5731,6 +5825,19 @@ dissect_lpp_PRS_Info(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, pr
 }
 
 
+static const per_sequence_t OTDOA_ReferenceCellInfo_eag_1_sequence[] = {
+  { &hf_lpp_earfcnRef_v9a0  , ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lpp_ARFCN_ValueEUTRA_v9a0 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lpp_OTDOA_ReferenceCellInfo_eag_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence_eag(tvb, offset, actx, tree, OTDOA_ReferenceCellInfo_eag_1_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t OTDOA_ReferenceCellInfo_sequence[] = {
   { &hf_lpp_physCellId      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_503 },
   { &hf_lpp_cellGlobalId    , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_ECGI },
@@ -5738,6 +5845,7 @@ static const per_sequence_t OTDOA_ReferenceCellInfo_sequence[] = {
   { &hf_lpp_antennaPortConfig, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_T_antennaPortConfig },
   { &hf_lpp_cpLength        , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_T_cpLength },
   { &hf_lpp_prsInfo         , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_PRS_Info },
+  { &hf_lpp_dummy_eag_field , ASN1_NOT_EXTENSION_ROOT, ASN1_NOT_OPTIONAL, dissect_lpp_OTDOA_ReferenceCellInfo_eag_1 },
   { NULL, 0, 0, NULL }
 };
 
@@ -5802,6 +5910,19 @@ dissect_lpp_INTEGER_0_1279(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 }
 
 
+static const per_sequence_t OTDOA_NeighbourCellInfoElement_eag_1_sequence[] = {
+  { &hf_lpp_earfcn_v9a0     , ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lpp_ARFCN_ValueEUTRA_v9a0 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lpp_OTDOA_NeighbourCellInfoElement_eag_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence_eag(tvb, offset, actx, tree, OTDOA_NeighbourCellInfoElement_eag_1_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t OTDOA_NeighbourCellInfoElement_sequence[] = {
   { &hf_lpp_physCellId      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_503 },
   { &hf_lpp_cellGlobalId    , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_ECGI },
@@ -5813,6 +5934,7 @@ static const per_sequence_t OTDOA_NeighbourCellInfoElement_sequence[] = {
   { &hf_lpp_prs_SubframeOffset, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_INTEGER_0_1279 },
   { &hf_lpp_expectedRSTD    , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_16383 },
   { &hf_lpp_expectedRSTD_Uncertainty, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_1023 },
+  { &hf_lpp_dummy_eag_field , ASN1_NOT_EXTENSION_ROOT, ASN1_NOT_OPTIONAL, dissect_lpp_OTDOA_NeighbourCellInfoElement_eag_1 },
   { NULL, 0, 0, NULL }
 };
 
@@ -6040,7 +6162,7 @@ static const per_sequence_t ProvideAssistanceData_sequence[] = {
 
 static int
 dissect_lpp_ProvideAssistanceData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 78 "../../asn1/lpp/lpp.cnf"
+#line 88 "../../asn1/lpp/lpp.cnf"
 
   col_append_sep_str(actx->pinfo->cinfo, COL_INFO, NULL, "Provide Assistance Data");
 
@@ -6438,7 +6560,7 @@ static const per_sequence_t RequestLocationInformation_sequence[] = {
 
 static int
 dissect_lpp_RequestLocationInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 82 "../../asn1/lpp/lpp.cnf"
+#line 92 "../../asn1/lpp/lpp.cnf"
 
   col_append_sep_str(actx->pinfo->cinfo, COL_INFO, NULL, "Request Location Information");
 
@@ -7301,12 +7423,26 @@ dissect_lpp_INTEGER_0_12711(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 }
 
 
+static const per_sequence_t NeighbourMeasurementElement_eag_1_sequence[] = {
+  { &hf_lpp_earfcnNeighbour_v9a0, ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lpp_ARFCN_ValueEUTRA_v9a0 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lpp_NeighbourMeasurementElement_eag_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence_eag(tvb, offset, actx, tree, NeighbourMeasurementElement_eag_1_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t NeighbourMeasurementElement_sequence[] = {
   { &hf_lpp_physCellIdNeighbor, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_503 },
   { &hf_lpp_cellGlobalIdNeighbour, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_ECGI },
   { &hf_lpp_earfcnNeighbour , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_ARFCN_ValueEUTRA },
   { &hf_lpp_rstd            , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_12711 },
   { &hf_lpp_rstd_Quality    , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_OTDOA_MeasQuality },
+  { &hf_lpp_dummy_eag_field , ASN1_NOT_EXTENSION_ROOT, ASN1_NOT_OPTIONAL, dissect_lpp_NeighbourMeasurementElement_eag_1 },
   { NULL, 0, 0, NULL }
 };
 
@@ -7333,6 +7469,19 @@ dissect_lpp_NeighbourMeasurementList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 }
 
 
+static const per_sequence_t OTDOA_SignalMeasurementInformation_eag_1_sequence[] = {
+  { &hf_lpp_earfcnRef_v9a0  , ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lpp_ARFCN_ValueEUTRA_v9a0 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lpp_OTDOA_SignalMeasurementInformation_eag_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence_eag(tvb, offset, actx, tree, OTDOA_SignalMeasurementInformation_eag_1_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t OTDOA_SignalMeasurementInformation_sequence[] = {
   { &hf_lpp_systemFrameNumber, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_BIT_STRING_SIZE_10 },
   { &hf_lpp_physCellIdRef   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_503 },
@@ -7340,6 +7489,7 @@ static const per_sequence_t OTDOA_SignalMeasurementInformation_sequence[] = {
   { &hf_lpp_earfcnRef       , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_ARFCN_ValueEUTRA },
   { &hf_lpp_referenceQuality, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_OTDOA_MeasQuality },
   { &hf_lpp_neighbourMeasurementList, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_NeighbourMeasurementList },
+  { &hf_lpp_dummy_eag_field , ASN1_NOT_EXTENSION_ROOT, ASN1_NOT_OPTIONAL, dissect_lpp_OTDOA_SignalMeasurementInformation_eag_1 },
   { NULL, 0, 0, NULL }
 };
 
@@ -7387,6 +7537,19 @@ dissect_lpp_INTEGER_0_34(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 }
 
 
+static const per_sequence_t MeasuredResultsElement_eag_1_sequence[] = {
+  { &hf_lpp_arfcnEUTRA_v9a0 , ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lpp_ARFCN_ValueEUTRA_v9a0 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lpp_MeasuredResultsElement_eag_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence_eag(tvb, offset, actx, tree, MeasuredResultsElement_eag_1_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t MeasuredResultsElement_sequence[] = {
   { &hf_lpp_physCellId      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_INTEGER_0_503 },
   { &hf_lpp_cellGlobalId_01 , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_CellGlobalIdEUTRA_AndUTRA },
@@ -7395,6 +7558,7 @@ static const per_sequence_t MeasuredResultsElement_sequence[] = {
   { &hf_lpp_rsrp_Result     , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_INTEGER_0_97 },
   { &hf_lpp_rsrq_Result     , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_INTEGER_0_34 },
   { &hf_lpp_ue_RxTxTimeDiff , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_INTEGER_0_4095 },
+  { &hf_lpp_dummy_eag_field , ASN1_NOT_EXTENSION_ROOT, ASN1_NOT_OPTIONAL, dissect_lpp_MeasuredResultsElement_eag_1 },
   { NULL, 0, 0, NULL }
 };
 
@@ -7622,7 +7786,7 @@ static const per_sequence_t ProvideLocationInformation_sequence[] = {
 
 static int
 dissect_lpp_ProvideLocationInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 86 "../../asn1/lpp/lpp.cnf"
+#line 96 "../../asn1/lpp/lpp.cnf"
 
   col_append_sep_str(actx->pinfo->cinfo, COL_INFO, NULL, "Provide Location Information");
 
@@ -7749,7 +7913,7 @@ static const per_sequence_t Abort_sequence[] = {
 
 static int
 dissect_lpp_Abort(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 90 "../../asn1/lpp/lpp.cnf"
+#line 100 "../../asn1/lpp/lpp.cnf"
 
   col_append_sep_str(actx->pinfo->cinfo, COL_INFO, NULL, "Abort");
 
@@ -7836,7 +8000,7 @@ static const per_choice_t Error_choice[] = {
 
 static int
 dissect_lpp_Error(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 94 "../../asn1/lpp/lpp.cnf"
+#line 104 "../../asn1/lpp/lpp.cnf"
 
   col_append_sep_str(actx->pinfo->cinfo, COL_INFO, NULL, "Error");
 
@@ -7945,7 +8109,7 @@ static const per_sequence_t LPP_Message_sequence[] = {
 
 static int
 dissect_lpp_LPP_Message(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 42 "../../asn1/lpp/lpp.cnf"
+#line 52 "../../asn1/lpp/lpp.cnf"
 	
   proto_tree_add_item(tree, proto_lpp, tvb, 0, -1, ENC_NA);
 
@@ -7975,6 +8139,22 @@ int dissect_lpp_Ellipsoid_Point_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, p
   offset += 7; offset >>= 3;
   return offset;
 }
+int dissect_lpp_Ellipsoid_PointWithUncertaintyCircle_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, pinfo);
+  offset = dissect_lpp_Ellipsoid_PointWithUncertaintyCircle(tvb, offset, &asn1_ctx, tree, hf_lpp_lpp_Ellipsoid_PointWithUncertaintyCircle_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+int dissect_lpp_EllipsoidPointWithUncertaintyEllipse_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, pinfo);
+  offset = dissect_lpp_EllipsoidPointWithUncertaintyEllipse(tvb, offset, &asn1_ctx, tree, hf_lpp_lpp_EllipsoidPointWithUncertaintyEllipse_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
 int dissect_lpp_EllipsoidPointWithAltitude_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
   int offset = 0;
   asn1_ctx_t asn1_ctx;
@@ -7983,11 +8163,35 @@ int dissect_lpp_EllipsoidPointWithAltitude_PDU(tvbuff_t *tvb _U_, packet_info *p
   offset += 7; offset >>= 3;
   return offset;
 }
+int dissect_lpp_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, pinfo);
+  offset = dissect_lpp_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid(tvb, offset, &asn1_ctx, tree, hf_lpp_lpp_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+int dissect_lpp_EllipsoidArc_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, pinfo);
+  offset = dissect_lpp_EllipsoidArc(tvb, offset, &asn1_ctx, tree, hf_lpp_lpp_EllipsoidArc_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
 int dissect_lpp_HorizontalVelocity_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
   int offset = 0;
   asn1_ctx_t asn1_ctx;
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, pinfo);
   offset = dissect_lpp_HorizontalVelocity(tvb, offset, &asn1_ctx, tree, hf_lpp_lpp_HorizontalVelocity_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
+}
+int dissect_lpp_Polygon_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
+  asn1_ctx_t asn1_ctx;
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, pinfo);
+  offset = dissect_lpp_Polygon(tvb, offset, &asn1_ctx, tree, hf_lpp_lpp_Polygon_PDU);
   offset += 7; offset >>= 3;
   return offset;
 }
@@ -8007,23 +8211,43 @@ void proto_register_lpp(void) {
 /*--- Included file: packet-lpp-hfarr.c ---*/
 #line 1 "../../asn1/lpp/packet-lpp-hfarr.c"
     { &hf_lpp_LPP_Message_PDU,
-      { "LPP-Message", "lpp.LPP_Message",
+      { "LPP-Message", "lpp.LPP_Message_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_lpp_Ellipsoid_Point_PDU,
-      { "Ellipsoid-Point", "lpp.Ellipsoid_Point",
+      { "Ellipsoid-Point", "lpp.Ellipsoid_Point_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lpp_lpp_Ellipsoid_PointWithUncertaintyCircle_PDU,
+      { "Ellipsoid-PointWithUncertaintyCircle", "lpp.Ellipsoid_PointWithUncertaintyCircle_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lpp_lpp_EllipsoidPointWithUncertaintyEllipse_PDU,
+      { "EllipsoidPointWithUncertaintyEllipse", "lpp.EllipsoidPointWithUncertaintyEllipse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_lpp_EllipsoidPointWithAltitude_PDU,
-      { "EllipsoidPointWithAltitude", "lpp.EllipsoidPointWithAltitude",
+      { "EllipsoidPointWithAltitude", "lpp.EllipsoidPointWithAltitude_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lpp_lpp_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid_PDU,
+      { "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid", "lpp.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lpp_lpp_EllipsoidArc_PDU,
+      { "EllipsoidArc", "lpp.EllipsoidArc_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_lpp_HorizontalVelocity_PDU,
-      { "HorizontalVelocity", "lpp.HorizontalVelocity",
+      { "HorizontalVelocity", "lpp.HorizontalVelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
+    { &hf_lpp_lpp_Polygon_PDU,
+      { "Polygon", "lpp.Polygon",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
     { &hf_lpp_transactionID,
-      { "transactionID", "lpp.transactionID",
+      { "transactionID", "lpp.transactionID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "LPP_TransactionID", HFILL }},
     { &hf_lpp_endTransaction,
@@ -8035,7 +8259,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_acknowledgement,
-      { "acknowledgement", "lpp.acknowledgement",
+      { "acknowledgement", "lpp.acknowledgement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_lpp_MessageBody,
@@ -8055,31 +8279,31 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_c1_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_requestCapabilities,
-      { "requestCapabilities", "lpp.requestCapabilities",
+      { "requestCapabilities", "lpp.requestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_provideCapabilities,
-      { "provideCapabilities", "lpp.provideCapabilities",
+      { "provideCapabilities", "lpp.provideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_requestAssistanceData,
-      { "requestAssistanceData", "lpp.requestAssistanceData",
+      { "requestAssistanceData", "lpp.requestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_provideAssistanceData,
-      { "provideAssistanceData", "lpp.provideAssistanceData",
+      { "provideAssistanceData", "lpp.provideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_requestLocationInformation,
-      { "requestLocationInformation", "lpp.requestLocationInformation",
+      { "requestLocationInformation", "lpp.requestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_provideLocationInformation,
-      { "provideLocationInformation", "lpp.provideLocationInformation",
+      { "provideLocationInformation", "lpp.provideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_abort,
-      { "abort", "lpp.abort",
+      { "abort", "lpp.abort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_error,
@@ -8087,39 +8311,39 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_Error_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_spare7,
-      { "spare7", "lpp.spare7",
+      { "spare7", "lpp.spare7_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_spare6,
-      { "spare6", "lpp.spare6",
+      { "spare6", "lpp.spare6_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_spare5,
-      { "spare5", "lpp.spare5",
+      { "spare5", "lpp.spare5_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_spare4,
-      { "spare4", "lpp.spare4",
+      { "spare4", "lpp.spare4_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_spare3,
-      { "spare3", "lpp.spare3",
+      { "spare3", "lpp.spare3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_spare2,
-      { "spare2", "lpp.spare2",
+      { "spare2", "lpp.spare2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_spare1,
-      { "spare1", "lpp.spare1",
+      { "spare1", "lpp.spare1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_spare0,
-      { "spare0", "lpp.spare0",
+      { "spare0", "lpp.spare0_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_messageClassExtension,
-      { "messageClassExtension", "lpp.messageClassExtension",
+      { "messageClassExtension", "lpp.messageClassExtension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_initiator,
@@ -8139,27 +8363,27 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_c1_01_vals), 0,
         "T_c1_01", HFILL }},
     { &hf_lpp_requestCapabilities_r9,
-      { "requestCapabilities-r9", "lpp.requestCapabilities_r9",
+      { "requestCapabilities-r9", "lpp.requestCapabilities_r9_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RequestCapabilities_r9_IEs", HFILL }},
     { &hf_lpp_criticalExtensionsFuture,
-      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture",
+      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_commonIEsRequestCapabilities,
-      { "commonIEsRequestCapabilities", "lpp.commonIEsRequestCapabilities",
+      { "commonIEsRequestCapabilities", "lpp.commonIEsRequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_a_gnss_RequestCapabilities,
-      { "a-gnss-RequestCapabilities", "lpp.a_gnss_RequestCapabilities",
+      { "a-gnss-RequestCapabilities", "lpp.a_gnss_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_otdoa_RequestCapabilities,
-      { "otdoa-RequestCapabilities", "lpp.otdoa_RequestCapabilities",
+      { "otdoa-RequestCapabilities", "lpp.otdoa_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ecid_RequestCapabilities,
-      { "ecid-RequestCapabilities", "lpp.ecid_RequestCapabilities",
+      { "ecid-RequestCapabilities", "lpp.ecid_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_epdu_RequestCapabilities,
@@ -8175,27 +8399,27 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_c1_02_vals), 0,
         "T_c1_02", HFILL }},
     { &hf_lpp_provideCapabilities_r9,
-      { "provideCapabilities-r9", "lpp.provideCapabilities_r9",
+      { "provideCapabilities-r9", "lpp.provideCapabilities_r9_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProvideCapabilities_r9_IEs", HFILL }},
     { &hf_lpp_criticalExtensionsFuture_01,
-      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture",
+      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_criticalExtensionsFuture_01", HFILL }},
     { &hf_lpp_commonIEsProvideCapabilities,
-      { "commonIEsProvideCapabilities", "lpp.commonIEsProvideCapabilities",
+      { "commonIEsProvideCapabilities", "lpp.commonIEsProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_a_gnss_ProvideCapabilities,
-      { "a-gnss-ProvideCapabilities", "lpp.a_gnss_ProvideCapabilities",
+      { "a-gnss-ProvideCapabilities", "lpp.a_gnss_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_otdoa_ProvideCapabilities,
-      { "otdoa-ProvideCapabilities", "lpp.otdoa_ProvideCapabilities",
+      { "otdoa-ProvideCapabilities", "lpp.otdoa_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ecid_ProvideCapabilities,
-      { "ecid-ProvideCapabilities", "lpp.ecid_ProvideCapabilities",
+      { "ecid-ProvideCapabilities", "lpp.ecid_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_epdu_ProvideCapabilities,
@@ -8211,23 +8435,23 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_c1_03_vals), 0,
         "T_c1_03", HFILL }},
     { &hf_lpp_requestAssistanceData_r9,
-      { "requestAssistanceData-r9", "lpp.requestAssistanceData_r9",
+      { "requestAssistanceData-r9", "lpp.requestAssistanceData_r9_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RequestAssistanceData_r9_IEs", HFILL }},
     { &hf_lpp_criticalExtensionsFuture_02,
-      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture",
+      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_criticalExtensionsFuture_02", HFILL }},
     { &hf_lpp_commonIEsRequestAssistanceData,
-      { "commonIEsRequestAssistanceData", "lpp.commonIEsRequestAssistanceData",
+      { "commonIEsRequestAssistanceData", "lpp.commonIEsRequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_a_gnss_RequestAssistanceData,
-      { "a-gnss-RequestAssistanceData", "lpp.a_gnss_RequestAssistanceData",
+      { "a-gnss-RequestAssistanceData", "lpp.a_gnss_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_otdoa_RequestAssistanceData,
-      { "otdoa-RequestAssistanceData", "lpp.otdoa_RequestAssistanceData",
+      { "otdoa-RequestAssistanceData", "lpp.otdoa_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_epdu_RequestAssistanceData,
@@ -8243,23 +8467,23 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_c1_04_vals), 0,
         "T_c1_04", HFILL }},
     { &hf_lpp_provideAssistanceData_r9,
-      { "provideAssistanceData-r9", "lpp.provideAssistanceData_r9",
+      { "provideAssistanceData-r9", "lpp.provideAssistanceData_r9_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProvideAssistanceData_r9_IEs", HFILL }},
     { &hf_lpp_criticalExtensionsFuture_03,
-      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture",
+      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_criticalExtensionsFuture_03", HFILL }},
     { &hf_lpp_commonIEsProvideAssistanceData,
-      { "commonIEsProvideAssistanceData", "lpp.commonIEsProvideAssistanceData",
+      { "commonIEsProvideAssistanceData", "lpp.commonIEsProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_a_gnss_ProvideAssistanceData,
-      { "a-gnss-ProvideAssistanceData", "lpp.a_gnss_ProvideAssistanceData",
+      { "a-gnss-ProvideAssistanceData", "lpp.a_gnss_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_otdoa_ProvideAssistanceData,
-      { "otdoa-ProvideAssistanceData", "lpp.otdoa_ProvideAssistanceData",
+      { "otdoa-ProvideAssistanceData", "lpp.otdoa_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_epdu_Provide_Assistance_Data,
@@ -8275,27 +8499,27 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_c1_05_vals), 0,
         "T_c1_05", HFILL }},
     { &hf_lpp_requestLocationInformation_r9,
-      { "requestLocationInformation-r9", "lpp.requestLocationInformation_r9",
+      { "requestLocationInformation-r9", "lpp.requestLocationInformation_r9_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RequestLocationInformation_r9_IEs", HFILL }},
     { &hf_lpp_criticalExtensionsFuture_04,
-      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture",
+      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_criticalExtensionsFuture_04", HFILL }},
     { &hf_lpp_commonIEsRequestLocationInformation,
-      { "commonIEsRequestLocationInformation", "lpp.commonIEsRequestLocationInformation",
+      { "commonIEsRequestLocationInformation", "lpp.commonIEsRequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_a_gnss_RequestLocationInformation,
-      { "a-gnss-RequestLocationInformation", "lpp.a_gnss_RequestLocationInformation",
+      { "a-gnss-RequestLocationInformation", "lpp.a_gnss_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_otdoa_RequestLocationInformation,
-      { "otdoa-RequestLocationInformation", "lpp.otdoa_RequestLocationInformation",
+      { "otdoa-RequestLocationInformation", "lpp.otdoa_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ecid_RequestLocationInformation,
-      { "ecid-RequestLocationInformation", "lpp.ecid_RequestLocationInformation",
+      { "ecid-RequestLocationInformation", "lpp.ecid_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_epdu_RequestLocationInformation,
@@ -8311,27 +8535,27 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_c1_06_vals), 0,
         "T_c1_06", HFILL }},
     { &hf_lpp_provideLocationInformation_r9,
-      { "provideLocationInformation-r9", "lpp.provideLocationInformation_r9",
+      { "provideLocationInformation-r9", "lpp.provideLocationInformation_r9_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProvideLocationInformation_r9_IEs", HFILL }},
     { &hf_lpp_criticalExtensionsFuture_05,
-      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture",
+      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_criticalExtensionsFuture_05", HFILL }},
     { &hf_lpp_commonIEsProvideLocationInformation,
-      { "commonIEsProvideLocationInformation", "lpp.commonIEsProvideLocationInformation",
+      { "commonIEsProvideLocationInformation", "lpp.commonIEsProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_a_gnss_ProvideLocationInformation,
-      { "a-gnss-ProvideLocationInformation", "lpp.a_gnss_ProvideLocationInformation",
+      { "a-gnss-ProvideLocationInformation", "lpp.a_gnss_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_otdoa_ProvideLocationInformation,
-      { "otdoa-ProvideLocationInformation", "lpp.otdoa_ProvideLocationInformation",
+      { "otdoa-ProvideLocationInformation", "lpp.otdoa_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ecid_ProvideLocationInformation,
-      { "ecid-ProvideLocationInformation", "lpp.ecid_ProvideLocationInformation",
+      { "ecid-ProvideLocationInformation", "lpp.ecid_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_epdu_ProvideLocationInformation,
@@ -8347,15 +8571,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_c1_07_vals), 0,
         "T_c1_07", HFILL }},
     { &hf_lpp_abort_r9,
-      { "abort-r9", "lpp.abort_r9",
+      { "abort-r9", "lpp.abort_r9_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Abort_r9_IEs", HFILL }},
     { &hf_lpp_criticalExtensionsFuture_06,
-      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture",
+      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_criticalExtensionsFuture_06", HFILL }},
     { &hf_lpp_commonIEsAbort,
-      { "commonIEsAbort", "lpp.commonIEsAbort",
+      { "commonIEsAbort", "lpp.commonIEsAbort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_epdu_Abort,
@@ -8363,15 +8587,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "EPDU_Sequence", HFILL }},
     { &hf_lpp_error_r9,
-      { "error-r9", "lpp.error_r9",
+      { "error-r9", "lpp.error_r9_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Error_r9_IEs", HFILL }},
     { &hf_lpp_criticalExtensionsFuture_07,
-      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture",
+      { "criticalExtensionsFuture", "lpp.criticalExtensionsFuture_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_criticalExtensionsFuture_07", HFILL }},
     { &hf_lpp_commonIEsError,
-      { "commonIEsError", "lpp.commonIEsError",
+      { "commonIEsError", "lpp.commonIEsError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_epdu_Error,
@@ -8383,7 +8607,7 @@ void proto_register_lpp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_plmn_Identity,
-      { "plmn-Identity", "lpp.plmn_Identity",
+      { "plmn-Identity", "lpp.plmn_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_mcc,
@@ -8415,7 +8639,7 @@ void proto_register_lpp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_32", HFILL }},
     { &hf_lpp_plmn_Identity_01,
-      { "plmn-Identity", "lpp.plmn_Identity",
+      { "plmn-Identity", "lpp.plmn_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_plmn_Identity_01", HFILL }},
     { &hf_lpp_mcc_01,
@@ -8531,11 +8755,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_179", HFILL }},
     { &hf_lpp_EPDU_Sequence_item,
-      { "EPDU", "lpp.EPDU",
+      { "EPDU", "lpp.EPDU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ePDU_Identifier,
-      { "ePDU-Identifier", "lpp.ePDU_Identifier",
+      { "ePDU-Identifier", "lpp.ePDU_Identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ePDU_Body,
@@ -8611,7 +8835,7 @@ void proto_register_lpp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lpp_Polygon_item,
-      { "PolygonPoints", "lpp.PolygonPoints",
+      { "PolygonPoints", "lpp.PolygonPoints_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_latitudeSign_06,
@@ -8639,7 +8863,7 @@ void proto_register_lpp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lpp_primaryCellID,
-      { "primaryCellID", "lpp.primaryCellID",
+      { "primaryCellID", "lpp.primaryCellID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECGI", HFILL }},
     { &hf_lpp_locationInformationType,
@@ -8647,11 +8871,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_LocationInformationType_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_triggeredReporting,
-      { "triggeredReporting", "lpp.triggeredReporting",
+      { "triggeredReporting", "lpp.triggeredReporting_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TriggeredReportingCriteria", HFILL }},
     { &hf_lpp_periodicalReporting,
-      { "periodicalReporting", "lpp.periodicalReporting",
+      { "periodicalReporting", "lpp.periodicalReporting_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PeriodicalReportingCriteria", HFILL }},
     { &hf_lpp_additionalInformation,
@@ -8659,7 +8883,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_AdditionalInformation_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_qos,
-      { "qos", "lpp.qos",
+      { "qos", "lpp.qos_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_environment,
@@ -8667,11 +8891,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_Environment_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_locationCoordinateTypes,
-      { "locationCoordinateTypes", "lpp.locationCoordinateTypes",
+      { "locationCoordinateTypes", "lpp.locationCoordinateTypes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_velocityTypes,
-      { "velocityTypes", "lpp.velocityTypes",
+      { "velocityTypes", "lpp.velocityTypes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_reportingAmount,
@@ -8691,7 +8915,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_horizontalAccuracy,
-      { "horizontalAccuracy", "lpp.horizontalAccuracy",
+      { "horizontalAccuracy", "lpp.horizontalAccuracy_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_verticalCoordinateRequest,
@@ -8699,11 +8923,11 @@ void proto_register_lpp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lpp_verticalAccuracy,
-      { "verticalAccuracy", "lpp.verticalAccuracy",
+      { "verticalAccuracy", "lpp.verticalAccuracy_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_responseTime,
-      { "responseTime", "lpp.responseTime",
+      { "responseTime", "lpp.responseTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_velocityRequest,
@@ -8727,19 +8951,19 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_Velocity_vals), 0,
         "Velocity", HFILL }},
     { &hf_lpp_locationError,
-      { "locationError", "lpp.locationError",
+      { "locationError", "lpp.locationError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ellipsoidPoint_01,
-      { "ellipsoidPoint", "lpp.ellipsoidPoint",
+      { "ellipsoidPoint", "lpp.ellipsoidPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ellipsoid_Point", HFILL }},
     { &hf_lpp_ellipsoidPointWithUncertaintyCircle_01,
-      { "ellipsoidPointWithUncertaintyCircle", "lpp.ellipsoidPointWithUncertaintyCircle",
+      { "ellipsoidPointWithUncertaintyCircle", "lpp.ellipsoidPointWithUncertaintyCircle_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ellipsoid_PointWithUncertaintyCircle", HFILL }},
     { &hf_lpp_ellipsoidPointWithUncertaintyEllipse_01,
-      { "ellipsoidPointWithUncertaintyEllipse", "lpp.ellipsoidPointWithUncertaintyEllipse",
+      { "ellipsoidPointWithUncertaintyEllipse", "lpp.ellipsoidPointWithUncertaintyEllipse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_polygon_01,
@@ -8747,31 +8971,31 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ellipsoidPointWithAltitude_01,
-      { "ellipsoidPointWithAltitude", "lpp.ellipsoidPointWithAltitude",
+      { "ellipsoidPointWithAltitude", "lpp.ellipsoidPointWithAltitude_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ellipsoidPointWithAltitudeAndUncertaintyEllipsoid_01,
-      { "ellipsoidPointWithAltitudeAndUncertaintyEllipsoid", "lpp.ellipsoidPointWithAltitudeAndUncertaintyEllipsoid",
+      { "ellipsoidPointWithAltitudeAndUncertaintyEllipsoid", "lpp.ellipsoidPointWithAltitudeAndUncertaintyEllipsoid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ellipsoidArc_01,
-      { "ellipsoidArc", "lpp.ellipsoidArc",
+      { "ellipsoidArc", "lpp.ellipsoidArc_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_horizontalVelocity_01,
-      { "horizontalVelocity", "lpp.horizontalVelocity",
+      { "horizontalVelocity", "lpp.horizontalVelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_horizontalWithVerticalVelocity_01,
-      { "horizontalWithVerticalVelocity", "lpp.horizontalWithVerticalVelocity",
+      { "horizontalWithVerticalVelocity", "lpp.horizontalWithVerticalVelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_horizontalVelocityWithUncertainty_01,
-      { "horizontalVelocityWithUncertainty", "lpp.horizontalVelocityWithUncertainty",
+      { "horizontalVelocityWithUncertainty", "lpp.horizontalVelocityWithUncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_horizontalWithVerticalVelocityAndUncertainty_01,
-      { "horizontalWithVerticalVelocityAndUncertainty", "lpp.horizontalWithVerticalVelocityAndUncertainty",
+      { "horizontalWithVerticalVelocityAndUncertainty", "lpp.horizontalWithVerticalVelocityAndUncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_locationfailurecause,
@@ -8787,7 +9011,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_errorCause_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_otdoa_ReferenceCellInfo,
-      { "otdoa-ReferenceCellInfo", "lpp.otdoa_ReferenceCellInfo",
+      { "otdoa-ReferenceCellInfo", "lpp.otdoa_ReferenceCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_otdoa_NeighbourCellInfo,
@@ -8803,7 +9027,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_503", HFILL }},
     { &hf_lpp_cellGlobalId,
-      { "cellGlobalId", "lpp.cellGlobalId",
+      { "cellGlobalId", "lpp.cellGlobalId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECGI", HFILL }},
     { &hf_lpp_earfcnRef,
@@ -8819,9 +9043,13 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_cpLength_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_prsInfo,
-      { "prsInfo", "lpp.prsInfo",
+      { "prsInfo", "lpp.prsInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PRS_Info", HFILL }},
+    { &hf_lpp_earfcnRef_v9a0,
+      { "earfcnRef-v9a0", "lpp.earfcnRef_v9a0",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "ARFCN_ValueEUTRA_v9a0", HFILL }},
     { &hf_lpp_prs_Bandwidth,
       { "prs-Bandwidth", "lpp.prs_Bandwidth",
         FT_UINT32, BASE_DEC, VALS(lpp_T_prs_Bandwidth_vals), 0,
@@ -8859,7 +9087,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_OTDOA_NeighbourFreqInfo_item,
-      { "OTDOA-NeighbourCellInfoElement", "lpp.OTDOA_NeighbourCellInfoElement",
+      { "OTDOA-NeighbourCellInfoElement", "lpp.OTDOA_NeighbourCellInfoElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_earfcn,
@@ -8890,8 +9118,12 @@ void proto_register_lpp(void) {
       { "expectedRSTD-Uncertainty", "lpp.expectedRSTD_Uncertainty",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1023", HFILL }},
+    { &hf_lpp_earfcn_v9a0,
+      { "earfcn-v9a0", "lpp.earfcn_v9a0",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "ARFCN_ValueEUTRA_v9a0", HFILL }},
     { &hf_lpp_otdoaSignalMeasurementInformation,
-      { "otdoaSignalMeasurementInformation", "lpp.otdoaSignalMeasurementInformation",
+      { "otdoaSignalMeasurementInformation", "lpp.otdoaSignalMeasurementInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTDOA_SignalMeasurementInformation", HFILL }},
     { &hf_lpp_systemFrameNumber,
@@ -8903,11 +9135,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_503", HFILL }},
     { &hf_lpp_cellGlobalIdRef,
-      { "cellGlobalIdRef", "lpp.cellGlobalIdRef",
+      { "cellGlobalIdRef", "lpp.cellGlobalIdRef_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECGI", HFILL }},
     { &hf_lpp_referenceQuality,
-      { "referenceQuality", "lpp.referenceQuality",
+      { "referenceQuality", "lpp.referenceQuality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTDOA_MeasQuality", HFILL }},
     { &hf_lpp_neighbourMeasurementList,
@@ -8915,7 +9147,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_NeighbourMeasurementList_item,
-      { "NeighbourMeasurementElement", "lpp.NeighbourMeasurementElement",
+      { "NeighbourMeasurementElement", "lpp.NeighbourMeasurementElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_physCellIdNeighbor,
@@ -8923,7 +9155,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_503", HFILL }},
     { &hf_lpp_cellGlobalIdNeighbour,
-      { "cellGlobalIdNeighbour", "lpp.cellGlobalIdNeighbour",
+      { "cellGlobalIdNeighbour", "lpp.cellGlobalIdNeighbour_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECGI", HFILL }},
     { &hf_lpp_earfcnNeighbour,
@@ -8935,9 +9167,13 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_12711", HFILL }},
     { &hf_lpp_rstd_Quality,
-      { "rstd-Quality", "lpp.rstd_Quality",
+      { "rstd-Quality", "lpp.rstd_Quality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTDOA_MeasQuality", HFILL }},
+    { &hf_lpp_earfcnNeighbour_v9a0,
+      { "earfcnNeighbour-v9a0", "lpp.earfcnNeighbour_v9a0",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "ARFCN_ValueEUTRA_v9a0", HFILL }},
     { &hf_lpp_error_Resolution,
       { "error-Resolution", "lpp.error_Resolution",
         FT_BYTES, BASE_NONE, NULL, 0,
@@ -8963,19 +9199,31 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA", HFILL }},
     { &hf_lpp_supportedBandListEUTRA_item,
-      { "SupportedBandEUTRA", "lpp.SupportedBandEUTRA",
+      { "SupportedBandEUTRA", "lpp.SupportedBandEUTRA_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lpp_supportedBandListEUTRA_v9a0,
+      { "supportedBandListEUTRA-v9a0", "lpp.supportedBandListEUTRA_v9a0",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA_v9a0", HFILL }},
+    { &hf_lpp_supportedBandListEUTRA_v9a0_item,
+      { "SupportedBandEUTRA-v9a0", "lpp.SupportedBandEUTRA_v9a0_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_bandEUTRA,
       { "bandEUTRA", "lpp.bandEUTRA",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_1_64", HFILL }},
+        "INTEGER_1_maxFBI", HFILL }},
+    { &hf_lpp_bandEUTRA_v9a0,
+      { "bandEUTRA-v9a0", "lpp.bandEUTRA_v9a0",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_maxFBI_Plus1_maxFBI2", HFILL }},
     { &hf_lpp_locationServerErrorCauses,
-      { "locationServerErrorCauses", "lpp.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lpp.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTDOA_LocationServerErrorCauses", HFILL }},
     { &hf_lpp_targetDeviceErrorCauses,
-      { "targetDeviceErrorCauses", "lpp.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lpp.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTDOA_TargetDeviceErrorCauses", HFILL }},
     { &hf_lpp_cause,
@@ -8987,7 +9235,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_cause_01_vals), 0,
         "T_cause_01", HFILL }},
     { &hf_lpp_gnss_CommonAssistData,
-      { "gnss-CommonAssistData", "lpp.gnss_CommonAssistData",
+      { "gnss-CommonAssistData", "lpp.gnss_CommonAssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_GenericAssistData,
@@ -8999,31 +9247,31 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_A_GNSS_Error_vals), 0,
         "A_GNSS_Error", HFILL }},
     { &hf_lpp_gnss_ReferenceTime,
-      { "gnss-ReferenceTime", "lpp.gnss_ReferenceTime",
+      { "gnss-ReferenceTime", "lpp.gnss_ReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_ReferenceLocation,
-      { "gnss-ReferenceLocation", "lpp.gnss_ReferenceLocation",
+      { "gnss-ReferenceLocation", "lpp.gnss_ReferenceLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_IonosphericModel,
-      { "gnss-IonosphericModel", "lpp.gnss_IonosphericModel",
+      { "gnss-IonosphericModel", "lpp.gnss_IonosphericModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_EarthOrientationParameters,
-      { "gnss-EarthOrientationParameters", "lpp.gnss_EarthOrientationParameters",
+      { "gnss-EarthOrientationParameters", "lpp.gnss_EarthOrientationParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_GenericAssistData_item,
-      { "GNSS-GenericAssistDataElement", "lpp.GNSS_GenericAssistDataElement",
+      { "GNSS-GenericAssistDataElement", "lpp.GNSS_GenericAssistDataElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_ID,
-      { "gnss-ID", "lpp.gnss_ID",
+      { "gnss-ID", "lpp.gnss_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_sbas_ID,
-      { "sbas-ID", "lpp.sbas_ID",
+      { "sbas-ID", "lpp.sbas_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_TimeModels,
@@ -9031,27 +9279,27 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GNSS_TimeModelList", HFILL }},
     { &hf_lpp_gnss_DifferentialCorrections,
-      { "gnss-DifferentialCorrections", "lpp.gnss_DifferentialCorrections",
+      { "gnss-DifferentialCorrections", "lpp.gnss_DifferentialCorrections_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_NavigationModel,
-      { "gnss-NavigationModel", "lpp.gnss_NavigationModel",
+      { "gnss-NavigationModel", "lpp.gnss_NavigationModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_RealTimeIntegrity,
-      { "gnss-RealTimeIntegrity", "lpp.gnss_RealTimeIntegrity",
+      { "gnss-RealTimeIntegrity", "lpp.gnss_RealTimeIntegrity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_DataBitAssistance,
-      { "gnss-DataBitAssistance", "lpp.gnss_DataBitAssistance",
+      { "gnss-DataBitAssistance", "lpp.gnss_DataBitAssistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_AcquisitionAssistance,
-      { "gnss-AcquisitionAssistance", "lpp.gnss_AcquisitionAssistance",
+      { "gnss-AcquisitionAssistance", "lpp.gnss_AcquisitionAssistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_Almanac,
-      { "gnss-Almanac", "lpp.gnss_Almanac",
+      { "gnss-Almanac", "lpp.gnss_Almanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_UTC_Model,
@@ -9063,7 +9311,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_GNSS_AuxiliaryInformation_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_SystemTime,
-      { "gnss-SystemTime", "lpp.gnss_SystemTime",
+      { "gnss-SystemTime", "lpp.gnss_SystemTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_referenceTimeUnc,
@@ -9075,11 +9323,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_GNSS_ReferenceTimeForOneCell", HFILL }},
     { &hf_lpp_gnss_ReferenceTimeForCells_item,
-      { "GNSS-ReferenceTimeForOneCell", "lpp.GNSS_ReferenceTimeForOneCell",
+      { "GNSS-ReferenceTimeForOneCell", "lpp.GNSS_ReferenceTimeForOneCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_networkTime,
-      { "networkTime", "lpp.networkTime",
+      { "networkTime", "lpp.networkTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_bsAlign,
@@ -9087,7 +9335,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_bsAlign_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_TimeID,
-      { "gnss-TimeID", "lpp.gnss_TimeID",
+      { "gnss-TimeID", "lpp.gnss_TimeID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_ID", HFILL }},
     { &hf_lpp_gnss_DayNumber,
@@ -9111,7 +9359,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GPS_TOW_Assist_item,
-      { "GPS-TOW-AssistElement", "lpp.GPS_TOW_AssistElement",
+      { "GPS-TOW-AssistElement", "lpp.GPS_TOW_AssistElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_satelliteID,
@@ -9151,15 +9399,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_cellID_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_eUTRA,
-      { "eUTRA", "lpp.eUTRA",
+      { "eUTRA", "lpp.eUTRA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_cellGlobalIdEUTRA,
-      { "cellGlobalIdEUTRA", "lpp.cellGlobalIdEUTRA",
+      { "cellGlobalIdEUTRA", "lpp.cellGlobalIdEUTRA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellGlobalIdEUTRA_AndUTRA", HFILL }},
     { &hf_lpp_uTRA,
-      { "uTRA", "lpp.uTRA",
+      { "uTRA", "lpp.uTRA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_mode,
@@ -9167,7 +9415,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_mode_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_fdd,
-      { "fdd", "lpp.fdd",
+      { "fdd", "lpp.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_primary_CPICH_Info,
@@ -9175,7 +9423,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_511", HFILL }},
     { &hf_lpp_tdd,
-      { "tdd", "lpp.tdd",
+      { "tdd", "lpp.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_cellParameters,
@@ -9183,7 +9431,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_lpp_cellGlobalIdUTRA,
-      { "cellGlobalIdUTRA", "lpp.cellGlobalIdUTRA",
+      { "cellGlobalIdUTRA", "lpp.cellGlobalIdUTRA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellGlobalIdEUTRA_AndUTRA", HFILL }},
     { &hf_lpp_uarfcn,
@@ -9191,7 +9439,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ARFCN_ValueUTRA", HFILL }},
     { &hf_lpp_gSM,
-      { "gSM", "lpp.gSM",
+      { "gSM", "lpp.gSM_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_bcchCarrier,
@@ -9203,19 +9451,19 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_lpp_cellGlobalIdGERAN,
-      { "cellGlobalIdGERAN", "lpp.cellGlobalIdGERAN",
+      { "cellGlobalIdGERAN", "lpp.cellGlobalIdGERAN_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_threeDlocation,
-      { "threeDlocation", "lpp.threeDlocation",
+      { "threeDlocation", "lpp.threeDlocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid", HFILL }},
     { &hf_lpp_klobucharModel,
-      { "klobucharModel", "lpp.klobucharModel",
+      { "klobucharModel", "lpp.klobucharModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "KlobucharModelParameter", HFILL }},
     { &hf_lpp_neQuickModel,
-      { "neQuickModel", "lpp.neQuickModel",
+      { "neQuickModel", "lpp.neQuickModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NeQuickModelParameter", HFILL }},
     { &hf_lpp_dataID,
@@ -9315,7 +9563,7 @@ void proto_register_lpp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M262144_262143", HFILL }},
     { &hf_lpp_GNSS_TimeModelList_item,
-      { "GNSS-TimeModelElement", "lpp.GNSS_TimeModelElement",
+      { "GNSS-TimeModelElement", "lpp.GNSS_TimeModelElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_TimeModelRefTime,
@@ -9355,11 +9603,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_DGNSS_SgnTypeList_item,
-      { "DGNSS-SgnTypeElement", "lpp.DGNSS_SgnTypeElement",
+      { "DGNSS-SgnTypeElement", "lpp.DGNSS_SgnTypeElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_SignalID,
-      { "gnss-SignalID", "lpp.gnss_SignalID",
+      { "gnss-SignalID", "lpp.gnss_SignalID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_StatusHealth,
@@ -9371,11 +9619,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_DGNSS_SatList_item,
-      { "DGNSS-CorrectionsElement", "lpp.DGNSS_CorrectionsElement",
+      { "DGNSS-CorrectionsElement", "lpp.DGNSS_CorrectionsElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_svID,
-      { "svID", "lpp.svID",
+      { "svID", "lpp.svID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SV_ID", HFILL }},
     { &hf_lpp_iod,
@@ -9411,7 +9659,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GNSS_NavModelSatelliteList", HFILL }},
     { &hf_lpp_GNSS_NavModelSatelliteList_item,
-      { "GNSS-NavModelSatelliteElement", "lpp.GNSS_NavModelSatelliteElement",
+      { "GNSS-NavModelSatelliteElement", "lpp.GNSS_NavModelSatelliteElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_svHealth,
@@ -9431,43 +9679,43 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_nav_ClockModel,
-      { "nav-ClockModel", "lpp.nav_ClockModel",
+      { "nav-ClockModel", "lpp.nav_ClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_cnav_ClockModel,
-      { "cnav-ClockModel", "lpp.cnav_ClockModel",
+      { "cnav-ClockModel", "lpp.cnav_ClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_glonass_ClockModel,
-      { "glonass-ClockModel", "lpp.glonass_ClockModel",
+      { "glonass-ClockModel", "lpp.glonass_ClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_sbas_ClockModel,
-      { "sbas-ClockModel", "lpp.sbas_ClockModel",
+      { "sbas-ClockModel", "lpp.sbas_ClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_keplerianSet,
-      { "keplerianSet", "lpp.keplerianSet",
+      { "keplerianSet", "lpp.keplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModelKeplerianSet", HFILL }},
     { &hf_lpp_nav_KeplerianSet,
-      { "nav-KeplerianSet", "lpp.nav_KeplerianSet",
+      { "nav-KeplerianSet", "lpp.nav_KeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModelNAV_KeplerianSet", HFILL }},
     { &hf_lpp_cnav_KeplerianSet,
-      { "cnav-KeplerianSet", "lpp.cnav_KeplerianSet",
+      { "cnav-KeplerianSet", "lpp.cnav_KeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModelCNAV_KeplerianSet", HFILL }},
     { &hf_lpp_glonass_ECEF,
-      { "glonass-ECEF", "lpp.glonass_ECEF",
+      { "glonass-ECEF", "lpp.glonass_ECEF_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_GLONASS_ECEF", HFILL }},
     { &hf_lpp_sbas_ECEF,
-      { "sbas-ECEF", "lpp.sbas_ECEF",
+      { "sbas-ECEF", "lpp.sbas_ECEF_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_SBAS_ECEF", HFILL }},
     { &hf_lpp_StandardClockModelList_item,
-      { "StandardClockModelElement", "lpp.StandardClockModelElement",
+      { "StandardClockModelElement", "lpp.StandardClockModelElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_stanClockToc,
@@ -9735,7 +9983,7 @@ void proto_register_lpp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M32768_32767", HFILL }},
     { &hf_lpp_addNAVparam,
-      { "addNAVparam", "lpp.addNAVparam",
+      { "addNAVparam", "lpp.addNAVparam_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ephemCodeOnL2,
@@ -9747,7 +9995,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1", HFILL }},
     { &hf_lpp_ephemSF1Rsvd,
-      { "ephemSF1Rsvd", "lpp.ephemSF1Rsvd",
+      { "ephemSF1Rsvd", "lpp.ephemSF1Rsvd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_reserved1,
@@ -9939,15 +10187,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_BadSignalList_item,
-      { "BadSignalElement", "lpp.BadSignalElement",
+      { "BadSignalElement", "lpp.BadSignalElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_badSVID,
-      { "badSVID", "lpp.badSVID",
+      { "badSVID", "lpp.badSVID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SV_ID", HFILL }},
     { &hf_lpp_badSignalID,
-      { "badSignalID", "lpp.badSignalID",
+      { "badSignalID", "lpp.badSignalID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lpp_gnss_TOD,
@@ -9963,7 +10211,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_DataBitsSatList_item,
-      { "GNSS-DataBitsSatElement", "lpp.GNSS_DataBitsSatElement",
+      { "GNSS-DataBitsSatElement", "lpp.GNSS_DataBitsSatElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_DataBitsSgnList,
@@ -9971,11 +10219,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_DataBitsSgnList_item,
-      { "GNSS-DataBitsSgnElement", "lpp.GNSS_DataBitsSgnElement",
+      { "GNSS-DataBitsSgnElement", "lpp.GNSS_DataBitsSgnElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_SignalType,
-      { "gnss-SignalType", "lpp.gnss_SignalType",
+      { "gnss-SignalType", "lpp.gnss_SignalType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalID", HFILL }},
     { &hf_lpp_gnss_DataBits,
@@ -9991,7 +10239,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_100", HFILL }},
     { &hf_lpp_GNSS_AcquisitionAssistList_item,
-      { "GNSS-AcquisitionAssistElement", "lpp.GNSS_AcquisitionAssistElement",
+      { "GNSS-AcquisitionAssistElement", "lpp.GNSS_AcquisitionAssistElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_doppler0,
@@ -10059,27 +10307,27 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_GNSS_AlmanacElement_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_keplerianAlmanacSet,
-      { "keplerianAlmanacSet", "lpp.keplerianAlmanacSet",
+      { "keplerianAlmanacSet", "lpp.keplerianAlmanacSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlmanacKeplerianSet", HFILL }},
     { &hf_lpp_keplerianNAV_Almanac,
-      { "keplerianNAV-Almanac", "lpp.keplerianNAV_Almanac",
+      { "keplerianNAV-Almanac", "lpp.keplerianNAV_Almanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlmanacNAV_KeplerianSet", HFILL }},
     { &hf_lpp_keplerianReducedAlmanac,
-      { "keplerianReducedAlmanac", "lpp.keplerianReducedAlmanac",
+      { "keplerianReducedAlmanac", "lpp.keplerianReducedAlmanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlmanacReducedKeplerianSet", HFILL }},
     { &hf_lpp_keplerianMidiAlmanac,
-      { "keplerianMidiAlmanac", "lpp.keplerianMidiAlmanac",
+      { "keplerianMidiAlmanac", "lpp.keplerianMidiAlmanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlmanacMidiAlmanacSet", HFILL }},
     { &hf_lpp_keplerianGLONASS,
-      { "keplerianGLONASS", "lpp.keplerianGLONASS",
+      { "keplerianGLONASS", "lpp.keplerianGLONASS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlmanacGLONASS_AlmanacSet", HFILL }},
     { &hf_lpp_ecef_SBAS_Almanac,
-      { "ecef-SBAS-Almanac", "lpp.ecef_SBAS_Almanac",
+      { "ecef-SBAS-Almanac", "lpp.ecef_SBAS_Almanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlmanacECEF_SBAS_AlmanacSet", HFILL }},
     { &hf_lpp_kepAlmanacE,
@@ -10323,19 +10571,19 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_2047", HFILL }},
     { &hf_lpp_utcModel1,
-      { "utcModel1", "lpp.utcModel1",
+      { "utcModel1", "lpp.utcModel1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTC_ModelSet1", HFILL }},
     { &hf_lpp_utcModel2,
-      { "utcModel2", "lpp.utcModel2",
+      { "utcModel2", "lpp.utcModel2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTC_ModelSet2", HFILL }},
     { &hf_lpp_utcModel3,
-      { "utcModel3", "lpp.utcModel3",
+      { "utcModel3", "lpp.utcModel3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTC_ModelSet3", HFILL }},
     { &hf_lpp_utcModel4,
-      { "utcModel4", "lpp.utcModel4",
+      { "utcModel4", "lpp.utcModel4_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTC_ModelSet4", HFILL }},
     { &hf_lpp_gnss_Utc_A1,
@@ -10459,15 +10707,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_ID_GPS_item,
-      { "GNSS-ID-GPS-SatElement", "lpp.GNSS_ID_GPS_SatElement",
+      { "GNSS-ID-GPS-SatElement", "lpp.GNSS_ID_GPS_SatElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_signalsAvailable,
-      { "signalsAvailable", "lpp.signalsAvailable",
+      { "signalsAvailable", "lpp.signalsAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lpp_GNSS_ID_GLONASS_item,
-      { "GNSS-ID-GLONASS-SatElement", "lpp.GNSS_ID_GLONASS_SatElement",
+      { "GNSS-ID-GLONASS-SatElement", "lpp.GNSS_ID_GLONASS_SatElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_channelNumber,
@@ -10475,7 +10723,7 @@ void proto_register_lpp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M7_13", HFILL }},
     { &hf_lpp_gnss_CommonAssistDataReq,
-      { "gnss-CommonAssistDataReq", "lpp.gnss_CommonAssistDataReq",
+      { "gnss-CommonAssistDataReq", "lpp.gnss_CommonAssistDataReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_GenericAssistDataReq,
@@ -10483,23 +10731,23 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_ReferenceTimeReq,
-      { "gnss-ReferenceTimeReq", "lpp.gnss_ReferenceTimeReq",
+      { "gnss-ReferenceTimeReq", "lpp.gnss_ReferenceTimeReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_ReferenceLocationReq,
-      { "gnss-ReferenceLocationReq", "lpp.gnss_ReferenceLocationReq",
+      { "gnss-ReferenceLocationReq", "lpp.gnss_ReferenceLocationReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_IonosphericModelReq,
-      { "gnss-IonosphericModelReq", "lpp.gnss_IonosphericModelReq",
+      { "gnss-IonosphericModelReq", "lpp.gnss_IonosphericModelReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_EarthOrientationParametersReq,
-      { "gnss-EarthOrientationParametersReq", "lpp.gnss_EarthOrientationParametersReq",
+      { "gnss-EarthOrientationParametersReq", "lpp.gnss_EarthOrientationParametersReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_GenericAssistDataReq_item,
-      { "GNSS-GenericAssistDataReqElement", "lpp.GNSS_GenericAssistDataReqElement",
+      { "GNSS-GenericAssistDataReqElement", "lpp.GNSS_GenericAssistDataReqElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_TimeModelsReq,
@@ -10507,7 +10755,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GNSS_TimeModelListReq", HFILL }},
     { &hf_lpp_gnss_DifferentialCorrectionsReq,
-      { "gnss-DifferentialCorrectionsReq", "lpp.gnss_DifferentialCorrectionsReq",
+      { "gnss-DifferentialCorrectionsReq", "lpp.gnss_DifferentialCorrectionsReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_NavigationModelReq,
@@ -10515,27 +10763,27 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_GNSS_NavigationModelReq_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_RealTimeIntegrityReq,
-      { "gnss-RealTimeIntegrityReq", "lpp.gnss_RealTimeIntegrityReq",
+      { "gnss-RealTimeIntegrityReq", "lpp.gnss_RealTimeIntegrityReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_DataBitAssistanceReq,
-      { "gnss-DataBitAssistanceReq", "lpp.gnss_DataBitAssistanceReq",
+      { "gnss-DataBitAssistanceReq", "lpp.gnss_DataBitAssistanceReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_AcquisitionAssistanceReq,
-      { "gnss-AcquisitionAssistanceReq", "lpp.gnss_AcquisitionAssistanceReq",
+      { "gnss-AcquisitionAssistanceReq", "lpp.gnss_AcquisitionAssistanceReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_AlmanacReq,
-      { "gnss-AlmanacReq", "lpp.gnss_AlmanacReq",
+      { "gnss-AlmanacReq", "lpp.gnss_AlmanacReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_UTCModelReq,
-      { "gnss-UTCModelReq", "lpp.gnss_UTCModelReq",
+      { "gnss-UTCModelReq", "lpp.gnss_UTCModelReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_UTC_ModelReq", HFILL }},
     { &hf_lpp_gnss_AuxiliaryInformationReq,
-      { "gnss-AuxiliaryInformationReq", "lpp.gnss_AuxiliaryInformationReq",
+      { "gnss-AuxiliaryInformationReq", "lpp.gnss_AuxiliaryInformationReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_TimeReqPrefList,
@@ -10543,7 +10791,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_GNSS_ID", HFILL }},
     { &hf_lpp_gnss_TimeReqPrefList_item,
-      { "GNSS-ID", "lpp.GNSS_ID",
+      { "GNSS-ID", "lpp.GNSS_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gps_TOW_assistReq,
@@ -10559,11 +10807,11 @@ void proto_register_lpp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_2", HFILL }},
     { &hf_lpp_neQuickModelReq,
-      { "neQuickModelReq", "lpp.neQuickModelReq",
+      { "neQuickModelReq", "lpp.neQuickModelReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_TimeModelListReq_item,
-      { "GNSS-TimeModelElementReq", "lpp.GNSS_TimeModelElementReq",
+      { "GNSS-TimeModelElementReq", "lpp.GNSS_TimeModelElementReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_TO_IDsReq,
@@ -10575,7 +10823,7 @@ void proto_register_lpp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lpp_dgnss_SignalsReq,
-      { "dgnss-SignalsReq", "lpp.dgnss_SignalsReq",
+      { "dgnss-SignalsReq", "lpp.dgnss_SignalsReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lpp_dgnss_ValidityTimeReq,
@@ -10583,11 +10831,11 @@ void proto_register_lpp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lpp_storedNavList,
-      { "storedNavList", "lpp.storedNavList",
+      { "storedNavList", "lpp.storedNavList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "StoredNavListInfo", HFILL }},
     { &hf_lpp_reqNavList,
-      { "reqNavList", "lpp.reqNavList",
+      { "reqNavList", "lpp.reqNavList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReqNavListInfo", HFILL }},
     { &hf_lpp_gnss_WeekOrDay,
@@ -10607,7 +10855,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_SatListRelatedDataList_item,
-      { "SatListRelatedDataElement", "lpp.SatListRelatedDataElement",
+      { "SatListRelatedDataElement", "lpp.SatListRelatedDataElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_clockModelID,
@@ -10655,7 +10903,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_15", HFILL }},
     { &hf_lpp_gnss_SignalType_01,
-      { "gnss-SignalType", "lpp.gnss_SignalType",
+      { "gnss-SignalType", "lpp.gnss_SignalType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lpp_gnss_DataBitsReq,
@@ -10663,11 +10911,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GNSS_DataBitsReqSatList", HFILL }},
     { &hf_lpp_GNSS_DataBitsReqSatList_item,
-      { "GNSS-DataBitsReqSatElement", "lpp.GNSS_DataBitsReqSatElement",
+      { "GNSS-DataBitsReqSatElement", "lpp.GNSS_DataBitsReqSatElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_SignalID_Req,
-      { "gnss-SignalID-Req", "lpp.gnss_SignalID_Req",
+      { "gnss-SignalID-Req", "lpp.gnss_SignalID_Req_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalID", HFILL }},
     { &hf_lpp_modelID,
@@ -10675,15 +10923,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_8", HFILL }},
     { &hf_lpp_gnss_SignalMeasurementInformation,
-      { "gnss-SignalMeasurementInformation", "lpp.gnss_SignalMeasurementInformation",
+      { "gnss-SignalMeasurementInformation", "lpp.gnss_SignalMeasurementInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_LocationInformation,
-      { "gnss-LocationInformation", "lpp.gnss_LocationInformation",
+      { "gnss-LocationInformation", "lpp.gnss_LocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_measurementReferenceTime,
-      { "measurementReferenceTime", "lpp.measurementReferenceTime",
+      { "measurementReferenceTime", "lpp.measurementReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_MeasurementList,
@@ -10707,15 +10955,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_networkTime_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_eUTRA_01,
-      { "eUTRA", "lpp.eUTRA",
+      { "eUTRA", "lpp.eUTRA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_eUTRA_01", HFILL }},
     { &hf_lpp_cellGlobalId_01,
-      { "cellGlobalId", "lpp.cellGlobalId",
+      { "cellGlobalId", "lpp.cellGlobalId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellGlobalIdEUTRA_AndUTRA", HFILL }},
     { &hf_lpp_uTRA_01,
-      { "uTRA", "lpp.uTRA",
+      { "uTRA", "lpp.uTRA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_uTRA_01", HFILL }},
     { &hf_lpp_mode_01,
@@ -10723,11 +10971,11 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_mode_01_vals), 0,
         "T_mode_01", HFILL }},
     { &hf_lpp_fdd_01,
-      { "fdd", "lpp.fdd",
+      { "fdd", "lpp.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_01", HFILL }},
     { &hf_lpp_tdd_01,
-      { "tdd", "lpp.tdd",
+      { "tdd", "lpp.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_01", HFILL }},
     { &hf_lpp_referenceSystemFrameNumber,
@@ -10735,15 +10983,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_4095", HFILL }},
     { &hf_lpp_gSM_01,
-      { "gSM", "lpp.gSM",
+      { "gSM", "lpp.gSM_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_gSM_01", HFILL }},
     { &hf_lpp_cellGlobalId_02,
-      { "cellGlobalId", "lpp.cellGlobalId",
+      { "cellGlobalId", "lpp.cellGlobalId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellGlobalIdGERAN", HFILL }},
     { &hf_lpp_referenceFrame,
-      { "referenceFrame", "lpp.referenceFrame",
+      { "referenceFrame", "lpp.referenceFrame_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_referenceFN,
@@ -10759,7 +11007,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_lpp_GNSS_MeasurementList_item,
-      { "GNSS-MeasurementForOneGNSS", "lpp.GNSS_MeasurementForOneGNSS",
+      { "GNSS-MeasurementForOneGNSS", "lpp.GNSS_MeasurementForOneGNSS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_SgnMeasList,
@@ -10767,7 +11015,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_SgnMeasList_item,
-      { "GNSS-SgnMeasElement", "lpp.GNSS_SgnMeasElement",
+      { "GNSS-SgnMeasElement", "lpp.GNSS_SgnMeasElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_CodePhaseAmbiguity,
@@ -10779,7 +11027,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_SatMeasList_item,
-      { "GNSS-SatMeasElement", "lpp.GNSS_SatMeasElement",
+      { "GNSS-SatMeasElement", "lpp.GNSS_SatMeasElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_cNo,
@@ -10815,15 +11063,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_33554431", HFILL }},
     { &hf_lpp_agnss_List,
-      { "agnss-List", "lpp.agnss_List",
+      { "agnss-List", "lpp.agnss_List_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_ID_Bitmap", HFILL }},
     { &hf_lpp_gnss_PositioningInstructions,
-      { "gnss-PositioningInstructions", "lpp.gnss_PositioningInstructions",
+      { "gnss-PositioningInstructions", "lpp.gnss_PositioningInstructions_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_Methods,
-      { "gnss-Methods", "lpp.gnss_Methods",
+      { "gnss-Methods", "lpp.gnss_Methods_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_ID_Bitmap", HFILL }},
     { &hf_lpp_fineTimeAssistanceMeasReq,
@@ -10843,35 +11091,35 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_assistanceDataSupportList,
-      { "assistanceDataSupportList", "lpp.assistanceDataSupportList",
+      { "assistanceDataSupportList", "lpp.assistanceDataSupportList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_SupportList_item,
-      { "GNSS-SupportElement", "lpp.GNSS_SupportElement",
+      { "GNSS-SupportElement", "lpp.GNSS_SupportElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_sbas_IDs,
-      { "sbas-IDs", "lpp.sbas_IDs",
+      { "sbas-IDs", "lpp.sbas_IDs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_agnss_Modes,
-      { "agnss-Modes", "lpp.agnss_Modes",
+      { "agnss-Modes", "lpp.agnss_Modes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PositioningModes", HFILL }},
     { &hf_lpp_gnss_Signals,
-      { "gnss-Signals", "lpp.gnss_Signals",
+      { "gnss-Signals", "lpp.gnss_Signals_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lpp_fta_MeasSupport,
-      { "fta-MeasSupport", "lpp.fta_MeasSupport",
+      { "fta-MeasSupport", "lpp.fta_MeasSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_cellTime,
-      { "cellTime", "lpp.cellTime",
+      { "cellTime", "lpp.cellTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AccessTypes", HFILL }},
     { &hf_lpp_mode_02,
-      { "mode", "lpp.mode",
+      { "mode", "lpp.mode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PositioningModes", HFILL }},
     { &hf_lpp_adr_Support,
@@ -10883,7 +11131,7 @@ void proto_register_lpp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lpp_gnss_CommonAssistanceDataSupport,
-      { "gnss-CommonAssistanceDataSupport", "lpp.gnss_CommonAssistanceDataSupport",
+      { "gnss-CommonAssistanceDataSupport", "lpp.gnss_CommonAssistanceDataSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_GenericAssistanceDataSupport,
@@ -10891,27 +11139,27 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_ReferenceTimeSupport,
-      { "gnss-ReferenceTimeSupport", "lpp.gnss_ReferenceTimeSupport",
+      { "gnss-ReferenceTimeSupport", "lpp.gnss_ReferenceTimeSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_ReferenceLocationSupport,
-      { "gnss-ReferenceLocationSupport", "lpp.gnss_ReferenceLocationSupport",
+      { "gnss-ReferenceLocationSupport", "lpp.gnss_ReferenceLocationSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_IonosphericModelSupport,
-      { "gnss-IonosphericModelSupport", "lpp.gnss_IonosphericModelSupport",
+      { "gnss-IonosphericModelSupport", "lpp.gnss_IonosphericModelSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_EarthOrientationParametersSupport,
-      { "gnss-EarthOrientationParametersSupport", "lpp.gnss_EarthOrientationParametersSupport",
+      { "gnss-EarthOrientationParametersSupport", "lpp.gnss_EarthOrientationParametersSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_SystemTime_01,
-      { "gnss-SystemTime", "lpp.gnss_SystemTime",
+      { "gnss-SystemTime", "lpp.gnss_SystemTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_ID_Bitmap", HFILL }},
     { &hf_lpp_fta_Support,
-      { "fta-Support", "lpp.fta_Support",
+      { "fta-Support", "lpp.fta_Support_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AccessTypes", HFILL }},
     { &hf_lpp_ionoModel,
@@ -10919,47 +11167,47 @@ void proto_register_lpp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_GNSS_GenericAssistanceDataSupport_item,
-      { "GNSS-GenericAssistDataSupportElement", "lpp.GNSS_GenericAssistDataSupportElement",
+      { "GNSS-GenericAssistDataSupportElement", "lpp.GNSS_GenericAssistDataSupportElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_TimeModelsSupport,
-      { "gnss-TimeModelsSupport", "lpp.gnss_TimeModelsSupport",
+      { "gnss-TimeModelsSupport", "lpp.gnss_TimeModelsSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_TimeModelListSupport", HFILL }},
     { &hf_lpp_gnss_DifferentialCorrectionsSupport,
-      { "gnss-DifferentialCorrectionsSupport", "lpp.gnss_DifferentialCorrectionsSupport",
+      { "gnss-DifferentialCorrectionsSupport", "lpp.gnss_DifferentialCorrectionsSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_NavigationModelSupport,
-      { "gnss-NavigationModelSupport", "lpp.gnss_NavigationModelSupport",
+      { "gnss-NavigationModelSupport", "lpp.gnss_NavigationModelSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_RealTimeIntegritySupport,
-      { "gnss-RealTimeIntegritySupport", "lpp.gnss_RealTimeIntegritySupport",
+      { "gnss-RealTimeIntegritySupport", "lpp.gnss_RealTimeIntegritySupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_DataBitAssistanceSupport,
-      { "gnss-DataBitAssistanceSupport", "lpp.gnss_DataBitAssistanceSupport",
+      { "gnss-DataBitAssistanceSupport", "lpp.gnss_DataBitAssistanceSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_AcquisitionAssistanceSupport,
-      { "gnss-AcquisitionAssistanceSupport", "lpp.gnss_AcquisitionAssistanceSupport",
+      { "gnss-AcquisitionAssistanceSupport", "lpp.gnss_AcquisitionAssistanceSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_AlmanacSupport,
-      { "gnss-AlmanacSupport", "lpp.gnss_AlmanacSupport",
+      { "gnss-AlmanacSupport", "lpp.gnss_AlmanacSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_UTC_ModelSupport,
-      { "gnss-UTC-ModelSupport", "lpp.gnss_UTC_ModelSupport",
+      { "gnss-UTC-ModelSupport", "lpp.gnss_UTC_ModelSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_AuxiliaryInformationSupport,
-      { "gnss-AuxiliaryInformationSupport", "lpp.gnss_AuxiliaryInformationSupport",
+      { "gnss-AuxiliaryInformationSupport", "lpp.gnss_AuxiliaryInformationSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnssSignalIDs,
-      { "gnssSignalIDs", "lpp.gnssSignalIDs",
+      { "gnssSignalIDs", "lpp.gnssSignalIDs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lpp_dgnss_ValidityTimeSup,
@@ -11003,11 +11251,11 @@ void proto_register_lpp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lpp_locationServerErrorCauses_01,
-      { "locationServerErrorCauses", "lpp.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lpp.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_LocationServerErrorCauses", HFILL }},
     { &hf_lpp_targetDeviceErrorCauses_01,
-      { "targetDeviceErrorCauses", "lpp.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lpp.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_TargetDeviceErrorCauses", HFILL }},
     { &hf_lpp_cause_02,
@@ -11019,15 +11267,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_cause_03_vals), 0,
         "T_cause_03", HFILL }},
     { &hf_lpp_fineTimeAssistanceMeasurementsNotPossible,
-      { "fineTimeAssistanceMeasurementsNotPossible", "lpp.fineTimeAssistanceMeasurementsNotPossible",
+      { "fineTimeAssistanceMeasurementsNotPossible", "lpp.fineTimeAssistanceMeasurementsNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_adrMeasurementsNotPossible,
-      { "adrMeasurementsNotPossible", "lpp.adrMeasurementsNotPossible",
+      { "adrMeasurementsNotPossible", "lpp.adrMeasurementsNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_multiFrequencyMeasurementsNotPossible,
-      { "multiFrequencyMeasurementsNotPossible", "lpp.multiFrequencyMeasurementsNotPossible",
+      { "multiFrequencyMeasurementsNotPossible", "lpp.multiFrequencyMeasurementsNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_gnss_id,
@@ -11059,7 +11307,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_lpp_ecid_SignalMeasurementInformation,
-      { "ecid-SignalMeasurementInformation", "lpp.ecid_SignalMeasurementInformation",
+      { "ecid-SignalMeasurementInformation", "lpp.ecid_SignalMeasurementInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ecid_Error,
@@ -11067,7 +11315,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_ECID_Error_vals), 0,
         NULL, HFILL }},
     { &hf_lpp_primaryCellMeasuredResults,
-      { "primaryCellMeasuredResults", "lpp.primaryCellMeasuredResults",
+      { "primaryCellMeasuredResults", "lpp.primaryCellMeasuredResults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MeasuredResultsElement", HFILL }},
     { &hf_lpp_measuredResultsList,
@@ -11075,7 +11323,7 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_MeasuredResultsList_item,
-      { "MeasuredResultsElement", "lpp.MeasuredResultsElement",
+      { "MeasuredResultsElement", "lpp.MeasuredResultsElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_arfcnEUTRA,
@@ -11094,6 +11342,10 @@ void proto_register_lpp(void) {
       { "ue-RxTxTimeDiff", "lpp.ue_RxTxTimeDiff",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_4095", HFILL }},
+    { &hf_lpp_arfcnEUTRA_v9a0,
+      { "arfcnEUTRA-v9a0", "lpp.arfcnEUTRA_v9a0",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "ARFCN_ValueEUTRA_v9a0", HFILL }},
     { &hf_lpp_requestedMeasurements,
       { "requestedMeasurements", "lpp.requestedMeasurements",
         FT_BYTES, BASE_NONE, NULL, 0,
@@ -11103,11 +11355,11 @@ void proto_register_lpp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_locationServerErrorCauses_02,
-      { "locationServerErrorCauses", "lpp.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lpp.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECID_LocationServerErrorCauses", HFILL }},
     { &hf_lpp_targetDeviceErrorCauses_02,
-      { "targetDeviceErrorCauses", "lpp.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lpp.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECID_TargetDeviceErrorCauses", HFILL }},
     { &hf_lpp_cause_04,
@@ -11119,15 +11371,15 @@ void proto_register_lpp(void) {
         FT_UINT32, BASE_DEC, VALS(lpp_T_cause_05_vals), 0,
         "T_cause_05", HFILL }},
     { &hf_lpp_rsrpMeasurementNotPossible,
-      { "rsrpMeasurementNotPossible", "lpp.rsrpMeasurementNotPossible",
+      { "rsrpMeasurementNotPossible", "lpp.rsrpMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_rsrqMeasurementNotPossible,
-      { "rsrqMeasurementNotPossible", "lpp.rsrqMeasurementNotPossible",
+      { "rsrqMeasurementNotPossible", "lpp.rsrqMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_ueRxTxMeasurementNotPossible,
-      { "ueRxTxMeasurementNotPossible", "lpp.ueRxTxMeasurementNotPossible",
+      { "ueRxTxMeasurementNotPossible", "lpp.ueRxTxMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lpp_T_accessTypes_eutra,
@@ -11428,7 +11680,9 @@ void proto_register_lpp(void) {
     &ett_lpp_OTDOA_ProvideCapabilities,
     &ett_lpp_T_otdoa_Mode,
     &ett_lpp_SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA,
+    &ett_lpp_SEQUENCE_SIZE_1_maxBands_OF_SupportedBandEUTRA_v9a0,
     &ett_lpp_SupportedBandEUTRA,
+    &ett_lpp_SupportedBandEUTRA_v9a0,
     &ett_lpp_OTDOA_RequestCapabilities,
     &ett_lpp_OTDOA_Error,
     &ett_lpp_OTDOA_LocationServerErrorCauses,

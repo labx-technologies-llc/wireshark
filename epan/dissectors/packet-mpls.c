@@ -220,11 +220,11 @@ static const enum_val_t mpls_default_payload_defs[] = {
 /* For RFC6391 - Flow aware transport of pseudowire over a mpls PSN*/
 static gboolean mpls_bos_flowlabel = FALSE;
 
-static int hf_mpls_label;
-static int hf_mpls_label_special;
-static int hf_mpls_exp;
-static int hf_mpls_bos;
-static int hf_mpls_ttl;
+static int hf_mpls_label = -1;
+static int hf_mpls_label_special = -1;
+static int hf_mpls_exp = -1;
+static int hf_mpls_bos = -1;
+static int hf_mpls_ttl = -1;
 
 static gint mpls_default_payload = 0;
 
@@ -608,9 +608,15 @@ dissect_mpls(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* 2) use the 1st nibble logic (see BCP 4928, RFC 4385 and 5586) */
     if (first_nibble == 4) {
         call_dissector(dissector_ip, next_tvb, pinfo, tree);
+        /* IP dissector may reduce the length of the tvb.
+           We need to do the same, so that ethernet trailer is detected. */
+        set_actual_length(tvb, offset+tvb_reported_length(next_tvb));
         return;
     } else if (first_nibble == 6) {
         call_dissector(dissector_ipv6, next_tvb, pinfo, tree);
+        /* IPv6 dissector may reduce the length of the tvb.
+           We need to do the same, so that ethernet trailer is detected. */
+        set_actual_length(tvb, offset+tvb_reported_length(next_tvb));
         return;
     } else if (first_nibble == 1) {
         dissect_pw_ach(next_tvb, pinfo, tree);

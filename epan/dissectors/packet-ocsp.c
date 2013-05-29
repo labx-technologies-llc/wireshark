@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ocsp.c                                                              */
 /* ../../tools/asn2wrs.py -b -p ocsp -c ./ocsp.cnf -s ./packet-ocsp-template -D . -O ../../epan/dissectors OCSP.asn */
 
@@ -320,12 +320,12 @@ dissect_ocsp_T_responseType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 static int
 dissect_ocsp_T_response(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 38 "../../asn1/ocsp/ocsp.cnf"
-  gint8 class;
+  gint8 appclass;
   gboolean pc, ind;
   gint32 tag;
   guint32 len;
   /* skip past the T and L  */
-  offset = dissect_ber_identifier(actx->pinfo, tree, tvb, offset, &class, &pc, &tag);
+  offset = dissect_ber_identifier(actx->pinfo, tree, tvb, offset, &appclass, &pc, &tag);
   offset = dissect_ber_length(actx->pinfo, tree, tvb, offset, &len, &ind);
   offset=call_ber_oid_callback(responseType_id, tvb, offset, actx->pinfo, tree);
 
@@ -705,7 +705,7 @@ void proto_register_ocsp(void) {
 /*--- Included file: packet-ocsp-hfarr.c ---*/
 #line 1 "../../asn1/ocsp/packet-ocsp-hfarr.c"
     { &hf_ocsp_BasicOCSPResponse_PDU,
-      { "BasicOCSPResponse", "ocsp.BasicOCSPResponse",
+      { "BasicOCSPResponse", "ocsp.BasicOCSPResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_ArchiveCutoff_PDU,
@@ -717,23 +717,23 @@ void proto_register_ocsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_ServiceLocator_PDU,
-      { "ServiceLocator", "ocsp.ServiceLocator",
+      { "ServiceLocator", "ocsp.ServiceLocator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_CrlID_PDU,
-      { "CrlID", "ocsp.CrlID",
+      { "CrlID", "ocsp.CrlID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_NULL_PDU,
-      { "NULL", "ocsp.NULL",
+      { "NULL", "ocsp.NULL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_tbsRequest,
-      { "tbsRequest", "ocsp.tbsRequest",
+      { "tbsRequest", "ocsp.tbsRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_optionalSignature,
-      { "optionalSignature", "ocsp.optionalSignature",
+      { "optionalSignature", "ocsp.optionalSignature_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Signature", HFILL }},
     { &hf_ocsp_version,
@@ -749,7 +749,7 @@ void proto_register_ocsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_Request", HFILL }},
     { &hf_ocsp_requestList_item,
-      { "Request", "ocsp.Request",
+      { "Request", "ocsp.Request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_requestExtensions,
@@ -757,7 +757,7 @@ void proto_register_ocsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Extensions", HFILL }},
     { &hf_ocsp_signatureAlgorithm,
-      { "signatureAlgorithm", "ocsp.signatureAlgorithm",
+      { "signatureAlgorithm", "ocsp.signatureAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_ocsp_signature,
@@ -769,11 +769,11 @@ void proto_register_ocsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_Certificate", HFILL }},
     { &hf_ocsp_certs_item,
-      { "Certificate", "ocsp.Certificate",
+      { "Certificate", "ocsp.Certificate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_reqCert,
-      { "reqCert", "ocsp.reqCert",
+      { "reqCert", "ocsp.reqCert_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CertID", HFILL }},
     { &hf_ocsp_singleRequestExtensions,
@@ -781,7 +781,7 @@ void proto_register_ocsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Extensions", HFILL }},
     { &hf_ocsp_hashAlgorithm,
-      { "hashAlgorithm", "ocsp.hashAlgorithm",
+      { "hashAlgorithm", "ocsp.hashAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_ocsp_issuerNameHash,
@@ -801,7 +801,7 @@ void proto_register_ocsp(void) {
         FT_UINT32, BASE_DEC, VALS(ocsp_OCSPResponseStatus_vals), 0,
         "OCSPResponseStatus", HFILL }},
     { &hf_ocsp_responseBytes,
-      { "responseBytes", "ocsp.responseBytes",
+      { "responseBytes", "ocsp.responseBytes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_responseType,
@@ -813,7 +813,7 @@ void proto_register_ocsp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_tbsResponseData,
-      { "tbsResponseData", "ocsp.tbsResponseData",
+      { "tbsResponseData", "ocsp.tbsResponseData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ResponseData", HFILL }},
     { &hf_ocsp_responderID,
@@ -829,7 +829,7 @@ void proto_register_ocsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_SingleResponse", HFILL }},
     { &hf_ocsp_responses_item,
-      { "SingleResponse", "ocsp.SingleResponse",
+      { "SingleResponse", "ocsp.SingleResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_responseExtensions,
@@ -845,7 +845,7 @@ void proto_register_ocsp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "KeyHash", HFILL }},
     { &hf_ocsp_certID,
-      { "certID", "ocsp.certID",
+      { "certID", "ocsp.certID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_certStatus,
@@ -865,15 +865,15 @@ void proto_register_ocsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Extensions", HFILL }},
     { &hf_ocsp_good,
-      { "good", "ocsp.good",
+      { "good", "ocsp.good_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ocsp_revoked,
-      { "revoked", "ocsp.revoked",
+      { "revoked", "ocsp.revoked_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RevokedInfo", HFILL }},
     { &hf_ocsp_unknown,
-      { "unknown", "ocsp.unknown",
+      { "unknown", "ocsp.unknown_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnknownInfo", HFILL }},
     { &hf_ocsp_revocationTime,

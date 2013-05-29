@@ -59,7 +59,7 @@ static int hf_sigcomp_udvm_instr                    = -1;
 static int hf_udvm_multitype_bytecode               = -1;
 static int hf_udvm_reference_bytecode               = -1;
 static int hf_udvm_literal_bytecode                 = -1;
-static int hf_udvm_operand                          = -1;
+/* static int hf_udvm_operand                          = -1; */
 static int hf_udvm_length                           = -1;
 static int hf_udvm_addr_length                      = -1;
 static int hf_udvm_destination                      = -1;
@@ -114,6 +114,8 @@ static gint ett_sigcomp             = -1;
 static gint ett_sigcomp_udvm        = -1;
 static gint ett_sigcomp_udvm_exe    = -1;
 static gint ett_raw_text            = -1;
+
+static expert_field ei_sigcomp_nack_failed_op_code = EI_INIT;
 
 static dissector_handle_t sip_handle;
 /* set the udp ports */
@@ -417,7 +419,7 @@ try_again:
     sigcomp_tree = proto_item_add_subtree(ti, ett_sigcomp);
     i=0;
     end_off_message = FALSE;
-    buff = g_malloc(length-offset);
+    buff = (guint8 *)g_malloc(length-offset);
     if (udvm_print_detail_level>2)
         proto_tree_add_text(sigcomp_tree, tvb, offset, -1,"Starting to remove escape digits");
     while ((offset < length) && (end_off_message == FALSE)){
@@ -714,7 +716,7 @@ dissect_sigcomp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sigcomp_tr
             /*
              * Note: The allocated buffer must be zeroed or some strange effects might occur.
              */
-            buff = g_malloc0(UDVM_MEMORY_SIZE);
+            buff = (guint8 *)g_malloc0(UDVM_MEMORY_SIZE);
 
 
             p_id_start = 0;
@@ -829,7 +831,7 @@ dissect_sigcomp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sigcomp_tr
             offset++;
 
             /* Add expert item for NACK */
-            expert_add_info_format(pinfo, reason_ti, PI_SEQUENCE, PI_WARN,
+            expert_add_info_format_text(pinfo, reason_ti, &ei_sigcomp_nack_failed_op_code,
                                    "SigComp NACK (reason=%s, opcode=%s)",
                                    val_to_str_const(octet, sigcomp_nack_reason_code_vals, "Unknown"),
                                    val_to_str_const(opcode, udvm_instruction_code_vals, "Unknown"));
@@ -2327,11 +2329,13 @@ proto_register_sigcomp(void)
             FT_UINT8, BASE_HEX, VALS(display_lit_bytecode_vals), 0x0,
             NULL, HFILL }
         },
+#if 0
         { &hf_udvm_operand,
             { "UDVM operand", "sigcomp.udvm.operand",
             FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL }
         },
+#endif
         { &hf_udvm_length,
             { "%Length", "sigcomp.udvm.length",
             FT_UINT16, BASE_DEC, NULL, 0x0,
@@ -2580,7 +2584,13 @@ proto_register_sigcomp(void)
         &ett_raw_text,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_sigcomp_nack_failed_op_code, { "sigcomp.nack.failed_op_code.expert", PI_SEQUENCE, PI_WARN, "SigComp NACK", EXPFILL }},
+    };
+
     module_t *sigcomp_module;
+    expert_module_t* expert_sigcomp;
+
     static const enum_val_t udvm_detail_vals[] = {
         {"no-printout",   "No-Printout", 0},
         {"low-detail",    "Low-detail", 1},
@@ -2602,6 +2612,8 @@ proto_register_sigcomp(void)
     proto_register_field_array(proto_sigcomp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
     proto_register_subtree_array(ett_raw, array_length(ett_raw));
+    expert_sigcomp = expert_register_protocol(proto_sigcomp);
+    expert_register_field_array(expert_sigcomp, ei, array_length(ei));
 
 /* Register a configuration option for port */
     sigcomp_module = prefs_register_protocol(proto_sigcomp,

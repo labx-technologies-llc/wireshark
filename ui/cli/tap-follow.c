@@ -1,6 +1,6 @@
 /* tap-follow.c
  *
- * Copyright 2011, QA Cafe <info@qacafe.com>
+ * Copyright 2011-2013, QA Cafe <info@qacafe.com>
  *
  * $Id$
  *
@@ -28,6 +28,7 @@
  */
 
 #include "config.h"
+#include "ws_symbol_export.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -47,12 +48,19 @@
 #include "wsutil/file_util.h"
 #include "tempfile.h"
 
-WS_VAR_IMPORT FILE *data_out_file;
+#ifdef SSL_PLUGIN
+#include "packet-ssl-utils.h"
+#else
+#include <epan/dissectors/packet-ssl-utils.h>
+#endif
+
+WS_DLL_PUBLIC FILE *data_out_file;
 
 typedef enum
 {
   type_TCP,
-  type_UDP
+  type_UDP,
+  type_SSL
 } type_e;
 
 typedef enum
@@ -85,6 +93,7 @@ typedef struct
 #define STR_FOLLOW      "follow,"
 #define STR_FOLLOW_TCP  STR_FOLLOW "tcp"
 #define STR_FOLLOW_UDP  STR_FOLLOW "udp"
+#define STR_FOLLOW_SSL  STR_FOLLOW "ssl"
 
 #define STR_HEX         ",hex"
 #define STR_ASCII       ",ascii"
@@ -108,6 +117,7 @@ followStrType(
   {
   case type_TCP:        return "tcp";
   case type_UDP:        return "udp";
+  case type_SSL:        return "ssl";
   }
 
   g_assert_not_reached();
@@ -148,6 +158,7 @@ followStrFilter(
     switch (fp->type)
     {
     case type_TCP:
+    case type_SSL:
       len = g_snprintf(filter, sizeof filter,
                      "tcp.stream eq %d", fp->index);
       break;
@@ -186,6 +197,8 @@ followStrFilter(
                      verp, ip1, fp->port[1],
                      verp, ip1, fp->port[1],
                      verp, ip0, fp->port[0]);
+      break;
+    case type_SSL:
       break;
     }
   }
@@ -278,7 +291,7 @@ followAlloc(
 {
   follow_t *    fp;
 
-  fp = g_malloc0(sizeof *fp);
+  fp = (follow_t *)g_malloc0(sizeof *fp);
 
   fp->type = type;
   SET_ADDRESS(&fp->addr[0], AT_NONE, 0, fp->addrBuf[0]);
@@ -297,15 +310,15 @@ followFree(
 }
 
 static int
-followPacket(
+followUdpPacket(
   void *                contextp,
   packet_info *         pip,
   epan_dissect_t *      edp _U_,
   const void *          datap
   )
 {
-  follow_t *            fp      = contextp;
-  const tvbuff_t *      tvbp    = datap;
+  follow_t *            fp      = (follow_t *)contextp;
+  const tvbuff_t *      tvbp    = (const tvbuff_t *)datap;
   tcp_stream_chunk      sc;
   size_t                size;
 
@@ -325,6 +338,75 @@ followPacket(
     if (sc.dlen != size)
     {
       followExit("Error writing stream chunk data.");
+    }
+  }
+
+  return 0;
+}
+
+static int
+followSslPacket(
+  void *                contextp,
+  packet_info *         pip,
+  epan_dissect_t *      edp _U_,
+  const void *          datap
+  )
+{
+  follow_t *            fp      = (follow_t *)contextp;
+  SslPacketInfo *       spip    = (SslPacketInfo *)p_get_proto_data(pip->fd, GPOINTER_TO_INT(datap), 0);
+  SslDataInfo *         sdip;
+  gint                  length;
+  tcp_stream_chunk      sc;
+  size_t                size;
+
+  if (spip == NULL)
+  {
+    return 0;
+  }
+
+  if (fp->addr[0].type == AT_NONE)
+  {
+    memcpy(fp->addrBuf[0], pip->net_src.data, pip->net_src.len);
+    SET_ADDRESS(&fp->addr[0], pip->net_src.type, pip->net_src.len,
+                fp->addrBuf[0]);
+    fp->port[0] = pip->srcport;
+
+    memcpy(fp->addrBuf[1], pip->net_dst.data, pip->net_dst.len);
+    SET_ADDRESS(&fp->addr[1], pip->net_dst.type, pip->net_dst.len,
+                fp->addrBuf[1]);
+    fp->port[1] = pip->destport;
+  }
+
+  /* total length */
+  for (length = 0, sdip = spip->appl_data; sdip != NULL; sdip = sdip->next)
+  {
+    length += sdip->plain_data.data_len;
+  }
+
+
+  if (length > 0)
+  {
+    memcpy(sc.src_addr, pip->net_src.data, pip->net_src.len);
+    sc.src_port = pip->srcport;
+    sc.dlen     = length;
+
+    size = fwrite(&sc, 1, sizeof sc, fp->filep);
+    if (sizeof sc != size)
+    {
+      followExit("Error writing stream chunk header.");
+    }
+
+    for (sdip = spip->appl_data; sdip != NULL; sdip = sdip->next)
+    {
+      if (sdip->plain_data.data_len > 0)
+      {
+        size = fwrite(sdip->plain_data.data, 1, sdip->plain_data.data_len,
+                      fp->filep);
+        if (sdip->plain_data.data_len != size)
+        {
+          followExit("Error writing stream chunk data.");
+        }
+      }
     }
   }
 
@@ -412,7 +494,7 @@ followDraw(
   static const char     seperator[] =
     "===================================================================\n";
 
-  follow_t *            fp      = contextp;
+  follow_t *            fp      = (follow_t *)contextp;
   tcp_stream_chunk      sc;
   int                   node;
   const address *       addr[2];
@@ -430,12 +512,20 @@ followDraw(
 
   if (fp->type == type_TCP)
   {
+    static const guint8 ip_zero[MAX_IPADDR_LEN] = {0};
     follow_stats_t      stats;
     address_type        type;
 
     follow_stats(&stats);
 
-    if (stats.is_ipv6)
+    if (stats.port[0] == 0 && stats.port[1] == 0 &&
+        memcmp(stats.ip_address[0], ip_zero, sizeof ip_zero) == 0 &&
+        memcmp(stats.ip_address[1], ip_zero, sizeof ip_zero) == 0)
+    {
+      type = AT_NONE;
+      len  = 0;
+    }
+    else if (stats.is_ipv6)
     {
       type = AT_IPv6;
       len  = 16;
@@ -519,7 +609,7 @@ followDraw(
     {
       while (sc.dlen > 0)
       {
-        len = sc.dlen < sizeof bin ? sc.dlen : sizeof bin;
+        len = sc.dlen < sizeof bin ? sc.dlen : (guint32)sizeof bin;
         sc.dlen -= len;
         if (fread(bin, 1, len, fp->filep) != len)
         {
@@ -549,7 +639,7 @@ followDraw(
 
       while (sc.dlen > 0)
       {
-        len = sc.dlen < sizeof bin ? sc.dlen : sizeof bin;
+        len = sc.dlen < sizeof bin ? sc.dlen : (guint32)sizeof bin;
         sc.dlen -= len;
         if (fread(bin, 1, len, fp->filep) != len)
         {
@@ -609,7 +699,6 @@ followDraw(
       {
         /* no more data */
         sc.dlen = 0;
-        chunk = G_MAXUINT32;
         goto done;
       }
       if (sc.dlen > 0)
@@ -849,7 +938,7 @@ followUdp(
   followFileOpen(fp);
 
   errp = register_tap_listener("udp_follow", fp, followStrFilter(fp), 0,
-                               NULL, followPacket, followDraw);
+                               NULL, followUdpPacket, followDraw);
   if (errp != NULL)
   {
     followFree(fp);
@@ -858,9 +947,45 @@ followUdp(
   }
 }
 
+static void
+followSsl(
+  const char *  optargp,
+  void *        userdata _U_
+  )
+{
+  follow_t *    fp;
+  GString *     errp;
+
+  optargp += strlen(STR_FOLLOW_SSL);
+
+  fp = followAlloc(type_SSL);
+
+  followArgMode(&optargp, fp);
+  followArgFilter(&optargp, fp);
+  followArgRange(&optargp, fp);
+  followArgDone(optargp);
+
+  if (fp->index == G_MAXUINT32)
+  {
+    followExit("SSL only supports index filters.");
+  }
+
+  followFileOpen(fp);
+
+  errp = register_tap_listener("ssl", fp, followStrFilter(fp), 0,
+                               NULL, followSslPacket, followDraw);
+  if (errp != NULL)
+  {
+    followFree(fp);
+    g_string_free(errp, TRUE);
+    followExit("Error registering ssl tap listner.");
+  }
+}
+
 void
 register_tap_listener_follow(void)
 {
   register_stat_cmd_arg(STR_FOLLOW_TCP, followTcp, NULL);
   register_stat_cmd_arg(STR_FOLLOW_UDP, followUdp, NULL);
+  register_stat_cmd_arg(STR_FOLLOW_SSL, followSsl, NULL);
 }

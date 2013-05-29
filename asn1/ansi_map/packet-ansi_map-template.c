@@ -103,6 +103,10 @@
 #define PSNAME "ANSI MAP"
 #define PFNAME "ansi_map"
 
+
+void proto_register_ansi_map(void);
+void proto_reg_handoff_ansi_map(void);
+
 /* Preference settings default */
 #define MAX_SSN 254
 static range_t *global_ssn_range;
@@ -403,7 +407,7 @@ update_saved_invokedata(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb 
     address* dst = &(pinfo->dst);
     guint8 *src_str;
     guint8 *dst_str;
-    char *buf = NULL;
+    const char *buf = NULL;
 
     src_str = ep_address_to_str(src);
     dst_str = ep_address_to_str(dst);
@@ -412,7 +416,7 @@ update_saved_invokedata(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb 
     if (pinfo->private_data != NULL){
         p_private_tcap=(struct ansi_tcap_private_t *)pinfo->private_data;
         if ((!pinfo->fd->flags.visited)&&(p_private_tcap->TransactionID_str)){
-            /* Only do this once XXX I hope its the right thing to do */
+            /* Only do this once XXX I hope it's the right thing to do */
             /* The hash string needs to contain src and dest to distiguish differnt flows */
             switch(ansi_map_response_matching_type){
                 case ANSI_MAP_TID_ONLY:
@@ -4286,7 +4290,7 @@ find_saved_invokedata(asn1_ctx_t *actx){
     guint8 *dst_str;
     char *buf;
 
-    buf=ep_alloc(1024);
+    buf=(char *)ep_alloc(1024);
 
     /* Data from the TCAP dissector */
     if (actx->pinfo->private_data != NULL){

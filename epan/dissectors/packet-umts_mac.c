@@ -39,7 +39,6 @@
 int proto_umts_mac = -1;
 extern int proto_fp;
 extern int proto_rlc;
-extern int proto_rrc;
 
 /* dissector fields */
 static int hf_mac_fach_fdd_tctf = -1;
@@ -49,18 +48,18 @@ static int hf_mac_ueid_type = -1;
 static int hf_mac_crnti = -1;
 static int hf_mac_urnti = -1;
 static int hf_mac_channel = -1;
-static int hf_mac_channel_str = -1;
+/* static int hf_mac_channel_str = -1; */
 
 static int hf_mac_lch_id = -1;
 static int hf_mac_macdflowd_id = -1;
-static int hf_mac_channel_hsdsch = -1;
+/* static int hf_mac_channel_hsdsch = -1; */
 static int hf_mac_trch_id = -1;
 
-static int hf_mac_edch_type2_subframe_header = -1;
-static int hf_mac_edch_type2_descriptors = -1;
-static int hf_mac_edch_type2_lchid = -1;
-static int hf_mac_edch_type2_length = -1;
-static int hf_mac_edch_type2_flag = -1;
+/* static int hf_mac_edch_type2_subframe_header = -1; */
+/* static int hf_mac_edch_type2_descriptors = -1; */
+/* static int hf_mac_edch_type2_lchid = -1; */
+/* static int hf_mac_edch_type2_length = -1; */
+/* static int hf_mac_edch_type2_flag = -1; */
 static int hf_mac_edch_type2_tsn = -1;
 static int hf_mac_edch_type2_ss = -1;
 static int hf_mac_edch_type2_sdu = -1;
@@ -128,23 +127,23 @@ static GHashTable * mac_is_sdus = NULL; /* channel -> (frag -> sdu) */
 static GHashTable * mac_is_fragments = NULL; /* channel -> body_parts[] */
 static gboolean mac_is_channel_equal(gconstpointer a, gconstpointer b)
 {
-	const mac_is_channel *x = a, *y = b;
+	const mac_is_channel *x = (const mac_is_channel *)a, *y = (const mac_is_channel *)b;
 	return x->lchid == y->lchid && x->ueid == y->ueid;
 }
 static guint mac_is_channel_hash(gconstpointer key)
 {
-    const mac_is_channel * ch = key;
+    const mac_is_channel * ch = (const mac_is_channel *)key;
     return (ch->ueid << 4)  | ch->lchid;
 }
 
 static gboolean mac_is_fragment_equal(gconstpointer a, gconstpointer b)
 {
-    const mac_is_fragment *x = a, *y = b;
+    const mac_is_fragment *x = (const mac_is_fragment *)a, *y = (const mac_is_fragment *)b;
     return x->frame_num == y->frame_num && x->tsn == y->tsn && x->type == y->type;
 }
 static guint mac_is_fragment_hash(gconstpointer key)
 {
-    const mac_is_fragment *frag = key;
+    const mac_is_fragment *frag = (const mac_is_fragment *)key;
     return (frag->frame_num << 2) | frag->type;
 }
 
@@ -290,9 +289,9 @@ static void dissect_mac_fdd_rach(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     ti = proto_tree_add_item(tree, proto_umts_mac, tvb, 0, -1, ENC_NA);
     rach_tree = proto_item_add_subtree(ti, ett_mac_rach);
 
-    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac);
-    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp);
-    rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc);
+    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac, 0);
+    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp, 0);
+    rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc, 0);
     if (!macinf || !fpinf) {
         proto_tree_add_text(rach_tree, tvb, 0, -1,
             "Cannot dissect MAC frame because per-frame info is missing");
@@ -382,9 +381,9 @@ static void dissect_mac_fdd_fach(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     ti = proto_tree_add_item(tree, proto_umts_mac, tvb, 0, -1, ENC_NA);
     fach_tree = proto_item_add_subtree(ti, ett_mac_fach);
 
-    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac);
-    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp);
-    rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc);
+    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac, 0);
+    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp, 0);
+    rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc, 0);
 
     if (!macinf || !fpinf) {
         proto_tree_add_text(fach_tree, tvb, 0, -1,
@@ -407,7 +406,7 @@ static void dissect_mac_fdd_fach(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
             channel_type = proto_tree_add_uint(fach_tree, hf_mac_channel, tvb, 0, 0, MAC_CCCH);
             PROTO_ITEM_SET_GENERATED(channel_type);
             /* CCCH over FACH is always octet aligned */
-            next_tvb = tvb_new_subset(tvb, 1, tvb_length_remaining(tvb, 1), -1);
+            next_tvb = tvb_new_subset_remaining(tvb, 1);
             call_dissector(rlc_ccch_handle, next_tvb, pinfo, tree);
             break;
         case TCTF_DCCH_DTCH_FACH_FDD:
@@ -449,7 +448,7 @@ static void dissect_mac_fdd_fach(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
             channel_type = proto_tree_add_uint(fach_tree, hf_mac_channel, tvb, 0, 0, MAC_CTCH);
             PROTO_ITEM_SET_GENERATED(channel_type);
             /* CTCH over FACH is always octet aligned */
-            next_tvb = tvb_new_subset(tvb, 1, tvb_length_remaining(tvb, 1), -1);
+            next_tvb = tvb_new_subset_remaining(tvb, 1);
             call_dissector(rlc_ctch_handle, next_tvb, pinfo, tree);
             break;
         /* july 5: Added support for BCCH*/
@@ -463,10 +462,10 @@ static void dissect_mac_fdd_fach(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
             add_new_data_source(pinfo, next_tvb, "Octet-Aligned BCCH Data");
 
             /* In this case skip RLC and call RRC immediately subdissector */
-            rrcinf = p_get_proto_data(pinfo->fd, proto_rrc);
+            rrcinf = (rrc_info *)p_get_proto_data(pinfo->fd, proto_rrc, 0);
             if (!rrcinf) {
-                rrcinf = se_alloc0(sizeof(struct rrc_info));
-                p_add_proto_data(pinfo->fd, proto_rrc, rrcinf);
+                rrcinf = se_new0(struct rrc_info);
+                p_add_proto_data(pinfo->fd, proto_rrc, 0, rrcinf);
             }
             rrcinf->msgtype[fpinf->cur_tb] = RRC_MESSAGE_TYPE_BCCH_FACH;
 
@@ -502,9 +501,9 @@ static void dissect_mac_fdd_dch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
     ti = proto_tree_add_item(tree, proto_umts_mac, tvb, 0, -1, ENC_NA);
     dch_tree = proto_item_add_subtree(ti, ett_mac_dch);
 
-    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac);
-    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp);
-    rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc);
+    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac, 0);
+    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp, 0);
+    rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc, 0);
     if (!macinf || !fpinf) {
     if(!macinf){
         g_warning("MACinf == NULL");
@@ -608,7 +607,7 @@ static void init_frag(tvbuff_t * tvb, body_parts * bp, guint length, guint offse
     mac_is_fragment * frag = se_new(mac_is_fragment);
     frag->type = type;
     frag->length = length;
-    frag->data = g_malloc(length);
+    frag->data = (guint8 *)g_malloc(length);
     frag->frame_num = frame_num;
     frag->tsn = tsn;
     frag->next = NULL;
@@ -652,7 +651,7 @@ static tvbuff_t * reassemble(tvbuff_t * tvb, body_parts ** body_parts_array, gui
     GHashTable * sdus;
 
     /* Find frag->sdu hash table for this channel. */
-    sdus = g_hash_table_lookup(mac_is_sdus, ch);
+    sdus = (GHashTable *)g_hash_table_lookup(mac_is_sdus, ch);
     /* If this is the first time we see this channel. */
     if (sdus == NULL) {
         mac_is_channel * channel;
@@ -664,7 +663,7 @@ static tvbuff_t * reassemble(tvbuff_t * tvb, body_parts ** body_parts_array, gui
 
     sdu = se_new(mac_is_sdu);
     sdu->length = 0;
-    sdu->data = se_alloc(length);
+    sdu->data = (guint8 *)se_alloc(length);
 
     f = body_parts_array[head_tsn]->head; /* Start from head. */
     g_hash_table_insert(sdus, f, sdu); /* Insert head->sdu mapping. */
@@ -697,12 +696,12 @@ static mac_is_sdu * get_sdu(guint frame_num, guint16 tsn, guint8 type, mac_is_ch
     GHashTable * sdus = NULL;
     mac_is_fragment frag_lookup_key;
 
-    sdus = g_hash_table_lookup(mac_is_sdus, ch);
+    sdus = (GHashTable *)g_hash_table_lookup(mac_is_sdus, ch);
     if (sdus) {
         frag_lookup_key.frame_num = frame_num;
         frag_lookup_key.tsn = tsn;
         frag_lookup_key.type = type;
-        sdu = g_hash_table_lookup(sdus, &frag_lookup_key);
+        sdu = (mac_is_sdu *)g_hash_table_lookup(sdus, &frag_lookup_key);
         return sdu;
     }
     return NULL;
@@ -781,7 +780,7 @@ static guint find_tail(body_parts ** body_parts_array, guint16 tsn)
  */
 static body_parts ** get_body_parts(mac_is_channel * ch)
 {
-    body_parts ** bpa = g_hash_table_lookup(mac_is_fragments, ch);
+    body_parts ** bpa = (body_parts **)g_hash_table_lookup(mac_is_fragments, ch);
     /* If there was no body_part* array for this channel, create one. */
     if (bpa == NULL) {
         mac_is_channel * channel;
@@ -944,9 +943,9 @@ static void dissect_mac_fdd_edch_type2(tvbuff_t *tvb, packet_info *pinfo, proto_
     guint16 tsn;
     proto_item *pi, *temp;
     proto_tree *macis_pdu_tree, *macis_sdu_tree;
-    umts_mac_is_info * mac_is_info = (umts_mac_is_info *)p_get_proto_data(pinfo->fd, proto_umts_mac);
-    rlc_info * rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc);
-    struct fp_info *p_fp_info = (struct fp_info *)p_get_proto_data(pinfo->fd, proto_fp);
+    umts_mac_is_info * mac_is_info = (umts_mac_is_info *)p_get_proto_data(pinfo->fd, proto_umts_mac, 0);
+    rlc_info * rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc, 0);
+    struct fp_info *p_fp_info = (struct fp_info *)p_get_proto_data(pinfo->fd, proto_fp, 0);
 
     DISSECTOR_ASSERT(mac_is_info != NULL && rlcinf != NULL && p_fp_info != NULL);
 
@@ -1015,9 +1014,9 @@ static void dissect_mac_fdd_edch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     ti = proto_tree_add_item(tree, proto_umts_mac, tvb, 0, -1, ENC_NA);
     edch_tree = proto_item_add_subtree(ti, ett_mac_edch);
 
-    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp);
+    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp, 0);
 
-    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac);
+    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac, 0);
     if (!macinf|| !fpinf) {
         ti = proto_tree_add_text(edch_tree, tvb, 0, -1,
             "Cannot dissect MAC frame because per-frame info is missing");
@@ -1094,7 +1093,7 @@ static void dissect_mac_fdd_hsdsch_common(tvbuff_t *tvb, packet_info *pinfo, pro
     ti = proto_tree_add_item(tree, proto_umts_mac, tvb, 0, -1, ENC_NA);
     hsdsch_tree = proto_item_add_subtree(ti, ett_mac_hsdsch);
 
-	fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp);
+	fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp, 0);
 	macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac);
 
 	 if (!macinf) {
@@ -1153,8 +1152,8 @@ static void dissect_mac_fdd_hsdsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
     ti = proto_tree_add_item(tree, proto_umts_mac, tvb, 0, -1, ENC_NA);
     hsdsch_tree = proto_item_add_subtree(ti, ett_mac_hsdsch);
 
-    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp);
-    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac);
+    fpinf  = (fp_info *)p_get_proto_data(pinfo->fd, proto_fp, 0);
+    macinf = (umts_mac_info *)p_get_proto_data(pinfo->fd, proto_umts_mac, 0);
 
     pos = fpinf->cur_tb;
     bitoffs = fpinf->hsdsch_entity == ehs ? 0 : 4;	/*No MAC-d header for type 2*/
@@ -1173,7 +1172,7 @@ static void dissect_mac_fdd_hsdsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         macinf->fake_chid[pos] = FALSE;
         macinf->content[pos] = lchId_type_table[macinf->lchid[pos]];	/*Lookup MAC content*/
 
-        rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc);
+        rlcinf = (rlc_info *)p_get_proto_data(pinfo->fd, proto_rlc, 0);
         rlcinf->rbid[pos] = macinf->lchid[pos];
         rlcinf->mode[pos] =  lchId_rlc_map[macinf->lchid[pos]];	/*Look up RLC mode*/
         bitoffs += 4;
@@ -1348,13 +1347,17 @@ proto_register_umts_mac(void)
             FT_UINT16, BASE_DEC, VALS(mac_logical_channel_vals), 0, NULL, HFILL }
         },
 
+#if 0
          { &hf_mac_channel_str,
           { "Logical Channel", "mac.logical_channel",
             FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL }
         },
-         { &hf_mac_channel_hsdsch,
+#endif
+#if 0
+        { &hf_mac_channel_hsdsch,
             { "MACd-FlowID", "mac.macd_flowid", FT_UINT16, BASE_DEC, NULL, 0x0,  NULL, HFILL }
         },
+#endif
         { &hf_mac_macdflowd_id,
             { "MACd-FlowID", "mac.macd_flowid", FT_UINT16, BASE_DEC, NULL, 0x0,  NULL, HFILL }
         },
@@ -1364,30 +1367,38 @@ proto_register_umts_mac(void)
         { &hf_mac_trch_id,
             { "Transport Channel ID", "mac.transport_channel_id", FT_UINT16, BASE_DEC, NULL, 0x0,  NULL, HFILL }
         },
+#if 0
         { &hf_mac_edch_type2_descriptors,
           { "MAC-is Descriptors",
             "mac.edch.type2.descriptors", FT_STRING, BASE_NONE, NULL, 0x0,
             NULL, HFILL
           }
         },
+#endif
+#if 0
         { &hf_mac_edch_type2_lchid,
           { "LCH-ID",
             "mac.logical_channel_id", FT_UINT8, BASE_HEX, NULL, 0xf0,
             NULL, HFILL
           }
         },
+#endif
+#if 0
         { &hf_mac_edch_type2_length,
           { "Length",
             "mac.edch.type2.length", FT_UINT16, BASE_DEC, NULL, 0x0ffe,
             NULL, HFILL
           }
         },
+#endif
+#if 0
         { &hf_mac_edch_type2_flag,
           { "Flag",
             "mac.edch.type2.lchid", FT_UINT8, BASE_HEX, NULL, 0x01,
             "Indicates if another entry follows", HFILL
           }
         },
+#endif
         { &hf_mac_edch_type2_ss,
           { "SS",
             /* TODO: VALS */
@@ -1413,12 +1424,14 @@ proto_register_umts_mac(void)
             NULL, HFILL
           }
         },
+#if 0
         { &hf_mac_edch_type2_subframe_header,
           { "Subframe header",
             "mac.edch.type2.subframeheader", FT_STRING, BASE_NONE, NULL, 0x0,
             "EDCH Subframe header", HFILL
           }
         },
+#endif
         { &hf_mac_is_reasmin,
           { "Reassembled in frame", "mac.is.reasmin",
             FT_FRAMENUM, BASE_NONE, NULL, 0, NULL, HFILL }

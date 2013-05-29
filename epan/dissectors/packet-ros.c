@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ros.c                                                               */
 /* ../../tools/asn2wrs.py -b -p ros -c ./ros.cnf -s ./packet-ros-template -D . -O ../../epan/dissectors ros.asn Remote-Operations-Information-Objects.asn */
 
@@ -47,6 +47,9 @@
 #define PNAME  "X.880 OSI Remote Operations Service"
 #define PSNAME "ROS"
 #define PFNAME "ros"
+
+void proto_register_ros(void);
+void proto_reg_handoff_ros(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ros = -1;
@@ -110,7 +113,7 @@ static int hf_ros_local = -1;                     /* INTEGER */
 static int hf_ros_global = -1;                    /* OBJECT_IDENTIFIER */
 
 /*--- End of included file: packet-ros-hf.c ---*/
-#line 74 "../../asn1/ros/packet-ros-template.c"
+#line 77 "../../asn1/ros/packet-ros-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_ros = -1;
@@ -128,7 +131,7 @@ static gint ett_ros_InvokeId = -1;
 static gint ett_ros_Code = -1;
 
 /*--- End of included file: packet-ros-ett.c ---*/
-#line 78 "../../asn1/ros/packet-ros-template.c"
+#line 81 "../../asn1/ros/packet-ros-template.c"
 
 static dissector_table_t ros_oid_dissector_table=NULL;
 
@@ -261,7 +264,7 @@ call_ros_oid_callback(const char *oid, tvbuff_t *tvb, int offset, packet_info *p
 {
 	tvbuff_t *next_tvb;
 
-	next_tvb = tvb_new_subset(tvb, offset, tvb_length_remaining(tvb, offset), tvb_reported_length_remaining(tvb, offset));
+	next_tvb = tvb_new_subset_remaining(tvb, offset);
 
 	if(!ros_try_string(oid, next_tvb, pinfo, tree) &&
            !dissector_try_string(ros_oid_dissector_table, oid, next_tvb, pinfo, tree)){
@@ -286,7 +289,7 @@ call_ros_oid_callback(const char *oid, tvbuff_t *tvb, int offset, packet_info *p
 static guint
 ros_info_hash_matched(gconstpointer k)
 {
-  const ros_call_response_t *key = k;
+  const ros_call_response_t *key = (const ros_call_response_t *)k;
 
   return key->invokeId;
 }
@@ -294,8 +297,8 @@ ros_info_hash_matched(gconstpointer k)
 static gint
 ros_info_equal_matched(gconstpointer k1, gconstpointer k2)
 {
-  const ros_call_response_t *key1 = k1;
-  const ros_call_response_t *key2 = k2;
+  const ros_call_response_t *key1 = (const ros_call_response_t *)k1;
+  const ros_call_response_t *key2 = (const ros_call_response_t *)k2;
 
   if( key1->req_frame && key2->req_frame && (key1->req_frame!=key2->req_frame) ){
     return 0;
@@ -312,7 +315,7 @@ ros_info_equal_matched(gconstpointer k1, gconstpointer k2)
 static guint
 ros_info_hash_unmatched(gconstpointer k)
 {
-  const ros_call_response_t *key = k;
+  const ros_call_response_t *key = (const ros_call_response_t *)k;
 
   return key->invokeId;
 }
@@ -320,8 +323,8 @@ ros_info_hash_unmatched(gconstpointer k)
 static gint
 ros_info_equal_unmatched(gconstpointer k1, gconstpointer k2)
 {
-  const ros_call_response_t *key1 = k1;
-  const ros_call_response_t *key2 = k2;
+  const ros_call_response_t *key1 = (const ros_call_response_t *)k1;
+  const ros_call_response_t *key2 = (const ros_call_response_t *)k2;
 
   return key1->invokeId==key2->invokeId;
 }
@@ -345,7 +348,7 @@ ros_match_call_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
     rcr.rep_frame=pinfo->fd->num;
   }
 
-  rcrp=g_hash_table_lookup(ros_info->matched, &rcr);
+  rcrp=(ros_call_response_t *)g_hash_table_lookup(ros_info->matched, &rcr);
 
   if(rcrp) {
     /* we have found a match */
@@ -363,7 +366,7 @@ ros_match_call_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
 
       rcr.invokeId=invokeId;
 
-      rcrp=g_hash_table_lookup(ros_info->unmatched, &rcr);
+      rcrp=(ros_call_response_t *)g_hash_table_lookup(ros_info->unmatched, &rcr);
 
       if(rcrp){
 	g_hash_table_remove(ros_info->unmatched, rcrp);
@@ -371,7 +374,7 @@ ros_match_call_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
 
       /* if we cant reuse the old one, grab a new chunk */
       if(!rcrp){
-	rcrp=se_alloc(sizeof(ros_call_response_t));
+	rcrp=se_new(ros_call_response_t);
       }
       rcrp->invokeId=invokeId;
       rcrp->req_frame=pinfo->fd->num;
@@ -386,7 +389,7 @@ ros_match_call_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
       /* this is a result - it should be in our unmatched list */
 
       rcr.invokeId=invokeId;
-      rcrp=g_hash_table_lookup(ros_info->unmatched, &rcr);
+      rcrp=(ros_call_response_t *)g_hash_table_lookup(ros_info->unmatched, &rcr);
 
       if(rcrp){
 
@@ -1010,7 +1013,7 @@ dissect_ros_Code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, a
 
 
 /*--- End of included file: packet-ros-fn.c ---*/
-#line 369 "../../asn1/ros/packet-ros-template.c"
+#line 372 "../../asn1/ros/packet-ros-template.c"
 
 /*
 * Dissect ROS PDUs inside a PPDU.
@@ -1045,12 +1048,12 @@ dissect_ros(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	/*
 	 * Do we already have our info
 	 */
-	ros_info = conversation_get_proto_data(conversation, proto_ros);
+	ros_info = (ros_conv_info_t *)conversation_get_proto_data(conversation, proto_ros);
 	if (ros_info == NULL) {
 
 	  /* No.  Attach that information to the conversation. */
 
-	  ros_info = g_malloc(sizeof(ros_conv_info_t));
+	  ros_info = (ros_conv_info_t *)g_malloc(sizeof(ros_conv_info_t));
 	  ros_info->matched=g_hash_table_new(ros_info_hash_matched, ros_info_equal_matched);
 	  ros_info->unmatched=g_hash_table_new(ros_info_hash_unmatched, ros_info_equal_unmatched);
 
@@ -1132,43 +1135,43 @@ void proto_register_ros(void) {
 /*--- Included file: packet-ros-hfarr.c ---*/
 #line 1 "../../asn1/ros/packet-ros-hfarr.c"
     { &hf_ros_invoke,
-      { "invoke", "ros.invoke",
+      { "invoke", "ros.invoke_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_returnResult,
-      { "returnResult", "ros.returnResult",
+      { "returnResult", "ros.returnResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_returnError,
-      { "returnError", "ros.returnError",
+      { "returnError", "ros.returnError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_reject,
-      { "reject", "ros.reject",
+      { "reject", "ros.reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_bind_invoke,
-      { "bind-invoke", "ros.bind_invoke",
+      { "bind-invoke", "ros.bind_invoke_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_bind_result,
-      { "bind-result", "ros.bind_result",
+      { "bind-result", "ros.bind_result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_bind_error,
-      { "bind-error", "ros.bind_error",
+      { "bind-error", "ros.bind_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_unbind_invoke,
-      { "unbind-invoke", "ros.unbind_invoke",
+      { "unbind-invoke", "ros.unbind_invoke_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_unbind_result,
-      { "unbind-result", "ros.unbind_result",
+      { "unbind-result", "ros.unbind_result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_unbind_error,
-      { "unbind-error", "ros.unbind_error",
+      { "unbind-error", "ros.unbind_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_invokeId,
@@ -1184,15 +1187,15 @@ void proto_register_ros(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "OperationCode", HFILL }},
     { &hf_ros_argument,
-      { "argument", "ros.argument",
+      { "argument", "ros.argument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_result,
-      { "result", "ros.result",
+      { "result", "ros.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_operationResult,
-      { "result", "ros.result",
+      { "result", "ros.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OperationResult", HFILL }},
     { &hf_ros_errcode,
@@ -1200,7 +1203,7 @@ void proto_register_ros(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "ErrorCode", HFILL }},
     { &hf_ros_parameter,
-      { "parameter", "ros.parameter",
+      { "parameter", "ros.parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_problem,
@@ -1228,7 +1231,7 @@ void proto_register_ros(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_absent,
-      { "absent", "ros.absent",
+      { "absent", "ros.absent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ros_local,
@@ -1241,7 +1244,7 @@ void proto_register_ros(void) {
         "OBJECT_IDENTIFIER", HFILL }},
 
 /*--- End of included file: packet-ros-hfarr.c ---*/
-#line 487 "../../asn1/ros/packet-ros-template.c"
+#line 490 "../../asn1/ros/packet-ros-template.c"
   };
 
   /* List of subtrees */
@@ -1262,7 +1265,7 @@ void proto_register_ros(void) {
     &ett_ros_Code,
 
 /*--- End of included file: packet-ros-ettarr.c ---*/
-#line 494 "../../asn1/ros/packet-ros-template.c"
+#line 497 "../../asn1/ros/packet-ros-template.c"
   };
 
   /* Register protocol */

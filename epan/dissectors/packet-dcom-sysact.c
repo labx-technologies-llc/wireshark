@@ -37,7 +37,7 @@ static int proto_ISystemActivator = -1;
 static gint ett_isystemactivator = -1;
 static int hf_opnum = -1;
 static int hf_sysact_actproperties = -1;
-static int hf_sysact_unknown = -1;
+/* static int hf_sysact_unknown = -1; */
 
 static gint ett_actproperties = -1;
 static int hf_sysact_totalsize = -1;
@@ -50,9 +50,9 @@ static int hf_sysact_customhdrsize = -1;
 static int hf_sysact_dstctx = -1;
 static int hf_sysact_actpropnumber = -1;
 static int hf_sysact_actpropclsinfoid = -1;
-static int hf_sysact_actpropclsids = -1;
+/* static int hf_sysact_actpropclsids = -1; */
 static int hf_sysact_actpropclsid = -1;
-static int hf_sysact_actpropsizes = -1;
+/* static int hf_sysact_actpropsizes = -1; */
 static int hf_sysact_actpropsize = -1;
 
 
@@ -67,8 +67,8 @@ static int hf_sysact_spsysprop_partition = -1;
 static int hf_sysact_spsysprop_procrqstflgs = -1;
 static int hf_sysact_spsysprop_origclsctx = -1;
 static int hf_sysact_spsysprop_flags = -1;
-static int hf_sysact_spsysprop_procid = -1;
-static int hf_sysact_spsysprop_hwnd = -1;
+/* static int hf_sysact_spsysprop_procid = -1; */
+/* static int hf_sysact_spsysprop_hwnd = -1; */
 
 static gint ett_dcom_instantianinfo = -1;
 static int hf_sysact_instninfo_clsid = -1;
@@ -132,7 +132,7 @@ static gint ett_typeszprivhdr = -1;
 static int hf_typeszch = -1;
 static int hf_typeszph = -1;
 static int hf_typesz_ver = -1;
-static int hf_typesz_endianess = -1;
+static int hf_typesz_endianness = -1;
 static int hf_typesz_commhdrlen = -1;
 static int hf_typesz_filler = -1;
 static int hf_typesz_buflen = -1;
@@ -194,7 +194,7 @@ typedef struct property_guids {
 } property_guids_t;
 
 /* Type Serialization Version 1 */
-int
+static int
 dissect_TypeSzCommPrivHdr(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                        proto_tree *tree, guint8 *drep)
 {
@@ -213,7 +213,7 @@ dissect_TypeSzCommPrivHdr(tvbuff_t *tvb, gint offset, packet_info *pinfo,
             hf_typesz_ver, NULL);
 
     offset = dissect_dcom_BYTE(tvb, offset, pinfo, sub_tree, drep,
-            hf_typesz_endianess, &endian);
+            hf_typesz_endianness, &endian);
     if (endian == 0x10)
         *drep = DREP_LITTLE_ENDIAN;
     else
@@ -248,7 +248,7 @@ dissect_dcom_Property_Guid(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     dcerpc_info *di;
     property_guids_t *pg;
 
-    di = pinfo->private_data;
+    di = (dcerpc_info *)pinfo->private_data;
     pg = (property_guids_t*)di->private_data;
 
     DISSECTOR_ASSERT(pg->id_idx < MAX_ACTPROP_LIMIT);
@@ -273,7 +273,7 @@ dissect_dcom_Property_Size(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     dcerpc_info *di;
     property_guids_t *pg;
 
-    di = pinfo->private_data;
+    di = (dcerpc_info *)pinfo->private_data;
     pg = (property_guids_t*)di->private_data;
 
     DISSECTOR_ASSERT(pg->size_idx < MAX_ACTPROP_LIMIT);
@@ -369,7 +369,7 @@ dissect_dcom_ActivationPropertiesBody(tvbuff_t *tvb, gint offset, packet_info *p
     property_guids_t *pg;
     guint32 i;
 
-    di = pinfo->private_data;
+    di = (dcerpc_info *)pinfo->private_data;
     pg = (property_guids_t*)di->private_data;
 
     DISSECTOR_ASSERT(pg->id_idx == pg->size_idx);
@@ -387,7 +387,7 @@ dissect_dcom_ActivationPropertiesBody(tvbuff_t *tvb, gint offset, packet_info *p
     return offset;
 }
 
-int
+static int
 dissect_dcom_ActivationProperties(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         proto_tree *tree, guint8 *drep, gint size _U_)
 {
@@ -406,11 +406,11 @@ dissect_dcom_ActivationProperties(tvbuff_t *tvb, gint offset, packet_info *pinfo
     offset = dissect_dcom_DWORD(tvb, offset, pinfo, sub_tree, drep,
             hf_sysact_res, &u32Res);
 
-    di = pinfo->private_data;
+    di = (dcerpc_info *)pinfo->private_data;
     if (di->private_data) {
         g_free(di->private_data);
     }
-    di->private_data = g_malloc(sizeof(property_guids_t));
+    di->private_data = g_new(property_guids_t,1);
     memset(di->private_data, 0, sizeof(property_guids_t));
 
     offset = dissect_dcom_ActivationPropertiesCustomerHdr(tvb, offset, pinfo, sub_tree, drep);
@@ -608,7 +608,7 @@ dissect_ActCtxInfo_CltCtx(tvbuff_t *tvb, gint offset,
 {
     dcerpc_info *di;
 
-    di = pinfo->private_data;
+    di = (dcerpc_info *)pinfo->private_data;
     if (di->conformant_run) {
         return offset;
     }
@@ -671,7 +671,7 @@ dissect_dcom_COSERVERINFO(tvbuff_t *tvb, gint offset,
     proto_tree *sub_tree;
     gint old_offset;
 
-    di = pinfo->private_data;
+    di = (dcerpc_info *)pinfo->private_data;
     if (di->conformant_run) {
         return offset;
     }
@@ -809,7 +809,7 @@ dissect_dcom_customREMOTE_REQUEST_SCM_INFO(tvbuff_t *tvb, gint offset,
     proto_tree *sub_tree;
     gint old_offset;
 
-    di = pinfo->private_data;
+    di = (dcerpc_info *)pinfo->private_data;
     if (di->conformant_run) {
         return offset;
     }
@@ -989,7 +989,7 @@ dissect_dcom_OxidBindings(tvbuff_t *tvb, gint offset,
     proto_tree *sub_tree;
     gint old_offset;
 
-    di = pinfo->private_data;
+    di = (dcerpc_info *)pinfo->private_data;
     if (di->conformant_run) {
         return offset;
     }
@@ -1016,7 +1016,7 @@ dissect_dcom_customREMOTE_REPLY_SCM_INFO(tvbuff_t *tvb, gint offset,
     proto_tree *sub_tree;
     gint old_offset;
 
-    di = pinfo->private_data;
+    di = (dcerpc_info *)pinfo->private_data;
     if (di->conformant_run) {
         return offset;
     }
@@ -1148,8 +1148,10 @@ proto_register_ISystemActivator (void)
           { "Operation", "isystemactivator.opnum", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
         { &hf_sysact_actproperties,
         { "IActProperties", "isystemactivator.actproperties", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+#if 0
         { &hf_sysact_unknown,
         { "IUnknown", "isystemactivator.unknown", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+#endif
     };
 
     static hf_register_info hf_actproperties[] = {
@@ -1166,12 +1168,16 @@ proto_register_ISystemActivator (void)
         { "NumActivationPropertyStructs", "isystemactivator.customhdr.actpropnumber", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
         { &hf_sysact_actpropclsinfoid,
         { "ClassInfoClsid", "isystemactivator.customhdr.clsinfoid", FT_GUID, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+#if 0
         { &hf_sysact_actpropclsids,
         { "PropertyGuids", "isystemactivator.customhdr.clsids", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+#endif
         { &hf_sysact_actpropclsid,
         { "PropertyStructGuid", "isystemactivator.customhdr.clsid", FT_GUID, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+#if 0
         { &hf_sysact_actpropsizes,
         { "PropertyDataSizes", "isystemactivator.customhdr.datasizes", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+#endif
         { &hf_sysact_actpropsize,
         { "PropertyDataSize", "isystemactivator.customhdr.datasize", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 
@@ -1194,10 +1200,14 @@ proto_register_ISystemActivator (void)
         { "OriginalClassContext", "isystemactivator.properties.spcl.origclsctx", FT_UINT32, BASE_DEC_HEX, NULL, 0x0, NULL, HFILL }},
         { &hf_sysact_spsysprop_flags,
         { "Flags", "isystemactivator.properties.spcl.flags", FT_UINT32, BASE_DEC_HEX, NULL, 0x0, NULL, HFILL }},
+#if 0
         { &hf_sysact_spsysprop_procid,
         { "ProcessID", "isystemactivator.properties.spcl.procid", FT_UINT32, BASE_DEC_HEX, NULL, 0x0, NULL, HFILL }},
+#endif
+#if 0
         { &hf_sysact_spsysprop_hwnd,
         { "hWnd", "isystemactivator.properties.spcl.hwnd", FT_UINT64, BASE_DEC_HEX, NULL, 0x0, NULL, HFILL }},
+#endif
 
         /*InstantiationInfo*/
         { &hf_sysact_instninfo_clsid,
@@ -1297,8 +1307,8 @@ proto_register_ISystemActivator (void)
         { "PrivateHeader", "isystemactivator.actproperties.ts.hdr", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
         { &hf_typesz_ver,
         { "Version", "isystemactivator.actproperties.ts.ver", FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL }},
-        { &hf_typesz_endianess,
-        { "Endianess", "isystemactivator.actproperties.ts.end", FT_UINT8, BASE_HEX, VALS(ts_endian_vals), 0x0, NULL, HFILL }},
+        { &hf_typesz_endianness,
+        { "Endianness", "isystemactivator.actproperties.ts.end", FT_UINT8, BASE_HEX, VALS(ts_endian_vals), 0x0, NULL, HFILL }},
         { &hf_typesz_commhdrlen,
         { "CommonHeaderLength", "isystemactivator.actproperties.ts.chl", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
         { &hf_typesz_filler,

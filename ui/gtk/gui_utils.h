@@ -207,10 +207,6 @@ extern void bad_dfilter_alert_box(GtkWidget *parent, const char *dftext);
 extern GtkWidget *scrolled_window_new(GtkAdjustment *hadjustment,
 			       GtkAdjustment *vadjustment);
 
-/** Set the scrollbar placement of all scrolled windows based on user
-   preference. */
-extern void set_scrollbar_placement_all(void);
-
 /** Create a GtkTreeView, give it the right styles, and remember it.
  *
  * @param model The model (the data) of this tree view.
@@ -293,7 +289,7 @@ extern GtkWidget *pixbuf_to_widget(const char * pb_data);
 extern void copy_to_clipboard(GString *str);
 
 /** Copy an array of bytes to the clipboard.
- * Copies as mime-type application/octet_stream in GTK 2.
+ * Copies as mime-type application/octet-stream in GTK 2.
  *
  * @param data_p Pointer to data to be copied.
  * @param len Number of bytes in the data to be copied.
@@ -316,57 +312,57 @@ extern gchar *create_user_window_title(const gchar *caption);
 extern void set_window_title(GtkWidget *win, const gchar *caption);
 
 /** Renders a float with two decimals precission, called from gtk_tree_view_column_set_cell_data_func().
- * the user data must be the colum number.
- * Present floats with two decimals 
+ * the user data must be the column number.
+ * Present floats with two decimals
  *
- * @param column A GtkTreeColumn 
- * @param renderer The GtkCellRenderer that is being rendered by tree_column 
- * @param model The GtkTreeModel being rendered 
- * @param iter A GtkTreeIter of the current row rendered 
- * @param user_data must be the colum number to fetch the data from
+ * @param column A GtkTreeColumn
+ * @param renderer The GtkCellRenderer that is being rendered by tree_column
+ * @param model The GtkTreeModel being rendered
+ * @param iter A GtkTreeIter of the current row rendered
+ * @param user_data must be the column number to fetch the data from
  */
 void float_data_func (GtkTreeViewColumn *column, GtkCellRenderer *renderer, GtkTreeModel *model, GtkTreeIter *iter, gpointer user_data);
 
 /** Renders a unsinged integer as a hexadecimal value, called from gtk_tree_view_column_set_cell_data_func()
- * The user data must be the colum number.
- * Present value as hexadecimal. 
- * @param column A GtkTreeColumn 
- * @param renderer The GtkCellRenderer that is being rendered by tree_column 
- * @param model The GtkTreeModel being rendered 
- * @param iter A GtkTreeIter of the current row rendered 
- * @param user_data must be the colum number to fetch the data from
+ * The user data must be the column number.
+ * Present value as hexadecimal.
+ * @param column A GtkTreeColumn
+ * @param renderer The GtkCellRenderer that is being rendered by tree_column
+ * @param model The GtkTreeModel being rendered
+ * @param iter A GtkTreeIter of the current row rendered
+ * @param user_data must be the column number to fetch the data from
  */
 void present_as_hex_func (GtkTreeViewColumn *column, GtkCellRenderer *renderer, GtkTreeModel *model, GtkTreeIter *iter, gpointer user_data);
 
 /** Renders an unsigned 64 bits integer with space as thousand separator, called from gtk_tree_view_column_set_cell_data_func()
- * The user data must be the colum number.
- * Present value as hexadecimal. 
- * @param column A GtkTreeColumn 
- * @param renderer The GtkCellRenderer that is being rendered by tree_column 
- * @param model The GtkTreeModel being rendered 
- * @param iter A GtkTreeIter of the current row rendered 
- * @param user_data must be the colum number to fetch the data from
+ * The user data must be the column number.
+ * Present value as hexadecimal.
+ * @param column A GtkTreeColumn
+ * @param renderer The GtkCellRenderer that is being rendered by tree_column
+ * @param model The GtkTreeModel being rendered
+ * @param iter A GtkTreeIter of the current row rendered
+ * @param user_data must be the column number to fetch the data from
  */
 void u64_data_func (GtkTreeViewColumn *column, GtkCellRenderer *renderer, GtkTreeModel *model, GtkTreeIter *iter, gpointer user_data);
 
 /** This function can be called from gtk_tree_view_column_set_cell_data_func()
- * the user data must be the colum number.
- * Present value as hexadecimal. 
- * @param column A GtkTreeColumn 
- * @param renderer The GtkCellRenderer that is being rendered by tree_column 
- * @param model The GtkTreeModel being rendered 
- * @param iter A GtkTreeIter of the current row rendered 
- * @param user_data must be the colum number to fetch the data from
+ * the user data must be the column number.
+ * Present value as hexadecimal.
+ * @param column A GtkTreeColumn
+ * @param renderer The GtkCellRenderer that is being rendered by tree_column
+ * @param model The GtkTreeModel being rendered
+ * @param iter A GtkTreeIter of the current row rendered
+ * @param user_data must be the column number to fetch the data from
  */
 void str_ptr_data_func(GtkTreeViewColumn *column, GtkCellRenderer *renderer, GtkTreeModel *model, GtkTreeIter *iter, gpointer user_data);
 
 /** This function can be called from gtk_tree_sortable_set_sort_func()
- * the user data must be the colum number.
+ * the user data must be the column number.
  * Used together with str_ptr_data_func to sort the corresponding column.
- * @param model The GtkTreeModel the comparison is within  
- * @param a A GtkTreeIter in model  
- * @param b Another GtkTreeIter in model  
- * @param user_data must be the colum number to fetch the data from
+ * @param model The GtkTreeModel the comparison is within
+ * @param a A GtkTreeIter in model
+ * @param b Another GtkTreeIter in model
+ * @param user_data must be the column number to fetch the data from
  */
 
 gint str_ptr_sort_func(GtkTreeModel *model,
@@ -375,13 +371,13 @@ gint str_ptr_sort_func(GtkTreeModel *model,
                        gpointer      user_data);
 
 /** Switch a GtkTReeView to fixed columns (speed optimization)
- * @param view A GtkTreeView 
+ * @param view A GtkTreeView
  */
 void switch_to_fixed_col(GtkTreeView *view);
 
 /** Return the size in pixels of a string displayed with the GtkWidget's font.
  * @param view A GtkWidget
- * @param str UTF8 string 
+ * @param str UTF8 string
  */
 gint get_default_col_size(GtkWidget *view, const gchar *str);
 
@@ -395,8 +391,8 @@ gint get_default_col_size(GtkWidget *view, const gchar *str);
  * ws_combo_box_new_text_and_pointer_full:
  *
  * Convenience function which constructs a new "text and pointer" combo box, which
- * is a #GtkComboBox just displaying strings and storing a pointer associated with 
- * each combo_box entry; The pointer can be retrieved when an entry is selected. 
+ * is a #GtkComboBox just displaying strings and storing a pointer associated with
+ * each combo_box entry; The pointer can be retrieved when an entry is selected.
  * Also: optionally returns the cell renderer for the combo box.
  * If you use this function to create a text_and_pointer combo_box,
  * you should only manipulate its data source with the
@@ -413,8 +409,8 @@ GtkWidget *ws_combo_box_new_text_and_pointer_full(GtkCellRenderer **cell_p);
  * ws_combo_box_new_text_and_pointer:
  *
  * Convenience function which constructs a new "text and pointer" combo box, which
- * is a #GtkComboBox just displaying strings and storing a pointer associated with 
- * each combo_box entry; The pointer can be retrieved when an entry is selected. 
+ * is a #GtkComboBox just displaying strings and storing a pointer associated with
+ * each combo_box entry; The pointer can be retrieved when an entry is selected.
  * If you use this function to create a text_and_pointer combo_box,
  * you should only manipulate its data source with the
  * following convenience functions:
@@ -430,7 +426,7 @@ GtkWidget *ws_combo_box_new_text_and_pointer(void);
  * @param combo_box A #GtkComboBox constructed using ws_combo_box_new_text_and_pointer()
  *
  * Clears all the text_and_pointer entries in the text_and_pointer combo_box.
- * Note: A "changed" signal will be emitted after the clear if there was 
+ * Note: A "changed" signal will be emitted after the clear if there was
  * an active (selected) entry before the clear.
  * You should use this function only with combo boxes constructed with
  * ws_combo_box_new_text_and_pointer().
@@ -440,7 +436,7 @@ void ws_combo_box_clear_text_and_pointer(GtkComboBox *combo_box);
 /**
  * ws_combo_box_append_text_and_pointer_full:
  * @param combo_box A #GtkComboBox constructed using ws_combo_box_new_text_and_pointer()
- * @param parent_iter Parent row for apending; NULL if appending to tree top-level; 
+ * @param parent_iter Parent row for apending; NULL if appending to tree top-level;
  * @param text A string to be displayed as an entry in the dropdown list of the combo_box
  * @param ptr  A pointer to be associated with this entry of the combo_box
  * @param sensitive TRUE/FALSE to set sensitivity of the entry
@@ -523,17 +519,133 @@ GdkPixbuf *gdk_pixbuf_get_from_surface (cairo_surface_t *surface,
 
 /**
  * ws_gtk_box_new:
- * @param GtkOrientation the box's orientation
+ * @param orientation the box's orientation
  * @param spacing the number of pixels to put between children
  * @param homogeneous a boolean value, TRUE to create equal allotments, FALSE for variable allotments
  */
 GtkWidget * ws_gtk_box_new(GtkOrientation orientation, gint spacing, gboolean homogeneous);
 
 #if !GTK_CHECK_VERSION(3,0,0)
+typedef struct {
+  gdouble red;
+  gdouble green;
+  gdouble blue;
+  gdouble alpha;
+} GdkRGBA;
+
 GtkWidget * gtk_button_box_new(GtkOrientation orientation);
 GtkWidget * gtk_scrollbar_new(GtkOrientation orientation, GtkAdjustment *adjustment);
 GtkWidget * gtk_paned_new(GtkOrientation orientation);
 GtkWidget * gtk_separator_new (GtkOrientation orientation);
+void gdk_cairo_set_source_rgba(cairo_t *cr, const GdkRGBA *rgba);
 #endif /* GTK_CHECK_VERSION(3,0,0) */
+
+/** Create a new frame with no border and a bold title on appropriate platforms.
+ *
+ * @param title The title for the new frame
+ * @return The newly created window
+ */
+extern GtkWidget *frame_new(const gchar *title);
+
+
+/* GtkTable is deprecated in Gtk3 ...
+ *
+ * ws_gtk_grid...() wrapper functions & macros matching basic GtkGrid functions
+ *   have been created which can be used both on Gtk2 and Gtk3.
+ *
+ *   The functionality provided matches the fairly simple Wireshatk
+ *   Gtk2 GtkTable usage and is intended to replace same.
+ *
+ *   The ws_gtk_grid...() functionality is implemented as follows:
+ *    Gtk2: macros which effect calls to GtkTable functions
+ *          (with GTK_GRID typedef'd as GTK_TABLE & etc).
+ *    Gtk3: wrapper functions and macros which effect calls to gtk_grid...()
+ *          and other Gtk3 functions as needed.
+ *
+ *   The args to the ws_gtk_grid...() functions are identical to the corresponding
+ *    Gtk3 gtk_grid...() functions (other than ws_gtk_attach_defaults() and
+ *    ws_gtk_attach_extended() which have no gtk_grid...() equivalent).
+ *
+ *     ws_gtk_grid_new()               ;; gtk_table_new()
+ *
+ *     ws_gtk_grid_attach()            ;; gtk_table_attach( , , , , , ,0, 0, 0, 0)
+ *                                     ;;   that is: same as gtk_grid_attach()
+ *                                     ;;   Gt2/Gtk3: [h|v]expand = FALSE; (FILL ignored)
+ *
+ *     ws_gtk_grid_attach_defaults()   ;; gtk_table_attach_defaults()
+ *                                     ;;   Gtk3: sets GTK_EXPAND/GTK_FILL as default;
+ *                                     ;;         That is, the defaults used by gtk_table_attach_defaults()
+ *     ws_gtk_grid_attach_extended()   ;; gtk_table_attach()
+ *                                     ;;   Essentially gtk_grid_attach() with eadditional args
+ *                                     ;;   to specify 'options' and 'padding' [as used in gtk_table_attach()];
+ *                                     ;;   Gtk3: sets GTK_EXPAND/GTK_FILL & margins on child widgit
+ *                                     ;;         as specified.
+ *                                     ;;   (See below for declaration).
+ *     ws_gtk_grid_set_homogeneous()   ;; gtk_table_set_homogeneous()
+ *                                     ;;   Gtk3 grid: sets both 'row-homogeneous' and 'column-homogeneous'
+ *     ws_gtk_set_row_spacing()        ;; gtk_table_set_row_spacings()
+ *     ws_gtk_set_column_spacing()     ;; gtk_table_set_col_spacings()
+ *
+ *   Example: Existing Wireshark Gtk2 code:
+ *     gtk_table_attach_defaults(GTK_TABLE(foo_tb), child, col, col+1, row, row+1)
+ *
+ *   should be converted to:
+ *     ws_gtk_grid_attach_defaults(GTK_GRID(foo_grid), child, col, row, 1, 1);
+ */
+
+#if !GTK_CHECK_VERSION(3,0,0)
+
+typedef GtkTable GtkGrid;
+#define GTK_GRID(x) GTK_TABLE(x)
+
+#define ws_gtk_grid_new() \
+    gtk_table_new(0, 0, FALSE)
+
+#define ws_gtk_grid_attach(grid, child, left, top, width, height) \
+    gtk_table_attach(grid, child, left, left+width, top, top+height, (GtkAttachOptions)0, (GtkAttachOptions)0, 0, 0)
+
+#define ws_gtk_grid_attach_defaults(grid, child, left, top, width, height) \
+    gtk_table_attach_defaults(grid, child, left, left+width, top, top+height)
+
+#define ws_gtk_grid_attach_extended(grid, child, left, top, width, height, xoptions, yoptions, xpadding, ypadding) \
+    gtk_table_attach(grid, child, left, left+width, top, top+height, xoptions, yoptions, xpadding, ypadding)
+
+#define ws_gtk_grid_set_homogeneous(grid, homogeneous) \
+    gtk_table_set_homogeneous(grid, homogeneous)
+
+#define ws_gtk_grid_set_row_spacing(grid, spacing) \
+    gtk_table_set_row_spacings(grid, spacing)
+
+#define ws_gtk_grid_set_column_spacing(grid, spacing) \
+    gtk_table_set_col_spacings(grid, spacing)
+
+
+#else
+#define ws_gtk_grid_new() \
+    gtk_grid_new()
+
+
+#define ws_gtk_grid_attach(grid, child, left, top, width, height) \
+    gtk_grid_attach(grid, child, left, top, width, height)
+
+extern void ws_gtk_grid_attach_defaults(GtkGrid *grid, GtkWidget *child,
+                                        gint left, gint top, gint width, gint height);
+
+extern void ws_gtk_grid_attach_extended(GtkGrid *grid, GtkWidget *child,
+                                        gint left, gint top, gint width, gint height,
+                                        GtkAttachOptions xoptions, GtkAttachOptions yoptions,
+                                        guint xpadding, guint ypadding);
+
+extern void ws_gtk_grid_set_homogeneous(GtkGrid *grid, gboolean homogeneous);
+
+#define ws_gtk_grid_set_row_spacing(grid, spacing) \
+    gtk_grid_set_row_spacing(grid, spacing)
+
+#define ws_gtk_grid_set_column_spacing(grid, spacing) \
+    gtk_grid_set_column_spacing(grid, spacing)
+
+
+#endif /* GTK_CHECK_VERSION(3,0,0) */
+
 
 #endif /* __GUI_UTIL_H__ */

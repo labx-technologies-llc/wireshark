@@ -230,11 +230,11 @@ static int hf_sbus_sysinfo0_2 = -1;
 static int hf_sbus_sysinfo0_3 = -1;
 static int hf_sbus_sysinfo0_4 = -1;
 static int hf_sbus_sysinfo0_5 = -1;
-static int hf_sbus_sysinfo_length = -1;
-static int hf_sbus_f_module_type = -1;
-static int hf_sbus_harware_version = -1;
-static int hf_sbus_hardware_modification = -1;
-static int hf_sbus_various = -1;
+/* static int hf_sbus_sysinfo_length = -1; */
+/* static int hf_sbus_f_module_type = -1; */
+/* static int hf_sbus_harware_version = -1; */
+/* static int hf_sbus_hardware_modification = -1; */
+/* static int hf_sbus_various = -1; */
 static int hf_sbus_acknackcode = -1;
 static int hf_sbus_cpu_status = -1;
 static int hf_sbus_week_day = -1;
@@ -599,7 +599,7 @@ is_sbus_pdu(tvbuff_t *tvb)
               return FALSE;
        }
 
-       /* the length must be >= 8 bytes to accomodate the header,
+       /* the length must be >= 8 bytes to accommodate the header,
           it also must be <65536 to fit inside a udp packet
        */
        length=tvb_get_ntohl(tvb, 0);
@@ -708,10 +708,10 @@ dissect_sbus(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
        sbus_attribut = tvb_get_guint8(tvb,8);
 
        if ( !request_val && sbus_attribut == 0 ) {/* request telegram */
-              new_request_key = se_alloc(sizeof(sbus_request_key));
+              new_request_key = se_new(sbus_request_key);
               *new_request_key = request_key;
 
-              request_val = se_alloc(sizeof(sbus_request_val));
+              request_val = se_new(sbus_request_val);
               request_val->cmd_code=tvb_get_guint8(tvb,10);
               request_val->retry_count=0;
               request_val->req_frame = pinfo->fd->num; /*store actual frame nr.*/
@@ -1891,7 +1891,7 @@ dissect_sbus(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
               }
               offset += 2; /*now at the end of the telegram*/
        }
-       return tvb_length(tvb);
+       return offset;
 /*End of dissect_sbus*/
 }
 
@@ -2100,35 +2100,45 @@ proto_register_sbus(void)
                      "Availability of PGU baud switch feature", HFILL }
               },
 
+#if 0
               { &hf_sbus_sysinfo_length,
                      { "System information length",           "sbus.sysinfo_length",
                      FT_UINT8, BASE_HEX, NULL, 0,
                      "System information length in response", HFILL }
               },
+#endif
 
+#if 0
               { &hf_sbus_f_module_type,
                      { "F-module type",      "sbus.fmodule_type",
                      FT_STRING, BASE_NONE, NULL, 0,
                      "Module type mounted on B1/2 slot", HFILL }
               },
+#endif
 
+#if 0
               { &hf_sbus_harware_version,
                      { "Hardware version",      "sbus.hw_version",
                      FT_STRING, BASE_NONE, NULL, 0,
                      "Hardware version of the PCD or the module", HFILL }
               },
+#endif
 
+#if 0
               { &hf_sbus_hardware_modification,
                      { "Hardware modification",      "sbus.hw_modification",
                      FT_UINT8, BASE_DEC, NULL, 0,
                      "Hardware modification of the PCD or module", HFILL }
               },
+#endif
 
+#if 0
               { &hf_sbus_various,
                      { "Various data",      "sbus.various",
                      FT_NONE, BASE_NONE, NULL, 0,
                      "Various data contained in telegrams but nobody will search for it", HFILL }
               },
+#endif
 
               { &hf_sbus_acknackcode,
                      { "ACK/NAK code",      "sbus.nakcode",

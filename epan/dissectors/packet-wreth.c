@@ -1057,7 +1057,7 @@ gint WrethNackPacket(tvbuff_t *tvb, guint8 Offset, packet_info * pInfo, proto_tr
     guint16 ErrorCode;
 
     Size      = tvb_get_letohs(tvb,2);
-    ErrorCode = tvb_get_letohs(tvb,2);  /* XXX:  what offset should be used  ??  */
+    ErrorCode = tvb_get_letohs(tvb,8);
 
     if((Size != 0)&&(Size != 6))
     {
@@ -1995,7 +1995,7 @@ void proto_register_wreth(void)
 
 void proto_reg_handoff_wreth(void)
 {
-    static dissector_handle_t wreth_handle;
+    dissector_handle_t wreth_handle;
 
     wreth_handle = create_dissector_handle(dissect_wreth, wreth_proto);
     dissector_add_uint("ethertype", WRETH_PORT, wreth_handle);
