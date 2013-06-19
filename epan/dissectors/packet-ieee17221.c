@@ -208,6 +208,9 @@
 #define ACMP_FLAG_FAST_CONNECT_BITMASK          0x0002
 #define ACMP_FLAG_SAVED_STATE_BITMASK           0x0004
 #define ACMP_FLAG_STREAMING_WAIT_BITMASK        0x0008
+#define ACMP_FLAG_SUPPORTS_ENCRYPTED_BITMASK    0x0010
+#define ACMP_FLAG_ENCRYPTED_PDU_BITMASK         0x0020
+#define ACMP_FLAG_TALKER_FAILED_BITMASK         0x0040
 
 /******************************************************************************/
 /* AECP Common Offsets */
@@ -1290,8 +1293,6 @@
 #define AECP_CONTINUED_MASK                     0x80
 #define AECP_CD_LENGTH_MASK                     0x07ff
 #define AECP_COMMAND_TYPE_MASK                  0x7fff
-#define AECP_CONNECTED_FLAG_MASK                0x08000000
-#define AECP_DEST_MAC_VALID_FLAG_MASK           0x40000000
 #define AECP_KEYCHAIN_ID_MASK                   0xe0
 #define AECP_KEYTYPE_MASK                       0x1c
 #define AECP_KEY_COUNT_MASK                     0x0fff
@@ -1301,19 +1302,26 @@
 #define AECP_MATRIX_REP_MASK                    0x80
 #define AECP_MATRIX_VALUE_COUNT_MASK            0xfff
 #define AECP_MSG_TYPE_MASK                      0x0f
-#define AECP_MSRP_ACC_LAT_VALID_FLAG_MASK       0x20000000
 #define AECP_PERSISTENT_FLAG_MASK               0x00000001
 #define AECP_RELEASE_FLAG_MASK                  0x80000000
 #define AECP_SIGNATURE_ID_MASK                  0x0fff
 #define AECP_SIGNATURE_INFO_MASK                0x00f0
 #define AECP_SIGNATURE_LENGTH_MASK              0x3ff
-#define AECP_STREAM_ID_VALID_FLAG_MASK          0x10000000
 #define AECP_UNLOCK_FLAG_MASK                   0x00000001
 #define AECP_U_FLAG_MASK                        0x80
 #define AECP_MSRP_MAPPINGS_COUNT_MASK           0x00
 #define AECP_AS_CAPABLE_FLAG_MASK               0x01
 #define AECP_GPTP_ENABLED_FLAG_MASK             0x02 
 #define AECP_SRP_ENABLED_FLAG_MASK              0x04
+
+/* Stream Flags (7.130) */
+#define AECP_STREAM_VLAN_ID_VALID_FLAG_MASK     0x02000000
+#define AECP_CONNECTED_FLAG_MASK                0x04000000
+#define AECP_MSRP_FAILURE_VALID_FLAG_MASK       0x08000000
+#define AECP_DEST_MAC_VALID_FLAG_MASK           0x10000000
+#define AECP_MSRP_ACC_LAT_VALID_FLAG_MASK       0x20000000
+#define AECP_STREAM_ID_VALID_FLAG_MASK          0x40000000
+#define AECP_STREAM_FORMAT_VALID_FLAG_MASK      0x80000000
 
 /* key permission flag masks */
 #define AECP_PRIVATE_KEY_READ_FLAG_MASK         0x80000000
@@ -2044,6 +2052,7 @@ static int hf_aecp_msrp_acc_lat_valid_flag = -1;
 static int hf_aecp_msrp_accumulated_latency = -1;
 static int hf_aecp_msrp_failure_bridge_id = -1;
 static int hf_aecp_msrp_failure_code = -1;
+static int hf_aecp_msrp_failure_valid_flag = -1;
 static int hf_aecp_stream_vlan_id = -1;
 static int hf_aecp_name = -1;
 static int hf_aecp_name_index = -1;
@@ -2067,6 +2076,7 @@ static int hf_aecp_signal_index = -1;
 static int hf_aecp_signal_type = -1;
 static int hf_aecp_signal_output = -1;
 static int hf_aecp_stream_format = -1;
+static int hf_aecp_stream_format_valid_flag = -1;
 static int hf_aecp_stream_id_valid_flag = -1;
 static int hf_aecp_stream_input_early_timestamp_valid = -1;
 static int hf_aecp_stream_input_early_timestamp = -1;
@@ -2094,6 +2104,7 @@ static int hf_aecp_stream_input_timestamp_not_valid_valid = -1;
 static int hf_aecp_stream_input_timestamp_not_valid = -1;
 static int hf_aecp_stream_input_unsupported_format_valid = -1;
 static int hf_aecp_stream_input_unsupported_format = -1;
+static int hf_aecp_stream_vlan_id_valid_flag = -1;
 static int hf_aecp_target_guid  = -1;
 static int hf_aecp_token_length = -1;
 static int hf_aecp_u_flag = -1;
@@ -2368,11 +2379,14 @@ static int hf_acmp_sequence_id = -1;
 static int hf_acmp_flags = -1;
 static int hf_acmp_vlan_id = -1;
 
-/* ACMP Flags */
+/* ACMP Flags (8.2.1.17) */
 static int hf_acmp_flags_class_b = -1;
 static int hf_acmp_flags_fast_connect = -1;
 static int hf_acmp_flags_saved_state = -1;
 static int hf_acmp_flags_streaming_wait = -1;
+static int hf_acmp_flags_supports_encrypted = -1;
+static int hf_acmp_flags_encrypted_pdu = -1;
+static int hf_acmp_flags_talker_failed = -1;
 
 /* Initialize the subtree pointers */
 static int ett_17221 = -1;
@@ -3944,13 +3958,26 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
                      AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
                 proto_tree_add_item(aecp_tree, hf_acmp_flags_streaming_wait, tvb,
                      AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_acmp_flags_supports_encrypted, tvb,
+                     AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_acmp_flags_encrypted_pdu, tvb,
+                     AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_acmp_flags_talker_failed, tvb,
+                     AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
+
+                proto_tree_add_item(aecp_tree, hf_aecp_stream_vlan_id_valid_flag, tvb,
+                     AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
                 proto_tree_add_item(aecp_tree, hf_aecp_connected_flag, tvb,
                      AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
-                proto_tree_add_item(aecp_tree, hf_aecp_stream_id_valid_flag, tvb,
+                proto_tree_add_item(aecp_tree, hf_aecp_msrp_failure_valid_flag, tvb,
+                     AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_aecp_dest_mac_valid_flag, tvb,
                      AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
                 proto_tree_add_item(aecp_tree, hf_aecp_msrp_acc_lat_valid_flag, tvb,
                      AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
-                proto_tree_add_item(aecp_tree, hf_aecp_dest_mac_valid_flag, tvb,
+                proto_tree_add_item(aecp_tree, hf_aecp_stream_id_valid_flag, tvb,
+                     AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
+                proto_tree_add_item(aecp_tree, hf_aecp_stream_format_valid_flag, tvb,
                      AECP_OFFSET_STREAM_INFO_FLAGS, 4, ENC_BIG_ENDIAN);
 
                 proto_tree_add_item(aecp_tree, hf_aecp_stream_format, tvb,
@@ -4715,6 +4742,9 @@ dissect_17221_acmp(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *acmp_tree)
    proto_tree_add_item(flags_tree, hf_acmp_flags_fast_connect, tvb, ACMP_FLAGS_OFFSET, 2, ENC_BIG_ENDIAN);
    proto_tree_add_item(flags_tree, hf_acmp_flags_saved_state, tvb, ACMP_FLAGS_OFFSET, 2, ENC_BIG_ENDIAN);
    proto_tree_add_item(flags_tree, hf_acmp_flags_streaming_wait, tvb, ACMP_FLAGS_OFFSET, 2, ENC_BIG_ENDIAN);
+   proto_tree_add_item(flags_tree, hf_acmp_flags_supports_encrypted, tvb, ACMP_FLAGS_OFFSET, 2, ENC_BIG_ENDIAN);
+   proto_tree_add_item(flags_tree, hf_acmp_flags_encrypted_pdu, tvb, ACMP_FLAGS_OFFSET, 2, ENC_BIG_ENDIAN);
+   proto_tree_add_item(flags_tree, hf_acmp_flags_talker_failed, tvb, ACMP_FLAGS_OFFSET, 2, ENC_BIG_ENDIAN);
 
    proto_tree_add_item(acmp_tree, hf_acmp_vlan_id, tvb, ACMP_VLAN_ID_OFFSET, 2, ENC_BIG_ENDIAN);
 }
@@ -5154,6 +5184,18 @@ proto_register_17221(void)
          { "STREAMING_WAIT", "ieee17221.flags.streaming_wait",
             FT_BOOLEAN, 16, NULL, ACMP_FLAG_STREAMING_WAIT_BITMASK, NULL, HFILL }
       },
+      { &hf_acmp_flags_supports_encrypted,
+         { "SUPPORTS_ENCRYPTED", "ieee17221.flags.supports_encrypted",
+            FT_BOOLEAN, 16, NULL, ACMP_FLAG_SUPPORTS_ENCRYPTED_BITMASK, NULL, HFILL }
+      },
+      { &hf_acmp_flags_encrypted_pdu,
+         { "ENCRYPTED_PDU", "ieee17221.flags.encrypted_pdu",
+            FT_BOOLEAN, 16, NULL, ACMP_FLAG_ENCRYPTED_PDU_BITMASK, NULL, HFILL }
+      },
+      { &hf_acmp_flags_talker_failed,
+         { "TALKER_FAILED", "ieee17221.flags.talker_failed",
+            FT_BOOLEAN, 16, NULL, ACMP_FLAG_TALKER_FAILED_BITMASK, NULL, HFILL }
+      },
       /* ACMP Flags End */
       { &hf_acmp_vlan_id,
          { "Stream VLAN Id", "ieee17221.vlan_id",
@@ -5411,21 +5453,33 @@ proto_register_17221(void)
          {"Stream VLAN ID", "ieee17221.stream_vlan_id",
              FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
+      { &hf_aecp_stream_vlan_id_valid_flag,
+         {"Stream VLAN ID Valid Flag", "ieee17221.flags.stream_vlan_id_valid",
+            FT_BOOLEAN, 32, NULL, AECP_STREAM_VLAN_ID_VALID_FLAG_MASK, NULL, HFILL }
+      },
       { &hf_aecp_connected_flag,
          {"Connected Flag", "ieee17221.flags.connected",
             FT_BOOLEAN, 32, NULL, AECP_CONNECTED_FLAG_MASK, NULL, HFILL }
       },
-      { &hf_aecp_stream_id_valid_flag,
-         {"Stream ID Valid Flag", "ieee17221.flags.stream_id_valid",
-            FT_BOOLEAN, 32, NULL, AECP_STREAM_ID_VALID_FLAG_MASK, NULL, HFILL }
+      { &hf_aecp_msrp_failure_valid_flag,
+         {"MSRP Failure Valid Flag", "ieee17221.flags.msrp_failure_valid",
+            FT_BOOLEAN, 32, NULL, AECP_MSRP_FAILURE_VALID_FLAG_MASK, NULL, HFILL }
+      },
+      { &hf_aecp_dest_mac_valid_flag,
+         {"Dest MAC Valid Flag", "ieee17221.flags.dest_mac_valid",
+            FT_BOOLEAN, 32, NULL, AECP_DEST_MAC_VALID_FLAG_MASK, NULL, HFILL }
       },
       { &hf_aecp_msrp_acc_lat_valid_flag,
          {"MSRP Accumulated Latency Field Valid Flag", "ieee17221.flags.msrp_acc_lat_valid",
             FT_BOOLEAN, 32, NULL, AECP_MSRP_ACC_LAT_VALID_FLAG_MASK, NULL, HFILL }
       },
-      { &hf_aecp_dest_mac_valid_flag,
-         {"Dest MAC Valid Flag", "ieee17221.flags.dest_mac_valid",
-            FT_BOOLEAN, 32, NULL, AECP_DEST_MAC_VALID_FLAG_MASK, NULL, HFILL }
+      { &hf_aecp_stream_id_valid_flag,
+         {"Stream ID Valid Flag", "ieee17221.flags.stream_id_valid",
+            FT_BOOLEAN, 32, NULL, AECP_STREAM_ID_VALID_FLAG_MASK, NULL, HFILL }
+      },
+      { &hf_aecp_stream_format_valid_flag,
+         {"Stream Format Valid Flag", "ieee17221.flags.stream_format_valid",
+            FT_BOOLEAN, 32, NULL, AECP_STREAM_FORMAT_VALID_FLAG_MASK, NULL, HFILL }
       },
 
       /* SET_NAME / GET_NAME */
