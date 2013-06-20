@@ -39,27 +39,28 @@
 #include <epan/packet.h>
 #include <epan/etypes.h>
 
+/* 17221 Offsets */
+#define P1722_HEADER_OFFSET                 12
+
 /* 1722.1 ADP Offsets */
 #define ADP_CD_OFFSET                       0
 #define ADP_VERSION_OFFSET                  1
 #define ADP_VALID_TIME_OFFSET               2
 #define ADP_CD_LENGTH_OFFSET                3
-#define ADP_ENTITY_GUID_OFFSET              4
-#define ADP_VENDOR_ID_OFFSET                12
-#define ADP_MODEL_ID_OFFSET                 16
-#define ADP_ENTITY_CAP_OFFSET               20
-#define ADP_TALKER_STREAM_SRCS_OFFSET       24
-#define ADP_TALKER_CAP_OFFSET               26
-#define ADP_LISTENER_STREAM_SINKS_OFFSET    28
-#define ADP_LISTENER_CAP_OFFSET             30
-#define ADP_CONTROLLER_CAP_OFFSET           32
-#define ADP_AVAIL_INDEX_OFFSET              36
-#define ADP_AS_GM_ID_OFFSET                 40
-#define ADP_DEF_AUDIO_FORMAT_OFFSET         48
-#define ADP_CHAN_FORMAT_OFFSET              50
-#define ADP_DEF_VIDEO_FORMAT_OFFSET         52
-#define ADP_ASSOC_ID_OFFSET                 56
-#define ADP_ENTITY_TYPE_OFFSET              64
+#define ADP_ENTITY_ID_OFFSET                4
+#define ADP_ENTITY_MODEL_ID_OFFSET          P1722_HEADER_OFFSET+0
+#define ADP_ENTITY_CAP_OFFSET               P1722_HEADER_OFFSET+8
+#define ADP_TALKER_STREAM_SRCS_OFFSET       P1722_HEADER_OFFSET+12
+#define ADP_TALKER_CAP_OFFSET               P1722_HEADER_OFFSET+14
+#define ADP_LISTENER_STREAM_SINKS_OFFSET    P1722_HEADER_OFFSET+16
+#define ADP_LISTENER_CAP_OFFSET             P1722_HEADER_OFFSET+18
+#define ADP_CONTROLLER_CAP_OFFSET           P1722_HEADER_OFFSET+20
+#define ADP_AVAIL_INDEX_OFFSET              P1722_HEADER_OFFSET+24
+#define ADP_AS_GM_ID_OFFSET                 P1722_HEADER_OFFSET+28
+#define ADP_GPTP_DOMAIN_NUMBER_OFFSET       P1722_HEADER_OFFSET+36
+#define ADP_IDENTIFY_CONTROL_INDEX          P1722_HEADER_OFFSET+40
+#define ADP_INTERFACE_INDEX                 P1722_HEADER_OFFSET+42
+#define ADP_ASSOC_ID_OFFSET                 P1722_HEADER_OFFSET+44
 
 /* Bit Field Masks */
 
@@ -1864,9 +1865,8 @@ static int proto_17221 = -1;
 static int hf_adp_message_type = -1;
 static int hf_adp_valid_time = -1;
 static int hf_adp_cd_length = -1;
-static int hf_adp_entity_guid = -1;
-static int hf_adp_vendor_id = -1;
-static int hf_adp_model_id = -1;
+static int hf_adp_entity_id = -1;
+static int hf_adp_entity_model_id = -1;
 static int hf_adp_entity_cap = -1;
 static int hf_adp_talker_stream_srcs = -1;
 static int hf_adp_talker_cap = -1;
@@ -1874,7 +1874,7 @@ static int hf_adp_listener_stream_sinks = -1;
 static int hf_adp_listener_cap = -1;
 static int hf_adp_controller_cap = -1;
 static int hf_adp_avail_index = -1;
-static int hf_adp_as_gm_id = -1;
+static int hf_adp_gptp_gm_id = -1;
 static int hf_adp_def_aud_format = -1;
 static int hf_adp_def_vid_format = -1;
 static int hf_adp_assoc_id = -1;
@@ -1891,7 +1891,7 @@ static int hf_adp_entity_cap_assoc_id_valid = -1;
 static int hf_adp_entity_cap_vendor_unique = -1;
 static int hf_adp_entity_cap_class_a_supported = -1;
 static int hf_adp_entity_cap_class_b_supported = -1;
-static int hf_adp_entity_cap_as_supported = -1;
+static int hf_adp_entity_cap_gptp_supported = -1;
 
 /* Talker Capabilities Flags */
 static int hf_adp_talk_cap_implement = -1;
@@ -2241,7 +2241,6 @@ static int hf_aem_dbs = -1;
 static int hf_aem_descriptor_counts_count = -1;
 static int hf_aem_descriptor_counts_offset = -1;
 /* static int hf_aem_div = -1; */
-static int hf_aem_entity_guid = -1;
 static int hf_aem_entity_model_id = -1;
 static int hf_aem_entity_name = -1;
 static int hf_aem_fdf_evt = -1;
@@ -2864,7 +2863,7 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
     * will fall through to the same code                               */
    switch(desc_type) {
       case AEM_DESCRIPTOR_ENTITY:
-         proto_tree_add_item(aem_tree, hf_aem_entity_guid, tvb,
+         proto_tree_add_item(aem_tree, hf_aem_entity_model_id, tvb,
                ENTITY_OFFSET_ENTITY_GUID, 8, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_vendor_id, tvb,
                ENTITY_OFFSET_VENDOR_ID, 4, ENC_BIG_ENDIAN);
@@ -2893,7 +2892,7 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
                ENTITY_OFFSET_ENTITY_CAPABILITIES, 4, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_adp_entity_cap_class_b_supported, tvb,
                ENTITY_OFFSET_ENTITY_CAPABILITIES, 4, ENC_BIG_ENDIAN);
-         proto_tree_add_item(aem_tree, hf_adp_entity_cap_as_supported, tvb,
+         proto_tree_add_item(aem_tree, hf_adp_entity_cap_gptp_supported, tvb,
                ENTITY_OFFSET_ENTITY_CAPABILITIES, 4, ENC_BIG_ENDIAN);
 
          proto_tree_add_item(aem_tree, hf_adp_talker_stream_srcs, tvb,
@@ -4544,25 +4543,18 @@ dissect_17221_adp(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *adp_tree)
    proto_item *talk_cap_ti;
    proto_item *list_cap_ti;
    proto_item *cont_cap_ti;
-   proto_item *aud_format_ti;
-   proto_item *samp_rates_ti;
-   proto_item *chan_format_ti;
 
    proto_tree *ent_cap_flags_tree;
    proto_tree *talk_cap_flags_tree;
    proto_tree *list_cap_flags_tree;
    proto_tree *cont_cap_flags_tree;
-   proto_tree *aud_format_tree;
-   proto_tree *samp_rates_tree;
-   proto_tree *chan_format_tree;
 
 
    proto_tree_add_item(adp_tree, hf_adp_message_type, tvb, ADP_VERSION_OFFSET, 1, ENC_BIG_ENDIAN);
    proto_tree_add_item(adp_tree, hf_adp_valid_time, tvb, ADP_VALID_TIME_OFFSET, 1, ENC_BIG_ENDIAN);
    proto_tree_add_item(adp_tree, hf_adp_cd_length, tvb, ADP_CD_LENGTH_OFFSET, 1, ENC_BIG_ENDIAN);
-   proto_tree_add_item(adp_tree, hf_adp_entity_guid, tvb, ADP_ENTITY_GUID_OFFSET, 8, ENC_BIG_ENDIAN);
-   proto_tree_add_item(adp_tree, hf_adp_vendor_id, tvb, ADP_VENDOR_ID_OFFSET, 4, ENC_BIG_ENDIAN);
-   proto_tree_add_item(adp_tree, hf_adp_model_id, tvb, ADP_MODEL_ID_OFFSET, 4, ENC_BIG_ENDIAN);
+   proto_tree_add_item(adp_tree, hf_adp_entity_id, tvb, ADP_ENTITY_ID_OFFSET, 8, ENC_BIG_ENDIAN);
+   proto_tree_add_item(adp_tree, hf_adp_entity_model_id, tvb, ADP_ENTITY_MODEL_ID_OFFSET, 8, ENC_BIG_ENDIAN);
 
    /* Subtree for entity_capabilities field */
    ent_cap_ti = proto_tree_add_item(adp_tree, hf_adp_entity_cap, tvb, ADP_ENTITY_CAP_OFFSET, 4, ENC_BIG_ENDIAN);
@@ -4589,7 +4581,7 @@ dissect_17221_adp(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *adp_tree)
    proto_tree_add_item(ent_cap_flags_tree,
          hf_adp_entity_cap_class_b_supported, tvb, ADP_ENTITY_CAP_OFFSET, 4, ENC_BIG_ENDIAN);
    proto_tree_add_item(ent_cap_flags_tree,
-         hf_adp_entity_cap_as_supported, tvb, ADP_ENTITY_CAP_OFFSET, 4, ENC_BIG_ENDIAN);
+         hf_adp_entity_cap_gptp_supported, tvb, ADP_ENTITY_CAP_OFFSET, 4, ENC_BIG_ENDIAN);
 
    proto_tree_add_item(adp_tree, hf_adp_talker_stream_srcs, tvb, ADP_TALKER_STREAM_SRCS_OFFSET, 2, ENC_BIG_ENDIAN);
 
@@ -4645,75 +4637,9 @@ dissect_17221_adp(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *adp_tree)
          hf_adp_cont_cap_layer3_proxy, tvb, ADP_CONTROLLER_CAP_OFFSET, 4, ENC_BIG_ENDIAN);
 
    proto_tree_add_item(adp_tree, hf_adp_avail_index, tvb, ADP_AVAIL_INDEX_OFFSET, 4, ENC_BIG_ENDIAN);
-   proto_tree_add_item(adp_tree, hf_adp_as_gm_id, tvb, ADP_AS_GM_ID_OFFSET, 8, ENC_BIG_ENDIAN);
+   proto_tree_add_item(adp_tree, hf_adp_gptp_gm_id, tvb, ADP_AS_GM_ID_OFFSET, 8, ENC_BIG_ENDIAN);
 
-   aud_format_ti = proto_tree_add_item(adp_tree, hf_adp_def_aud_format, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 4, ENC_BIG_ENDIAN);
-   aud_format_tree = proto_item_add_subtree(aud_format_ti, ett_adp_aud_format);
-
-   samp_rates_ti = proto_tree_add_item(aud_format_tree,
-         hf_adp_def_aud_sample_rates, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 1, ENC_BIG_ENDIAN);
-   samp_rates_tree = proto_item_add_subtree(samp_rates_ti, ett_adp_samp_rates);
-
-   proto_tree_add_item(samp_rates_tree,
-         hf_adp_samp_rate_44k1, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 1, ENC_BIG_ENDIAN);
-   proto_tree_add_item(samp_rates_tree,
-         hf_adp_samp_rate_48k, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 1, ENC_BIG_ENDIAN);
-   proto_tree_add_item(samp_rates_tree,
-         hf_adp_samp_rate_88k2, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 1, ENC_BIG_ENDIAN);
-   proto_tree_add_item(samp_rates_tree,
-         hf_adp_samp_rate_96k, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 1, ENC_BIG_ENDIAN);
-   proto_tree_add_item(samp_rates_tree,
-         hf_adp_samp_rate_176k4, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 1, ENC_BIG_ENDIAN);
-   proto_tree_add_item(samp_rates_tree,
-         hf_adp_samp_rate_192k, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 1, ENC_BIG_ENDIAN);
-
-   proto_tree_add_item(aud_format_tree,
-         hf_adp_def_aud_max_chan, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(aud_format_tree,
-         hf_adp_def_aud_saf_flag, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(aud_format_tree,
-         hf_adp_def_aud_float_flag, tvb, ADP_DEF_AUDIO_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-
-   chan_format_ti = proto_tree_add_item(aud_format_tree,
-         hf_adp_def_aud_chan_formats, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   chan_format_tree = proto_item_add_subtree(chan_format_ti, ett_adp_chan_format);
-
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_mono, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_2ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_3ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_4ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_5ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_6ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_7ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_8ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_10ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_12ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_14ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_16ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_18ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_20ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_22ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-   proto_tree_add_item(chan_format_tree,
-         hf_adp_chan_format_24ch, tvb, ADP_CHAN_FORMAT_OFFSET, 2, ENC_BIG_ENDIAN);
-
-   proto_tree_add_item(adp_tree, hf_adp_def_vid_format, tvb, ADP_DEF_VIDEO_FORMAT_OFFSET, 4, ENC_BIG_ENDIAN);
    proto_tree_add_item(adp_tree, hf_adp_assoc_id, tvb, ADP_ASSOC_ID_OFFSET, 8, ENC_BIG_ENDIAN);
-   proto_tree_add_item(adp_tree, hf_adp_entity_type, tvb, ADP_ENTITY_TYPE_OFFSET, 4, ENC_BIG_ENDIAN);
 }
 
 static void
@@ -4816,17 +4742,13 @@ proto_register_17221(void)
          { "Control Data Length", "ieee17221.control_data_length",
             FT_UINT16, BASE_DEC, NULL, ADP_CD_LENGTH_MASK, NULL, HFILL }
       },
-      { &hf_adp_entity_guid,
-         { "Entity GUID", "ieee17221.entity_guid",
+      { &hf_adp_entity_id,
+         { "Entity ID", "ieee17221.entity_id",
             FT_UINT64, BASE_HEX, NULL, 0x00, NULL, HFILL }
       },
-      { &hf_adp_vendor_id,
-         { "Vendor ID", "ieee17221.vendor_id",
-            FT_UINT32, BASE_HEX, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_adp_model_id,
-         { "Model ID", "ieee17221.model_id",
-            FT_UINT32, BASE_HEX, NULL, 0x00, NULL, HFILL }
+      { &hf_adp_entity_model_id,
+         { "Entity Model ID", "ieee17221.entity_model_id",
+            FT_UINT64, BASE_HEX, NULL, 0x00, NULL, HFILL }
       },
       { &hf_adp_entity_cap,
          { "Entity Capabilities", "ieee17221.entity_capabilities",
@@ -4873,8 +4795,8 @@ proto_register_17221(void)
          { "CLASS_B", "ieee17221.entity_capabilities.class_b",
             FT_BOOLEAN, 32, NULL, ADP_CLASS_B_SUPPORTED_BITMASK, NULL, HFILL }
       },
-      { &hf_adp_entity_cap_as_supported,
-         { "AS", "ieee17221.entity_capabilities.as",
+      { &hf_adp_entity_cap_gptp_supported,
+         { "gPTP Supported", "ieee17221.entity_capabilities.gptp_supported",
             FT_BOOLEAN, 32, NULL, ADP_AS_SUPPORTED_BITMASK, NULL, HFILL }
       },
       /* Entity Capability Flags End */
@@ -4980,8 +4902,8 @@ proto_register_17221(void)
          { "Available Index", "ieee17221.available_index",
             FT_UINT32, BASE_HEX, NULL, 0x00, NULL, HFILL }
       },
-      { &hf_adp_as_gm_id,
-         { "AS Grandmaster ID", "ieee17221.as_grandmaster_id",
+      { &hf_adp_gptp_gm_id,
+         { "gPTP Grandmaster ID", "ieee17221.gptp_grandmaster_id",
             FT_UINT64, BASE_HEX, NULL, 0x00, NULL, HFILL }
       },
       { &hf_adp_def_aud_format,
@@ -5990,17 +5912,9 @@ proto_register_17221(void)
       /* ENTITY */
       /* hf_aecp_descriptor_type */
       /* hf_aecp_descriptor_index */
-      { &hf_aem_entity_guid,
-         {"Entity GUID", "ieee17221.entity_guid",
-            FT_UINT64, BASE_HEX, NULL, 0x00, NULL, HFILL }
-      },
-      { &hf_aem_vendor_id,
-         {"Vendor ID", "ieee17221.vendor_id",
-            FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL }
-      },
       { &hf_aem_entity_model_id,
          {"Entity Model ID", "ieee17221.entity_model_id",
-            FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL }
+            FT_UINT64, BASE_HEX, NULL, 0x00, NULL, HFILL }
       },
       /* hf_adp_entity_cap
        * hf_adp_entity_cap_avdecc_ip
