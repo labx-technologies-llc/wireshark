@@ -178,6 +178,10 @@ static gint ett_iax2_fragments = -1;
 static gint ett_iax2_trunk_cmddata = -1;
 static gint ett_iax2_trunk_call = -1;
 
+static expert_field ei_iax_too_many_transfers = EI_INIT;
+static expert_field ei_iax_circuit_id_conflict = EI_INIT;
+static expert_field ei_iax_peer_address_unsupported = EI_INIT;
+
 static const fragment_items iax2_fragment_items = {
   &ett_iax2_fragment,
   &ett_iax2_fragments,
@@ -288,7 +292,7 @@ static const value_string iax_cmd_subclasses[] = {
 };
 static value_string_ext iax_cmd_subclasses_ext = VALUE_STRING_EXT_INIT(iax_cmd_subclasses);
 
-/* IAX2 to tap-voip call state mapping */
+/* IAX2 to tap-voip call state mapping for command frames */
 static const voip_call_state tap_cmd_voip_state[] = {
   VOIP_NO_STATE,
   VOIP_COMPLETED, /*HANGUP*/
@@ -300,6 +304,50 @@ static const voip_call_state tap_cmd_voip_state[] = {
   VOIP_UNKNOWN    /*OFFHOOK*/
 };
 #define NUM_TAP_CMD_VOIP_STATES array_length(tap_cmd_voip_state)
+
+/* IAX2 to tap-voip call state mapping for IAX frames */
+static const voip_call_state tap_iax_voip_state[] = {
+  VOIP_NO_STATE,
+  VOIP_CALL_SETUP, /*NEW*/
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_COMPLETED,  /*HANGUP*/
+  VOIP_REJECTED,   /*REJECT*/
+  VOIP_RINGING,    /*ACCEPT*/
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_CALL_SETUP, /*DIAL*/
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE,
+  VOIP_NO_STATE
+};
+
+#define NUM_TAP_IAX_VOIP_STATES array_length(tap_iax_voip_state)
 
 /* Subclasses for Modem packets */
 static const value_string iax_modem_subclasses[] = {
@@ -701,7 +749,7 @@ static circuit_t *iax2_new_circuit_for_call(packet_info *pinfo, proto_item * ite
 
   if ((reversed && iax_call->n_reverse_circuit_ids >= IAX_MAX_TRANSFERS) ||
       (! reversed && iax_call->n_forward_circuit_ids >= IAX_MAX_TRANSFERS)) {
-    expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Too many transfers for iax_call");
+    expert_add_info(pinfo, item, &ei_iax_too_many_transfers);
     return NULL;
   }
 
@@ -804,7 +852,7 @@ static iax_call_data *iax_lookup_call_from_dest(packet_info *pinfo, proto_item *
       g_debug("++ done");
 #endif
     } else if (!is_reverse_circuit(src_circuit_id, iax_call)) {
-      expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, 
+      expert_add_info_format_text(pinfo, item, &ei_iax_circuit_id_conflict, 
                 "IAX Packet %u from circuit ids %u->%u conflicts with earlier call with circuit ids %u->%u",
                 framenum,
                 src_circuit_id, dst_circuit_id,
@@ -820,7 +868,7 @@ static iax_call_data *iax_lookup_call_from_dest(packet_info *pinfo, proto_item *
 
     reversed = FALSE;
     if (!is_forward_circuit(src_circuit_id, iax_call)) {
-      expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, 
+      expert_add_info_format_text(pinfo, item, &ei_iax_circuit_id_conflict, 
                 "IAX Packet %u from circuit ids %u->%u conflicts with earlier call with circuit ids %u->%u",
                 framenum,
                 src_circuit_id, dst_circuit_id,
@@ -1005,8 +1053,7 @@ static void  iax2_populate_pinfo_from_packet_data(packet_info *pinfo, const iax_
     pinfo -> circuit_id = (guint32)p->call_data->forward_circuit_ids[0];
     pinfo -> p2p_dir = p->reversed?P2P_DIR_RECV:P2P_DIR_SENT;
 
-    if (check_col(pinfo->cinfo, COL_IF_DIR))
-      col_set_str(pinfo->cinfo, COL_IF_DIR, p->reversed ? "rev" : "fwd");
+    col_set_str(pinfo->cinfo, COL_IF_DIR, p->reversed ? "rev" : "fwd");
   }
 }
 
@@ -1227,7 +1274,7 @@ static guint32 dissect_ies(tvbuff_t *tvb, packet_info *pinfo, guint32 offset,
             break;
 
           default:
-            expert_add_info_format(pinfo, iax_item, PI_PROTOCOL, PI_WARN, 
+            expert_add_info_format_text(pinfo, iax_item, &ei_iax_peer_address_unsupported,
                 "Not supported in IAX dissector: peer address family of %u", apparent_addr_family);
             break;
         }
@@ -1482,8 +1529,7 @@ static guint32 dissect_iax2_command(tvbuff_t *tvb, guint32 offset,
   ti = proto_tree_add_uint(tree, hf_iax2_iax_csub, tvb, offset, 1, csub);
   offset++;
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
+  col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
                      val_to_str_ext(csub, &iax_iax_subclasses_ext, "unknown (0x%02x)"));
 
   if (offset >= tvb_reported_length(tvb))
@@ -1642,18 +1688,17 @@ dissect_fullpacket(tvbuff_t *tvb, guint32 offset,
 
 
   /* add frame type to info line */
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s, source call# %d, timestamp %ums",
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s, source call# %d, timestamp %ums",
                  val_to_str_ext(type, &iax_frame_types_ext, "Unknown (0x%02x)"),
                  scallno, ts);
-  }
+
   iax2_info->messageName = val_to_str_ext(type, &iax_frame_types_ext, "Unknown (0x%02x)");
 
   switch (type) {
   case AST_FRAME_IAX:
     offset=dissect_iax2_command(tvb, offset+9, pinfo, packet_type_tree, iax_packet);
     iax2_info->messageName = val_to_str_ext(csub, &iax_iax_subclasses_ext, "unknown (0x%02x)");
-    iax2_info->callState   = (voip_call_state)csub;
+    if (csub < NUM_TAP_IAX_VOIP_STATES) iax2_info->callState = tap_iax_voip_state[csub];
     break;
 
   case AST_FRAME_DTMF_BEGIN:
@@ -1661,8 +1706,7 @@ dissect_fullpacket(tvbuff_t *tvb, guint32 offset,
     proto_tree_add_item(packet_type_tree, hf_iax2_dtmf_csub, tvb, offset+9, 1, ENC_ASCII|ENC_NA);
     offset += 10;
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_append_fstr(pinfo->cinfo, COL_INFO, " digit %c", csub);
+    col_append_fstr(pinfo->cinfo, COL_INFO, " digit %c", csub);
     break;
 
   case AST_FRAME_CONTROL:
@@ -1671,8 +1715,7 @@ dissect_fullpacket(tvbuff_t *tvb, guint32 offset,
                          offset+9, 1, csub);
     offset += 10;
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
+    col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
                       val_to_str_ext(csub, &iax_cmd_subclasses_ext, "unknown (0x%02x)"));
     iax2_info->messageName = val_to_str_ext (csub, &iax_cmd_subclasses_ext, "unknown (0x%02x)");
     if (csub < NUM_TAP_CMD_VOIP_STATES) iax2_info->callState = tap_cmd_voip_state[csub];
@@ -1736,8 +1779,7 @@ dissect_fullpacket(tvbuff_t *tvb, guint32 offset,
     proto_tree_add_item(packet_type_tree, hf_iax2_modem_csub, tvb, offset+9, 1, ENC_BIG_ENDIAN);
     offset += 10;
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
+    col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
                       val_to_str(csub, iax_modem_subclasses, "unknown (0x%02x)"));
     break;
 
@@ -1748,8 +1790,7 @@ dissect_fullpacket(tvbuff_t *tvb, guint32 offset,
                         1, csub);
     offset += 10;
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_append_fstr(pinfo->cinfo, COL_INFO, " subclass %d", csub);
+    col_append_fstr(pinfo->cinfo, COL_INFO, " subclass %d", csub);
     break;
   }
 
@@ -1825,8 +1866,7 @@ static guint32 dissect_minivideopacket(tvbuff_t *tvb, guint32 offset,
 
   offset += 2;
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-      col_add_fstr(pinfo->cinfo, COL_INFO,
+  col_add_fstr(pinfo->cinfo, COL_INFO,
                    "Mini video packet, source call# %d, timestamp %ums%s",
                    scallno, ts, rtp_marker?", Mark":"");
 
@@ -1868,8 +1908,7 @@ static guint32 dissect_minipacket(tvbuff_t *tvb, guint32 offset, guint16 scallno
 
   offset += 2;
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-      col_add_fstr(pinfo->cinfo, COL_INFO,
+  col_add_fstr(pinfo->cinfo, COL_INFO,
                     "Mini packet, source call# %d, timestamp %ums",
                     scallno, ts);
 
@@ -2108,7 +2147,7 @@ static void desegment_iax(tvbuff_t *tvb, packet_info *pinfo, proto_tree *iax2_tr
   iax_call_dirdata *dirdata;
   gpointer          value          = NULL;
   guint32           frag_offset    = 0;
-  fragment_data    *fd_head;
+  fragment_head    *fd_head;
   gboolean          must_desegment = FALSE;
 
   DISSECTOR_ASSERT(iax_call);
@@ -2163,7 +2202,7 @@ static void desegment_iax(tvbuff_t *tvb, packet_info *pinfo, proto_tree *iax2_tr
 
     if (fd_head && (pinfo->fd->num == fd_head->reassembled_in)) {
       gint32 old_len;
-      tvbuff_t *next_tvb = tvb_new_child_real_data(tvb, fd_head->data, fd_head->datalen, fd_head->datalen);
+      tvbuff_t *next_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
       add_new_data_source(pinfo, next_tvb, "Reassembled IAX2");
 
       process_iax_pdu(next_tvb, pinfo, tree, video, iax_packet);
@@ -2303,8 +2342,7 @@ static void dissect_payload(tvbuff_t *tvb, guint32 offset,
 
   /* XXX shouldn't pass through out-of-order packets. */
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    if (!video && iax_call && iax_call -> dataformat != 0) {
+  if (!video && iax_call && iax_call -> dataformat != 0) {
       col_append_fstr(pinfo->cinfo, COL_INFO, ", data, format %s",
                       val_to_str(iax_call -> dataformat,
                                  iax_dataformats, "unknown (0x%02x)"));
@@ -2312,10 +2350,9 @@ static void dissect_payload(tvbuff_t *tvb, guint32 offset,
       if (out_of_order)
         col_append_str(pinfo->cinfo, COL_INFO, " (out-of-order packet)");
 #endif
-    } else {
+  } else {
       col_append_fstr(pinfo->cinfo, COL_INFO, ", %s",
                       val_to_str_ext(codec, &codec_types_ext, "unknown (0x%02x)"));
-    }
   }
 
   nbytes = tvb_reported_length(sub_tvb);
@@ -3041,6 +3078,14 @@ proto_register_iax2(void)
     &ett_iax2_trunk_call
   };
 
+  static ei_register_info ei[] = {
+    { &ei_iax_too_many_transfers, { "iax2.too_many_transfers", PI_PROTOCOL, PI_WARN, "Too many transfers for iax_call", EXPFILL }},
+    { &ei_iax_circuit_id_conflict, { "iax2.circuit_id_conflict", PI_PROTOCOL, PI_WARN, "Circuit ID conflict", EXPFILL }},
+    { &ei_iax_peer_address_unsupported, { "iax2.peer_address_unsupported", PI_PROTOCOL, PI_WARN, "Peer address unsupported", EXPFILL }},
+  };
+
+  expert_module_t* expert_iax;
+
   /* initialize the hf_iax2_ies[] array to -1 */
   memset(hf_iax2_ies, 0xff, sizeof(hf_iax2_ies));
 
@@ -3048,6 +3093,8 @@ proto_register_iax2(void)
     proto_register_protocol("Inter-Asterisk eXchange v2", "IAX2", "iax2");
   proto_register_field_array(proto_iax2, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_iax = expert_register_protocol(proto_iax2);
+  expert_register_field_array(expert_iax, ei, array_length(ei));
 
   register_dissector("iax2", dissect_iax2, proto_iax2);
 

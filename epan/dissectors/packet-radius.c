@@ -62,10 +62,11 @@
 
 #include <glib.h>
 
+#include <wsutil/report_err.h>
+#include <wsutil/md5.h>
+
 #include <epan/packet.h>
 #include <epan/prefs.h>
-#include <epan/report_err.h>
-#include <epan/crypt/md5.h>
 #include <epan/sminmpec.h>
 #include <epan/filesystem.h>
 #include <epan/conversation.h>
@@ -1386,12 +1387,9 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 	rad_info->ident = rh.rh_ident;
 	tap_queue_packet(radius_tap, pinfo, rad_info);
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-	{
-		col_add_fstr(pinfo->cinfo,COL_INFO,"%s(%d) (id=%d, l=%d)",
+	col_add_fstr(pinfo->cinfo,COL_INFO,"%s(%d) (id=%d, l=%d)",
 			val_to_str_ext_const(rh.rh_code, &radius_pkt_type_codes_ext, "Unknown Packet"),
 			rh.rh_code, rh.rh_ident, rh.rh_pktlength);
-	}
 
 	if (tree)
 	{
@@ -1493,11 +1491,9 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 					/* No, so it's a duplicate request. Mark it as such. */
 					rad_info->is_duplicate = TRUE;
 					rad_info->req_num = radius_call->req_num;
-					if (check_col(pinfo->cinfo, COL_INFO))
-					{
-						col_append_fstr(pinfo->cinfo, COL_INFO,
+					col_append_fstr(pinfo->cinfo, COL_INFO,
 							", Duplicate Request ID:%u", rh.rh_ident);
-					}
+
 					if (tree)
 					{
 						proto_item* item;
@@ -1632,11 +1628,9 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 						{
 							/* No, so it's a duplicate response. Mark it as such. */
 							rad_info->is_duplicate = TRUE;
-							if (check_col(pinfo->cinfo, COL_INFO))
-							{
-								col_append_fstr(pinfo->cinfo, COL_INFO,
+							col_append_fstr(pinfo->cinfo, COL_INFO,
 									", Duplicate Response ID:%u", rh.rh_ident);
-							}
+
 							if (tree)
 							{
 								proto_item* item;

@@ -42,7 +42,7 @@
     </widget>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
+    <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,0,0,0,1">
      <item>
       <widget class="QToolButton" name="newToolButton">
        <property name="toolTip">
@@ -96,7 +96,7 @@
       </spacer>
      </item>
      <item>
-      <widget class="QLabel" name="pathLabel">
+      <widget class="ElidedLabel" name="pathLabel">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
          <horstretch>1</horstretch>
@@ -128,6 +128,13 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ElidedLabel</class>
+   <extends>QLabel</extends>
+   <header>elided_label.h</header>
+  </customwidget>
+ </customwidgets>
  <resources>
   <include location="../../image/toolbar.qrc"/>
  </resources>

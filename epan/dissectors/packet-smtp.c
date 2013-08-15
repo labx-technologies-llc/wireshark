@@ -153,7 +153,7 @@ typedef enum {
   SMTP_AUTH_STATE_NTLM_CHALLANGE,     /* Received ntlm challange request from server */
   SMTP_AUTH_STATE_NTLM_RSP,           /* Received ntlm auth request from client */
   SMTP_AUTH_STATE_SUCCESS,            /* Password received, authentication successful, start decoding */
-  SMTP_AUTH_STATE_FAILED,             /* authentication failed, no decoding */
+  SMTP_AUTH_STATE_FAILED              /* authentication failed, no decoding */
 } smtp_auth_state_t;
 
 struct smtp_session_state {
@@ -365,7 +365,7 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   gint                       next_offset;
   gint                       loffset   = 0;
   int                        cmdlen;
-  fragment_data             *frag_msg  = NULL;
+  fragment_head             *frag_msg  = NULL;
   tvbuff_t                  *next_tvb;
   guint8                    *decrypt   = NULL;
   guint8                    *base64_string   = NULL;
@@ -403,20 +403,10 @@ dissect_smtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /*
      * No - create one and attach it.
      */
-    session_state                    = (struct smtp_session_state *)wmem_alloc(wmem_file_scope(), sizeof(struct smtp_session_state));
+    session_state                    = (struct smtp_session_state *)wmem_alloc0(wmem_file_scope(), sizeof(struct smtp_session_state));
     session_state->smtp_state        = SMTP_STATE_READING_CMDS;
     session_state->auth_state        = SMTP_AUTH_STATE_NONE;
-    session_state->first_auth_frame  = 0;
-    session_state->last_auth_frame   = 0;
-    session_state->username_frame    = 0;
-    session_state->password_frame    = 0;
-    session_state->crlf_seen         = FALSE;
-    session_state->data_seen         = FALSE;
-    session_state->msg_read_len      = 0;
-    session_state->msg_tot_len       = 0;
     session_state->msg_last          = TRUE;
-    session_state->last_nontls_frame = 0;
-    session_state->username_cmd_frame = 0;
 
     conversation_add_proto_data(conversation, proto_smtp, session_state);
   }

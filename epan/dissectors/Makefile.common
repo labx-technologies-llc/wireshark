@@ -164,7 +164,6 @@ ASN1_DISSECTOR_SRC = \
 	packet-qsig.c \
 	packet-ranap.c		\
 	packet-ros.c \
-	packet-rpki-rtr.c \
 	packet-rrc.c \
 	packet-rrlp.c \
 	packet-rtse.c \
@@ -210,6 +209,8 @@ DIRTY_ASN1_DISSECTOR_SRC = \
 	packet-tcap.c \
 	$(CUSTOM_DIRTY_ASN1_DISSECTOR_SRC)
 
+FILE_DISSECTOR_SRC = \
+	file-mp4.c
 
 #
 # Dissectors without warnings.
@@ -320,6 +321,7 @@ DISSECTOR_SRC = \
 	packet-bssgp.c		\
 	packet-bt-dht.c		\
 	packet-bt-utp.c		\
+	packet-bt3ds.c		\
 	packet-btamp.c		\
 	packet-btatt.c		\
 	packet-btbnep.c		\
@@ -346,6 +348,7 @@ DISSECTOR_SRC = \
 	packet-calcappprotocol.c  \
 	packet-canopen.c	\
 	packet-capwap.c		\
+	packet-carp.c		\
 	packet-cast.c		\
 	packet-catapult-dct2000.c \
 	packet-ccsds.c		\
@@ -361,6 +364,7 @@ DISSECTOR_SRC = \
 	packet-cipmotion.c	\
 	packet-cipsafety.c	\
 	packet-cisco-erspan.c	\
+	packet-cisco-metadata.c	\
 	packet-cisco-oui.c	\
 	packet-cisco-sm.c	\
 	packet-cisco-wids.c	\
@@ -655,6 +659,7 @@ DISSECTOR_SRC = \
 	packet-hsr.c		\
 	packet-hsrp.c		\
 	packet-http.c		\
+	packet-http-urlencoded.c \
 	packet-hyperscsi.c	\
 	packet-i2c.c		\
 	packet-iana-oui.c	\
@@ -740,6 +745,7 @@ DISSECTOR_SRC = \
 	packet-jxta.c		\
 	packet-k12.c		\
 	packet-kadm5.c		\
+	packet-kafka.c		\
 	packet-kdp.c		\
 	packet-kdsp.c		\
 	packet-kerberos.c	\
@@ -896,6 +902,7 @@ DISSECTOR_SRC = \
 	packet-olsr.c		\
 	packet-omapi.c		\
 	packet-omron-fins.c	\
+	packet-openflow.c	\
 	packet-opensafety.c	\
 	packet-openvpn.c	\
 	packet-openwire.c	\
@@ -992,6 +999,7 @@ DISSECTOR_SRC = \
 	packet-roofnet.c	\
 	packet-rpc.c		\
 	packet-rpcap.c		\
+	packet-rpki-rtr.c	\
 	packet-rpl.c		\
 	packet-rquota.c		\
 	packet-rsh.c		\
@@ -1000,6 +1008,7 @@ DISSECTOR_SRC = \
 	packet-rstat.c		\
 	packet-rsvp.c		\
 	packet-rsync.c		\
+	packet-rtacser.c	\
 	packet-rtcdc.c		\
 	packet-rtcp.c		\
 	packet-rtmpt.c		\
@@ -1079,6 +1088,7 @@ DISSECTOR_SRC = \
 	packet-ssh.c		\
 	packet-ssl-utils.c	\
 	packet-ssl.c		\
+	packet-stanag4607.c	\
 	packet-starteam.c	\
 	packet-stat-notify.c	\
 	packet-stat.c		\
@@ -1130,6 +1140,7 @@ DISSECTOR_SRC = \
 	packet-ucp.c		\
 	packet-udld.c		\
 	packet-udp.c		\
+	packet-udt.c		\
 	packet-uhd.c		\
 	packet-uma.c		\
 	packet-umts_fp.c	\
@@ -1214,7 +1225,10 @@ DISSECTOR_SRC = \
 	packet-zbee-nwk.c	\
 	packet-zbee-security.c	\
 	packet-zbee-zcl.c	\
-	packet-zbee-zcl-on-off.c	\
+	packet-zbee-zcl-general.c	\
+	packet-zbee-zcl-ha.c	\
+	packet-zbee-zcl-meas-sensing.c	\
+	packet-zbee-zcl-se.c	\
 	packet-zbee-zdp-binding.c	\
 	packet-zbee-zdp-discovery.c	\
 	packet-zbee-zdp-management.c	\
@@ -1318,7 +1332,9 @@ DISSECTOR_INCLUDES =	\
 	packet-dop.h	\
 	packet-dsp.h	\
 	packet-dtn.h	\
+	packet-dvbci.h	\
 	packet-enip.h	\
+	packet-erf.h	\
 	packet-dvmrp.h	\
 	packet-e164.h   \
 	packet-e212.h   \
@@ -1629,6 +1645,7 @@ noinst_HEADERS =	\
 
 ALL_DISSECTORS_SRC = \
 	$(DISSECTOR_SRC) \
+	$(FILE_DISSECTOR_SRC) \
 	$(DIRTY_DISSECTOR_SRC) \
 	$(PIDL_DISSECTOR_SRC) \
 	$(DIRTY_PIDL_DISSECTOR_SRC) \

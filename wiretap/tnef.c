@@ -32,23 +32,11 @@
 #include "buffer.h"
 #include "tnef.h"
 
-
-static gboolean tnef_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
+static gboolean tnef_read_file(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+                               Buffer *buf, int *err, gchar **err_info)
 {
-  gint64 offset;
-  guint8 *buf;
   gint64 file_size;
   int packet_size;
-
-  *err = 0;
-
-  offset = file_tell(wth->fh);
-
-  /* there is only ever one packet */
-  if (offset)
-    return FALSE;
-
-  *data_offset = offset;
 
   if ((file_size = wtap_file_size(wth, err)) == -1)
     return FALSE;
@@ -65,28 +53,38 @@ static gboolean tnef_read(wtap *wth, int *err, gchar **err_info, gint64 *data_of
   }
   packet_size = (int)file_size;
 
-  buffer_assure_space(wth->frame_buffer, packet_size);
-  buf = buffer_start_ptr(wth->frame_buffer);
+  phdr->presence_flags = 0; /* yes, we have no bananas^Wtime stamp */
 
-  wtap_file_read_expected_bytes(buf, packet_size, wth->fh, err, err_info);
+  phdr->caplen = packet_size;
+  phdr->len = packet_size;
 
-  wth->phdr.presence_flags = 0; /* no time stamp, no "real length" */
+  phdr->ts.secs = 0;
+  phdr->ts.nsecs = 0;
 
-  wth->phdr.caplen = packet_size;
-  wth->phdr.len = packet_size;
+  return wtap_read_packet_bytes(fh, buf, packet_size, err, err_info);
+}
 
-  wth->phdr.ts.secs = 0;
-  wth->phdr.ts.nsecs = 0;
+static gboolean tnef_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
+{
+  gint64 offset;
 
-  return TRUE;
+  *err = 0;
+
+  offset = file_tell(wth->fh);
+
+  /* there is only ever one packet */
+  if (offset)
+    return FALSE;
+
+  *data_offset = offset;
+
+  return tnef_read_file(wth, wth->fh, &wth->phdr, wth->frame_buffer, err, err_info);
 }
 
 static gboolean tnef_seek_read(wtap *wth, gint64 seek_off,
-                               struct wtap_pkthdr *phdr _U_,
-                               guint8 *pd, int length, int *err, gchar **err_info)
+                               struct wtap_pkthdr *phdr,
+                               Buffer *buf, int length _U_, int *err, gchar **err_info)
 {
-  int packet_size = length;
-
   /* there is only one packet */
   if(seek_off > 0) {
     *err = 0;
@@ -96,9 +94,7 @@ static gboolean tnef_seek_read(wtap *wth, gint64 seek_off,
   if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
     return FALSE;
 
-  wtap_file_read_expected_bytes(pd, packet_size, wth->random_fh, err, err_info);
-
-  return TRUE;
+  return tnef_read_file(wth, wth->random_fh, phdr, buf, err, err_info);
 }
 
 int tnef_open(wtap *wth, int *err, gchar **err_info)
@@ -109,9 +105,7 @@ int tnef_open(wtap *wth, int *err, gchar **err_info)
   bytes_read = file_read(&magic, sizeof magic, wth->fh);
   if (bytes_read != sizeof magic) {
     *err = file_error(wth->fh, err_info);
-    if (*err != 0 && *err != WTAP_ERR_SHORT_READ)
-      return -1;
-    return 0;
+    return (*err != 0) ? -1 : 0;
   }
 
   if (htolel(magic) != TNEF_SIGNATURE)

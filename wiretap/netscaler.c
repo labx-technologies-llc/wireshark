@@ -37,6 +37,19 @@
 #define NSPR_SIGSTR_V21 "NetScaler V21 Performance Data"
 #define NSPR_SIGSTR_V22 "NetScaler V22 Performance Data"
 
+/*
+ * NetScaler trace files are divided into 8K pages, with each page
+ * containing one or more records.  The last page of the file
+ * might be less than 8K bytes.
+ *
+ * Records are not split across page boundaries; if a record doesn't
+ * fit in what remains in a page, the page is padded with null bytes
+ * and the next record is put at the beginning of the next page.
+ * A record type value of 0 means "unused space", so if there are
+ * enough null bytes to constitute a record type value, it will
+ * look as if there's an "unused space" record (which has no fields
+ * other than the type and zero or more additional padding bytes).
+ */
 #define NSPR_PAGESIZE   8192
 
 /* The different record types
@@ -64,10 +77,10 @@
 
 /* The high resolution relative time format.
 ** The MS 2 bits of the high resoltion time is defined as follows:
-** 00 : time value is in second
-** 01 : time value is in mili second
-** 10 : time value is in micro second
-** 11 : time value is in nano second
+** 00 : time value is in seconds
+** 01 : time value is in milliseconds
+** 10 : time value is in microseconds
+** 11 : time value is in nanoseconds
 */
 #define NSPR_HRTIME_MASKTM      0x3FFFFFFF /* mask to get time value */
 #define NSPR_HRTIME_MASKFMT     0xC0000000 /* time value format mask */
@@ -564,11 +577,11 @@ static gboolean nstrace_read_v20(wtap *wth, int *err, gchar **err_info,
                                  gint64 *data_offset);
 static gboolean nstrace_seek_read_v10(wtap *wth, gint64 seek_off,
                                       struct wtap_pkthdr *phdr,
-                                      guint8 *pd, int length,
+                                      Buffer *buf, int length,
                                       int *err, gchar **err_info);
 static gboolean nstrace_seek_read_v20(wtap *wth, gint64 seek_off,
                                       struct wtap_pkthdr *phdr,
-                                      guint8 *pd, int length,
+                                      Buffer *buf, int length,
                                       int *err, gchar **err_info);
 static void nstrace_close(wtap *wth);
 
@@ -581,6 +594,10 @@ static gboolean nstrace_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
                              const guint8 *pd, int *err);
 
 
+/*
+ * Minimum of the page size and the amount of data left in the file;
+ * the last page of a file can be short.
+ */
 #define GET_READ_PAGE_SIZE(remaining_file_size) ((gint32)((remaining_file_size>NSPR_PAGESIZE)?NSPR_PAGESIZE:remaining_file_size))
 
 
@@ -1126,9 +1143,10 @@ static gboolean nstrace_read_v20(wtap *wth, int *err, gchar **err_info, gint64 *
 #undef PACKET_DESCRIBE
 
 static gboolean nstrace_seek_read_v10(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length,
     int *err, gchar **err_info)
 {
+    guint8 *pd;
     int bytes_read;
     nspr_pktracefull_v10_t *fp;
     nspr_pktracepart_v10_t *pp;
@@ -1141,6 +1159,8 @@ static gboolean nstrace_seek_read_v10(wtap *wth, gint64 seek_off,
     /*
     ** Read the packet data.
     */
+    buffer_assure_space(buf, length);
+    pd = buffer_start_ptr(buf);
     bytes_read = file_read(pd, length, wth->random_fh);
     if (bytes_read != length) {
         *err = file_error(wth->random_fh, err_info);
@@ -1189,9 +1209,10 @@ static gboolean nstrace_seek_read_v10(wtap *wth, gint64 seek_off,
     }while(0)
 
 static gboolean nstrace_seek_read_v20(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length,
     int *err, gchar **err_info)
 {
+    guint8 *pd;
     int bytes_read;
 
     *err = 0;
@@ -1202,6 +1223,8 @@ static gboolean nstrace_seek_read_v20(wtap *wth, gint64 seek_off,
     /*
     ** Read the packet data.
     */
+    buffer_assure_space(buf, length);
+    pd = buffer_start_ptr(buf);
     bytes_read = file_read(pd, length, wth->random_fh);
     if (bytes_read != length) {
         *err = file_error(wth->random_fh, err_info);

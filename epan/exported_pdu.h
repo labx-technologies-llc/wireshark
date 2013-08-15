@@ -30,11 +30,14 @@
 
 /**
  * Define different common tap names to extract PDU:s at different layers, otherwise one packet may
- * be exported several times at diferent layers if all taps are run.
+ * be exported several times at different layers if all taps are run.
  * NOTE if a new tap is added here it needs to be added to export_pdu_dlg.c and packet-exported_pdu.c
  * TODO: Use an enum_val_t instead?
  */
-#define EXPORT_PDU_TAP_NAME_LAYER_7 "export_pdu_layer_7_tap"
+#define EXPORT_PDU_TAP_NAME_LAYER_3 "OSI layer 3"
+#define EXPORT_PDU_TAP_NAME_LAYER_7 "OSI layer 7"
+#define EXPORT_PDU_TAP_NAME_DVB_CI  "DVB-CI"
+
 /**
  * This struct is used as the data part of tap_queue_packet() and contains a
  * buffer with metadata of the protocol PDU included in the tvb in the struct.
@@ -72,22 +75,25 @@
                                           * of the short protocol name used by Wireshark e.g "sip"
                                           * Will be used to call the next dissector.
                                           */
-/* Add protocol type related tags here NOTE Only one protocol typ tag may be present in a packet, the first one found will be used*/
+/* Add protocol type related tags here NOTE Only one protocol type tag may be present in a packet, the first one found will be used*/
 /* 13 - 19 reserved */
 #define EXP_PDU_TAG_IPV4_SRC        20
 #define EXP_PDU_TAG_IPV4_DST        21
 #define EXP_PDU_TAG_IPV6_SRC        22
 #define EXP_PDU_TAG_IPV6_DST        23
 
-#define EXP_PDU_TAG_SRC_PORT        24
-#define EXP_PDU_TAG_DST_PORT        25
+#define EXP_PDU_TAG_PORT_TYPE       24
+#define EXP_PDU_TAG_SRC_PORT        25
+#define EXP_PDU_TAG_DST_PORT        26
 
-#define EXP_PDU_TAG_SCTP_PPID       26
+#define EXP_PDU_TAG_SCTP_PPID       27
 
-#define EXP_PDU_TAG_SS7_OPC         27
-#define EXP_PDU_TAG_SS7_DPC         28
+#define EXP_PDU_TAG_SS7_OPC         28
+#define EXP_PDU_TAG_SS7_DPC         29
 
-#define EXP_PDU_TAG_ORIG_FNO        29
+#define EXP_PDU_TAG_ORIG_FNO        30
+
+#define EXP_PDU_TAG_DVBCI_EVT       31
 
 
 typedef struct _exp_pdu_data_t {
@@ -110,20 +116,25 @@ typedef struct _exp_pdu_data_t {
 
 #define EXP_PDU_TAG_ORIG_FNO_BIT        0x00000080
 
+#define EXP_PDU_TAG_DVBCI_EVT_BIT       0x00000100
+
 #define EXP_PDU_TAG_IPV4_SRC_LEN        4
 #define EXP_PDU_TAG_IPV4_DST_LEN        4
 #define EXP_PDU_TAG_IPV6_SRC_LEN        16
 #define EXP_PDU_TAG_IPV6_DST_LEN        16
 
+#define EXP_PDU_TAG_PORT_TYPE_LEN       4
 #define EXP_PDU_TAG_SRC_PORT_LEN        4
 #define EXP_PDU_TAG_DST_PORT_LEN        4
 
-#define EXP_PDU_TAG_SCTP_PPID_LEN       2
+#define EXP_PDU_TAG_SCTP_PPID_LEN       4
 
-#define EXP_PDU_TAG_SS7_OPC_LEN         2
-#define EXP_PDU_TAG_SS7_DPC_LEN         2
+#define EXP_PDU_TAG_SS7_OPC_LEN         8 /* 4 bytes PC, 2 bytes standard type, 1 byte NI, 1 byte padding */
+#define EXP_PDU_TAG_SS7_DPC_LEN         8 /* 4 bytes PC, 2 bytes standard type, 1 byte NI, 1 byte padding */
 
 #define EXP_PDU_TAG_ORIG_FNO_LEN        4
+
+#define EXP_PDU_TAG_DVBCI_EVT_LEN       1
 
 /**
  * Allocates and fills the exp_pdu_data_t struct according to the wanted_exp_tags

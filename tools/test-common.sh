@@ -1,6 +1,26 @@
 #!/bin/bash
 #
+# Copyright 2013 Gerald Combs <gerald@wireshark.org>
+#
 # $Id$
+#
+# Wireshark - Network traffic analyzer
+# By Gerald Combs <gerald@wireshark.org>
+# Copyright 1998 Gerald Combs
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 # Common variables and functions for fuzz and randpkt tests.
 
@@ -67,6 +87,8 @@ export WIRESHARK_EP_VERIFY_POINTERS=
 export WIRESHARK_SE_VERIFY_POINTERS=
 # Use the Wmem strict allocator which does canaries and scrubbing etc.
 export WIRESHARK_DEBUG_WMEM_OVERRIDE=strict
+# Abort if a dissector adds too many items to the tree
+export WIRESHARK_ABORT_ON_TOO_MANY_ITEMS=
 
 # Turn on GLib memory debugging (since 2.13)
 export G_SLICE=debug-blocks
@@ -96,6 +118,8 @@ function exit_error() {
     echo -e "\n ERROR"
     echo -e "Processing failed. Capture info follows:\n"
     echo "  Input file: $CF"
+    echo "  Output file: $TMP_DIR/$TMP_FILE"
+    echo
 
     # Fill in build information
     echo -e "Input file: $CF\n" > $TMP_DIR/${ERR_FILE}.header

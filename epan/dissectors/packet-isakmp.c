@@ -79,14 +79,16 @@ static int hf_isakmp_nat_hash = -1;
 static int hf_isakmp_nat_original_address_ipv6 = -1;
 static int hf_isakmp_nat_original_address_ipv4 = -1;
 
-static int hf_isakmp_icookie         = -1;
-static int hf_isakmp_rcookie         = -1;
+static int hf_isakmp_ispi         = -1;
+static int hf_isakmp_rspi         = -1;
 static int hf_isakmp_typepayload     = -1;
 static int hf_isakmp_nextpayload     = -1;
 static int hf_isakmp_criticalpayload = -1;
 static int hf_isakmp_datapayload     = -1;
 static int hf_isakmp_extradata       = -1;
 static int hf_isakmp_version         = -1;
+static int hf_isakmp_mjver           = -1;
+static int hf_isakmp_mnver           = -1;
 static int hf_isakmp_exchangetype_v1 = -1;
 static int hf_isakmp_exchangetype_v2 = -1;
 static int hf_isakmp_flags           = -1;
@@ -351,6 +353,7 @@ static int hf_isakmp_enc_iv = -1;
 static int hf_isakmp_enc_icd = -1;
 
 static gint ett_isakmp = -1;
+static gint ett_isakmp_version = -1;
 static gint ett_isakmp_flags = -1;
 static gint ett_isakmp_payload = -1;
 static gint ett_isakmp_fragment = -1;
@@ -367,6 +370,11 @@ static gint ett_isakmp_rohc_attr = -1;
 static gint ett_isakmp_decrypted_data = -1;
 static gint ett_isakmp_decrypted_payloads = -1;
 #endif /* HAVE_LIBGCRYPT */
+
+static expert_field ei_isakmp_enc_iv = EI_INIT;
+static expert_field ei_isakmp_ikev2_integrity_checksum = EI_INIT;
+static expert_field ei_isakmp_enc_data_length_mult_block_size = EI_INIT;
+static expert_field ei_isakmp_enc_pad_length_big = EI_INIT;
 
 static dissector_handle_t eap_handle = NULL;
 
@@ -2689,8 +2697,8 @@ dissect_isakmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
   int			offset = 0, len;
   isakmp_hdr_t	hdr;
-  proto_item *	ti;
-  proto_tree *	isakmp_tree = NULL;
+  proto_item *	ti, *vers_item;
+  proto_tree *	isakmp_tree = NULL, *vers_tree;
   int			isakmp_version;
 #ifdef HAVE_LIBGCRYPT
   guint8                i_cookie[COOKIE_SIZE], *ic_key;
@@ -2786,10 +2794,10 @@ dissect_isakmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 #endif /* HAVE_LIBGCRYPT */
 
   if (tree) {
-    proto_tree_add_item(isakmp_tree, hf_isakmp_icookie, tvb, offset, COOKIE_SIZE, ENC_NA);
+    proto_tree_add_item(isakmp_tree, hf_isakmp_ispi, tvb, offset, COOKIE_SIZE, ENC_NA);
     offset += COOKIE_SIZE;
 
-    proto_tree_add_item(isakmp_tree, hf_isakmp_rcookie, tvb, offset, COOKIE_SIZE, ENC_NA);
+    proto_tree_add_item(isakmp_tree, hf_isakmp_rspi, tvb, offset, COOKIE_SIZE, ENC_NA);
     offset += COOKIE_SIZE;
 
     hdr.next_payload = tvb_get_guint8(tvb, offset);
@@ -2797,17 +2805,20 @@ dissect_isakmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     offset += 1;
 
-    proto_tree_add_uint_format(isakmp_tree, hf_isakmp_version, tvb, offset,
-                               1, hdr.version, "Version: %u.%u",
-                               hi_nibble(hdr.version), lo_nibble(hdr.version));
+    vers_item = proto_tree_add_uint_format(isakmp_tree, hf_isakmp_version, tvb, offset,
+                                           1, hdr.version, "Version: %u.%u",
+                                           hi_nibble(hdr.version), lo_nibble(hdr.version));
+    vers_tree = proto_item_add_subtree(vers_item, ett_isakmp_version);
+    proto_tree_add_item(vers_tree, hf_isakmp_mjver, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(vers_tree, hf_isakmp_mnver, tvb, offset, 1, ENC_BIG_ENDIAN);
     offset += 1;
 
     if(isakmp_version == 1) {
-	proto_tree_add_item(isakmp_tree,  hf_isakmp_exchangetype_v1, tvb, offset, 1, ENC_BIG_ENDIAN);
-	col_add_str(pinfo->cinfo, COL_INFO,val_to_str(hdr.exch_type, exchange_v1_type, "Unknown %d"));
+        proto_tree_add_item(isakmp_tree,  hf_isakmp_exchangetype_v1, tvb, offset, 1, ENC_BIG_ENDIAN);
+        col_add_str(pinfo->cinfo, COL_INFO,val_to_str(hdr.exch_type, exchange_v1_type, "Unknown %d"));
     } else if (isakmp_version == 2){
-	proto_tree_add_item(isakmp_tree,  hf_isakmp_exchangetype_v2, tvb, offset, 1, ENC_BIG_ENDIAN);
-	col_add_str(pinfo->cinfo, COL_INFO,val_to_str(hdr.exch_type, exchange_v2_type, "Unknown %d"));
+        proto_tree_add_item(isakmp_tree,  hf_isakmp_exchangetype_v2, tvb, offset, 1, ENC_BIG_ENDIAN);
+        col_add_str(pinfo->cinfo, COL_INFO,val_to_str(hdr.exch_type, exchange_v2_type, "Unknown %d"));
     }
     offset += 1;
 
@@ -3809,7 +3820,7 @@ dissect_cisco_fragmentation(tvbuff_t *tvb, int offset, int length, proto_tree *t
   {
     gboolean save_fragmented;
     tvbuff_t *defrag_isakmp_tvb = NULL;
-    fragment_data *frag_msg = NULL;
+    fragment_head *frag_msg = NULL;
 
     save_fragmented = pinfo->fragmented;
     pinfo->fragmented = TRUE;
@@ -3827,8 +3838,7 @@ dissect_cisco_fragmentation(tvbuff_t *tvb, int offset, int length, proto_tree *t
     if (defrag_isakmp_tvb) { /* take it all */
       dissect_isakmp(defrag_isakmp_tvb, pinfo, ptree);
     }
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_append_fstr(pinfo->cinfo, COL_INFO,
+    col_append_fstr(pinfo->cinfo, COL_INFO,
                       " (%sMessage fragment %u%s)",
                       (frag_msg ? "Reassembled + " : ""),
                       seq, (last ? " - last" : ""));
@@ -4601,9 +4611,7 @@ dissect_enc(tvbuff_t *tvb,
      * wrong encryption algorithm and/or authentication algorithm.
      */
     if (encr_data_len <= 0) {
-      item = proto_tree_add_text(tree, tvb, offset, length, "Not enough data for IV, Encrypted data and ICD.");
-      expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "Not enough data in IKEv2 Encrypted payload");
-      PROTO_ITEM_SET_GENERATED(item);
+      proto_tree_add_expert(tree, pinfo, &ei_isakmp_enc_iv, tvb, offset, length);
       return;
     }
 
@@ -4664,7 +4672,7 @@ dissect_enc(tvbuff_t *tvb,
           proto_item_append_text(icd_item, "[correct]");
         } else {
           proto_item_append_text(icd_item, "[incorrect, should be %s]", bytes_to_str(md, icd_len));
-          expert_add_info_format(pinfo, icd_item, PI_CHECKSUM, PI_WARN, "IKEv2 Integrity Checksum Data is incorrect");
+          expert_add_info(pinfo, icd_item, &ei_isakmp_ikev2_integrity_checksum);
         }
         gcry_md_close(md_hd);
       } else {
@@ -4678,7 +4686,7 @@ dissect_enc(tvbuff_t *tvb,
     if (encr_data_len % key_info->encr_spec->block_len != 0) {
       proto_item_append_text(encr_data_item, "[Invalid length, should be a multiple of block size (%u)]",
         key_info->encr_spec->block_len);
-      expert_add_info_format(pinfo, encr_data_item, PI_MALFORMED, PI_WARN, "Encrypted data length isn't a multiple of block size");
+      expert_add_info(pinfo, encr_data_item, &ei_isakmp_enc_data_length_mult_block_size);
       return;
     }
 
@@ -4747,7 +4755,7 @@ dissect_enc(tvbuff_t *tvb,
     if (pad_len > 0) {
       if (payloads_len < 0) {
         proto_item_append_text(padlen_item, " [too long]");
-        expert_add_info_format(pinfo, padlen_item, PI_MALFORMED, PI_WARN, "Pad length is too big");
+        expert_add_info(pinfo, padlen_item, &ei_isakmp_enc_pad_length_big);
       } else {
         item = proto_tree_add_item(decr_tree, hf_isakmp_enc_padding, decr_tvb, payloads_len, pad_len, ENC_NA);
         proto_item_append_text(item, " (%d byte%s)", pad_len, plurality(pad_len, "", "s"));
@@ -4997,14 +5005,14 @@ proto_register_isakmp(void)
   module_t *isakmp_module;
 #endif
   static hf_register_info hf[] = {
-    { &hf_isakmp_icookie,
-      { "Initiator cookie", "isakmp.icookie",
+    { &hf_isakmp_ispi,
+      { "Initiator SPI", "isakmp.ispi",
         FT_BYTES, BASE_NONE, NULL, 0x0,
-        "ISAKMP Initiator Cookie", HFILL }},
-    { &hf_isakmp_rcookie,
-      { "Responder cookie", "isakmp.rcookie",
+        "ISAKMP Initiator SPI", HFILL }},
+    { &hf_isakmp_rspi,
+      { "Responder SPI", "isakmp.rspi",
         FT_BYTES, BASE_NONE, NULL, 0x0,
-        "ISAKMP Responder Cookie", HFILL }},
+        "ISAKMP Responder SPI", HFILL }},
     { &hf_isakmp_typepayload,
       { "Type Payload", "isakmp.typepayload",
         FT_UINT8,BASE_RANGE_STRING | BASE_DEC, RVALS(payload_type), 0x0,
@@ -5029,6 +5037,14 @@ proto_register_isakmp(void)
       { "Version", "isakmp.version",
         FT_UINT8, BASE_HEX, NULL, 0x0,
         "ISAKMP Version (major + minor)", HFILL }},
+    { &hf_isakmp_mjver,
+      { "MjVer", "isakmp.mjver",
+        FT_UINT8, BASE_HEX, NULL, 0xF0,
+        "ISAKMP MjVer", HFILL }},
+    { &hf_isakmp_mnver,
+      { "MnVer", "isakmp.mnver",
+        FT_UINT8, BASE_HEX, NULL, 0x0F,
+        "ISAKMP MnVer", HFILL }},
     { &hf_isakmp_exchangetype_v1,
       { "Exchange type", "isakmp.exchangetype",
         FT_UINT8, BASE_DEC, VALS(exchange_v1_type), 0x0,
@@ -5112,11 +5128,11 @@ proto_register_isakmp(void)
     { &hf_isakmp_spisize,
       { "SPI Size", "isakmp.spisize",
         FT_UINT8, BASE_DEC, NULL, 0x0,
-        "ISAKMP SPI Size", HFILL }},
+        NULL, HFILL }},
     { &hf_isakmp_spi,
-      { "SPI Size", "isakmp.spi",
+      { "SPI", "isakmp.spi",
         FT_BYTES, BASE_NONE, NULL, 0x0,
-        "ISAKMP SPI", HFILL }},
+        NULL, HFILL }},
     { &hf_isakmp_prop_transforms,
       { "Proposal transforms", "isakmp.prop.transforms",
         FT_UINT8, BASE_DEC, NULL, 0x0,
@@ -6070,6 +6086,7 @@ proto_register_isakmp(void)
 
   static gint *ett[] = {
     &ett_isakmp,
+    &ett_isakmp_version,
     &ett_isakmp_flags,
     &ett_isakmp_payload,
     &ett_isakmp_fragment,
@@ -6086,6 +6103,16 @@ proto_register_isakmp(void)
     &ett_isakmp_decrypted_payloads
 #endif /* HAVE_LIBGCRYPT */
   };
+
+  static ei_register_info ei[] = {
+     { &ei_isakmp_enc_iv, { "isakmp.enc.iv.not_enough_data", PI_MALFORMED, PI_WARN, "Not enough data in IKEv2 Encrypted payload", EXPFILL }},
+     { &ei_isakmp_ikev2_integrity_checksum, { "isakmp.ikev2.integrity_checksum", PI_CHECKSUM, PI_WARN, "IKEv2 Integrity Checksum Data is incorrect", EXPFILL }},
+     { &ei_isakmp_enc_data_length_mult_block_size, { "isakmp.enc_data_length_mult_block_size", PI_MALFORMED, PI_WARN, "Encrypted data length isn't a multiple of block size", EXPFILL }},
+     { &ei_isakmp_enc_pad_length_big, { "isakmp.enc.pad_length.big", PI_MALFORMED, PI_WARN, "Pad length is too big", EXPFILL }},
+  };
+
+  expert_module_t* expert_isakmp;
+
 #ifdef HAVE_LIBGCRYPT
   static uat_field_t ikev1_uat_flds[] = {
     UAT_FLD_BUFFER(ikev1_users, icookie, "Initiator's COOKIE", "Initiator's COOKIE"),
@@ -6109,6 +6136,8 @@ proto_register_isakmp(void)
 					       "ISAKMP", "isakmp");
   proto_register_field_array(proto_isakmp, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_isakmp = expert_register_protocol(proto_isakmp);
+  expert_register_field_array(expert_isakmp, ei, array_length(ei));
   register_init_routine(&isakmp_init_protocol);
 
   register_dissector("isakmp", dissect_isakmp, proto_isakmp);

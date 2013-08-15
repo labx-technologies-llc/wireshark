@@ -679,7 +679,7 @@ profile_show_popup_cb(GtkWidget *w _U_, GdkEvent *event, gpointer user_data _U_)
   while (fl_entry && fl_entry->data) {
     profile = (profile_def *)fl_entry->data;
 
-    if (profile_exists(profile->name, FALSE)) {
+    if (!profile->is_global) {
       menu_item = gtk_check_menu_item_new_with_label(profile->name);
       if (strcmp(profile->name, profile_name)==0) {
         /* Check current profile */
@@ -689,7 +689,7 @@ profile_show_popup_cb(GtkWidget *w _U_, GdkEvent *event, gpointer user_data _U_)
       g_signal_connect(menu_item, "activate", G_CALLBACK(select_profile_cb), g_strdup(profile->name));
       gtk_menu_shell_append(GTK_MENU_SHELL(menu), menu_item);
       gtk_widget_show(menu_item);
-    } else if (profile_exists(profile->name, TRUE)) {
+    } else {
       if (!sub_menu) {
         menu_item =  gtk_separator_menu_item_new();
         gtk_menu_shell_append(GTK_MENU_SHELL(menu), menu_item);
@@ -886,8 +886,6 @@ profile_manage_profiles_dlg(gint operation)
       gtk_tree_store_set(store, &parent, 0, "Personal", 1, FALSE, 2, FALSE, -1);
     }
 
-    gtk_tree_store_append(store, &iter, has_global ? &parent : NULL);
-    gtk_tree_store_set(store, &iter, 0, DEFAULT_PROFILE, 1, FALSE, 2, TRUE, -1);
     init_profile_list();
     fl_entry = current_profile_list();
 

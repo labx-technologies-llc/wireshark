@@ -32,7 +32,6 @@
 #include <epan/packet_info.h>
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
-#include <epan/nstime.h>
 #include <epan/dissectors/packet-sv.h>
 
 static int
@@ -41,7 +40,7 @@ sv_packet(void *prs _U_, packet_info *pinfo, epan_dissect_t *edt _U_, const void
 	int i;
 	const sv_frame_data * sv_data = (const sv_frame_data *)pri;
 
-	printf("%f %u ", nstime_to_sec(&pinfo->fd->rel_ts), sv_data->smpCnt);
+	printf("%f %u ", nstime_to_sec(&pinfo->rel_ts), sv_data->smpCnt);
 
 	for(i = 0; i < sv_data->num_phsMeas; i++) {
 		printf("%d ", sv_data->phsMeas[i].value);
@@ -53,7 +52,7 @@ sv_packet(void *prs _U_, packet_info *pinfo, epan_dissect_t *edt _U_, const void
 }
 
 static void
-svstat_init(const char *optarg _U_, void* userdata _U_)
+svstat_init(const char *opt_arg _U_, void* userdata _U_)
 {
 	GString	*error_string;
 

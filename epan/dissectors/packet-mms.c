@@ -38,7 +38,6 @@
 #include <epan/packet.h>
 #include <epan/asn1.h>
 #include <epan/expert.h>
-#include <epan/nstime.h>
 
 #include "packet-ber.h"
 #include "packet-acse.h"
@@ -723,7 +722,7 @@ static int hf_mms_Transitions_idle_to_active = -1;
 static int hf_mms_Transitions_any_to_deleted = -1;
 
 /*--- End of included file: packet-mms-hf.c ---*/
-#line 47 "../../asn1/mms/packet-mms-template.c"
+#line 46 "../../asn1/mms/packet-mms-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_mms = -1;
@@ -940,7 +939,10 @@ static gint ett_mms_DirectoryEntry = -1;
 static gint ett_mms_FileAttributes = -1;
 
 /*--- End of included file: packet-mms-ett.c ---*/
-#line 51 "../../asn1/mms/packet-mms-template.c"
+#line 50 "../../asn1/mms/packet-mms-template.c"
+
+static expert_field ei_mms_mal_timeofday_encoding = EI_INIT;
+static expert_field ei_mms_mal_utctime_encoding = EI_INIT;
 
 
 /*--- Included file: packet-mms-fn.c ---*/
@@ -1832,7 +1834,6 @@ dissect_mms_TimeOfDay(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 #line 50 "../../asn1/mms/mms.cnf"
 
 	guint32 len;
-	proto_item *cause;
 	guint32 milliseconds;
 	guint16 days;
 	gchar *	ptime;
@@ -1872,11 +1873,8 @@ dissect_mms_TimeOfDay(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 		return offset;
 	}
 
-	cause = proto_tree_add_text(tree, tvb, offset, len,
-			"BER Error: malformed TimeOfDay encoding, "
-			"length must be 4 or 6 bytes");
-	proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-	expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "BER Error: malformed TimeOfDay encoding");
+	proto_tree_add_expert_format(tree, actx->pinfo, &ei_mms_mal_timeofday_encoding, 
+			tvb, offset, len, "BER Error: malformed TimeOfDay encoding, length must be 4 or 6 bytes");
 	if(hf_index >= 0)
 	{
 		proto_tree_add_string(tree, hf_index, tvb, offset, len, "????");
@@ -1913,10 +1911,9 @@ dissect_mms_MMSString(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 
 static int
 dissect_mms_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 105 "../../asn1/mms/mms.cnf"
+#line 101 "../../asn1/mms/mms.cnf"
 
 	guint32 len;
-	proto_item *cause;
 	guint32 seconds;
 	guint32	fraction;
 	guint32 nanoseconds;
@@ -1927,11 +1924,8 @@ dissect_mms_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
 
 	if(len != 8)
 	{
-		cause = proto_tree_add_text(tree, tvb, offset, len,
-				"BER Error: malformed IEC61850 UTCTime encoding, "
-				"length must be 8 bytes");
-		proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-		expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "BER Error: malformed IEC61850 UTCTime encoding");
+		proto_tree_add_expert_format(tree, actx->pinfo, &ei_mms_mal_utctime_encoding, 
+				tvb, offset, len, "BER Error: malformed IEC61850 UTCTime encoding, length must be 8 bytes");
 		if(hf_index >= 0)
 		{
 			proto_tree_add_string(tree, hf_index, tvb, offset, len, "????");
@@ -7052,7 +7046,7 @@ dissect_mms_MMSpdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_,
 
 
 /*--- End of included file: packet-mms-fn.c ---*/
-#line 53 "../../asn1/mms/packet-mms-template.c"
+#line 55 "../../asn1/mms/packet-mms-template.c"
 
 /*
 * Dissect MMS PDUs inside a PPDU.
@@ -9760,7 +9754,7 @@ void proto_register_mms(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-mms-hfarr.c ---*/
-#line 92 "../../asn1/mms/packet-mms-template.c"
+#line 94 "../../asn1/mms/packet-mms-template.c"
   };
 
   /* List of subtrees */
@@ -9979,8 +9973,15 @@ void proto_register_mms(void) {
     &ett_mms_FileAttributes,
 
 /*--- End of included file: packet-mms-ettarr.c ---*/
-#line 98 "../../asn1/mms/packet-mms-template.c"
+#line 100 "../../asn1/mms/packet-mms-template.c"
   };
+
+  static ei_register_info ei[] = {
+     { &ei_mms_mal_timeofday_encoding, { "mms.malformed.timeofday_encoding", PI_MALFORMED, PI_WARN, "BER Error: malformed TimeOfDay encoding", EXPFILL }},
+     { &ei_mms_mal_utctime_encoding, { "mms.malformed.utctime", PI_MALFORMED, PI_WARN, "BER Error: malformed IEC61850 UTCTime encoding", EXPFILL }},
+  };
+
+  expert_module_t* expert_mms;
 
   /* Register protocol */
   proto_mms = proto_register_protocol(PNAME, PSNAME, PFNAME);
@@ -9988,7 +9989,8 @@ void proto_register_mms(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_mms, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-
+  expert_mms = expert_register_protocol(proto_mms);
+  expert_register_field_array(expert_mms, ei, array_length(ei));
 
 }
 

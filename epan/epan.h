@@ -125,14 +125,17 @@ void epan_circuit_cleanup(void);
  * some protocols cannot be decoded without knowledge of previous packets.
  * This inter-packet "state" is stored in the epan_t.
  */
-/* XXX - NOTE: epan_t, epan_new and epan_free are currently unused! */
 typedef struct epan_session epan_t;
 
-epan_t*
-epan_new(void);
+WS_DLL_PUBLIC epan_t *epan_new(void);
 
-void
-epan_free(epan_t*);
+const char *epan_get_user_comment(const epan_t *session, const frame_data *fd);
+
+const char *epan_get_interface_name(const epan_t *session, guint32 interface_id);
+
+const nstime_t *epan_get_frame_ts(const epan_t *session, guint32 frame_num);
+
+WS_DLL_PUBLIC void epan_free(epan_t *session);
 
 WS_DLL_PUBLIC const gchar*
 epan_get_version(void);
@@ -140,14 +143,14 @@ epan_get_version(void);
 /** initialize an existing single packet dissection */
 WS_DLL_PUBLIC
 epan_dissect_t*
-epan_dissect_init(epan_dissect_t	*edt, const gboolean create_proto_tree, const gboolean proto_tree_visible);
+epan_dissect_init(epan_dissect_t *edt, epan_t *session, const gboolean create_proto_tree, const gboolean proto_tree_visible);
 
 /** get a new single packet dissection
  * should be freed using epan_dissect_free() after packet dissection completed
  */
 WS_DLL_PUBLIC
 epan_dissect_t*
-epan_dissect_new(const gboolean create_proto_tree, const gboolean proto_tree_visible);
+epan_dissect_new(epan_t *session, const gboolean create_proto_tree, const gboolean proto_tree_visible);
 
 /** Indicate whether we should fake protocols or not */
 WS_DLL_PUBLIC
@@ -158,12 +161,12 @@ epan_dissect_fake_protocols(epan_dissect_t *edt, const gboolean fake_protocols);
 WS_DLL_PUBLIC
 void
 epan_dissect_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
-        const guint8* data, frame_data *fd, column_info *cinfo);
+        tvbuff_t *tvb, frame_data *fd, column_info *cinfo);
 
 WS_DLL_PUBLIC
 void
 epan_dissect_run_with_taps(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
-        const guint8* data, frame_data *fd, column_info *cinfo);
+        tvbuff_t *tvb, frame_data *fd, column_info *cinfo);
 
 /** Prime a proto_tree using the fields/protocols used in a dfilter. */
 WS_DLL_PUBLIC

@@ -24,6 +24,8 @@
 #ifndef __PACKET_BTSDP_H__
 #define __PACKET_BTSDP_H__
 
+#include <epan/wmem/wmem.h>
+
 /*
  * Based on value provided by Bluetooth SIG:
  * https://www.bluetooth.org/Technical/AssignedNumbers/service_discovery.htm
@@ -128,6 +130,10 @@
 #define BTSDP_GNSS_UUID                                 0x1135
 #define BTSDP_GNSS_SERVER_UUID                          0x1136
 
+#define BTSDP_3D_DISPLAY_UUID                           0x1137
+#define BTSDP_3D_GLASSES_UUID                           0x1138
+#define BTSDP_3D_SYNCHRONIZATION_UUID                   0x1139
+
 #define BTSDP_DID_SERVICE_UUID                          0x1200
 
 #define BTSDP_GENERIC_NETWORKING_SERVICE_UUID           0x1201
@@ -195,7 +201,7 @@ typedef struct _service_info_t {
 extern value_string_ext vs_service_classes_ext;
 
 typedef struct _sdp_package_t {
-    emem_tree_t *service_infos;
+    wmem_tree_t *service_infos;
 } sdp_package_t;
 
 #endif

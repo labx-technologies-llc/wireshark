@@ -82,8 +82,6 @@ enum nas_sys_info_gsm_map {
   RRC_NAS_SYS_INFO_CN_COMMON
 };
 
-static guint32 rrc_nas_sys_info_gsm_map_type = RRC_NAS_SYS_INFO_CN_COMMON;
-
 /* Forward declarations */
 void proto_register_rrc(void);
 void proto_reg_handoff_rrc(void);
@@ -110,6 +108,8 @@ static int ett_rrc = -1;
 
 static gint ett_rrc_eutraFeatureGroupIndicators = -1;
 static gint ett_rrc_cn_CommonGSM_MAP_NAS_SysInfo = -1;
+
+static expert_field ei_rrc_no_hrnti = EI_INIT;
 
 /* Global variables */
 static proto_tree *top_tree;
@@ -292,12 +292,19 @@ void proto_register_rrc(void) {
     &ett_rrc_cn_CommonGSM_MAP_NAS_SysInfo,
   };
 
+  static ei_register_info ei[] = {
+     { &ei_rrc_no_hrnti, { "rrc.no_hrnti", PI_SEQUENCE, PI_NOTE, "Did not detect any H-RNTI", EXPFILL }},
+  };
+
+  expert_module_t* expert_rrc;
 
   /* Register protocol */
   proto_rrc = proto_register_protocol(PNAME, PSNAME, PFNAME);
   /* Register fields and subtrees */
   proto_register_field_array(proto_rrc, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_rrc = expert_register_protocol(proto_rrc);
+  expert_register_field_array(expert_rrc, ei, array_length(ei));
 
   register_dissector("rrc", dissect_rrc, proto_rrc);
 

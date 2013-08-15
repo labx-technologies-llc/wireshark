@@ -31,6 +31,7 @@ check_include_file("direct.h"            HAVE_DIRECT_H)
 check_include_file("dirent.h"            HAVE_DIRENT_H)
 check_include_file("dlfcn.h"             HAVE_DLFCN_H)
 check_include_file("fcntl.h"             HAVE_FCNTL_H)
+check_include_file("getopt.h"            HAVE_GETOPT_H)
 check_include_file("grp.h"               HAVE_GRP_H)
 check_include_file("g_ascii_strtoull.h"  NEED_G_ASCII_STRTOULL_H)
 check_include_file("inet/aton.h"         NEED_INET_ATON_H)
@@ -64,7 +65,14 @@ check_include_file("winsock2.h"          HAVE_WINSOCK2_H)
 
 #Functions
 include(CheckFunctionExists)
+include(CMakePushCheckState)
 check_function_exists("chown"            HAVE_CHOWN)
+
+cmake_push_check_state()
+set(CMAKE_REQUIRED_LIBRARIES ¼{CMAKE_DL_LIBS})
+check_function_exists("dladdr"           HAVE_DLADDR)
+cmake_pop_check_state()
+
 check_function_exists("gethostbyname2"   HAVE_GETHOSTBYNAME2)
 check_function_exists("getopt"           HAVE_GETOPT)
 check_function_exists("getprotobynumber" HAVE_GETPROTOBYNUMBER)

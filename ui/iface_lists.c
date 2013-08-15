@@ -38,6 +38,7 @@
 
 #include "ui/capture_globals.h"
 #include "ui/iface_lists.h"
+#include "../log.h"
 
 /*
  * Used when sorting an interface list into alphabetical order by
@@ -62,7 +63,7 @@ if_list_comparator_alph(const void *first_arg, const void *second_arg)
  * those interfaces.
  */
 void
-scan_local_interfaces(void)
+scan_local_interfaces(void (*update_cb)(void))
 {
     GList             *if_entry, *lt_entry, *if_list;
     if_info_t         *if_info, *temp;
@@ -93,7 +94,7 @@ scan_local_interfaces(void)
     }
 
     /* Scan through the list and build a list of strings to display. */
-    if_list = capture_interface_list(&err, NULL);
+    if_list = capture_interface_list(&err, NULL, update_cb);
     count = 0;
     for (if_entry = if_list; if_entry != NULL; if_entry = g_list_next(if_entry)) {
         if_info = (if_info_t *)if_entry->data;
@@ -159,7 +160,7 @@ scan_local_interfaces(void)
         }
         device.type = if_info->type;
         monitor_mode = prefs_capture_device_monitor_mode(if_info->name);
-        caps = capture_get_if_capabilities(if_info->name, monitor_mode, NULL);
+        caps = capture_get_if_capabilities(if_info->name, monitor_mode, NULL, update_cb);
         for (; (curr_addr = g_slist_nth(if_info->addrs, ips)) != NULL; ips++) {
             temp_addr = (if_addr_t *)g_malloc0(sizeof(if_addr_t));
             if (ips != 0) {
@@ -341,18 +342,33 @@ scan_local_interfaces(void)
 }
 
 /*
- * Get the global interface list.  Generate it if we haven't
- * done so already.
+ * Get the global interface list.  Generate it if we haven't done so 
+ * already.  This can be quite time consuming the first time, so 
+ * record how long it takes in the info log.
  */
 void
-fill_in_local_interfaces(void)
+fill_in_local_interfaces(void(*update_cb)(void))
 {
-    static gboolean initialized = FALSE;
+	GTimeVal start_time;
+	GTimeVal end_time;
+	float elapsed;
+	static gboolean initialized = FALSE;
 
+	/* record the time we started, so we can log total time later */
+	g_get_current_time(&start_time);
+	g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_INFO, "fill_in_local_interfaces() starts");
+	
     if (!initialized) {
-        scan_local_interfaces();
+		/* do the actual work */
+        scan_local_interfaces(update_cb);
         initialized = TRUE;
     }
+	/* log how long it took */
+    g_get_current_time(&end_time);
+    elapsed = (float) ((end_time.tv_sec - start_time.tv_sec) +
+                        ((end_time.tv_usec - start_time.tv_usec) / 1e6));
+
+    g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_INFO, "fill_in_local_interfaces() ends, taking %.3fs", elapsed);
 }
 
 void

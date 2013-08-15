@@ -131,10 +131,6 @@
 void proto_register_ax25_kiss(void);
 void proto_reg_handoff_ax25_kiss(void);
 
-/* Dissector handles - all the possibles are listed */
-static dissector_handle_t ax25_handle;
-
-
 /* Initialize the protocol and registered fields */
 static int proto_ax25_kiss           = -1;
 
@@ -149,6 +145,11 @@ static int hf_ax25_kiss_sethardware	= -1;
 
 /* Initialize the subtree pointers */
 static gint ett_ax25_kiss = -1;
+
+static dissector_handle_t kiss_handle;
+
+/* Dissector handles - all the possibles are listed */
+static dissector_handle_t ax25_handle;
 
 static const value_string kiss_frame_types[] = {
 	{ KISS_DATA_FRAME,  "Data frame" },
@@ -180,12 +181,12 @@ capture_ax25_kiss( const guchar *pd, int offset, int len, packet_counts *ld)
 	switch ( kiss_cmd & KISS_CMD_MASK )
 		{
 		case KISS_DATA_FRAME	: capture_ax25( pd, l_offset, len, ld ); break;
-		case KISS_TXDELAY	: l_offset += 1; break;
-		case KISS_PERSISTENCE	: l_offset += 1; break;
-		case KISS_SLOT_TIME	: l_offset += 1; break;
-		case KISS_TXTAIL	: l_offset += 1; break;
-		case KISS_FULLDUPLEX	: l_offset += 1; break;
-		case KISS_SETHARDWARE	: l_offset += 1; break;
+		case KISS_TXDELAY	: break;
+		case KISS_PERSISTENCE	: break;
+		case KISS_SLOT_TIME	: break;
+		case KISS_TXTAIL	: break;
+		case KISS_FULLDUPLEX	: break;
+		case KISS_SETHARDWARE	: break;
 		case KISS_RETURN	: break;
 		default			: break;
 		}
@@ -368,7 +369,7 @@ proto_register_ax25_kiss(void)
 	proto_ax25_kiss = proto_register_protocol( "AX.25 KISS", "AX.25 KISS", "ax25_kiss" );
 
 	/* Register the dissector */
-	register_dissector( "ax25_kiss", dissect_ax25_kiss, proto_ax25_kiss );
+	kiss_handle = register_dissector( "ax25_kiss", dissect_ax25_kiss, proto_ax25_kiss );
 
 	/* Required function calls to register the header fields and subtrees used */
 	proto_register_field_array( proto_ax25_kiss, hf, array_length( hf ) );
@@ -378,9 +379,6 @@ proto_register_ax25_kiss(void)
 void
 proto_reg_handoff_ax25_kiss(void)
 {
-	dissector_handle_t kiss_handle;
-
-	kiss_handle = create_dissector_handle( dissect_ax25_kiss, proto_ax25_kiss );
 	dissector_add_uint( "wtap_encap", WTAP_ENCAP_AX25_KISS, kiss_handle );
 
 	/* only currently implemented for AX.25 */

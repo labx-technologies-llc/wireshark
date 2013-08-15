@@ -55,6 +55,34 @@ typedef struct _e_addr_resolve {
   gboolean load_hosts_file_from_profile_only;
 } e_addr_resolve;
 
+
+typedef struct hashether {
+  guint             status;  /* (See above) */
+  guint8            addr[6];
+  char              hexaddr[6*3];
+  char              resolved_name[MAXNAMELEN];
+} hashether_t;
+
+typedef struct serv_port {
+  gchar            *udp_name;
+  gchar            *tcp_name;
+  gchar            *sctp_name;
+  gchar            *dccp_name;
+} serv_port_t;
+
+/*
+ * XXX Some of this is duplicated in addrinfo_list. We may want to replace the
+ * addr and name parts with a struct addrinfo or create our own addrinfo-like
+ * struct that simply points to the data below.
+ */
+typedef struct hashipv4 {
+  guint             addr;
+  gboolean          is_dummy_entry; /* name is IPv4 address in dot format */
+  gboolean          resolve;        /* already tried to resolve it */
+  gchar             ip[16];
+  gchar             name[MAXNAMELEN];
+} hashipv4_t;
+
 /*
  * Flag controlling what names to resolve.
  */
@@ -122,9 +150,6 @@ void get_addr_name_buf(const address *addr, gchar *buf, gsize size);
 struct pref_module;
 extern void addr_resolve_pref_init(struct pref_module *nameres);
 
-/* host_name_lookup_init fires up an ADNS socket if we're using ADNS */
-extern void host_name_lookup_init(void);
-
 /** If we're using c-ares or ADNS, process outstanding host name lookups.
  *  This is called from a GLIB timeout in Wireshark and before processing
  *  each packet in TShark.
@@ -133,9 +158,6 @@ extern void host_name_lookup_init(void);
  * call. This can be used to trigger a display update, e.g. in Wireshark.
  */
 WS_DLL_PUBLIC gboolean host_name_lookup_process(void);
-
-/* host_name_lookup_cleanup cleans up an ADNS socket if we're using ADNS */
-extern void host_name_lookup_cleanup(void);
 
 /* get_hostname returns the host name or "%d.%d.%d.%d" if not found */
 WS_DLL_PUBLIC const gchar *get_hostname(const guint addr);
@@ -296,6 +318,44 @@ gboolean get_host_ipaddr6(const char *host, struct e_in6_addr *addrp);
  */
 WS_DLL_PUBLIC
 const char* host_ip_af(const char *host);
+
+WS_DLL_PUBLIC
+GHashTable *get_manuf_hashtable(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_wka_hashtable(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_eth_hashtable(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_serv_port_hashtable(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_ipv4_hash_table(void);
+
+/*
+ * private functions (should only be called by epan directly)
+ */
+
+WS_DLL_LOCAL
+void name_resolver_init(void);
+
+/* (Re)Initialize hostname resolution subsystem */
+WS_DLL_LOCAL
+void host_name_lookup_init(void);
+
+/* Clean up only hostname resolutions (so they don't "leak" from one
+ * file to the next).
+ */
+WS_DLL_LOCAL
+void host_name_lookup_cleanup(void);
+
+WS_DLL_LOCAL
+void addr_resolv_init(void);
+
+WS_DLL_LOCAL
+void addr_resolv_cleanup(void);
 
 #ifdef __cplusplus
 }

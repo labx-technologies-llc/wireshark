@@ -27,8 +27,7 @@
 BUILT_HEADER_FILES =	\
 	svnversion.h
 
-BUILT_C_FILES =		\
-	ps.c
+BUILT_C_FILES =
 
 BUILT_SOURCES =	$(BUILT_C_FILES) $(BUILT_HEADER_FILES)
 
@@ -37,32 +36,24 @@ GENERATED_HEADER_FILES = \
 	$(BUILT_HEADER_FILES)
 
 # C source files generated from source files.
-GENERATED_C_FILES = \
-	$(BUILT_C_FILES)
+GENERATED_C_FILES =
 
 # All the generated files.
 GENERATED_FILES = $(GENERATED_C_FILES) $(GENERATED_HEADER_FILES)
 
 # sources common for wireshark, tshark, and rawshark
-WIRESHARK_COMMON_SRC =	\
+SHARK_COMMON_SRC =	\
 	$(PLATFORM_SRC)		\
 	capture-pcap-util.c	\
 	cfile.c			\
 	cfutils.c		\
 	clopts_common.c		\
-	disabled_protos.c	\
-	frame_data_sequence.c	\
-	packet-range.c		\
-	print.c			\
-	ps.c			\
+	frame_tvbuff.c		\
 	sync_pipe_write.c	\
-	timestats.c		\
-	tap-megaco-common.c	\
-	tap-rtp-common.c	\
 	version_info.c
 
 # corresponding headers
-WIRESHARK_COMMON_INCLUDES =	\
+SHARK_COMMON_INCLUDES =	\
 	svnversion.h		\
 	capture-pcap-util.h	\
 	capture-pcap-util-int.h	\
@@ -71,19 +62,11 @@ WIRESHARK_COMMON_INCLUDES =	\
 	clopts_common.h		\
 	cmdarg_err.h		\
 	color.h			\
-	disabled_protos.h	\
 	file.h			\
 	fileset.h		\
-	frame_data_sequence.h	\
+	frame_tvbuff.h		\
 	isprint.h		\
-	packet-range.h		\
-	print.h			\
-	ps.h			\
 	register.h		\
-	tempfile.h		\
-	timestats.h		\
-	tap-megaco-common.h	\
-	tap-rtp-common.h	\
 	version_info.h		\
 	ws_symbol_export.h
 
@@ -102,8 +85,8 @@ SHARK_COMMON_CAPTURE_INCLUDES =	\
 	capture_ui_utils.h
 
 # wireshark specifics
-wireshark_SOURCES =	\
-	$(WIRESHARK_COMMON_SRC)	\
+WIRESHARK_COMMON_SRC =	\
+	$(SHARK_COMMON_SRC)	\
 	$(SHARK_COMMON_CAPTURE_SRC) \
 	airpcap_loader.c \
 	capture.c	\
@@ -113,17 +96,13 @@ wireshark_SOURCES =	\
 	file.c		\
 	fileset.c	\
 	filters.c	\
-	g711.c		\
 	iface_monitor.c \
-	merge.c		\
 	proto_hier_stats.c	\
 	summary.c	\
-	tempfile.c	\
-	u3.c		\
 	ws80211_utils.c
 
 # corresponding headers
-wireshark_INCLUDES =	\
+WIRESHARK_COMMON_INCLUDES =	\
 	airpcap.h	\
 	airpcap_loader.h \
 	capture.h	\
@@ -131,29 +110,25 @@ wireshark_INCLUDES =	\
 	capture_opts.h	\
 	color_filters.h	\
 	filters.h	\
-	g711.h		\
 	globals.h	\
 	iface_monitor.h \
 	log.h		\
-	merge.h		\
 	proto_hier_stats.h	\
 	stat_menu.h	\
 	summary.h	\
 	sync_pipe.h	\
-	u3.h		\
 	ws80211_utils.h
 
 # tshark specifics
 tshark_SOURCES =	\
-	$(WIRESHARK_COMMON_SRC)	\
+	$(SHARK_COMMON_SRC)	\
 	$(SHARK_COMMON_CAPTURE_SRC) \
 	capture_opts.c		\
-	tempfile.c		\
 	tshark.c
 
 # rawshark specifics
 rawshark_SOURCES =	\
-	$(WIRESHARK_COMMON_SRC)	\
+	$(SHARK_COMMON_SRC)	\
 	rawshark.c
 
 # text2pcap specifics
@@ -168,15 +143,11 @@ text2pcap_INCLUDES = \
 
 # mergecap specifics
 mergecap_SOURCES = \
-	mergecap.c \
-	merge.c \
-	svnversion.h
+	mergecap.c
 
 # editcap specifics
 editcap_SOURCES = \
 	editcap.c	\
-	epan/crypt/md5.c \
-	epan/nstime.c \
 	$(WTAP_PLUGIN_SOURCES)
 
 # reordercap specifics
@@ -210,7 +181,6 @@ dumpcap_SOURCES =	\
 	pcapio.c	\
 	ringbuffer.c	\
 	sync_pipe_write.c	\
-	tempfile.c	\
 	version_info.c	\
 	ws80211_utils.c
 
@@ -223,7 +193,7 @@ dumpcap_INCLUDES = \
 
 # this target needed for distribution only
 noinst_HEADERS =	\
-	$(WIRESHARK_COMMON_INCLUDES) \
+	$(SHARK_COMMON_INCLUDES) \
 	$(SHARK_COMMON_CAPTURE_INCLUDES) \
-	$(wireshark_INCLUDES) \
+	$(WIRESHARK_COMMON_INCLUDES) \
 	$(dumpcap_INCLUDES)

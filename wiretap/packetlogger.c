@@ -50,11 +50,13 @@ static gboolean packetlogger_read(wtap *wth, int *err, gchar **err_info,
 				  gint64 *data_offset);
 static gboolean packetlogger_seek_read(wtap *wth, gint64 seek_off,
 				       struct wtap_pkthdr *phdr,
-				       guint8 *pd, int length, int *err,
+				       Buffer *buf, int length, int *err,
 				       gchar **err_info);
 static gboolean packetlogger_read_header(packetlogger_header_t *pl_hdr,
 					 FILE_T fh, int *err, gchar **err_info);
-
+static gboolean packetlogger_read_packet(FILE_T fh, struct wtap_pkthdr *phdr,
+					 Buffer *buf, int *err,
+					 gchar **err_info);
 
 int packetlogger_open(wtap *wth, int *err, gchar **err_info)
 {
@@ -97,12 +99,49 @@ int packetlogger_open(wtap *wth, int *err, gchar **err_info)
 static gboolean
 packetlogger_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 {
-	packetlogger_header_t pl_hdr;
-	guint bytes_read;
-
 	*data_offset = file_tell(wth->fh);
 
-	if(!packetlogger_read_header(&pl_hdr, wth->fh, err, err_info))
+	return packetlogger_read_packet(wth->fh, &wth->phdr,
+	    wth->frame_buffer, err, err_info);
+}
+
+static gboolean
+packetlogger_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr,
+		       Buffer *buf, int length _U_, int *err, gchar **err_info)
+{
+	if(file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
+		return FALSE;
+
+	if(!packetlogger_read_packet(wth->random_fh, phdr, buf, err, err_info)) {
+		if(*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static gboolean
+packetlogger_read_header(packetlogger_header_t *pl_hdr, FILE_T fh, int *err,
+			 gchar **err_info)
+{
+	wtap_file_read_expected_bytes(&pl_hdr->len, 4, fh, err, err_info);
+	wtap_file_read_expected_bytes(&pl_hdr->ts, 8, fh, err, err_info);
+
+	/* Convert multi-byte values from big endian to host endian */
+	pl_hdr->len = GUINT32_FROM_BE(pl_hdr->len);
+	pl_hdr->ts = GUINT64_FROM_BE(pl_hdr->ts);
+
+	return TRUE;
+}
+
+static gboolean
+packetlogger_read_packet(FILE_T fh, struct wtap_pkthdr *phdr, Buffer *buf,
+			 int *err, gchar **err_info)
+{
+	packetlogger_header_t pl_hdr;
+
+	if(!packetlogger_read_header(&pl_hdr, fh, err, err_info))
 		return FALSE;
 
 	if (pl_hdr.len < 8) {
@@ -120,76 +159,14 @@ packetlogger_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 		    pl_hdr.len - 8, WTAP_MAX_PACKET_SIZE);
 		return FALSE;
 	}
-	
-	buffer_assure_space(wth->frame_buffer, pl_hdr.len - 8);
-	bytes_read = file_read(buffer_start_ptr(wth->frame_buffer),
-			       pl_hdr.len - 8,
-			       wth->fh);
-	if(bytes_read != pl_hdr.len - 8) {
-		*err = file_error(wth->fh, err_info);
-		if(*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
 
-		return FALSE;
-	}
+	phdr->presence_flags = WTAP_HAS_TS;
 
-	wth->phdr.presence_flags = WTAP_HAS_TS;
+	phdr->len = pl_hdr.len - 8;
+	phdr->caplen = pl_hdr.len - 8;
 
-	wth->phdr.len = pl_hdr.len - 8;
-	wth->phdr.caplen = pl_hdr.len - 8;
+	phdr->ts.secs = (time_t) (pl_hdr.ts >> 32);
+	phdr->ts.nsecs = (int)((pl_hdr.ts & 0xFFFFFFFF) * 1000);
 
-	wth->phdr.ts.secs = (time_t) (pl_hdr.ts >> 32);
-	wth->phdr.ts.nsecs = (int)((pl_hdr.ts & 0xFFFFFFFF) * 1000);
-
-	return TRUE;
-}
-
-static gboolean
-packetlogger_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr _U_,
-		       guint8 *pd, int length, int *err,
-		       gchar **err_info)
-{
-	packetlogger_header_t pl_hdr;
-	guint bytes_read;
-
-	if(file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
-		return FALSE;
-
-	if(!packetlogger_read_header(&pl_hdr, wth->random_fh, err, err_info)) {
-		if(*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-
-		return FALSE;
-	}
-
-	if(length != (int)pl_hdr.len - 8) {
-		*err = WTAP_ERR_BAD_FILE;
-		*err_info = g_strdup_printf("packetlogger: record length %u doesn't match requested length %d", pl_hdr.len, length);
-		return FALSE;
-	}
-
-	bytes_read = file_read(pd, pl_hdr.len - 8, wth->random_fh);
-	if(bytes_read != (pl_hdr.len - 8)) {
-		*err = file_error(wth->random_fh, err_info);
-		if(*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-static gboolean
-packetlogger_read_header(packetlogger_header_t *pl_hdr, FILE_T fh, int *err,
-			 gchar **err_info)
-{
-	wtap_file_read_expected_bytes(&pl_hdr->len, 4, fh, err, err_info);
-	wtap_file_read_expected_bytes(&pl_hdr->ts, 8, fh, err, err_info);
-
-	/* Convert multi-byte values from big endian to host endian */
-	pl_hdr->len = GUINT32_FROM_BE(pl_hdr->len);
-	pl_hdr->ts = GUINT64_FROM_BE(pl_hdr->ts);
-
-	return TRUE;
+	return wtap_read_packet_bytes(fh, buf, phdr->caplen, err, err_info);
 }

@@ -36,7 +36,7 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/asn1.h>
 #include <epan/expert.h>
 
@@ -132,6 +132,9 @@ static gint ett_ros_Code = -1;
 
 /*--- End of included file: packet-ros-ett.c ---*/
 #line 81 "../../asn1/ros/packet-ros-template.c"
+
+static expert_field ei_ros_dissector_oid_not_implemented = EI_INIT;
+static expert_field ei_ros_unknown_ros_pdu = EI_INIT;
 
 static dissector_table_t ros_oid_dissector_table=NULL;
 
@@ -244,11 +247,9 @@ static gboolean ros_try_string(const char *oid, tvbuff_t *tvb, packet_info *pinf
 
 			opname = val_to_str(opcode_lcl, lookup, "Unknown opcode (%d)");
 
-			if (check_col(pinfo->cinfo, COL_INFO)) {
-				col_set_str(pinfo->cinfo, COL_INFO, opname);
-				if(suffix)
-					col_append_str(pinfo->cinfo, COL_INFO, suffix);
-			}
+			col_set_str(pinfo->cinfo, COL_INFO, opname);
+			if(suffix)
+				col_append_str(pinfo->cinfo, COL_INFO, suffix);
 
 			(*opdissector)(tvb, pinfo, ros_tree, NULL);
 
@@ -271,7 +272,7 @@ call_ros_oid_callback(const char *oid, tvbuff_t *tvb, int offset, packet_info *p
 		proto_item *item=proto_tree_add_text(tree, next_tvb, 0, tvb_length_remaining(tvb, offset), "ROS: Dissector for OID:%s not implemented. Contact Wireshark developers if you want this supported", oid);
 		proto_tree *next_tree=proto_item_add_subtree(item, ett_ros_unknown);
 
-		expert_add_info_format (pinfo, item, PI_UNDECODED, PI_WARN,
+		expert_add_info_format_text(pinfo, item, &ei_ros_dissector_oid_not_implemented,
                                         "ROS: Dissector for OID %s not implemented", oid);
 		dissect_unknown_ber(pinfo, next_tvb, offset, next_tree);
 	}
@@ -374,7 +375,7 @@ ros_match_call_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
 
       /* if we cant reuse the old one, grab a new chunk */
       if(!rcrp){
-	rcrp=se_new(ros_call_response_t);
+	rcrp=wmem_new(wmem_file_scope(), ros_call_response_t);
       }
       rcrp->invokeId=invokeId;
       rcrp->req_frame=pinfo->fd->num;
@@ -648,16 +649,14 @@ static const value_string ros_GeneralProblem_vals[] = {
 
 static int
 dissect_ros_GeneralProblem(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 169 "../../asn1/ros/ros.cnf"
+#line 168 "../../asn1/ros/ros.cnf"
   guint32 problem;
 
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &problem);
 
 
-  if (check_col(actx->pinfo->cinfo, COL_INFO)) {
-	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", val_to_str(problem, ros_GeneralProblem_vals, "GeneralProblem(%d)"));
-  }
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", val_to_str(problem, ros_GeneralProblem_vals, "GeneralProblem(%d)"));
 
 
 
@@ -680,16 +679,14 @@ static const value_string ros_InvokeProblem_vals[] = {
 
 static int
 dissect_ros_InvokeProblem(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 181 "../../asn1/ros/ros.cnf"
+#line 178 "../../asn1/ros/ros.cnf"
   guint32 problem;
 
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &problem);
 
 
-  if (check_col(actx->pinfo->cinfo, COL_INFO)) {
-	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", val_to_str(problem, ros_InvokeProblem_vals, "InvokeProblem(%d)"));
-  }
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", val_to_str(problem, ros_InvokeProblem_vals, "InvokeProblem(%d)"));
 
 
 
@@ -707,16 +704,14 @@ static const value_string ros_ReturnResultProblem_vals[] = {
 
 static int
 dissect_ros_ReturnResultProblem(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 193 "../../asn1/ros/ros.cnf"
+#line 188 "../../asn1/ros/ros.cnf"
   guint32 problem;
 
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &problem);
 
 
-  if (check_col(actx->pinfo->cinfo, COL_INFO)) {
-	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", val_to_str(problem, ros_ReturnResultProblem_vals, "ReturnResultProblem(%d)"));
-  }
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", val_to_str(problem, ros_ReturnResultProblem_vals, "ReturnResultProblem(%d)"));
 
 
 
@@ -736,16 +731,14 @@ static const value_string ros_ReturnErrorProblem_vals[] = {
 
 static int
 dissect_ros_ReturnErrorProblem(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 205 "../../asn1/ros/ros.cnf"
+#line 198 "../../asn1/ros/ros.cnf"
   guint32 problem;
 
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &problem);
 
 
-  if (check_col(actx->pinfo->cinfo, COL_INFO)) {
-	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", val_to_str(problem, ros_ReturnErrorProblem_vals, "ReturnErrorProblem(%d)"));
-  }
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", val_to_str(problem, ros_ReturnErrorProblem_vals, "ReturnErrorProblem(%d)"));
 
 
 
@@ -798,8 +791,7 @@ dissect_ros_Reject(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_,
 static int
 dissect_ros_T_reject(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 161 "../../asn1/ros/ros.cnf"
-	if(check_col(actx->pinfo->cinfo, COL_INFO))
-		col_set_str(actx->pinfo->cinfo, COL_INFO, "Reject");
+	col_set_str(actx->pinfo->cinfo, COL_INFO, "Reject");
 	  offset = dissect_ros_Reject(implicit_tag, tvb, offset, actx, tree, hf_index);
 
 
@@ -1013,7 +1005,7 @@ dissect_ros_Code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, a
 
 
 /*--- End of included file: packet-ros-fn.c ---*/
-#line 372 "../../asn1/ros/packet-ros-template.c"
+#line 373 "../../asn1/ros/packet-ros-template.c"
 
 /*
 * Dissect ROS PDUs inside a PPDU.
@@ -1079,7 +1071,7 @@ dissect_ros(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			item = proto_tree_add_text(tree, tvb, offset, -1,"Unknown ROS PDU");
 
 			if(item){
-				expert_add_info_format (pinfo, item, PI_UNDECODED, PI_WARN, "Unknown ROS PDU");
+				expert_add_info(pinfo, item, &ei_ros_unknown_ros_pdu);
 				next_tree=proto_item_add_subtree(item, ett_ros_unknown);
 				dissect_unknown_ber(pinfo, tvb, offset, next_tree);
 			}
@@ -1244,7 +1236,7 @@ void proto_register_ros(void) {
         "OBJECT_IDENTIFIER", HFILL }},
 
 /*--- End of included file: packet-ros-hfarr.c ---*/
-#line 490 "../../asn1/ros/packet-ros-template.c"
+#line 491 "../../asn1/ros/packet-ros-template.c"
   };
 
   /* List of subtrees */
@@ -1265,8 +1257,15 @@ void proto_register_ros(void) {
     &ett_ros_Code,
 
 /*--- End of included file: packet-ros-ettarr.c ---*/
-#line 497 "../../asn1/ros/packet-ros-template.c"
+#line 498 "../../asn1/ros/packet-ros-template.c"
   };
+
+  static ei_register_info ei[] = {
+     { &ei_ros_dissector_oid_not_implemented, { "ros.dissector_oid_not_implemented", PI_UNDECODED, PI_WARN, "ROS: Dissector for OID not implemented", EXPFILL }},
+     { &ei_ros_unknown_ros_pdu, { "ros.unknown_ros_pdu", PI_UNDECODED, PI_WARN, "Unknown ROS PDU", EXPFILL }},
+  };
+
+  expert_module_t* expert_ros;
 
   /* Register protocol */
   proto_ros = proto_register_protocol(PNAME, PSNAME, PFNAME);
@@ -1274,6 +1273,8 @@ void proto_register_ros(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_ros, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_ros = expert_register_protocol(proto_ros);
+  expert_register_field_array(expert_ros, ei, array_length(ei));
 
   ros_oid_dissector_table = register_dissector_table("ros.oid", "ROS OID Dissectors", FT_STRING, BASE_NONE);
   oid_table=g_hash_table_new(g_str_hash, g_str_equal);

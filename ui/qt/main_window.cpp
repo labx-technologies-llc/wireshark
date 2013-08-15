@@ -59,6 +59,12 @@
 #include <QMetaObject>
 #include <QMessageBox>
 
+#ifdef QT_MACEXTRAS_LIB
+#include <QtMacExtras/QMacNativeToolBar>
+#endif
+
+#include <QDebug>
+
 //menu_recent_file_write_all
 
 // If we ever add support for multiple windows this will need to be replaced.
@@ -76,6 +82,7 @@ MainWindow::MainWindow(QWidget *parent) :
     cap_file_(NULL),
     previous_focus_(NULL),
     capture_stopping_(false),
+    capture_filter_valid_(false),
 #ifdef _WIN32
     pipe_timer_(NULL)
 #else
@@ -101,10 +108,13 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(wsApp, SIGNAL(updateRecentItemStatus(const QString &, qint64, bool)), this, SLOT(updateRecentFiles()));
     updateRecentFiles();
 
+    connect(&summary_dialog_, SIGNAL(captureCommentChanged()), this, SLOT(updateForUnsavedChanges()));
+
     const DisplayFilterEdit *df_edit = dynamic_cast<DisplayFilterEdit *>(df_combo_box_->lineEdit());
     connect(df_edit, SIGNAL(pushFilterSyntaxStatus(QString&)), main_ui_->statusBar, SLOT(pushFilterStatus(QString&)));
     connect(df_edit, SIGNAL(popFilterSyntaxStatus()), main_ui_->statusBar, SLOT(popFilterStatus()));
-    connect(df_edit, SIGNAL(pushFilterSyntaxWarning(QString&)), main_ui_->statusBar, SLOT(pushTemporaryStatus(QString&)));
+    connect(df_edit, SIGNAL(pushFilterSyntaxWarning(QString&)),
+            main_ui_->statusBar, SLOT(pushTemporaryStatus(QString&)));
     connect(df_edit, SIGNAL(filterPackets(QString&,bool)), this, SLOT(filterPackets(QString&,bool)));
     connect(df_edit, SIGNAL(addBookmark(QString)), this, SLOT(addDisplayFilterButton(QString)));
     connect(this, SIGNAL(displayFilterSuccess(bool)), df_edit, SLOT(displayFilterSuccess(bool)));
@@ -116,10 +126,6 @@ MainWindow::MainWindow(QWidget *parent) :
     // main_ui_->actionFileSave set in main_window.ui
     main_ui_->actionFileClose->setIcon(
                 QIcon().fromTheme("process-stop", style()->standardIcon(QStyle::SP_DialogCloseButton)));
-
-    // If we use the name "Configuration Profiles" OS X QMenuBar will match "config" and
-    // use the "profiles" action as the default preferences item.
-    main_ui_->actionEditConfigurationProfiles->setText(main_ui_->actionEditConfigurationProfiles->iconText());
 
     // In Qt4 multiple toolbars and "pretty" are mutually exculsive on OS X. If
     // unifiedTitleAndToolBarOnMac is enabled everything ends up in the same row.
@@ -136,6 +142,11 @@ MainWindow::MainWindow(QWidget *parent) :
             main_ui_->statusBar, SLOT(pushTemporaryStatus(QString&)));
 
 #if defined(Q_OS_MAC)
+#ifdef QT_MACEXTRAS_LIB
+    QMacNativeToolBar *ntb = QtMacExtras::setNativeToolBar(main_ui_->mainToolBar);
+    ntb->setIconSize(QSize(24, 24));
+#endif // QT_MACEXTRAS_LIB
+
     foreach (QMenu *menu, main_ui_->menuBar->findChildren<QMenu*>()) {
         foreach (QAction *act, menu->actions()) {
             act->setIconVisibleInMenu(false);
@@ -144,7 +155,10 @@ MainWindow::MainWindow(QWidget *parent) :
     main_ui_->goToLineEdit->setAttribute(Qt::WA_MacSmallSize, true);
     main_ui_->goToGo->setAttribute(Qt::WA_MacSmallSize, true);
     main_ui_->goToCancel->setAttribute(Qt::WA_MacSmallSize, true);
-#endif
+
+    main_ui_->actionEditPreferences->setMenuRole(QAction::PreferencesRole);
+
+#endif // Q_OS_MAC
 
 #ifdef HAVE_SOFTWARE_UPDATE
     QAction *update_sep = main_ui_->menuHelp->insertSeparator(main_ui_->actionHelpAbout);
@@ -219,6 +233,10 @@ MainWindow::MainWindow(QWidget *parent) :
             this, SLOT(startCapture()));
     connect(main_welcome_, SIGNAL(recentFileActivated(QString&)),
             this, SLOT(openCaptureFile(QString&)));
+    connect(main_welcome_, SIGNAL(pushFilterSyntaxStatus(QString&)),
+            main_ui_->statusBar, SLOT(pushFilterStatus(QString&)));
+    connect(main_welcome_, SIGNAL(popFilterSyntaxStatus()),
+            main_ui_->statusBar, SLOT(popFilterStatus()));
 
     connect(this, SIGNAL(setCaptureFile(capture_file*)),
             main_ui_->searchFrame, SLOT(setCaptureFile(capture_file*)));
@@ -264,6 +282,9 @@ MainWindow::MainWindow(QWidget *parent) :
         connect(iface_tree, SIGNAL(itemSelectionChanged()),
                 this, SLOT(interfaceSelectionChanged()));
     }
+    connect(main_ui_->welcomePage, SIGNAL(captureFilterSyntaxChanged(bool)),
+            this, SLOT(captureFilterSyntaxChanged(bool)));
+
     main_ui_->mainStack->setCurrentWidget(main_welcome_);
 }
 
@@ -272,7 +293,6 @@ MainWindow::~MainWindow()
     delete main_ui_;
 }
 
-#include <QDebug>
 void MainWindow::setPipeInputHandler(gint source, gpointer user_data, int *child_process, pipe_input_cb_t input_cb)
 {
     pipe_source_        = source;
@@ -643,6 +663,9 @@ void MainWindow::saveCaptureFile(capture_file *cf, bool stay_closed) {
                    any packets that no longer have comments. */
                 if (discard_comments)
                     packet_list_queue_draw();
+
+                cf->unsaved_changes = false; //we just saved so we signal that we have no unsaved changes
+                updateForUnsavedChanges(); // we update the title bar to remove the *
                 break;
 
             case CF_WRITE_ERROR:
@@ -759,6 +782,9 @@ void MainWindow::saveAsCaptureFile(capture_file *cf, bool must_support_comments,
                any packets that no longer have comments. */
             if (discard_comments)
                 packet_list_queue_draw();
+
+            cf->unsaved_changes = false; //we just saved so we signal that we have no unsaved changes
+            updateForUnsavedChanges(); // we update the title bar to remove the *
             return;
 
         case CF_WRITE_ERROR:
@@ -1171,8 +1197,11 @@ void MainWindow::setTitlebarForCaptureFile()
             // XXX - on non-Mac platforms, put in the application
             // name?
             //
+            gchar *window_name;
             setWindowFilePath(NULL);
-            setWindowTitle(cf_get_tempfile_source(cap_file_));
+            window_name = g_strdup_printf("Capturing from %s", cf_get_tempfile_source(cap_file_)); //TODO : Fix Translate
+            setWindowTitle(window_name);
+            g_free(window_name);
         } else {
             //
             // For a user file, set the full path; that way,
@@ -1206,13 +1235,19 @@ void MainWindow::setTitlebarForCaptureFile()
     }
 }
 
+void MainWindow::setTitlebarForSelectedTreeRow()
+{
+    setWindowTitle(tr("The Wireshark Network Analyzer"));
+}
+
+
 void MainWindow::setTitlebarForCaptureInProgress()
 {
     gchar *window_name;
 
     setWindowFilePath(NULL);
     if (cap_file_) {
-        window_name = g_strdup_printf("Capturing from %s ", cf_get_tempfile_source(cap_file_)); //TODO : Fix Translate
+        window_name = g_strdup_printf("Capturing from %s", cf_get_tempfile_source(cap_file_)); //TODO : Fix Translate
         setWindowTitle(window_name);
         g_free(window_name);
     } else {
@@ -1234,6 +1269,7 @@ void MainWindow::setMenusForCaptureFile(bool force_disable)
         main_ui_->actionFileClose->setEnabled(false);
         main_ui_->actionFileSave->setEnabled(false);
         main_ui_->actionFileSaveAs->setEnabled(false);
+        main_ui_->actionSummary->setEnabled(false);
         main_ui_->actionFileExportPackets->setEnabled(false);
         main_ui_->menuFileExportPacketDissections->setEnabled(false);
         main_ui_->actionFileExportPacketBytes->setEnabled(false);
@@ -1246,6 +1282,7 @@ void MainWindow::setMenusForCaptureFile(bool force_disable)
         main_ui_->actionFileClose->setEnabled(true);
         main_ui_->actionFileSave->setEnabled(cf_can_save(cap_file_));
         main_ui_->actionFileSaveAs->setEnabled(cf_can_save_as(cap_file_));
+        main_ui_->actionSummary->setEnabled(true);
         /*
          * "Export Specified Packets..." should be available only if
          * we can write the file out in at least one format.
@@ -1272,6 +1309,8 @@ void MainWindow::setMenusForCaptureInProgress(bool capture_in_progress) {
     main_ui_->menuFileSet->setEnabled(!capture_in_progress);
     main_ui_->actionFileQuit->setEnabled(true);
 
+    main_ui_->actionSummary->setEnabled(capture_in_progress);
+
     qDebug() << "FIX: packet list heading menu sensitivity";
     //    set_menu_sensitivity(ui_manager_packet_list_heading, "/PacketListHeadingPopup/SortAscending",
     //                         !capture_in_progress);
@@ -1292,6 +1331,7 @@ void MainWindow::setMenusForCaptureInProgress(bool capture_in_progress) {
 
 void MainWindow::setMenusForCaptureStopping() {
     main_ui_->actionFileQuit->setEnabled(false);
+    main_ui_->actionSummary->setEnabled(false);
 #ifdef HAVE_LIBPCAP
     main_ui_->actionStartCapture->setChecked(false);
     main_ui_->actionStopCapture->setEnabled(false);

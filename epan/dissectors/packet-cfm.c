@@ -429,11 +429,12 @@ static gint ett_cfm_all_tlvs = -1;
 static gint ett_cfm_tlv = -1;
 static gint ett_cfm_raps_flags = -1;
 
+static dissector_handle_t cfm_handle;
+
 /* CFM EOAM sub-protocol dissectors: CCM, LBM, LBR, LTM, LTR */
 static int dissect_cfm_ccm(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int offset)
 {
 	gint maid_offset;
-	gint itu_offset;
 
 	guint8 cfm_maid_md_name_format;
 	guint8 cfm_maid_ma_name_format;
@@ -527,17 +528,15 @@ static int dissect_cfm_ccm(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tr
 	/* Dissect 16 octets reserved for Y.1731, samples of the wrap-around frame counters */
 	wi = proto_tree_add_item(cfm_pdu_tree, hf_cfm_ccm_itu_t_y1731, tvb, offset, 16, ENC_NA);
 	cfm_ccm_itu_tree = proto_item_add_subtree(wi, ett_cfm_ccm_itu);
-	itu_offset = offset;
-	proto_tree_add_item(cfm_ccm_itu_tree, hf_cfm_itu_TxFCf, tvb, itu_offset, 4, ENC_NA);
-	itu_offset += 4;
-	proto_tree_add_item(cfm_ccm_itu_tree, hf_cfm_itu_RxFCb, tvb, itu_offset, 4, ENC_NA);
-	itu_offset += 4;
-	proto_tree_add_item(cfm_ccm_itu_tree, hf_cfm_itu_TxFCb, tvb, itu_offset, 4, ENC_NA);
-	itu_offset += 4;
-	proto_tree_add_item(cfm_ccm_itu_tree, hf_cfm_itu_reserved, tvb, itu_offset, 4, ENC_NA);
-	itu_offset += 4;
+	proto_tree_add_item(cfm_ccm_itu_tree, hf_cfm_itu_TxFCf, tvb, offset, 4, ENC_NA);
+	offset += 4;
+	proto_tree_add_item(cfm_ccm_itu_tree, hf_cfm_itu_RxFCb, tvb, offset, 4, ENC_NA);
+	offset += 4;
+	proto_tree_add_item(cfm_ccm_itu_tree, hf_cfm_itu_TxFCb, tvb, offset, 4, ENC_NA);
+	offset += 4;
+	proto_tree_add_item(cfm_ccm_itu_tree, hf_cfm_itu_reserved, tvb, offset, 4, ENC_NA);
+	offset += 4;
 
-	offset += 16;
 	return offset;
 }
 
@@ -1517,7 +1516,7 @@ static void dissect_cfm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 						}
 
 
-						cfm_tlv_offset += cfm_tlv_length;
+						cfm_tlv_offset += tlv_data_offset;
 					}
 				}
 			}
@@ -2113,7 +2112,7 @@ void proto_register_cfm(void)
 		"cfm" /* abbrev */
 		);
 
-	register_dissector("cfm", dissect_cfm, proto_cfm);
+	cfm_handle = register_dissector("cfm", dissect_cfm, proto_cfm);
 
 	proto_register_field_array(proto_cfm, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
@@ -2123,8 +2122,6 @@ void proto_register_cfm(void)
 /* Register CFM OEAM protocol handler */
 void proto_reg_handoff_cfm(void)
 {
-	dissector_handle_t cfm_handle;
-	cfm_handle = create_dissector_handle(dissect_cfm, proto_cfm);
 	dissector_add_uint("ethertype", ETHERTYPE_CFM, cfm_handle);
 }
 

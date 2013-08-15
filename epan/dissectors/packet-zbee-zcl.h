@@ -189,7 +189,15 @@ typedef struct _zbee_zcl_cluster_desc {
     zbee_zcl_fn_attr_data fn_attr_data;
 } zbee_zcl_cluster_desc;
 
+extern const value_string zbee_zcl_short_data_type_names[];
 
+/* Dissector functions */
+extern void dissect_zcl_write_attr (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint *offset);
+extern void dissect_zcl_read_attr_resp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint *offset);
+
+/* Helper functions */
+void decode_zcl_time_in_seconds (gchar *s, guint16 value);
+void decode_zcl_time_in_minutes (gchar *s, guint16 value);
 void dissect_zcl_attr_data (tvbuff_t *tvb, proto_tree *tree, guint *offset, guint data_type);
 void zbee_zcl_init_cluster(int proto, gint ett, guint16 cluster_id, zbee_zcl_fn_attr_id fn_attr_id, zbee_zcl_fn_attr_data fn_attr_data);
 zbee_zcl_cluster_desc *zbee_zcl_get_cluster_desc(guint16 cluster_id);

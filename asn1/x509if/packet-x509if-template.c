@@ -29,6 +29,7 @@
 #include <epan/packet.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-dap.h"
@@ -50,7 +51,6 @@ static int hf_x509if_any_string = -1;
 /* Initialize the subtree pointers */
 #include "packet-x509if-ett.c"
 
-static const char *object_identifier_id = NULL;
 static proto_tree *top_of_dn = NULL;
 static proto_tree *top_of_rdn = NULL;
 
@@ -73,7 +73,6 @@ static char *last_ava = NULL;
 static void
 x509if_frame_end(void)
 {
-  object_identifier_id = NULL;
   top_of_dn = NULL;
   top_of_rdn = NULL;
 

@@ -64,10 +64,14 @@
 #endif /* HAVE_LIBPORTAUDIO */
 
 #include <wsutil/crash_info.h>
+#include <wsutil/u3.h>
+#include <wsutil/privileges.h>
+#include <wsutil/file_util.h>
+
+#include <wiretap/merge.h>
 
 #include <epan/epan.h>
 #include <epan/filesystem.h>
-#include <wsutil/privileges.h>
 #include <epan/epan_dissect.h>
 #include <epan/timestamp.h>
 #include <epan/plugins.h>
@@ -85,24 +89,23 @@
 #include <epan/stat_cmd_args.h>
 #include <epan/uat.h>
 #include <epan/column.h>
+#include <epan/disabled_protos.h>
+#include <epan/print.h>
 
 /* general (not GTK specific) */
 #include "../file.h"
+#include "../frame_tvbuff.h"
 #include "../summary.h"
 #include "../filters.h"
-#include "../disabled_protos.h"
 #include "../color.h"
 #include "../color_filters.h"
-#include "../print.h"
 #include "../register.h"
 #include "../ringbuffer.h"
 #include "ui/util.h"
 #include "../clopts_common.h"
 #include "../cmdarg_err.h"
 #include "../version_info.h"
-#include "../merge.h"
 #include "../log.h"
-#include "../u3.h"
 
 #include "gtk_iface_monitor.h"
 
@@ -119,8 +122,6 @@
 #include "ui/capture_globals.h"
 #include "ui/iface_lists.h"
 #endif
-
-#include <wsutil/file_util.h>
 
 #ifdef HAVE_LIBPCAP
 #include "capture_ui_utils.h"
@@ -546,10 +547,11 @@ get_ip_address_list_from_packet_list_row(gpointer data)
         if (!cf_read_frame (&cfile, fdata))
             return NULL; /* error reading the frame */
 
-        epan_dissect_init(&edt, FALSE, FALSE);
+        epan_dissect_init(&edt, cfile.epan, FALSE, FALSE);
         col_custom_prime_edt(&edt, &cfile.cinfo);
 
-        epan_dissect_run(&edt, &cfile.phdr, cfile.pd, fdata, &cfile.cinfo);
+        epan_dissect_run(&edt, &cfile.phdr, frame_tvbuff_new_buffer(fdata, &cfile.buf),
+            fdata, &cfile.cinfo);
         epan_dissect_fill_in_columns(&edt, TRUE, TRUE);
 
         /* First check selected column */
@@ -586,10 +588,11 @@ get_filter_from_packet_list_row_and_column(gpointer data)
         if (!cf_read_frame(&cfile, fdata))
             return NULL; /* error reading the frame */
         /* proto tree, visible. We need a proto tree if there's custom columns */
-        epan_dissect_init(&edt, have_custom_cols(&cfile.cinfo), FALSE);
+        epan_dissect_init(&edt, cfile.epan, have_custom_cols(&cfile.cinfo), FALSE);
         col_custom_prime_edt(&edt, &cfile.cinfo);
 
-        epan_dissect_run(&edt, &cfile.phdr, cfile.pd, fdata, &cfile.cinfo);
+        epan_dissect_run(&edt, &cfile.phdr, frame_tvbuff_new_buffer(fdata, &cfile.buf),
+                         fdata, &cfile.cinfo);
         epan_dissect_fill_in_columns(&edt, TRUE, TRUE);
 
         if ((cfile.cinfo.col_custom_occurrence[column]) ||
@@ -1203,7 +1206,7 @@ print_usage(gboolean print_ver) {
   fprintf(output, "                           filter\n");
   fprintf(output, "  -j                       search backwards for a matching packet after \"-J\"\n");
   fprintf(output, "  -m <font>                set the font name used for most text\n");
-  fprintf(output, "  -t ad|a|r|d|dd|e         output format of time stamps (def: r: rel. to first)\n");
+  fprintf(output, "  -t a|ad|d|dd|e|r|u|ud    output format of time stamps (def: r: rel. to first)\n");
   fprintf(output, "  -u s|hms                 output format of seconds (def: s: seconds)\n");
   fprintf(output, "  -X <key>:<value>         eXtension options, see man page for details\n");
   fprintf(output, "  -z <statistics>          show various statistics, see man page for details\n");
@@ -2291,7 +2294,7 @@ main(int argc, char *argv[])
 	break;
       case 'D':        /* Print a list of capture devices and exit */
 #ifdef HAVE_LIBPCAP
-        if_list = capture_interface_list(&err, &err_str);
+        if_list = capture_interface_list(&err, &err_str,main_window_update);
         if (if_list == NULL) {
           switch (err) {
           case CANT_GET_INTERFACE_LIST:
@@ -2703,8 +2706,9 @@ main(int argc, char *argv[])
           timestamp_set_type(TS_UTC_WITH_DATE);
         else {
           cmdarg_err("Invalid time stamp type \"%s\"", optarg);
-          cmdarg_err_cont("It must be \"r\" for relative, \"a\" for absolute,");
-          cmdarg_err_cont("\"ad\" for absolute with date, or \"d\" for delta.");
+          cmdarg_err_cont("It must be \"a\" for absolute, \"ad\" for absolute with date, \"d\" for delta,");
+          cmdarg_err_cont("\"dd\" for delta displayed, \"e\" for epoch, \"r\" for relative, \"u\" for UTC, ");
+          cmdarg_err_cont("or \"ud\" for UTC with date.");
           exit(1);
         }
         break;
@@ -2798,7 +2802,7 @@ main(int argc, char *argv[])
   }
 
 #ifdef HAVE_LIBPCAP
-  fill_in_local_interfaces();
+  fill_in_local_interfaces(main_window_update);
   if (start_capture && list_link_layer_types) {
     /* Specifying *both* is bogus. */
     cmdarg_err("You can't specify both -L and a live capture.");
@@ -2868,9 +2872,9 @@ main(int argc, char *argv[])
       device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
       if (device.selected) {
 #if defined(HAVE_PCAP_CREATE)
-        caps = capture_get_if_capabilities(device.name, device.monitor_mode_supported, &err_str);
+        caps = capture_get_if_capabilities(device.name, device.monitor_mode_supported, &err_str, main_window_update);
 #else
-        caps = capture_get_if_capabilities(device.name, FALSE, &err_str);
+        caps = capture_get_if_capabilities(device.name, FALSE, &err_str,main_window_update);
 #endif
         if (caps == NULL) {
           cmdarg_err("%s", err_str);
@@ -3131,7 +3135,7 @@ main(int argc, char *argv[])
          to use for this capture. */
       if (global_capture_opts.ifaces->len == 0)
         collect_ifaces(&global_capture_opts);
-      if (capture_start(&global_capture_opts, &global_capture_session)) {
+      if (capture_start(&global_capture_opts, &global_capture_session,main_window_update)) {
         /* The capture started.  Open stat windows; we do so after creating
            the main window, to avoid GTK warnings, and after successfully
            opening the capture file, so we know we have something to compute

@@ -1540,8 +1540,7 @@ dissect_xid(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	format = hi_nibble(type);
 
 	/* Summary information */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 		    "SNA XID Format:%d Type:%s", format,
 		    val_to_str_const(lo_nibble(type), sna_xid_type_vals,
 		    "Unknown Type"));
@@ -1654,7 +1653,7 @@ static tvbuff_t*
 defragment_by_sequence(packet_info *pinfo, tvbuff_t *tvb, int offset, int mpf,
     int id)
 {
-	fragment_data *fd_head;
+	fragment_head *fd_head;
 	int frag_number = -1;
 	int more_frags = TRUE;
 	tvbuff_t *rh_tvb = NULL;
@@ -1702,8 +1701,7 @@ defragment_by_sequence(packet_info *pinfo, tvbuff_t *tvb, int offset, int mpf,
 
 			if (fd_head != NULL) {
 				/* We have the complete reassembled payload. */
-				rh_tvb = tvb_new_child_real_data(tvb, fd_head->data,
-				    fd_head->len, fd_head->len);
+				rh_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
 
 				/* Add the defragmented data to the data
 				 * source list. */
@@ -2153,8 +2151,7 @@ dissect_fid(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	th_fid = hi_nibble(tvb_get_guint8(tvb, 0));
 
 	/* Summary information */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 		    val_to_str(th_fid, sna_th_fid_vals, "Unknown FID: %01x"));
 
 	if (tree) {

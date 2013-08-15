@@ -54,7 +54,6 @@
 #include <epan/etypes.h>
 #include <epan/ipproto.h>
 #include <epan/expert.h>
-#include <show_exception.h>
 
 #include "packet-ip.h"
 #include "packet-rsvp.h"
@@ -504,7 +503,8 @@ enum hf_lmp_filter_keys {
 static int hf_lmp_filter[LMPF_MAX];
 
 static expert_field ei_lmp_checksum_incorrect = EI_INIT;
-
+static expert_field ei_lmp_invalid_msg_type = EI_INIT;
+static expert_field ei_lmp_invalid_class = EI_INIT;
 
 static int
 lmp_valid_class(int lmp_class)
@@ -673,7 +673,7 @@ dissect_lmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
     proto_tree *lmp_object_header_tree;
     proto_tree *lmp_flags_tree;
     proto_tree *lmp_subobj_tree;
-    proto_item *hidden_item;
+    proto_item *hidden_item, *msg_item;
 
     guint8 version;
     guint8 flags;
@@ -721,7 +721,7 @@ dissect_lmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 			       tvb, offset+2, 1, flags);
 	proto_tree_add_boolean(lmp_header_flags_tree, hf_lmp_filter[LMPF_HDR_FLAGS_REBOOT],
 			       tvb, offset+2, 1, flags);
-	proto_tree_add_uint(lmp_header_tree, hf_lmp_filter[LMPF_MSG], tvb,
+	msg_item = proto_tree_add_uint(lmp_header_tree, hf_lmp_filter[LMPF_MSG], tvb,
 			    offset+3, 1, message_type);
 	proto_tree_add_text(lmp_header_tree, tvb, offset+4, 2, "Length: %d bytes",
 			    msg_length);
@@ -735,8 +735,8 @@ dissect_lmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
                                           tvb, offset+3, 1, 1);
 	    PROTO_ITEM_SET_HIDDEN(hidden_item);
 	} else {
-	    proto_tree_add_protocol_format(lmp_header_tree, proto_malformed, tvb, offset+3, 1,
-					   "Invalid message type: %u", message_type);
+	    expert_add_info_format_text(pinfo, msg_item, &ei_lmp_invalid_msg_type,
+			    "Invalid message type: %u", message_type);
 		return tvb_length(tvb);
 	}
 
@@ -777,16 +777,15 @@ dissect_lmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 	  object_type = val_to_str_const(lmp_class, lmp_class_vals, "Unknown");
 	  hidden_item = proto_tree_add_uint(lmp_tree, hf_lmp_filter[LMPF_OBJECT], tvb,
 				     offset, 1, lmp_class);
-	  PROTO_ITEM_SET_HIDDEN(hidden_item);
+	  PROTO_ITEM_SET_GENERATED(hidden_item);
 	  if (lmp_valid_class(lmp_class)) {
 
 	      ti = proto_tree_add_item(lmp_tree,
 				       hf_lmp_filter[lmp_class_to_filter_num(lmp_class)],
 				       tvb, offset, obj_length, ENC_NA);  /* all possibilities are FT_NONE */
 	  } else {
-	      proto_tree_add_protocol_format(lmp_tree, proto_malformed, tvb,
-					     offset+1, 1,
-					     "Invalid class: %u", lmp_class);
+	      expert_add_info_format_text(pinfo, hidden_item, &ei_lmp_invalid_class,
+			    "Invalid class: %u", lmp_class);
 	      return tvb_length(tvb);
 	  }
 	  lmp_object_tree = proto_item_add_subtree(ti, lmp_class_to_subtree(lmp_class));
@@ -2711,6 +2710,8 @@ proto_register_lmp(void)
 
     static ei_register_info ei[] = {
         { &ei_lmp_checksum_incorrect, { "lmp.checksum.incorrect", PI_PROTOCOL, PI_WARN, "Incorrect checksum", EXPFILL }},
+        { &ei_lmp_invalid_msg_type, { "lmp.invalid_msg_type", PI_PROTOCOL, PI_WARN, "Invalid message type", EXPFILL }},
+        { &ei_lmp_invalid_class, { "lmp.invalid_class", PI_PROTOCOL, PI_WARN, "Invalid class", EXPFILL }},
     };
 
     expert_module_t* expert_lmp;

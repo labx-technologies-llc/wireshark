@@ -47,6 +47,8 @@ static int hf_tzsp_version = -1;
 static int hf_tzsp_type = -1;
 static int hf_tzsp_encap = -1;
 
+static dissector_handle_t tzsp_handle;
+
 /*
  * Packet types.
  */
@@ -375,8 +377,7 @@ dissect_tzsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				next_tvb, pinfo, tree))) {
 
 			col_set_str(pinfo->cinfo, COL_PROTOCOL, "UNKNOWN");
-			if (check_col(pinfo->cinfo, COL_INFO))
-				col_add_fstr(pinfo->cinfo, COL_INFO, "TZSP_ENCAP = %u",
+			col_add_fstr(pinfo->cinfo, COL_INFO, "TZSP_ENCAP = %u",
 				    encapsulation);
 			call_dissector(data_handle, next_tvb, pinfo, tree);
 		}
@@ -533,16 +534,13 @@ proto_register_tzsp(void)
 	    "tzsp");
 	proto_register_field_array(proto_tzsp, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
-	register_dissector("tzsp", dissect_tzsp, proto_tzsp);
 
+	tzsp_handle = register_dissector("tzsp", dissect_tzsp, proto_tzsp);
 }
 
 void
 proto_reg_handoff_tzsp(void)
 {
-	dissector_handle_t tzsp_handle;
-
-	tzsp_handle = create_dissector_handle(dissect_tzsp, proto_tzsp);
 	dissector_add_uint("udp.port", UDP_PORT_TZSP, tzsp_handle);
 
 	/* Get the data dissector for handling unknown encapsulation types. */

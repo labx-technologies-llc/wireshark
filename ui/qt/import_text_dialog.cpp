@@ -39,7 +39,7 @@
 
 #include "file.h"
 #include "wsutil/file_util.h"
-#include "tempfile.h"
+#include "wsutil/tempfile.h"
 
 #include <ui_import_text_dialog.h>
 #include <wireshark_application.h>
@@ -100,6 +100,7 @@ ImportTextDialog::ImportTextDialog(QWidget *parent) :
             }
         }
     }
+    ti_ui_->encapComboBox->model()->sort(0);
 }
 
 ImportTextDialog::~ImportTextDialog()

@@ -27,20 +27,20 @@
 
 // Sigh. The Qt 4 documentation says we should subclass QThread here. Other sources
 // insist that we should subclass QObject, then move it to a newly created QThread.
-RecentFileStatus::RecentFileStatus(const QString &filename, QObject *parent) :
-    QObject(parent), m_filename(filename), m_size(0)
-{
-}
+//RecentFileStatus::RecentFileStatus(const QString &filename, QObject *parent) :
+//    QObject(parent), filename_(filename), size_(0)
+//{
+//}
 
 void RecentFileStatus::start(void) {
     QFileInfo fi;
 
-    fi.setFile(m_filename);
+    fi.setFile(filename_);
 
     if (fi.isFile() && fi.isReadable()) {
-        emit statusFound(m_filename, fi.size(), true);
+        emit statusFound(filename_, fi.size(), true);
     } else {
-        emit statusFound(m_filename, 0, false);
+        emit statusFound(filename_, 0, false);
     }
 }
 

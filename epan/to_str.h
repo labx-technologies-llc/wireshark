@@ -27,7 +27,7 @@
 
 #include <glib.h>
 
-#include "nstime.h"
+#include "wsutil/nstime.h"
 #include "time_fmt.h"
 #include <epan/packet_info.h>
 #include "ws_symbol_export.h"
@@ -100,5 +100,7 @@ WS_DLL_PUBLIC const char *decode_boolean_bitfield(const guint32 val, const guint
   const char *truedesc, const char *falsedesc);
 WS_DLL_PUBLIC const char *decode_numeric_bitfield(const guint32 val, const guint32 mask, const int width,
   const char *fmt);
+
+WS_DLL_PUBLIC const gchar* port_type_to_str (port_type type);
 
 #endif /* __TO_STR_H__  */

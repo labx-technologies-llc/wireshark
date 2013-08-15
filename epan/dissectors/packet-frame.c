@@ -30,13 +30,15 @@
 #endif
 
 #include <glib.h>
+
+#include <wsutil/md5.h>
+
 #include <epan/packet.h>
 #include <epan/show_exception.h>
 #include <epan/timestamp.h>
 #include <epan/prefs.h>
 #include <epan/tap.h>
 #include <epan/expert.h>
-#include <epan/crypt/md5.h>
 
 #include "packet-frame.h"
 
@@ -44,11 +46,10 @@
 #include "color_filters.h"
 
 int proto_frame = -1;
-int proto_pkt_comment = -1;
+static int proto_pkt_comment = -1;
 int hf_frame_arrival_time = -1;
-int hf_frame_shift_offset = -1;
-int hf_frame_arrival_time_epoch = -1;
-static int hf_frame_time_invalid = -1;
+static int hf_frame_shift_offset = -1;
+static int hf_frame_arrival_time_epoch = -1;
 static int hf_frame_time_delta = -1;
 static int hf_frame_time_delta_displayed = -1;
 static int hf_frame_time_relative = -1;
@@ -81,7 +82,7 @@ static int hf_frame_pack_preamble_error = -1;
 static int hf_frame_pack_symbol_error = -1;
 static int hf_frame_wtap_encap = -1;
 static int hf_comments_text = -1;
-static int hf_frame_num_p_prot_data = -1; 
+static int hf_frame_num_p_prot_data = -1;
 
 static gint ett_frame = -1;
 static gint ett_flags = -1;
@@ -230,14 +231,14 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		}
 	}
 
-	if(pinfo->fd->opt_comment){
+	if(pinfo->pkt_comment){
 		item = proto_tree_add_item(tree, proto_pkt_comment, tvb, 0, -1, ENC_NA);
 		comments_tree = proto_item_add_subtree(item, ett_comments);
 		comment_item = proto_tree_add_string_format(comments_tree, hf_comments_text, tvb, 0, -1,
-							                   pinfo->fd->opt_comment, "%s",
-							                   pinfo->fd->opt_comment);
+							                   pinfo->pkt_comment, "%s",
+							                   pinfo->pkt_comment);
 		expert_add_info_format_text(pinfo, comment_item, &ei_comments_text,
-					                       "%s",  pinfo->fd->opt_comment);
+					                       "%s",  pinfo->pkt_comment);
 
 
 	}
@@ -272,16 +273,16 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			proto_item_append_text(ti, " (%u bits)",
 			    cap_len * 8);
 		}
-		if (pinfo->fd->flags.has_if_id) {
+		if (pinfo->phdr->presence_flags & WTAP_HAS_INTERFACE_ID) {
 			proto_item_append_text(ti, " on interface %u",
-			    pinfo->fd->interface_id);
+			    pinfo->phdr->interface_id);
 		}
-		if (pinfo->fd->flags.has_pack_flags) {
-			if (pinfo->fd->pack_flags & 0x00000001) {
+		if (pinfo->phdr->presence_flags & WTAP_HAS_PACK_FLAGS) {
+			if (pinfo->phdr->pack_flags & 0x00000001) {
 				proto_item_append_text(ti, " (inbound)");
 				pinfo->p2p_dir = P2P_DIR_RECV;
 			}
-			if (pinfo->fd->pack_flags & 0x00000002) {
+			if (pinfo->phdr->pack_flags & 0x00000002) {
 				proto_item_append_text(ti, " (outbound)");
 				pinfo->p2p_dir = P2P_DIR_SENT;
 			}
@@ -289,27 +290,33 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 
 		fh_tree = proto_item_add_subtree(ti, ett_frame);
 
-		if (pinfo->fd->flags.has_if_id)
-			proto_tree_add_uint(fh_tree, hf_frame_interface_id, tvb, 0, 0, pinfo->fd->interface_id);
+		if (pinfo->phdr->presence_flags & WTAP_HAS_INTERFACE_ID && proto_field_is_referenced(tree, hf_frame_interface_id)) {
+			const char *interface_name = epan_get_interface_name(pinfo->epan, pinfo->phdr->interface_id);
 
-		if (pinfo->fd->flags.has_pack_flags) {
+			if (interface_name)
+				proto_tree_add_uint_format_value(fh_tree, hf_frame_interface_id, tvb, 0, 0, pinfo->phdr->interface_id, "%u (%s)", pinfo->phdr->interface_id, interface_name);
+			else
+				proto_tree_add_uint(fh_tree, hf_frame_interface_id, tvb, 0, 0, pinfo->phdr->interface_id);
+		}
+
+		if (pinfo->phdr->presence_flags & WTAP_HAS_PACK_FLAGS) {
 			proto_tree *flags_tree;
 			proto_item *flags_item;
 
-			flags_item = proto_tree_add_uint(fh_tree, hf_frame_pack_flags, tvb, 0, 0, pinfo->fd->pack_flags);
+			flags_item = proto_tree_add_uint(fh_tree, hf_frame_pack_flags, tvb, 0, 0, pinfo->phdr->pack_flags);
 			flags_tree = proto_item_add_subtree(flags_item, ett_flags);
-			proto_tree_add_uint(flags_tree, hf_frame_pack_direction, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_uint(flags_tree, hf_frame_pack_reception_type, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_uint(flags_tree, hf_frame_pack_fcs_length, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_uint(flags_tree, hf_frame_pack_reserved, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_boolean(flags_tree, hf_frame_pack_crc_error, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_boolean(flags_tree, hf_frame_pack_wrong_packet_too_long_error, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_boolean(flags_tree, hf_frame_pack_wrong_packet_too_short_error, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_boolean(flags_tree, hf_frame_pack_wrong_inter_frame_gap_error, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_boolean(flags_tree, hf_frame_pack_unaligned_frame_error, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_boolean(flags_tree, hf_frame_pack_start_frame_delimiter_error, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_boolean(flags_tree, hf_frame_pack_preamble_error, tvb, 0, 0, pinfo->fd->pack_flags);
-			proto_tree_add_boolean(flags_tree, hf_frame_pack_symbol_error, tvb, 0, 0, pinfo->fd->pack_flags);
+			proto_tree_add_uint(flags_tree, hf_frame_pack_direction, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_uint(flags_tree, hf_frame_pack_reception_type, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_uint(flags_tree, hf_frame_pack_fcs_length, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_uint(flags_tree, hf_frame_pack_reserved, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_crc_error, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_wrong_packet_too_long_error, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_wrong_packet_too_short_error, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_wrong_inter_frame_gap_error, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_unaligned_frame_error, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_start_frame_delimiter_error, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_preamble_error, tvb, 0, 0, pinfo->phdr->pack_flags);
+			proto_tree_add_boolean(flags_tree, hf_frame_pack_symbol_error, tvb, 0, 0, pinfo->phdr->pack_flags);
 		}
 
 		proto_tree_add_int(fh_tree, hf_frame_wtap_encap, tvb, 0, 0, pinfo->fd->lnk_t);
@@ -318,12 +325,10 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			proto_tree_add_time(fh_tree, hf_frame_arrival_time, tvb,
 					    0, 0, &(pinfo->fd->abs_ts));
 			if(pinfo->fd->abs_ts.nsecs < 0 || pinfo->fd->abs_ts.nsecs >= 1000000000) {
-				item = proto_tree_add_none_format(fh_tree, hf_frame_time_invalid, tvb, 0, 0,
+				expert_add_info_format_text(pinfo, ti, &ei_arrive_time_out_of_range,
 								  "Arrival Time: Fractional second %09ld is invalid,"
 								  " the valid range is 0-1000000000",
 								  (long) pinfo->fd->abs_ts.nsecs);
-				PROTO_ITEM_SET_GENERATED(item);
-				expert_add_info(pinfo, item, &ei_arrive_time_out_of_range);
 			}
 			item = proto_tree_add_time(fh_tree, hf_frame_shift_offset, tvb,
 					    0, 0, &(pinfo->fd->shift_offset));
@@ -337,7 +342,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			if (proto_field_is_referenced(tree, hf_frame_time_delta)) {
 				nstime_t     del_cap_ts;
 
-				frame_delta_abs_time(pinfo->fd, pinfo->fd->prev_cap, &del_cap_ts);
+				frame_delta_abs_time(pinfo->epan, pinfo->fd, pinfo->fd->num - 1, &del_cap_ts);
 
 				item = proto_tree_add_time(fh_tree, hf_frame_time_delta, tvb,
 							   0, 0, &(del_cap_ts));
@@ -347,7 +352,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			if (proto_field_is_referenced(tree, hf_frame_time_delta_displayed)) {
 				nstime_t del_dis_ts;
 
-				frame_delta_abs_time(pinfo->fd, pinfo->fd->prev_dis, &del_dis_ts);
+				frame_delta_abs_time(pinfo->epan, pinfo->fd, pinfo->fd->prev_dis_num, &del_dis_ts);
 
 				item = proto_tree_add_time(fh_tree, hf_frame_time_delta_displayed, tvb,
 							   0, 0, &(del_dis_ts));
@@ -355,7 +360,7 @@ dissect_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			}
 
 			item = proto_tree_add_time(fh_tree, hf_frame_time_relative, tvb,
-						   0, 0, &(pinfo->fd->rel_ts));
+						   0, 0, &(pinfo->rel_ts));
 			PROTO_ITEM_SET_GENERATED(item);
 
 			if(pinfo->fd->flags.ref_time){
@@ -602,11 +607,6 @@ proto_register_frame(void)
 		    FT_RELATIVE_TIME, BASE_NONE, NULL, 0x0,
 		    "Epoch time when this frame was captured", HFILL }},
 
-		{ &hf_frame_time_invalid,
-		  { "Arrival Timestamp invalid", "frame.time_invalid",
-		    FT_NONE, BASE_NONE, NULL, 0x0,
-		    "The timestamp from the capture is out of the valid range", HFILL }},
-
 		{ &hf_frame_time_delta,
 		  { "Time delta from previous captured frame", "frame.time_delta",
 		    FT_RELATIVE_TIME, BASE_NONE, NULL, 0x0,
@@ -767,13 +767,13 @@ proto_register_frame(void)
 		    FT_UINT32, BASE_DEC, NULL, 0x0,
 		    NULL, HFILL }},
 	};
-	
+
 	static hf_register_info hf_encap =
 		{ &hf_frame_wtap_encap,
 		  { "Encapsulation type", "frame.encap_type",
 		    FT_INT16, BASE_DEC, NULL, 0x0,
 		    NULL, HFILL }};
-	
+
  	static gint *ett[] = {
 		&ett_frame,
 		&ett_flags,
@@ -782,7 +782,7 @@ proto_register_frame(void)
 
 	static ei_register_info ei[] = {
 		{ &ei_comments_text, { "frame.comment.expert", PI_COMMENTS_GROUP, PI_COMMENT, "Formatted comment", EXPFILL }},
-		{ &ei_arrive_time_out_of_range, { "frame.time_invalid.expert", PI_SEQUENCE, PI_NOTE, "Arrival Time: Fractional second out of range (0-1000000000)", EXPFILL }},
+		{ &ei_arrive_time_out_of_range, { "frame.time_invalid", PI_SEQUENCE, PI_NOTE, "Arrival Time: Fractional second out of range (0-1000000000)", EXPFILL }},
 	};
 
 	module_t *frame_module;
@@ -792,9 +792,9 @@ proto_register_frame(void)
 		int encap_count = wtap_get_num_encap_types();
 		value_string *arr;
 		int i;
-		
-		hf_encap.hfinfo.strings = arr = g_new(value_string, encap_count+1); 
-		
+
+		hf_encap.hfinfo.strings = arr = g_new(value_string, encap_count+1);
+
 		for (i = 0; i < encap_count; i++) {
 			arr[i].value = i;
 			arr[i].strptr = wtap_encap_string(i);

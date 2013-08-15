@@ -44,8 +44,6 @@ stat_group_name(register_stat_group_t group);
  *
  * @param name the menu label
  *
- * @param group the menu group this stat should be registered to
- *
  * @param stock_id the stock_id (icon) to show, or NULL
  *
  * @param callback gets called when the menu item is selected; it should do
@@ -74,7 +72,7 @@ void register_menu_bar_menu_items(
     const char   *accelerator,
     const gchar  *tooltip,
     gpointer     callback,
-    gpointer	 callback_data,
+    gpointer     callback_data,
     gboolean     enabled,
     gboolean (*selected_packet_enabled)(frame_data *, epan_dissect_t *, gpointer callback_data),
     gboolean (*selected_tree_row_enabled)(field_info *, gpointer callback_data));
@@ -112,7 +110,6 @@ void gtk_usb_hostlist_cb(GtkAction *action, gpointer user_data);
 void gtk_wlan_hostlist_cb(GtkAction *action, gpointer user_data);
 
 void gtk_rpcstat_cb(GtkAction *action, gpointer user_data);
-void bootp_dhcp_stat_cb(GtkAction *action, gpointer user_data);
 void gtk_comparestat_cb(GtkAction *action, gpointer user_data);
 
 void flow_graph_launch(GtkAction *action, gpointer user_data);
@@ -123,7 +120,6 @@ void mtp3_sum_gtk_sum_cb(GtkAction *action, gpointer user_data);
 void rtp_analysis_cb(GtkAction *action, gpointer user_data);
 void rtpstream_launch(GtkAction *action, gpointer user_data);
 void sctp_analyse_start(GtkAction *action, gpointer user_data);
-void sctp_chunk_counter_cb(GtkAction *action, gpointer user_data);
 void sctp_stat_start(GtkAction *action, gpointer user_data);
 
 void gui_iostat_cb(GtkAction *action, gpointer user_data);
@@ -134,8 +130,6 @@ void ansi_a_stat_gtk_bsmap_cb(GtkAction *action, gpointer user_data);
 void ansi_a_stat_gtk_dtap_cb(GtkAction *action, gpointer user_data);
 void ansi_map_stat_gtk_cb(GtkAction *action, gpointer user_data);
 
-void camel_counter_cb(GtkAction *action, gpointer user_data);
-void h225_counter_cb(GtkAction *action, gpointer user_data);
 void gsm_a_stat_gtk_bssmap_cb(GtkAction *action, gpointer user_data);
 void gsm_a_stat_gtk_dtap_mm_cb(GtkAction *action, gpointer user_data);
 void gsm_a_stat_gtk_dtap_rr_cb(GtkAction *action, gpointer user_data);
@@ -146,12 +140,6 @@ void gsm_a_stat_gtk_dtap_sm_cb(GtkAction *action, gpointer user_data);
 void gsm_a_stat_gtk_dtap_ss_cb(GtkAction *action, gpointer user_data);
 void gsm_a_stat_gtk_dtap_tp_cb(GtkAction *action, gpointer user_data);
 void gsm_a_stat_gtk_sacch_rr_cb(GtkAction *action, gpointer user_data);
-void mac_lte_stat_cb(GtkAction *action, gpointer user_data);
-void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata);
-void rlc_lte_stat_cb(GtkAction *action, gpointer user_data);
-void gtk_rlc_lte_stat_init(const char *opt_arg, void *userdata);
-void sipstat_cb(GtkAction *action, gpointer user_data);
-void wsp_stat_cb(GtkAction *action, gpointer user_data);
 
 void gsm_map_stat_gtk_cb(GtkAction *action, gpointer user_data);
 void gsm_map_stat_gtk_sum_cb(GtkAction *action, gpointer user_data);

@@ -722,7 +722,7 @@ void dissect_mac_header_generic_decoder(tvbuff_t *tvb, packet_info *pinfo, proto
 	proto_tree *child_tree = NULL;
 	tvbuff_t *payload_tvb;
 	tvbuff_t *data_pdu_tvb;
-	fragment_data *payload_frag;
+	fragment_head *payload_frag;
 	gboolean first_arq_fb_payload = TRUE;
 
 	dissector_handle_t mac_payload_handle;
@@ -1010,7 +1010,7 @@ void dissect_mac_header_generic_decoder(tvbuff_t *tvb, packet_info *pinfo, proto
 				new_payload_len = frag_len;
 			}
 			else	/* fragmented payload */
-			{	/* add the frag */
+			{	/* add the fragment */
 				/* Make sure cid will not match a previous packet with different data */
 				for (i = 0; i < MAX_CID; i++)
 				{
@@ -1071,7 +1071,7 @@ void dissect_mac_header_generic_decoder(tvbuff_t *tvb, packet_info *pinfo, proto
 				/* Save address pointers. */
 				save_src = pinfo->src;
 				save_dst = pinfo->dst;
-				/* Use dl_src and dl_dst in defrag. */
+				/* Use dl_src and dl_dst in defragmentation. */
 				pinfo->src = pinfo->dl_src;
 				pinfo->dst = pinfo->dl_dst;
 				payload_frag = fragment_add_seq(&payload_reassembly_table, tvb, offset, pinfo, cid, NULL, frag_number[cid_index], frag_len, ((frag_type==LAST_FRAG)?0:1), 0);
@@ -1083,14 +1083,14 @@ void dissect_mac_header_generic_decoder(tvbuff_t *tvb, packet_info *pinfo, proto
 					/* Make sure fragment_add_seq() sees next one as a new frame. */
 					cid_vernier[cid_index]++;
 				}
-				/* Don't show reassem packet until last frag. */
+				/* Don't show reassembled packet until last fragment. */
 				proto_tree_add_text(tree, tvb, offset, frag_len, "Payload Fragment (%d bytes)", frag_len);
 
 				if (payload_frag && frag_type == LAST_FRAG)
 				{	/* defragmented completely */
 					payload_length = payload_frag->len;
 					/* create the new tvb for defragmented frame */
-					payload_tvb = tvb_new_child_real_data(tvb, payload_frag->data, payload_length, payload_length);
+					payload_tvb = tvb_new_chain(tvb, payload_frag->tvb_data);
 					/* add the defragmented data to the data source list */
 					add_new_data_source(pinfo, payload_tvb, "Reassembled WiMax MAC payload");
 					/* save the tvb langth */

@@ -93,6 +93,8 @@
 #define E_BYTE_VIEW_MASKLE_KEY    "byte_view_mask_le"
 #define E_BYTE_VIEW_APP_START_KEY "byte_view_app_start"
 #define E_BYTE_VIEW_APP_END_KEY   "byte_view_app_end"
+#define E_BYTE_VIEW_PROTO_START_KEY "byte_view_proto_start"
+#define E_BYTE_VIEW_PROTO_END_KEY   "byte_view_proto_end"
 #define E_BYTE_VIEW_ENCODE_KEY    "byte_view_encode"
 
 /* Get the current text window for the notebook. */
@@ -191,9 +193,45 @@ redraw_packet_bytes_all(void)
     }
 }
 
+/* Expand trees (and any subtrees they may have) whose ett_ shows them as
+ * expanded.
+ * Callers should block calls to expand_tree() to avoid useless recursion.
+ */
+static void
+check_expand_trees(GtkTreeView *tree_view, GtkTreeModel *model, GtkTreePath *path,
+                   GtkTreeIter *iter, gboolean scroll_it, gboolean expand_parent)
+{
+    /* code inspired by gtk_tree_model_foreach_helper */
+
+    field_info *fi;
+
+    do {
+        GtkTreeIter child;
+
+        if (gtk_tree_model_iter_children(model, &child, iter)) {
+            gtk_tree_model_get(model, iter, 1, &fi, -1);
+
+            if (tree_expanded(fi->tree_type)) {
+                if (expand_parent)
+                    gtk_tree_view_expand_row(tree_view, path, FALSE);
+
+                if (scroll_it)
+                     gtk_tree_view_scroll_to_cell(tree_view, path, NULL, TRUE, (prefs.gui_auto_scroll_percentage/100.0f), 0.0f);
+
+                /* try to expand children only when parent is expanded */
+                gtk_tree_path_down(path);
+                check_expand_trees(tree_view, model, path, &child, scroll_it, TRUE);
+                gtk_tree_path_up(path);
+            }
+        }
+
+        gtk_tree_path_next(path);
+    } while (gtk_tree_model_iter_next(model, iter));
+}
+
 static void
 expand_tree(GtkTreeView *tree_view, GtkTreeIter *iter,
-            GtkTreePath *path _U_, gpointer user_data _U_)
+            GtkTreePath *path, gpointer user_data _U_)
 {
     field_info   *finfo;
     GtkTreeModel *model;
@@ -212,10 +250,14 @@ expand_tree(GtkTreeView *tree_view, GtkTreeIter *iter,
      * Nodes with "finfo->tree_type" of -1 have no ett_ value, and
      * are thus presumably leaf nodes and cannot be expanded.
      */
-    if (finfo->tree_type != -1) {
-        g_assert(finfo->tree_type >= 0 &&
-                 finfo->tree_type < num_tree_types);
-        tree_is_expanded[finfo->tree_type] = TRUE;
+    if (finfo->tree_type != -1)
+        tree_expanded_set(finfo->tree_type, TRUE);
+
+    if (finfo->tree_type != -1 && path) {
+        /* Expand any subtrees that the user had left open */
+        g_signal_handlers_block_by_func(tree_view, expand_tree, NULL);
+        check_expand_trees(tree_view, model, path, iter, FALSE, FALSE);
+        g_signal_handlers_unblock_by_func(tree_view, expand_tree, NULL);
     }
 }
 
@@ -234,11 +276,8 @@ collapse_tree(GtkTreeView *tree_view, GtkTreeIter *iter,
      * Nodes with "finfo->tree_type" of -1 have no ett_ value, and
      * are thus presumably leaf nodes and cannot be collapsed.
      */
-    if (finfo->tree_type != -1) {
-        g_assert(finfo->tree_type >= 0 &&
-                 finfo->tree_type < num_tree_types);
-        tree_is_expanded[finfo->tree_type] = FALSE;
-    }
+    if (finfo->tree_type != -1)
+        tree_expanded_set(finfo->tree_type, FALSE);
 }
 
 struct field_lookup_info {
@@ -355,9 +394,6 @@ highlight_field(tvbuff_t *tvb, gint byte, GtkTreeView *tree_view,
         fli.iter = parent;
         gtk_tree_path_free(path);
     }
-
-    /* Refresh the display so that the expanded trees are visible */
-    proto_tree_draw(tree, GTK_WIDGET(tree_view));
 
     /* select our field's row */
     gtk_tree_selection_select_path(gtk_tree_view_get_selection(tree_view),
@@ -807,20 +843,56 @@ savehex_cb(GtkWidget * w _U_, gpointer data _U_)
 static void
 packet_hex_update(GtkWidget *bv, const guint8 *pd, int len, int bstart,
                   int bend, guint32 bmask, int bmask_le,
-                  int astart, int aend, int encoding)
+                  int astart, int aend,
+                  int pstart, int pend,
+                  int encoding)
 {
-	bytes_view_set_encoding(BYTES_VIEW(bv), encoding);
-	bytes_view_set_format(BYTES_VIEW(bv), recent.gui_bytes_view);
-	bytes_view_set_data(BYTES_VIEW(bv), pd, len);
+        bytes_view_set_encoding(BYTES_VIEW(bv), encoding);
+        bytes_view_set_format(BYTES_VIEW(bv), recent.gui_bytes_view);
+        bytes_view_set_data(BYTES_VIEW(bv), pd, len);
 
-	bytes_view_set_highlight_style(BYTES_VIEW(bv), prefs.gui_hex_dump_highlight_style);
+        bytes_view_set_highlight_style(BYTES_VIEW(bv), prefs.gui_hex_dump_highlight_style);
 
-	bytes_view_set_highlight(BYTES_VIEW(bv), bstart, bend, bmask, bmask_le);
-	bytes_view_set_highlight_appendix(BYTES_VIEW(bv), astart, aend);
+        bytes_view_set_highlight(BYTES_VIEW(bv), bstart, bend, bmask, bmask_le);
+        bytes_view_set_highlight_extra(BYTES_VIEW(bv), BYTE_VIEW_HIGHLIGHT_APPENDIX, astart, aend);
+        bytes_view_set_highlight_extra(BYTES_VIEW(bv), BYTE_VIEW_HIGHLIGHT_PROTOCOL, pstart, pend);
 
-	if (bstart != -1 && bend != -1)
-		bytes_view_scroll_to_byte(BYTES_VIEW(bv), bstart);
-	bytes_view_refresh(BYTES_VIEW(bv));
+        if (bstart != -1 && bend != -1)
+                bytes_view_scroll_to_byte(BYTES_VIEW(bv), bstart);
+        bytes_view_refresh(BYTES_VIEW(bv));
+}
+
+static field_info *
+get_top_finfo(proto_node *node, field_info *finfo)
+{
+        proto_node *child;
+        field_info *top;
+
+        if (node == NULL)
+            return NULL;
+        if (PNODE_FINFO(node) == finfo) {
+                top = finfo;
+
+                while (node && node->parent) {
+                        field_info *fi;
+
+                        node = node->parent;
+
+                        fi = PNODE_FINFO(node);
+                        if (fi && fi->ds_tvb == finfo->ds_tvb)
+                                top = fi;
+                }
+
+                return top;
+        }
+
+        for (child = node->first_child; child; child = child->next) {
+                top = get_top_finfo(child, finfo);
+                if (top)
+                        return top;
+        }
+
+        return NULL;
 }
 
 void
@@ -833,9 +905,11 @@ packet_hex_print(GtkWidget *bv, const guint8 *pd, frame_data *fd,
     int bstart = -1, bend = -1, blen = -1;
     guint32 bmask = 0x00; int bmask_le = 0;
     int astart = -1, aend = -1, alen = -1;
-
+    int pstart = -1, pend = -1, plen = -1;
 
     if (finfo != NULL) {
+        proto_tree *tree = (proto_tree *)g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_TREE_PTR);
+        field_info *top_finfo;
 
         if (cfile.search_in_progress && (cfile.hex || (cfile.string && cfile.packet_data))) {
             /* In the hex view, only highlight the target bytes or string. The entire
@@ -859,10 +933,17 @@ packet_hex_print(GtkWidget *bv, const guint8 *pd, frame_data *fd,
             bstart = finfo->start;
         }
 
-        /* bmask = finfo->hfinfo->bitmask << finfo->hfinfo->bitshift; */ /* (value & mask) >> shift */
+        /* bmask = finfo->hfinfo->bitmask << hfinfo_bitshift(finfo->hfinfo); */ /* (value & mask) >> shift */
         if (finfo->hfinfo) bmask = finfo->hfinfo->bitmask;
         astart = finfo->appendix_start;
         alen = finfo->appendix_length;
+
+        top_finfo = get_top_finfo(tree, finfo);
+        /* it's possible to have top_finfo == finfo, no problem right now */
+        if (top_finfo) {
+            pstart = top_finfo->start;
+            plen = top_finfo->length;
+        }
 
         if (FI_GET_FLAG(finfo, FI_LITTLE_ENDIAN))
             bmask_le = 1;
@@ -889,12 +970,14 @@ packet_hex_print(GtkWidget *bv, const guint8 *pd, frame_data *fd,
         }
     }
 
-    if (bstart >= 0 && blen > 0 && (guint)bstart < len) {
+    if (pstart >= 0 && plen > 0 && (guint)pstart < len)
+        pend = pstart + plen;
+
+    if (bstart >= 0 && blen > 0 && (guint)bstart < len)
         bend = bstart + blen;
-    }
-    if (astart >= 0 && alen > 0 && (guint)astart < len) {
+
+    if (astart >= 0 && alen > 0 && (guint)astart < len)
         aend = astart + alen;
-    }
 
     if (bend == -1 && aend != -1) {
         bstart = astart;
@@ -906,6 +989,7 @@ packet_hex_print(GtkWidget *bv, const guint8 *pd, frame_data *fd,
     /* don't exceed the end of available data */
     if (aend != -1 && (guint)aend > len) aend = len;
     if (bend != -1 && (guint)bend > len) bend = len;
+    if (pend != -1 && (guint)pend > len) pend = len;
 
     /* save the information needed to redraw the text */
     /* should we save the fd & finfo pointers instead ?? */
@@ -915,13 +999,15 @@ packet_hex_print(GtkWidget *bv, const guint8 *pd, frame_data *fd,
     g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_MASKLE_KEY, GINT_TO_POINTER(bmask_le));
     g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_APP_START_KEY, GINT_TO_POINTER(astart));
     g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_APP_END_KEY, GINT_TO_POINTER(aend));
+    g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_PROTO_START_KEY, GINT_TO_POINTER(pstart));
+    g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_PROTO_END_KEY, GINT_TO_POINTER(pend));
     g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_ENCODE_KEY,
                       GUINT_TO_POINTER((guint)fd->flags.encoding));
 
     /* stig: it should be done only for bitview... */
     if (recent.gui_bytes_view != BYTES_BITS)
         bmask = 0x00;
-    packet_hex_update(bv, pd, len, bstart, bend, bmask, bmask_le, astart, aend, fd->flags.encoding);
+    packet_hex_update(bv, pd, len, bstart, bend, bmask, bmask_le, astart, aend, pstart, pend, fd->flags.encoding);
 }
 
 void
@@ -933,6 +1019,7 @@ packet_hex_editor_print(GtkWidget *bv, const guint8 *pd, frame_data *fd, int off
     int bstart = offset, bend = (bstart != -1) ? offset+1 : -1;
     guint32 bmask=0; int bmask_le = 0;
     int astart = -1, aend = -1;
+    int pstart = -1, pend = -1;
 
     switch (recent.gui_bytes_view) {
     case BYTES_HEX:
@@ -957,8 +1044,10 @@ packet_hex_editor_print(GtkWidget *bv, const guint8 *pd, frame_data *fd, int off
     g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_APP_END_KEY, GINT_TO_POINTER(aend));
     g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_ENCODE_KEY,
                       GUINT_TO_POINTER((guint)fd->flags.encoding));
+    g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_PROTO_START_KEY, GINT_TO_POINTER(pstart));
+    g_object_set_data(G_OBJECT(bv), E_BYTE_VIEW_PROTO_END_KEY, GINT_TO_POINTER(pend));
 
-    packet_hex_update(bv, pd, len, bstart, bend, bmask, bmask_le, astart, aend, fd->flags.encoding);
+    packet_hex_update(bv, pd, len, bstart, bend, bmask, bmask_le, astart, aend, pstart, pend, fd->flags.encoding);
 }
 
 /*
@@ -970,6 +1059,7 @@ packet_hex_reprint(GtkWidget *bv)
 {
     int start, end, mask, mask_le, encoding;
     int astart, aend;
+    int pstart, pend;
     const guint8 *data;
     guint len = 0;
 
@@ -979,6 +1069,8 @@ packet_hex_reprint(GtkWidget *bv)
     mask_le = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_MASKLE_KEY));
     astart = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_APP_START_KEY));
     aend = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_APP_END_KEY));
+    pstart = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_PROTO_START_KEY));
+    pend = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_PROTO_END_KEY));
     data = get_byte_view_data_and_length(bv, &len);
     g_assert(data != NULL);
     encoding = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bv), E_BYTE_VIEW_ENCODE_KEY));
@@ -986,7 +1078,7 @@ packet_hex_reprint(GtkWidget *bv)
     /* stig: it should be done only for bitview... */
     if (recent.gui_bytes_view != BYTES_BITS)
         mask = 0x00;
-    packet_hex_update(bv, data, len, start, end, mask, mask_le, astart, aend, encoding);
+    packet_hex_update(bv, data, len, start, end, mask, mask_le, astart, aend, pstart, pend, encoding);
 }
 
 /* List of all protocol tree widgets, so we can globally set the selection
@@ -1230,9 +1322,10 @@ void
 expand_all_tree(proto_tree *protocol_tree _U_, GtkWidget *tree_view)
 {
     int i;
-    for(i=0; i < num_tree_types; i++) {
-        tree_is_expanded[i] = TRUE;
-    }
+
+    for(i=0; i < num_tree_types; i++)
+        tree_expanded_set(i, TRUE);
+
     gtk_tree_view_expand_all(GTK_TREE_VIEW(tree_view));
 }
 
@@ -1240,9 +1333,10 @@ void
 collapse_all_tree(proto_tree *protocol_tree _U_, GtkWidget *tree_view)
 {
     int i;
-    for(i=0; i < num_tree_types; i++) {
-        tree_is_expanded[i] = FALSE;
-    }
+
+    for(i=0; i < num_tree_types; i++)
+        tree_expanded_set(i, FALSE);
+
     gtk_tree_view_collapse_all(GTK_TREE_VIEW(tree_view));
 }
 
@@ -1306,37 +1400,29 @@ tree_view_select(GtkWidget *widget, GdkEventButton *event)
     return TRUE;
 }
 
-static gboolean
-expand_finfos(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
-{
-    GtkTreeView *tree_view = (GtkTreeView *) data;
-    field_info *fi;
-
-    if (!gtk_tree_model_iter_has_child(model, iter))
-        return FALSE;
-
-    gtk_tree_model_get(model, iter, 1, &fi, -1);
-
-    g_assert(fi->tree_type >= 0 && fi->tree_type < num_tree_types);
-
-    if (tree_is_expanded[fi->tree_type])
-        gtk_tree_view_expand_to_path(tree_view, path);
-    else
-        gtk_tree_view_collapse_row(tree_view, path);
-    return FALSE;
-}
-
 void
 proto_tree_draw_resolve(proto_tree *protocol_tree, GtkWidget *tree_view, const e_addr_resolve *resolv)
 {
     ProtoTreeModel *model;
+    GtkTreePath *path;
+    GtkTreeIter iter;
 
     model = proto_tree_model_new(protocol_tree, prefs.display_hidden_proto_items);
     if (resolv)
         proto_tree_model_force_resolv(PROTO_TREE_MODEL(model), resolv);
     gtk_tree_view_set_model(GTK_TREE_VIEW(tree_view), GTK_TREE_MODEL(model));
 
-    gtk_tree_model_foreach(GTK_TREE_MODEL(model), expand_finfos, GTK_TREE_VIEW(tree_view));
+    g_signal_handlers_block_by_func(tree_view, expand_tree, NULL);
+
+    /* modified version of gtk_tree_model_foreach */
+    path = gtk_tree_path_new_first();
+    if (gtk_tree_model_get_iter(GTK_TREE_MODEL(model), &iter, path))
+        check_expand_trees(GTK_TREE_VIEW(tree_view), GTK_TREE_MODEL(model),
+                              path, &iter, prefs.gui_auto_scroll_on_expand, TRUE);
+    gtk_tree_path_free(path);
+
+    g_signal_handlers_unblock_by_func(tree_view, expand_tree, NULL);
+
     g_object_unref(G_OBJECT(model));
 }
 

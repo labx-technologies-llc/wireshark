@@ -22,7 +22,7 @@
 #
 
 
-set(WIRETAP_FILES
+set(CLEAN_FILES
 	5views.c
 	aethra.c
 	ascendtext.c
@@ -50,6 +50,7 @@ set(WIRETAP_FILES
 	k12.c
 	lanalyzer.c
 	libpcap.c
+	merge.c
 	mpeg.c
 	mime_file.c
 	mp2t.c
@@ -68,6 +69,7 @@ set(WIRETAP_FILES
 	pppdump.c
 	radcom.c
 	snoop.c
+	stanag4607.c
 	tnef.c
 	toshiba.c
 	visual.c
@@ -76,8 +78,12 @@ set(WIRETAP_FILES
 	wtap.c
 )
 
-set(CLEAN_FILES
-	${WIRETAP_FILES}
+set(DIRTY_FILES
+)
+
+set(WIRETAP_FILES
+	${CLEAN_FILES}
+	${DIRTY_FILES}
 )
 
 if (WERROR)

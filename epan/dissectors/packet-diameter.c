@@ -62,6 +62,7 @@
 #include <epan/exported_pdu.h>
 #include <epan/diam_dict.h>
 #include <epan/sctpppids.h>
+#include <epan/show_exception.h>
 #include "packet-tcp.h"
 #include "packet-diameter.h"
 
@@ -159,10 +160,10 @@ struct _avp_type_t {
 };
 
 struct _build_dict {
-	GArray *hf;
-	GPtrArray *ett;
-	GHashTable *types;
-	GHashTable *avps;
+	wmem_array_t *hf;
+	GPtrArray    *ett;
+	GHashTable   *types;
+	GHashTable   *avps;
 };
 
 
@@ -278,6 +279,9 @@ static gint ett_diameter_avpinfo = -1;
 static gint ett_unknown = -1;
 static gint ett_err = -1;
 
+
+static expert_field ei_diameter_reserved_bit_set = EI_INIT;
+
 /* Tap for Diameter */
 static int diameter_tap = -1;
 
@@ -321,18 +325,18 @@ export_diameter_pdu(packet_info *pinfo, tvbuff_t *tvb)
 
   exp_pdu_data = load_export_pdu_tags(pinfo, "diameter", -1, tags_bit_field);
 
-  exp_pdu_data->tvb_length = tvb_length(tvb); 
+  exp_pdu_data->tvb_length = tvb_length(tvb);
   exp_pdu_data->pdu_tvb = tvb;
 
   tap_queue_packet(exported_pdu_tap, pinfo, exp_pdu_data);
 
 }
 
-static gint
-compare_avps (gconstpointer  a, gconstpointer  b)
+static int
+compare_avps(const void *a, const void *b)
 {
-	value_string *vsa = (value_string *)a;
-	value_string *vsb = (value_string *)b;
+	const value_string *vsa = (const value_string *)a;
+	const value_string *vsb = (const value_string *)b;
 
 	if(vsa->value > vsb->value)
 		return 1;
@@ -391,6 +395,39 @@ dissect_diameter_base_framed_ipv6_prefix(tvbuff_t *tvb, packet_info *pinfo _U_, 
 		proto_tree_add_item(tree, hf_framed_ipv6_prefix_ipv6, tvb, 2, prefix_len_bytes, ENC_NA);
 
 	return(prefix_len_bytes+2);
+}
+
+/* Call subdissectors for AVPs.
+ * This is a separate function to avoid having any local variables that might
+ * get clobbered by the exception longjmp() (without having to declare the
+ * variables as volatile and deal with casting them).
+ */
+static void
+call_avp_subdissector(guint32 vendorid, guint32 code, tvbuff_t *subtvb, packet_info *pinfo, proto_tree *avp_tree)
+{
+	TRY {
+		switch (vendorid) {
+		case 0:
+			dissector_try_uint(diameter_dissector_table, code, subtvb, pinfo, avp_tree);
+			break;
+		case VENDOR_ERICSSON:
+			dissector_try_uint(diameter_ericsson_avp_dissector_table, code, subtvb, pinfo, avp_tree);
+			break;
+		case VENDOR_THE3GPP:
+			dissector_try_uint(diameter_3gpp_avp_dissector_table, code, subtvb, pinfo, avp_tree);
+			break;
+		default:
+			break;
+		}
+
+		/* Debug
+		proto_tree_add_text(avp_tree, subtvb, 0, -1, "AVP %u data, Vendor Id %u ",code,vendorid);
+		*/
+	}
+	CATCH_NONFATAL_ERRORS {
+		show_exception(subtvb, pinfo, avp_tree, EXCEPT_CODE, GET_MESSAGE);
+	}
+	ENDTRY;
 }
 
 /* Dissect an AVP at offset */
@@ -480,15 +517,15 @@ dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset)
 		proto_tree_add_item(flags_tree,hf_diameter_avp_flags_mandatory,tvb,offset,1,ENC_BIG_ENDIAN);
 		proto_tree_add_item(flags_tree,hf_diameter_avp_flags_protected,tvb,offset,1,ENC_BIG_ENDIAN);
 		pi = proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved3,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x10) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if(flags_bits & 0x10) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved4,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x08) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if(flags_bits & 0x08) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved5,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x04) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if(flags_bits & 0x04) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved6,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x02) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if(flags_bits & 0x02) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved7,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x01) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if(flags_bits & 0x01) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 	}
 	offset += 1;
 
@@ -533,23 +570,7 @@ dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset)
 
 	if (avp_str) proto_item_append_text(avp_item," val=%s", avp_str);
 
-	/* Call subdissectors for AVPs */
-	switch (vendorid) {
-	case 0:
-		dissector_try_uint(diameter_dissector_table, code, subtvb, c->pinfo, avp_tree);
-		break;
-	case VENDOR_ERICSSON:
-		dissector_try_uint(diameter_ericsson_avp_dissector_table, code, subtvb, c->pinfo, avp_tree);
-		break;
-	case VENDOR_THE3GPP:
-		dissector_try_uint(diameter_3gpp_avp_dissector_table, code, subtvb, c->pinfo, avp_tree);
-		break;
-	default:
-		break;
-	}
-	/* Debug
-	proto_tree_add_text(avp_tree, subtvb, 0, -1, "AVP %u data, Vendor Id %u ",code,vendorid);
-	*/
+	call_avp_subdissector(vendorid, code, subtvb, c->pinfo, avp_tree);
 
 	if (pad_len) {
 		guint8 i;
@@ -616,7 +637,13 @@ proto_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 		if(!t->handle) t->handle = data_handle;
 	}
 
-	call_dissector(t->handle, tvb, c->pinfo, c->tree);
+	TRY {
+		call_dissector(t->handle, tvb, c->pinfo, c->tree);
+	}
+	CATCH_NONFATAL_ERRORS {
+		show_exception(tvb, c->pinfo, c->tree, EXCEPT_CODE, GET_MESSAGE);
+	}
+	ENDTRY;
 
 	return "";
 }
@@ -886,7 +913,6 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	value_string *cmd_vs;
 	const char *cmd_str;
 	guint32 cmd = tvb_get_ntoh24(tvb,5);
-	guint32 fourth = tvb_get_ntohl(tvb,8);
 	guint32 hop_by_hop_id, end_to_end_id;
 	conversation_t *conversation;
 	diameter_conv_info_t *diameter_conv_info;
@@ -895,6 +921,10 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_item *it;
 	nstime_t ns;
 	void *pd_save;
+	diam_sub_dis_t *diam_sub_dis_inf = ep_new0(diam_sub_dis_t);
+
+
+	diam_sub_dis_inf->application_id = tvb_get_ntohl(tvb,8);
 
 	pd_save = pinfo->private_data;
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "DIAMETER");
@@ -916,13 +946,13 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		proto_tree_add_item(pt,hf_diameter_flags_error,tvb,4,1,ENC_BIG_ENDIAN);
 		proto_tree_add_item(pt,hf_diameter_flags_T,tvb,4,1,ENC_BIG_ENDIAN);
 		proto_tree_add_item(pt,hf_diameter_flags_reserved4,tvb,4,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x08) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if(flags_bits & 0x08) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(pt,hf_diameter_flags_reserved5,tvb,4,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x04) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if(flags_bits & 0x04) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(pt,hf_diameter_flags_reserved6,tvb,4,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x02) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if(flags_bits & 0x02) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(pt,hf_diameter_flags_reserved7,tvb,4,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x01) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if(flags_bits & 0x01) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 	}
 
 	cmd_item = proto_tree_add_item(diam_tree,hf_diameter_code,tvb,5,3,ENC_BIG_ENDIAN);
@@ -943,18 +973,19 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			break;
 		}
 		case DIAMETER_RFC: {
-			/* Store the application id to be used by subdissectors */
-			pinfo->private_data = &fourth;
 
 			cmd_vs = (value_string *)(void *)all_cmds->data;
 
 			app_item = proto_tree_add_item(diam_tree, hf_diameter_application_id, tvb, 8, 4, ENC_BIG_ENDIAN);
-			if (try_val_to_str(fourth, dictionary.applications) == NULL) {
+			/* Store the application id to be used by subdissectors */
+			pinfo->private_data = diam_sub_dis_inf;
+
+			if (try_val_to_str(diam_sub_dis_inf->application_id, dictionary.applications) == NULL) {
 				proto_tree *tu = proto_item_add_subtree(app_item,ett_unknown);
 				proto_item *iu = proto_tree_add_text(tu, tvb, 8, 4, "Unknown Application Id, "
 				                                     "if you know what this is you can add it to dictionary.xml");
 				expert_add_info_format(c->pinfo, iu, PI_UNDECODED, PI_WARN,
-				                       "Unknown Application Id (%u)", fourth);
+				                       "Unknown Application Id (%u)", diam_sub_dis_inf->application_id);
 				PROTO_ITEM_SET_GENERATED(iu);
 			}
 
@@ -981,8 +1012,8 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			 cmd,
 			 msgflags_str[((flags_bits>>4)&0x0f)],
 			 c->version_rfc ? "appl" : "vend",
-			 val_to_str_const(fourth, c->version_rfc ? dictionary.applications : vnd_short_vs, "Unknown"),
-			 fourth,
+			 val_to_str_const(diam_sub_dis_inf->application_id, c->version_rfc ? dictionary.applications : vnd_short_vs, "Unknown"),
+			 diam_sub_dis_inf->application_id,
 			 tvb_get_ntohl(tvb,12),
 			 tvb_get_ntohl(tvb,16));
 
@@ -1214,8 +1245,8 @@ reginfo(int *hf_ptr, const char *name, const char *abbr, const char *desc,
 		hf.hfinfo.strings = vs_ext;
 	}
 
-	g_array_append_vals(build_dict.hf,&hf,1);
-	return build_dict.hf->len - 1;
+	wmem_array_append_one(build_dict.hf,hf);
+	return wmem_array_get_count(build_dict.hf);
 }
 
 static void
@@ -1237,7 +1268,7 @@ basic_avp_reginfo(diam_avp_t *a, const char *name, enum ftenum ft,
 		hf->hfinfo.strings = vs_ext;
 	}
 
-	g_array_append_vals(build_dict.hf,hf,1);
+	wmem_array_append(build_dict.hf,hf,1);
 	g_ptr_array_add(build_dict.ett,ettp);
 }
 
@@ -1479,7 +1510,7 @@ dictionary_load(void)
 	diam_vnd_t *vnd;
 	GArray *vnd_shrt_arr = g_array_new(TRUE,TRUE,sizeof(value_string));
 
-	build_dict.hf = g_array_new(FALSE,TRUE,sizeof(hf_register_info));
+	build_dict.hf = wmem_array_new(wmem_epan_scope(),sizeof(hf_register_info));
 	build_dict.ett = g_ptr_array_new();
 	build_dict.types = g_hash_table_new(strcase_hash,strcase_equal);
 	build_dict.avps = g_hash_table_new(strcase_hash,strcase_equal);
@@ -1616,14 +1647,16 @@ dictionary_load(void)
 		}
 
 		if ((e = a->enums)) {
-			GArray *arr = g_array_new(TRUE,TRUE,sizeof(value_string));
+			wmem_array_t *arr = wmem_array_new(wmem_epan_scope(), sizeof(value_string));
+                        value_string term = {0, NULL};
 
 			for (; e; e = e->next) {
 				value_string item = {e->code,e->name};
-				g_array_append_val(arr,item);
+				wmem_array_append_one(arr,item);
 			}
-			g_array_sort(arr, compare_avps);
-			vs = (value_string *)arr->data;
+			wmem_array_sort(arr, compare_avps);
+			wmem_array_append_one(arr,term);
+			vs = (value_string *)wmem_array_get_raw(arr);
 		}
 
 		type = NULL;
@@ -1701,6 +1734,7 @@ static void
 real_proto_register_diameter(void)
 {
 	module_t *diameter_module;
+	expert_module_t* expert_diameter;
 	guint i, ett_length;
 
 	hf_register_info hf_base[] = {
@@ -1828,7 +1862,11 @@ real_proto_register_diameter(void)
 		&(unknown_avp.ett)
 	};
 
-	g_array_append_vals(build_dict.hf, hf_base, array_length(hf_base));
+	static ei_register_info ei[] = {
+		{ &ei_diameter_reserved_bit_set, { "diameter.reserved_bit_set", PI_MALFORMED, PI_WARN, "Reserved bit set", EXPFILL }},
+	};
+
+	wmem_array_append(build_dict.hf, hf_base, array_length(hf_base));
 	ett_length = array_length(ett_base);
 	for (i = 0; i < ett_length; i++) {
 		g_ptr_array_add(build_dict.ett, ett_base[i]);
@@ -1836,10 +1874,11 @@ real_proto_register_diameter(void)
 
 	proto_diameter = proto_register_protocol ("Diameter Protocol", "DIAMETER", "diameter");
 
-	proto_register_field_array(proto_diameter, (hf_register_info *)(void *)build_dict.hf->data, build_dict.hf->len);
+	proto_register_field_array(proto_diameter, (hf_register_info *)wmem_array_get_raw(build_dict.hf), wmem_array_get_count(build_dict.hf));
 	proto_register_subtree_array((gint **)build_dict.ett->pdata, build_dict.ett->len);
+	expert_diameter = expert_register_protocol(proto_diameter);
+	expert_register_field_array(expert_diameter, ei, array_length(ei));
 
-	g_array_free(build_dict.hf,FALSE);
 	g_ptr_array_free(build_dict.ett,TRUE);
 
 	/* Allow dissector to find be found by name. */

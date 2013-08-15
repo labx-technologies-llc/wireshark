@@ -124,61 +124,65 @@ set(WIRESHARK_C_FLAGS
 	-Wendif-labels
 	-Wpointer-arith
 	-Warray-bounds
-	-Wcast-align
 	-Wformat-security
+	-Wshorten-64-to-32
+	-Wvla
+	-Waddress
+	-Warray-bounds
+	-Wattributes
+	-Wdiv-by-zero
+	-Wignored-qualifiers
+	-Wno-overlength-strings
+	-Wwrite-strings
+	-Wno-long-long
+	-Wpragmas
 )
-if (NOT APPLE)
-	set(WIRESHARK_C_FLAGS ${WIRESHARK_C_FLAGS} -fexcess-precision=fast)
-endif()
 
 set(WIRESHARK_C_ONLY_FLAGS
 	# The following are C only, not C++
 	-Wc++-compat
 	-Wdeclaration-after-statement
+	-Wshadow
 	-Wno-pointer-sign
 	-Wold-style-definition
-	-Wshadow
+	-Wstrict-prototypes
+	-Wlogical-op
+	-Wjump-misses-init
 )
 
 set(WIRESHARK_EXTRA_C_FLAGS
 	-pedantic
 	-Woverflow
-	-Wlogical-op
-	-Wno-overlength-strings
 	-fstrict-overflow -Wstrict-overflow=4
 	-Wunreachable-code
 	-Wunsafe-loop-optimizations
-	-Wno-long-long
+	-Wcast-align
 	-Wcast-qual
-	-Waddress
-	-Warray-bounds
-	-Wattributes
-	-Wdiv-by-zero
 	-Wformat-security
-	-Wignored-qualifiers
-	-Wpragmas
 	-Wredundant-decls
-	-Wvla
-	# packet-ncp2222.inc prevents this from going into all warnings
-	-Wwrite-strings
 	# All the registration functions block these for now.
 	-Wmissing-declarations
-	# Problem with packet-afs.c
-	-Wshadow
-	# More cleanup needed for this on LP64
-	-Wshorten-64-to-32
-
 )
 
 set(WIRESHARK_EXTRA_C_ONLY_FLAGS
 	# The following are C only, not C++
 	-Wbad-function-cast
-	-Wjump-misses-init
-	# GLib blocks this for now.
-	-Wstrict-prototypes
 	# All the registration functions block these for now.
 	-Wmissing-prototypes
 )
+
+# With clang some tests don't fail properly during testing but only
+# during real compiles
+
+if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+
+	set(WIRESHARK_C_FLAGS ${WIRESHARK_C_FLAGS}
+	    -fexcess-precision=fast
+	)
+
+	set(WIRESHARK_C_ONLY_FLAGS ${WIRESHARK_C_ONLY_FLAGS}
+	)
+endif()
 
 if(ENABLE_EXTRA_GCC_CHECKS)   # This overrides -Werror
 	set(WIRESHARK_C_FLAGS ${WIRESHARK_C_FLAGS} ${WIRESHARK_EXTRA_C_FLAGS})
@@ -192,12 +196,26 @@ add_definitions(
 
 # Counterhack to work around some cache magic in CHECK_C_SOURCE_COMPILES
 include(CheckCCompilerFlag)
+
+if(NOT DISABLE_WERROR AND NOT ENABLE_EXTRA_GCC_CHECKS)
+	check_c_compiler_flag(-Werror=unknown-warning-option WERR_UNKNOWN)
+	check_c_compiler_flag(-Werror WERROR)
+else()
+	unset(WERR_UNKNOWN)
+	unset(WERROR)
+endif()
+# string of additional compile command line flags for check_c_compiler_flag
+if(WERR_UNKNOWN)
+	set(CMAKE_REQUIRED_FLAGS -Werror=unknown-warning-option )
+endif()
+
 set(C 0)
 # Sigh: Have to use THIS_FLAG instead of ${F} for some reason
 foreach(THIS_FLAG ${WIRESHARK_C_FLAGS})
 	set(F WS_C_FLAG_${C})
 	set(${F} ${THIS_FLAG})
 	set(V WS_C_FLAG_VALID${C})
+	message(STATUS "Checking for flag: ${${F}}")
 	check_c_compiler_flag(${${F}} ${V})
 	if (${${V}})
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${${F}}")
@@ -210,6 +228,7 @@ foreach(THIS_FLAG ${WIRESHARK_C_ONLY_FLAGS})
 	set(F WS_C_FLAG_${C})
 	set(${F} ${THIS_FLAG})
 	set(V WS_C_FLAG_VALID${C})
+	message(STATUS "Checking for flag: ${${F}}")
 	check_c_compiler_flag(${${F}} ${V})
 	if (${${V}})
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${${F}}")
@@ -226,13 +245,7 @@ else() # TODO add alternate compiler flags for hiding symbols
 		" All shared library symbols will be exported.")
 endif()
 
-if(NOT DISABLE_WERROR AND NOT ENABLE_EXTRA_GCC_CHECKS)
-	check_c_compiler_flag(-Werror WERROR)
-else()
-	unset(WERROR)
-endif()
-
-if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_CXX_COMPILER MATCHES ".*clang" OR APPLE)
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang")
 	set (C_UNUSED "__attribute__((unused))" )
 else()
 	set (C_UNUSED "" )
@@ -282,6 +295,7 @@ set(GTHREAD2_REQUIRED)
 set(PCAP_REQUIRED)
 set(M_REQUIRED)
 set(PythonInterp_FIND_VERSION 2)
+set(Python_ADDITIONAL_VERSIONS 3)
 
 set(PACKAGELIST ${PACKAGELIST} HtmlViewer)
 
@@ -517,13 +531,14 @@ add_subdirectory( asn1 EXCLUDE_FROM_ALL )
 add_subdirectory( codecs )
 add_subdirectory( epan )
 add_subdirectory( tools/lemon )
+add_subdirectory( ui )
 add_subdirectory( wiretap )
 add_subdirectory( wsutil )
 
 add_custom_target(dumpabi DEPENDS dumpabi-libwireshark dumpabi-libwiretap dumpabi-libwsutil color.h)
 
-if((BUILD_wireshark AND GTK_FOUND) OR (BUILD_qtshark AND QT_FOUND))
-	add_subdirectory( ui )
+if(ENABLE_ECHLD)
+	add_subdirectory( echld )
 endif()
 
 if(BUILD_wireshark AND GTK_FOUND)
@@ -546,6 +561,10 @@ endif()
 if(ENABLE_PCAP_NG_DEFAULT)
 	set(PCAP_NG_DEFAULT 1)
 endif()
+
+# Large file support (e.g. make off_t 64 bit if supported)
+include(gmxTestLargeFiles)
+gmx_test_large_files(GMX_LARGEFILES)
 
 #Platform specific
 #if(UNIX)
@@ -617,17 +636,6 @@ ADD_CUSTOM_COMMAND(
 		${CMAKE_CURRENT_SOURCE_DIR}/make-version.pl
 )
 
-ADD_CUSTOM_COMMAND(
-	OUTPUT	ps.c
-	COMMAND	${PYTHON_EXECUTABLE}
-		${CMAKE_CURRENT_SOURCE_DIR}/tools/rdps.py
-		${CMAKE_CURRENT_SOURCE_DIR}/print.ps
-		ps.c
-	DEPENDS
-		${CMAKE_CURRENT_SOURCE_DIR}/tools/rdps.py
-		${CMAKE_CURRENT_SOURCE_DIR}/print.ps
-)
-
 if(UNIX)
 	set(PLATFORM_SRC
 		capture-pcap-util-unix.c
@@ -642,7 +650,6 @@ endif()
 
 set(WTAP_PLUGIN_SOURCES
 	epan/plugins.c
-	epan/report_err.c
 	epan/filesystem.c
 )
 
@@ -657,16 +664,9 @@ set(WIRESHARK_COMMON_SRC
 	cfile.c
 	cfutils.c
 	clopts_common.c
-	disabled_protos.c
-	frame_data_sequence.c
-	packet-range.c
-	print.c
-	ps.c
+	frame_tvbuff.c
 	svnversion.h
 	sync_pipe_write.c
-	timestats.c
-	tap-megaco-common.c
-	tap-rtp-common.c
 	version_info.c
 )
 
@@ -781,13 +781,9 @@ if( (BUILD_wireshark AND GTK_FOUND) OR (BUILD_qtshark AND QT_FOUND) )
 		file.c
 		fileset.c
 		filters.c
-		g711.c
 		iface_monitor.c
-		merge.c
 		proto_hier_stats.c
 		summary.c
-		tempfile.c
-		u3.c
 		ws80211_utils.c
 		${SHARK_COMMON_CAPTURE_SRC}
 		${WIRESHARK_COMMON_SRC}
@@ -847,6 +843,7 @@ register_tap_files(tshark-tap-register.c
 
 if(BUILD_tshark)
 	set(tshark_LIBS
+		ui
 		${LIBEPAN_LIBS}
 		${APPLE_CORE_FOUNDATION_LIBRARY}
 		${APPLE_SYSTEM_CONFIGURATION_LIBRARY}
@@ -854,10 +851,8 @@ if(BUILD_tshark)
 	set(tshark_FILES
 		capture_opts.c
 		capture_sync.c
-		tempfile.c
 		tshark-tap-register.c
 		tshark.c
-		ui/util.c
 		${TSHARK_TAP_SRC}
 		${SHARK_COMMON_CAPTURE_SRC}
 	        ${WIRESHARK_COMMON_SRC}
@@ -948,10 +943,10 @@ if(BUILD_mergecap)
 	set(mergecap_LIBS
 		wiretap
 		${ZLIB_LIBRARIES}
+		${CMAKE_DL_LIBS}
 	)
 	set(mergecap_FILES
 		mergecap.c
-		merge.c
 		svnversion.h
 		${WTAP_PLUGIN_SOURCES}
 	)
@@ -966,6 +961,7 @@ if(BUILD_reordercap)
 	set(reordercap_LIBS
 		wiretap
 		${ZLIB_LIBRARIES}
+		${CMAKE_DL_LIBS}
 	)
 	set(reordercap_FILES
 		reordercap.c
@@ -985,6 +981,7 @@ if(BUILD_capinfos)
 		wsutil
 		${ZLIB_LIBRARIES}
 		${GCRYPT_LIBRARIES}
+		${CMAKE_DL_LIBS}
 	)
 	set(capinfos_FILES
 		capinfos.c
@@ -1001,11 +998,10 @@ if(BUILD_editcap)
 	set(editcap_LIBS
 		wiretap
 		${ZLIB_LIBRARIES}
+		${CMAKE_DL_LIBS}
 	)
 	set(editcap_FILES
 		editcap.c
-		epan/crypt/md5.c
-		epan/nstime.c
 		${WTAP_PLUGIN_SOURCES}
 	)
 	add_executable(editcap ${editcap_FILES})
@@ -1042,7 +1038,6 @@ if(BUILD_dumpcap AND PCAP_FOUND)
 		pcapio.c
 		ringbuffer.c
 		sync_pipe_write.c
-		tempfile.c
 		version_info.c
 		ws80211_utils.c
 		${PLATFORM_SRC}
@@ -1099,7 +1094,7 @@ pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/rawshark 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/reordercap 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/text2pcap 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/tshark 1 )
-pod2manhtml( wireshark 1 )
+pod2manhtml( ${CMAKE_BINARY_DIR}/wireshark 1 )
 pod2manhtml( ${CMAKE_SOURCE_DIR}/doc/wireshark-filter 4 )
 
 add_custom_target(

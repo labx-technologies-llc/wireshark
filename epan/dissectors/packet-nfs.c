@@ -728,7 +728,7 @@ static dissector_table_t nfs_fhandle_table;
 #define FHT_NETAPP           5
 #define FHT_NETAPP_V4        6
 #define FHT_NETAPP_GX_V3     7
-#define FHT_CELERRA          8
+#define FHT_CELERRA_VNX      8
 
 static const enum_val_t nfs_fhandle_types[] = {
 	{ "unknown",     "Unknown",     FHT_UNKNOWN },
@@ -739,7 +739,7 @@ static const enum_val_t nfs_fhandle_types[] = {
 	{ "ontap_v3",    "ONTAP_V3",    FHT_NETAPP },
 	{ "ontap_v4",    "ONTAP_V4",    FHT_NETAPP_V4},
 	{ "ontap_gx_v3", "ONTAP_GX_V3", FHT_NETAPP_GX_V3},
-	{ "celerra",     "CELERRA",     FHT_CELERRA },
+	{ "celerra_vnx", "CELERRA_VNX", FHT_CELERRA_VNX },
 	{ NULL, NULL, 0 }
 };
 /* decode all nfs filehandles as this type */
@@ -1209,7 +1209,7 @@ static const value_string names_fhtype[] =
 	{	FHT_NETAPP,		"ONTAP 7G nfs v3 file handle"		},
 	{	FHT_NETAPP_V4,	 	"ONTAP 7G nfs v4 file handle"		},
 	{	FHT_NETAPP_GX_V3,	"ONTAP GX nfs v3 file handle"		},
-	{	FHT_CELERRA,		"Celerra nfs file handle"		},
+	{	FHT_CELERRA_VNX,	"Celerra|VNX NFS file handle"		},
 	{	0,			NULL					}
 };
 static value_string_ext names_fhtype_ext = VALUE_STRING_EXT_INIT(names_fhtype);
@@ -1277,7 +1277,7 @@ dissect_fhandle_data_SVR4(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *tre
 
 	if (tree)
 		proto_tree_add_boolean(tree, hf_nfs_fh_endianness, tvb,	0, fhlen, little_endian);
-	
+
 	/* We are fairly sure, that when found==FALSE, the following code will
 	throw an exception. */
 
@@ -1297,7 +1297,7 @@ dissect_fhandle_data_SVR4(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *tre
 		temp = tvb_get_ntohl(tvb, fsid_O);
 	fsid_major = ( temp>>18 ) &  0x3fff; /* 14 bits */
 	fsid_minor = ( temp     ) & 0x3ffff; /* 18 bits */
-	
+
 	if (tree) {
 		proto_item* fsid_item = NULL;
 		proto_tree* fsid_tree = NULL;
@@ -1615,7 +1615,7 @@ dissect_fhandle_data_NETAPP(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *t
 		proto_item *item = NULL;
 		proto_tree *subtree = NULL;
 		char *flag_string;
-		const char *strings[] = { " MNT_PNT", " SNAPDIR", " SNAPDIR_ENT",
+		static const char *strings[] = { " MNT_PNT", " SNAPDIR", " SNAPDIR_ENT",
 				    " EMPTY", " VBN_ACCESS", " MULTIVOLUME",
 				    " METADATA" };
 		guint16 bit = sizeof(strings) / sizeof(strings[0]);
@@ -1685,32 +1685,32 @@ dissect_fhandle_data_NETAPP_V4(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree
 	guint32 inum = tvb_get_ntohl(tvb, offset + 12);
 
 	const char *handle_string=NULL;
-	const char *handle_type_strings [] = { "NORMAL",
-					       "UNEXP",
-					       "VOLDIR",
-					       "ROOT",
-					       "ABSENT",
-					       "INVALID"
-					     };
+	static const char *handle_type_strings [] = { "NORMAL",
+						      "UNEXP",
+						      "VOLDIR",
+						      "ROOT",
+						      "ABSENT",
+						      "INVALID"
+					     	     };
 
 	char *flag_string;
-	const char *strings[] = { " MNT_PNT",
-				  " SNAPDIR",
-				  " SNAPDIR_ENT",
-				  " EMPTY",
-				  " VBN_ACCESS",
-				  " MULTIVOLUME",
-				  " METADATA",
-				  " ORPHAN",
-				  " FOSTER",
-				  " NAMED_ATTR",
-				  " EXP_SNAPDIR",
-				  " VFILER",
-				  " NS_AGGR",
-				  " STRIPED",
-				  " NS_PRIVATE",
-				  " NEXT_GEN_FH"
-				};
+	static const char *strings[] = { " MNT_PNT",
+					 " SNAPDIR",
+					 " SNAPDIR_ENT",
+					 " EMPTY",
+					 " VBN_ACCESS",
+					 " MULTIVOLUME",
+					 " METADATA",
+					 " ORPHAN",
+					 " FOSTER",
+					 " NAMED_ATTR",
+					 " EXP_SNAPDIR",
+					 " VFILER",
+					 " NS_AGGR",
+					 " STRIPED",
+					 " NS_PRIVATE",
+					 " NEXT_GEN_FH"
+				       };
 	guint16 bit = sizeof(strings) / sizeof(strings[0]);
 	proto_tree *flag_tree = NULL;
 
@@ -2182,9 +2182,9 @@ out:
 }
 
 
-/* Dissect EMC Celerra NFSv3/v4 File Handles */
+/* Dissect EMC Celerra or VNX NFSv3/v4 File Handle */
 static void
-dissect_fhandle_data_CELERRA(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *tree)
+dissect_fhandle_data_CELERRA_VNX(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint16 offset=0;
 	guint16	fhlen;
@@ -2205,10 +2205,10 @@ dissect_fhandle_data_CELERRA(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *
 
 	fhlen = tvb_reported_length(tvb);
 
-	/* Display the entire filehandle */
+	/* Display the entire file handle */
 	proto_tree_add_item(tree, hf_nfs_fh_fhandle_data, tvb, 0, fhlen, ENC_NA);
 
-	/* 	On Celerra if fhlen = 32, it's an NFSv3 filehandle */
+	/* 	If fhlen = 32, it's an NFSv3 file handle */
 	if (fhlen == 32) {
 		/* Create a "File/Dir" subtree: bytes 0 thru 15 of the 32-byte file handle 	 */
 		{
@@ -2246,12 +2246,14 @@ dissect_fhandle_data_CELERRA(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *
 		ex_gen    = tvb_get_letohl(tvb, offset+28);
 		proto_tree_add_uint(ex_tree, hf_nfs_fh_ex_gen,      tvb, offset+28, 4, ex_gen);
 		}
-	} else {
-		/* On Celerra if fhlen = 40, it's an NFSv4 filehandle).  In Celerra NFSv4
-		filehandles, the first 4 bytes are the Named Attribute ID, and the next 4 bytes
-		is the RO_Node boolean which is true is the file/dir is Read Only.  Unlike the
-		NFSv3 filehandles, the next 16 bytes contain the *export* info followed by 16 bytes
-		containing the *file/dir* info. */
+	} else if (fhlen == 40) {
+		/*
+		If fhlen = 40, it's an NFSv4 file handle).  In Celerra|VNX NFSv4 file handles,
+		the first 4 bytes hold the Named Attribute ID, and the next 4 bytes hold the 
+		RO_Node boolean which if true, the file/dir is Read Only. Unlike NFSv3 file
+		handles where the file/dir info precedes the export info, the next 16 bytes contain
+		the *export* info followed by 16 bytes containing the *file/dir* info.
+		*/
 
 		/* "Named Attribute ID" or "Object ID" (bytes 0 thru 3) */
 		obj_id = tvb_get_letohl(tvb, offset+0);
@@ -2262,7 +2264,7 @@ dissect_fhandle_data_CELERRA(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *
 		ro_node = tvb_get_letohl(tvb, offset+4);
 		proto_tree_add_boolean(tree, hf_nfs_fh_ro_node,     tvb,  offset+4, 4, ro_node);
 
-		/* Create "Export" subtree (bytes 8 thru 23 of the 40-byte filehandle  */
+		/* Create "Export" subtree (bytes 8 thru 23 of the 40-byte file handle  */
 		{
 		proto_item* ex_item = NULL;
 		proto_tree* ex_tree = NULL;
@@ -2280,7 +2282,7 @@ dissect_fhandle_data_CELERRA(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *
 		ex_gen    = tvb_get_letohl(tvb, offset+20);
 		proto_tree_add_uint(ex_tree, hf_nfs_fh_ex_gen,     tvb, offset+20,  4, ex_gen);
 		}
-		/* Create a "File/Dir/Object" subtree (bytes 24 thru 39 of the 40-byte filehandle) */
+		/* Create a "File/Dir/Object" subtree (bytes 24 thru 39 of the 40-byte file handle) */
 		{
 		proto_item* obj_item = NULL;
 		proto_tree* obj_tree = NULL;
@@ -2298,6 +2300,12 @@ dissect_fhandle_data_CELERRA(tvbuff_t* tvb, packet_info *pinfo _U_, proto_tree *
 		obj_gen	  = tvb_get_letohl(tvb, offset+36);
 		proto_tree_add_uint(obj_tree, hf_nfs_fh_obj_gen,    tvb, offset+36,  4, obj_gen);
 		}
+	} else {
+		/* This is not a Celerra|VNX file handle.  Display a warning. */
+		expert_add_info_format(pinfo, tree, PI_UNDECODED, PI_WARN,
+			"Celerra|VNX file handles are 32 (NFSv3) or 40 (NFSv4) but the length is %u.\n"
+			"Change the 'Decode NFS file handles as' pref to the correct type or 'Unknown'.",
+			fhlen);
 	}
 }
 
@@ -2376,7 +2384,7 @@ dissect_fhandle_data(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *
 		real_length=fhlen;
 		if(default_nfs_fhandle_type != FHT_UNKNOWN && real_length<tvb_length_remaining(tvb, offset))
 			real_length=tvb_length_remaining(tvb, offset);
-		
+
 		fh_tvb=tvb_new_subset(tvb, offset, real_length, fhlen);
 		if(!dissector_try_uint(nfs_fhandle_table, default_nfs_fhandle_type, fh_tvb, pinfo, tree))
 			dissect_fhandle_data_unknown(fh_tvb, pinfo, tree);
@@ -4036,13 +4044,13 @@ dissect_nfs3_post_op_attr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_t
 	guint32 attributes_follow = 0;
 
 	attributes_follow = tvb_get_ntohl(tvb, offset+0);
-	
+
 	if (tree) {
 		post_op_attr_item = proto_tree_add_text(tree, tvb, offset, -1,
 			"%s", name);
 		post_op_attr_tree = proto_item_add_subtree(post_op_attr_item,
 			ett_nfs3_post_op_attr);
-	
+
 		proto_tree_add_text(post_op_attr_tree, tvb, offset, 4,
 			"attributes_follow: %s (%u)",
 		val_to_str_const(attributes_follow,value_follows,"Unknown"), attributes_follow);
@@ -6445,7 +6453,7 @@ dissect_nfs_aceflags4(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_t
 				val_to_str(flag_bit, aceflag_names4, "Unknown: %u"));
 			first_flag = FALSE;
 		}
-		flag_bit <<= 1;	
+		flag_bit <<= 1;
 	}
 	proto_item_append_text(aceflag_item, ")");
 	return offset += 4;
@@ -6569,7 +6577,7 @@ dissect_nfs4_acemask(tvbuff_t *tvb, int offset, proto_tree *ace_tree, guint32 ac
 	while (acemask_bit <= ACE4_SYNCHRONIZE)
 	{
 		if (acemask_bit & acemask) {
-			if (acemask_bit <= 0x4) {	
+			if (acemask_bit <= 0x4) {
 				if (obj_type) {
 					if  (obj_type==NF4REG) {
 						type = val_to_str(acemask_bit, acemask4_perms_file, "Unknown: %u");
@@ -6611,7 +6619,7 @@ dissect_nfs4_ace(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,	proto_tree *
 	if (tree) {
 		acetype4 = tvb_get_ntohl(tvb, offset);
 		acetype4_str = val_to_str(acetype4, names_acetype4, "Unknown: %u");
-		
+
 		/* Display the ACE type and create a subtree for this ACE */
 		if (ace_number==0) {
 			ace_item = proto_tree_add_uint_format(tree, hf_nfs4_acetype, tvb, offset, 4,
@@ -6624,7 +6632,7 @@ dissect_nfs4_ace(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,	proto_tree *
 	}
 
 	offset += 4;
-	
+
 	if (tree) {
 		offset = dissect_nfs_aceflags4(tvb, offset, pinfo, ace_tree);
 		offset = dissect_nfs4_acemask(tvb, offset, ace_tree, acetype4, obj_type);
@@ -6646,7 +6654,7 @@ dissect_nfs4_fattr_acl(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_item
 	proto_item *acl_item = NULL;
 
 	if (tree) {
-		acl_item = proto_tree_add_none_format(tree, hf_nfs4_acl, tvb, 0, 0, "ACL");	
+		acl_item = proto_tree_add_none_format(tree, hf_nfs4_acl, tvb, 0, 0, "ACL");
 		PROTO_ITEM_SET_HIDDEN(acl_item);
 	}
 
@@ -6656,11 +6664,11 @@ dissect_nfs4_fattr_acl(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_item
 		proto_item_append_text(attr_item, " (%u ACEs)", num_aces);
 	}
 	offset += 4;
-	
+
 	/* Tree or not, this for loop is required due dissect_nfs_utf8string() call */
 	for (ace_number=1; ace_number<=num_aces; ace_number++)
 		offset = dissect_nfs4_ace(tvb, offset, pinfo, tree, ace_number, obj_type);
-	
+
 	return offset;
 }
 
@@ -7088,7 +7096,7 @@ dissect_nfs4_fattrs(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
 				if (bitmap_tree) {
 					/*
 					* Append this attribute name to the 'Attr mask' header line */
-					proto_item_append_text (bitmap_tree, (first_attr ? " (%s" : ", %s"), 
+					proto_item_append_text (bitmap_tree, (first_attr ? " (%s" : ", %s"),
 						val_to_str(attr_num, fattr4_names, "Unknown: %u"));
 					first_attr = FALSE;
 
@@ -9574,7 +9582,7 @@ dissect_nfs4_response_op(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tr
 
 		case NFS4_OP_CREATE:
 			offset = dissect_nfs4_change_info(tvb, offset, newftree, "change_info");
-			offset = dissect_nfs4_fattrs(tvb, offset, pinfo, newftree, FATTR4_DISSECT_VALUES);
+			offset = dissect_nfs4_fattrs(tvb, offset, pinfo, newftree, FATTR4_BITMAP_ONLY);
 			break;
 
 		case NFS4_OP_GETATTR:
@@ -9610,7 +9618,7 @@ dissect_nfs4_response_op(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tr
 			offset = dissect_nfs4_change_info(tvb, offset, newftree,
 				"change_info");
 			offset = dissect_nfs4_open_rflags(tvb, offset, newftree);
-			offset = dissect_nfs4_fattrs(tvb, offset, pinfo, newftree, FATTR4_DISSECT_VALUES);
+			offset = dissect_nfs4_fattrs(tvb, offset, pinfo, newftree, FATTR4_BITMAP_ONLY);
 			offset = dissect_nfs4_open_delegation(tvb, offset, pinfo, newftree);
 			g_string_append_printf (op_summary[ops_counter].optext, " StateID: 0x%04x", sid_hash);
 			break;
@@ -9882,7 +9890,7 @@ dissect_nfs4_compound_reply(tvbuff_t *tvb, int offset, packet_info *pinfo,
 	* which case don't display anything */
 	if (nfs_display_v4_tag && strncmp(tag,"<EMPTY>",7) != 0)
 		col_append_fstr(pinfo->cinfo, COL_INFO," %s", tag);
-	
+
 	offset = dissect_nfs4_response_op(tvb, offset, pinfo, tree);
 
 	if (status != NFS4_OK)
@@ -11072,8 +11080,8 @@ proto_register_nfs(void)
 			&names_nfs4_operation_ext, 0, NULL, HFILL }},
 
 		{ &hf_nfs4_main_opcode, {
-			"Main Opcode", "nfs.main_opcode", FT_UINT32, BASE_DEC,
-			NULL, 0, "Main Operation number", HFILL }},
+			"Main Opcode", "nfs.main_opcode", FT_UINT32, BASE_DEC|BASE_EXT_STRING,
+			&names_nfs4_operation_ext, 0, "Main Operation number", HFILL }},
 
 		{ &hf_nfs4_linktext, {
 			"Name", "nfs.symlink.linktext", FT_STRING, BASE_NONE,
@@ -11156,16 +11164,16 @@ proto_register_nfs(void)
 		{ &hf_nfs4_want_flags, {
 			"wants", "nfs.want", FT_UINT32, BASE_HEX,
 			VALS(names_open4_share_access), 0, NULL, HFILL }},
-		
+
 		{ &hf_nfs4_want_notify_flags, {
 			"want notification", "nfs.want_notification", FT_UINT32, BASE_HEX,
 			NULL, 0, NULL, HFILL }},
-		
+
 		{ &hf_nfs4_want_signal_deleg_when_resrc_avail, {
 			"want_signal_deleg_when_resrc_avail",
 			"nfs.want_notification.when_resrc_avail", FT_BOOLEAN, 32,
 			TFS(&tfs_set_notset), OPEN4_SHARE_ACCESS_WANT_SIGNAL_DELEG_WHEN_RESRC_AVAIL, NULL, HFILL }},
-		
+
 		{ &hf_nfs4_want_push_deleg_when_uncontended, {
 			"want_push_deleg_when_uncontended",
 			"nfs.want_push_deleg_when_uncontended", FT_BOOLEAN, 32,
@@ -12435,6 +12443,7 @@ proto_register_nfs(void)
 
 		&ett_nfs4_fh_file,
 		&ett_nfs4_fh_file_flags,
+		&ett_nfs4_fh_export,
 		&ett_nfs4_compound_call,
 		&ett_nfs4_request_op,
 		&ett_nfs4_response_op,
@@ -12627,7 +12636,7 @@ proto_register_nfs(void)
 
 	prefs_register_enum_preference(nfs_module,
 		"default_fhandle_type",
-		"Decode nfs fhandles as",
+		"Decode NFS file handles as",
 		"Decode all NFS file handles as if they are of this type",
 		&default_nfs_fhandle_type,
 		nfs_fhandle_types,
@@ -12674,8 +12683,8 @@ proto_reg_handoff_nfs(void)
 	fhandle_handle=create_dissector_handle(dissect_fhandle_data_NETAPP_GX_v3, proto_nfs);
 	dissector_add_uint("nfs_fhandle.type", FHT_NETAPP_GX_V3, fhandle_handle);
 
-	fhandle_handle=create_dissector_handle(dissect_fhandle_data_CELERRA, proto_nfs);
-	dissector_add_uint("nfs_fhandle.type", FHT_CELERRA, fhandle_handle);
+	fhandle_handle=create_dissector_handle(dissect_fhandle_data_CELERRA_VNX, proto_nfs);
+	dissector_add_uint("nfs_fhandle.type", FHT_CELERRA_VNX, fhandle_handle);
 
 	fhandle_handle=create_dissector_handle(dissect_fhandle_data_unknown, proto_nfs);
 	dissector_add_uint("nfs_fhandle.type", FHT_UNKNOWN, fhandle_handle);

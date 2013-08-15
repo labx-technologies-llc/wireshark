@@ -34,7 +34,7 @@
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include <epan/dissectors/packet-h225.h>
-#include "timestats.h"
+#include "epan/timestats.h"
 
 /* following values represent the size of their valuestring arrays */
 #define NUM_RAS_STATS 7
@@ -205,14 +205,14 @@ h225rassrt_draw(void *phs)
 
 
 static void
-h225rassrt_init(const char *optarg, void* userdata _U_)
+h225rassrt_init(const char *opt_arg, void* userdata _U_)
 {
 	h225rassrt_t *hs;
 	GString *error_string;
 
 	hs = g_new(h225rassrt_t,1);
-	if(!strncmp(optarg,"h225,srt,",9)){
-		hs->filter=g_strdup(optarg+9);
+	if(!strncmp(opt_arg,"h225,srt,",9)){
+		hs->filter=g_strdup(opt_arg+9);
 	} else {
 		hs->filter=NULL;
 	}

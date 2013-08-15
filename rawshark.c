@@ -64,6 +64,7 @@
 #endif
 
 #include <glib.h>
+#include <epan/epan-int.h>
 #include <epan/epan.h>
 #include <epan/filesystem.h>
 #include <wsutil/crash_info.h>
@@ -73,10 +74,11 @@
 #include "globals.h"
 #include <epan/packet.h>
 #include "file.h"
-#include "disabled_protos.h"
+#include "frame_tvbuff.h"
+#include <epan/disabled_protos.h>
 #include <epan/prefs.h>
 #include <epan/column.h>
-#include "print.h"
+#include <epan/print.h>
 #include <epan/addr_resolv.h>
 #include "ui/util.h"
 #include "clopts_common.h"
@@ -119,7 +121,8 @@
 static const gchar decode_as_arg_template[] = "<layer_type>==<selector>,<decode_as_protocol>";
 
 static guint32 cum_bytes;
-static nstime_t first_ts;
+static const frame_data *ref;
+static frame_data ref_frame;
 static frame_data *prev_dis;
 static frame_data prev_dis_frame;
 static frame_data *prev_cap;
@@ -201,7 +204,7 @@ print_usage(gboolean print_ver)
 
     fprintf(output, "\n");
     fprintf(output, "Processing:\n");
-    fprintf(output, "  -d <encap:dlt>|<proto:protoname>\n");
+    fprintf(output, "  -d <encap:linktype>|<proto:protoname>\n");
     fprintf(output, "                           packet encapsulation or protocol\n");
     fprintf(output, "  -F <field>               field to display\n");
     fprintf(output, "  -n                       disable all name resolution (def: all enabled)\n");
@@ -353,9 +356,10 @@ raw_pipe_open(const char *pipe_name)
 }
 
 /**
- * Parse a link-type argument of the form "encap:<pcap dlt>" or
- * "proto:<proto name>".  "Pcap dlt" must be a name conforming to
- * pcap_datalink_name_to_val() or an integer.  "Proto name" must be
+ * Parse a link-type argument of the form "encap:<pcap linktype>" or
+ * "proto:<proto name>".  "Pcap linktype" must be a name conforming to
+ * pcap_datalink_name_to_val() or an integer; the integer should be
+ * a LINKTYPE_ value supported by Wiretap.  "Proto name" must be
  * a protocol name, e.g. "http".
  */
 static gboolean
@@ -382,6 +386,16 @@ set_link_type(const char *lt_arg) {
             }
             dlt_val = (int)val;
         }
+        /*
+         * In those cases where a given link-layer header type
+         * has different LINKTYPE_ and DLT_ values, linktype_name_to_val()
+         * will return the OS's DLT_ value for that link-layer header
+         * type, not its OS-independent LINKTYPE_ value.
+         *
+         * On a given OS, wtap_pcap_encap_to_wtap_encap() should
+         * be able to map either LINKTYPE_ values or DLT_ values
+         * for the OS to the appropriate Wiretap encapsulation.
+         */
         encap = wtap_pcap_encap_to_wtap_encap(dlt_val);
         if (encap == WTAP_ENCAP_UNKNOWN) {
             return FALSE;
@@ -883,7 +897,7 @@ main(int argc, char *argv[])
 /**
  * Read data from a raw pipe.  The "raw" data consists of a libpcap
  * packet header followed by the payload.
- * @param fd [IN] A POSIX file descriptor.  Because that's _exactly_ the sort
+ * @param pd [IN] A POSIX file descriptor.  Because that's _exactly_ the sort
  *           of thing you want to use in Windows.
  * @param phdr [OUT] Packet header information.
  * @param err [OUT] Error indicator.  Uses wiretap values.
@@ -923,7 +937,7 @@ raw_pipe_read(struct wtap_pkthdr *phdr, guchar * pd, int *err, const gchar **err
 
     if (want_pcap_pkthdr) {
         phdr->ts.secs = mem_hdr.ts.tv_sec;
-        phdr->ts.nsecs = mem_hdr.ts.tv_usec * 1000;
+        phdr->ts.nsecs = (gint32)mem_hdr.ts.tv_usec * 1000;
         phdr->caplen = mem_hdr.caplen;
         phdr->len = mem_hdr.len;
     } else {
@@ -1059,7 +1073,7 @@ process_packet(capture_file *cf, gint64 offset, struct wtap_pkthdr *whdr,
     /* The protocol tree will be "visible", i.e., printed, only if we're
        printing packet details, which is true if we're in verbose mode ("verbose"
        is true). */
-    epan_dissect_init(&edt, create_proto_tree, FALSE);
+    epan_dissect_init(&edt, cf->epan, create_proto_tree, FALSE);
 
     /* If we're running a read filter, prime the epan_dissect_t with that
        filter. */
@@ -1072,12 +1086,17 @@ process_packet(capture_file *cf, gint64 offset, struct wtap_pkthdr *whdr,
     printf("%lu", (unsigned long int) cf->count);
 
     frame_data_set_before_dissect(&fdata, &cf->elapsed_time,
-                                  &first_ts, prev_dis, prev_cap);
+                                  &ref, prev_dis);
+
+    if (ref == &fdata) {
+       ref_frame = fdata;
+       ref = &ref_frame;
+    }
 
     /* We only need the columns if we're printing packet info but we're
      *not* verbose; in verbose mode, we print the protocol tree, not
      the protocol summary. */
-    epan_dissect_run_with_taps(&edt, whdr, pd, &fdata, &cf->cinfo);
+    epan_dissect_run_with_taps(&edt, whdr, frame_tvbuff_new(&fdata, pd), &fdata, &cf->cinfo);
 
     frame_data_set_after_dissect(&fdata, &cum_bytes);
     prev_dis_frame = fdata;
@@ -1268,6 +1287,8 @@ static gboolean print_field_value(field_info *finfo, int cmd_line_index)
     string_fmt_t       *sf;
     guint32            uvalue;
     gint32             svalue;
+    guint64            uvalue64;
+    gint64             svalue64;
     const true_false_string *tfstring = &tfs_true_false;
 
     hfinfo = finfo->hfinfo;
@@ -1339,6 +1360,13 @@ static gboolean print_field_value(field_info *finfo, int cmd_line_index)
                                     g_string_append(label_s, val_to_str(svalue, cVALS(hfinfo->strings), "Unknown"));
                                 }
                                 break;
+                            case FT_INT64:
+                                DISSECTOR_ASSERT(!hfinfo->bitmask);
+                                svalue64 = (gint64)fvalue_get_integer64(&finfo->value);
+                                if (hfinfo->display & BASE_VAL64_STRING) {
+                                    g_string_append(label_s, val64_to_str(svalue64, (const val64_string *)(hfinfo->strings), "Unknown"));
+                                }
+                                break;
                             case FT_UINT8:
                             case FT_UINT16:
                             case FT_UINT24:
@@ -1350,6 +1378,13 @@ static gboolean print_field_value(field_info *finfo, int cmd_line_index)
                                     g_string_append(label_s, val_to_str_ext(uvalue, (const value_string_ext *) hfinfo->strings, "Unknown"));
                                 } else {
                                     g_string_append(label_s, val_to_str(uvalue, cVALS(hfinfo->strings), "Unknown"));
+                                }
+                                break;
+                            case FT_UINT64:
+                                DISSECTOR_ASSERT(!hfinfo->bitmask);
+                                uvalue64 = fvalue_get_integer64(&finfo->value);
+                                if (hfinfo->display & BASE_VAL64_STRING) {
+                                    g_string_append(label_s, val64_to_str(uvalue64, (const val64_string *)(hfinfo->strings), "Unknown"));
                                 }
                                 break;
                             default:
@@ -1564,6 +1599,34 @@ open_failure_message(const char *filename, int err, gboolean for_writing)
     fprintf(stderr, "\n");
 }
 
+static const nstime_t *
+raw_get_frame_ts(void *data _U_, guint32 frame_num)
+{
+    if (ref && ref->num == frame_num)
+        return &ref->abs_ts;
+
+    if (prev_dis && prev_dis->num == frame_num)
+        return &prev_dis->abs_ts;
+
+    if (prev_cap && prev_cap->num == frame_num)
+        return &prev_cap->abs_ts;
+
+    return NULL;
+}
+
+static epan_t *
+raw_epan_new(capture_file *cf)
+{
+    epan_t *epan = epan_new();
+
+    epan->data = cf;
+    epan->get_frame_ts = raw_get_frame_ts;
+    epan->get_interface_name = cap_file_get_interface_name;
+    epan->get_user_comment = NULL;
+
+    return epan;
+}
+
 cf_status_t
 raw_cf_open(capture_file *cf, const char *fname)
 {
@@ -1572,10 +1635,9 @@ raw_cf_open(capture_file *cf, const char *fname)
 
     /* The open succeeded.  Fill in the information for this file. */
 
-    /* Cleanup all data structures used for dissection. */
-    cleanup_dissection();
-    /* Initialize all data structures used for dissection. */
-    init_dissection();
+    /* Create new epan session for dissection. */
+    epan_free(cf->epan);
+    cf->epan = raw_epan_new(cf);
 
     cf->wth = NULL;
     cf->f_datalen = 0; /* not used, but set it anyway */
@@ -1598,7 +1660,7 @@ raw_cf_open(capture_file *cf, const char *fname)
     cf->has_snap = FALSE;
     cf->snap = WTAP_MAX_PACKET_SIZE;
     nstime_set_zero(&cf->elapsed_time);
-    nstime_set_unset(&first_ts);
+    ref = NULL;
     prev_dis = NULL;
     prev_cap = NULL;
 

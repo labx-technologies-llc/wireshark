@@ -42,8 +42,9 @@
  */
 #define BUF_TOO_SMALL_ERR "[Buffer too small]"
 
-static inline char *
-byte_to_hex(char *out, guint32 dword) {
+static inline char
+low_nibble_of_octet_to_hex(guint8 oct)
+{
   /* At least one version of Apple's C compiler/linker is buggy, causing
      a complaint from the linker about the "literal C string section"
      not ending with '\0' if we initialize a 16-element "char" array with
@@ -54,8 +55,13 @@ byte_to_hex(char *out, guint32 dword) {
       { '0', '1', '2', '3', '4', '5', '6', '7',
         '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
-  *out++ = hex_digits[(dword >> 4) & 0xF];
-  *out++ = hex_digits[dword & 0xF];
+  return hex_digits[oct & 0xF];
+}
+
+static inline char *
+byte_to_hex(char *out, guint32 dword) {
+  *out++ = low_nibble_of_octet_to_hex(dword >> 4);
+  *out++ = low_nibble_of_octet_to_hex(dword);
   return out;
 }
 
@@ -68,17 +74,13 @@ word_to_hex(char *out, guint16 word) {
 
 char *
 word_to_hex_npad(char *out, guint16 word) {
-  static const gchar hex_digits[16] =
-      { '0', '1', '2', '3', '4', '5', '6', '7',
-        '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-
 	if (word >= 0x1000)
-		*out++ = hex_digits[(word >> 12) & 0xF];
+		*out++ = low_nibble_of_octet_to_hex((guint8)(word >> 12));
 	if (word >= 0x0100)
-		*out++ = hex_digits[(word >> 8) & 0xF];
+		*out++ = low_nibble_of_octet_to_hex((guint8)(word >> 8));
 	if (word >= 0x0010)
-		*out++ = hex_digits[(word >> 4) & 0xF];
-	*out++ = hex_digits[word & 0xF];
+		*out++ = low_nibble_of_octet_to_hex((guint8)(word >> 4));
+	*out++ = low_nibble_of_octet_to_hex((guint8)(word >> 0));
 	return out;
 }
 
@@ -259,7 +261,7 @@ guint32_to_str_buf_len(const guint32 u) {
     return 1;
 }
 
-static const char * const fast_strings[] = {
+static const char fast_strings[][4] = {
 "0", "1", "2", "3", "4", "5", "6", "7",
 "8", "9", "10", "11", "12", "13", "14", "15",
 "16", "17", "18", "19", "20", "21", "22", "23",
@@ -294,12 +296,13 @@ static const char * const fast_strings[] = {
 "248", "249", "250", "251", "252", "253", "254", "255"
 };
 
+char *uint_to_str_back(char *ptr, guint32 value);
+
 void
 guint32_to_str_buf(guint32 u, gchar *buf, int buf_len) {
   int str_len = guint32_to_str_buf_len(u)+1;
 
   gchar *bp = &buf[str_len];
-  gchar const *p;
 
   if (buf_len < str_len) {
     g_strlcpy(buf, BUF_TOO_SMALL_ERR, buf_len);	/* Let the unexpected value alert user */
@@ -308,17 +311,7 @@ guint32_to_str_buf(guint32 u, gchar *buf, int buf_len) {
 
   *--bp = '\0';
 
-  while (u >= 10) {
-    p = fast_strings[100 + (u % 100)];
-
-    *--bp = p[2];
-    *--bp = p[1];
-
-    u /= 100;
-  }
-
-  if (bp != buf) /* ugly, fixme! */
-    *--bp = (u % 10) | '0';
+  uint_to_str_back(bp, u);
 }
 
 gchar *
@@ -499,7 +492,7 @@ time_msecs_to_str(gint32 time_val)
   return buf->str;
 }
 
-static const char *mon_names[12] = {
+static const char mon_names[12][4] = {
 	"Jan",
 	"Feb",
 	"Mar",
@@ -986,8 +979,8 @@ decode_bitfield_value(char *buf, const guint32 val, const guint32 mask, const in
   char *p;
 
   p = other_decode_bitfield_value(buf, val, mask, width);
-  strcpy(p, " = ");
-  p += 3;
+  p = g_stpcpy(p, " = ");
+
   return p;
 }
 
@@ -1103,3 +1096,95 @@ gchar* guid_to_str_buf(const e_guid_t *guid, gchar *buf, int buf_len) {
   *tempptr   = '\0';
   return buf;
 }
+
+const gchar* port_type_to_str (port_type type) {
+	switch (type) {
+		case PT_NONE:		return "NONE";
+		case PT_SCTP:		return "SCTP";
+		case PT_TCP:		return "TCP";
+		case PT_UDP:		return "UDP";
+		case PT_DCCP:		return "DCCP";
+		case PT_IPX:		return "IPX";
+		case PT_NCP:		return "NCP";
+		case PT_EXCHG:		return "FC EXCHG";
+		case PT_DDP:		return "DDP";
+		case PT_SBCCS:		return "FICON SBCCS";
+		case PT_IDP:		return "IDP";
+		case PT_TIPC:		return "TIPC";
+		case PT_USB:		return "USB";
+		case PT_I2C:		return "I2C";
+		case PT_IBQP:		return "IBQP";
+		case PT_BLUETOOTH:	return "BLUETOOTH";
+		default:			return "[Unknown]";
+	}
+}
+
+char *
+oct_to_str_back(char *ptr, guint32 value)
+{
+	while (value) {
+		*(--ptr) = '0' + (value & 0x7);
+		value >>= 3;
+	}
+
+	*(--ptr) = '0';
+	return ptr;
+}
+
+char *
+hex_to_str_back(char *ptr, int pad, guint32 value)
+{
+	do {
+		*(--ptr) = low_nibble_of_octet_to_hex(value);
+		value >>= 4;
+		pad--;
+	} while (value);
+
+	/* pad */
+	while (pad > 0) {
+		*(--ptr) = '0';
+		pad--;
+	}
+
+	*(--ptr) = 'x';
+	*(--ptr) = '0';
+
+	return ptr;
+}
+
+char *
+uint_to_str_back(char *ptr, guint32 value)
+{
+	char const *p;
+
+	/* special case */
+	if (value == 0)
+		*(--ptr) = '0';
+
+	while (value >= 10) {
+		p = fast_strings[100 + (value % 100)];
+
+		value /= 100;
+
+		*(--ptr) = p[2];
+		*(--ptr) = p[1];
+	}
+
+	if (value)
+		*(--ptr) = (value) | '0';
+
+	return ptr;
+}
+
+char *
+int_to_str_back(char *ptr, gint32 value)
+{
+	if (value < 0) {
+		ptr = uint_to_str_back(ptr, -value);
+		*(--ptr) = '-';
+	} else
+		ptr = uint_to_str_back(ptr, value);
+
+	return ptr;
+}
+

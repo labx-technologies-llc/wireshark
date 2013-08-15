@@ -29,6 +29,7 @@
 
 #include <glib.h>
 #include <time.h>
+#include <wiretap/buffer.h>
 #include "ws_symbol_export.h"
 
 #ifdef __cplusplus
@@ -244,6 +245,10 @@ extern "C" {
 #define WTAP_ENCAP_INFINIBAND                   151
 #define WTAP_ENCAP_JUNIPER_SVCS                 152
 #define WTAP_ENCAP_USBPCAP                      153
+#define WTAP_ENCAP_RTAC_SERIAL                  154
+#define WTAP_ENCAP_BLUETOOTH_LE_LL              155
+#define WTAP_ENCAP_WIRESHARK_UPPER_PDU          156
+#define WTAP_ENCAP_STANAG_4607                  157
 
 #define WTAP_NUM_ENCAP_TYPES                    wtap_get_num_encap_types()
 
@@ -315,6 +320,7 @@ extern "C" {
 #define WTAP_FILE_VWR_80211                     62
 #define WTAP_FILE_VWR_ETH                       63
 #define WTAP_FILE_CAMINS                        64
+#define WTAP_FILE_STANAG_4607                   65
 
 #define WTAP_NUM_FILE_TYPES                     wtap_get_num_file_types()
 
@@ -1088,7 +1094,6 @@ typedef struct wtapng_if_stats_s {
     guint64  isb_usrdeliv;
 } wtapng_if_stats_t;
 
-struct Buffer;
 struct wtap_dumper;
 
 typedef struct wtap wtap;
@@ -1189,8 +1194,8 @@ gboolean wtap_read(wtap *wth, int *err, gchar **err_info,
 
 WS_DLL_PUBLIC
 gboolean wtap_seek_read (wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int len,
-    int *err, gchar **err_info);
+	struct wtap_pkthdr *phdr, Buffer *buf, int len,
+	int *err, gchar **err_info);
 
 /*** get various information snippets about the current packet ***/
 WS_DLL_PUBLIC

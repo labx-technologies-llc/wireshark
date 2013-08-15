@@ -54,6 +54,10 @@
 #include <unistd.h>
 #endif
 
+#ifdef HAVE_GETOPT_H
+#include <getopt.h>
+#endif
+
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
@@ -117,7 +121,7 @@
 #include "conditions.h"
 #include "capture_stop_conditions.h"
 
-#include "tempfile.h"
+#include "wsutil/tempfile.h"
 #include "log.h"
 #include "wsutil/file_util.h"
 
@@ -232,12 +236,14 @@ typedef enum {
     STATE_EXPECT_DATA,
     STATE_READ_DATA
 } cap_pipe_state_t;
-typedef enum { 
-    PIPOK, 
-    PIPEOF, 
-    PIPERR, 
-    PIPNEXIST 
+
+typedef enum {
+    PIPOK,
+    PIPEOF,
+    PIPERR,
+    PIPNEXIST
 } cap_pipe_err_t;
+
 typedef struct _pcap_options {
     guint32                      received;
     guint32                      dropped;
@@ -309,6 +315,7 @@ typedef struct _pcap_queue_element {
  */
 static const char please_report[] =
     "Please report this to the Wireshark developers.\n"
+    "http://bugs.wireshark.org/\n"
     "(This is not a crash; please do not report it as such.)";
 
 /*
@@ -498,10 +505,14 @@ print_usage(gboolean print_ver)
     fprintf(output, "                              files:NUM - ringbuffer: replace after NUM files\n");
     fprintf(output, "  -n                       use pcapng format instead of pcap (default)\n");
     fprintf(output, "  -P                       use libpcap format instead of pcapng\n");
+    fprintf(output, "  --capture-comment <comment>\n");
+    fprintf(output, "                           add a capture comment to the output file\n");
+    fprintf(output, "                           (only for pcapng)\n");
     fprintf(output, "\n");
     fprintf(output, "Miscellaneous:\n");
     fprintf(output, "  -N <packet_limit>        maximum number of packets buffered within dumpcap\n");
-    fprintf(output, "  -C <byte_limit>          maximum number of bytes used for buffering packets within dumpcap\n");
+    fprintf(output, "  -C <byte_limit>          maximum number of bytes used for buffering packets\n");
+    fprintf(output, "                           within dumpcap\n");
     fprintf(output, "  -t                       use a separate thread per interface\n");
     fprintf(output, "  -q                       don't report packet capture counts\n");
     fprintf(output, "  -v                       print version information and exit\n");
@@ -949,7 +960,7 @@ show_filter_code(capture_options *capture_opts)
  * just call get_interface_list().
  */
 GList *
-capture_interface_list(int *err, char **err_str)
+capture_interface_list(int *err, char **err_str, void(*update_cb)(void) _U_)
 {
     return get_interface_list(err, err_str);
 }
@@ -1842,7 +1853,7 @@ cap_open_socket(char *pipename, pcap_options *pcap_opts, char *errmsg, int errms
 
   strncpy(buf, sockname, len);
   buf[len] = '\0';
-  if (!inet_pton(AF_INET, buf, &sa.sin_addr)) {
+  if (inet_pton(AF_INET, buf, &sa.sin_addr) <= 0) {
     goto fail_invalid;
   }
 
@@ -2831,7 +2842,7 @@ capture_loop_init_output(capture_options *capture_opts, loop_data *ld, char *err
 
             g_snprintf(appname, sizeof(appname), "Dumpcap " VERSION "%s", wireshark_svnversion);
             successful = libpcap_write_session_header_block(libpcap_write_to_file, ld->pdh,
-                                NULL,                        /* Comment*/
+                                (const char *)capture_opts->capture_comment,   /* Comment*/
                                 NULL,                        /* HW*/
                                 os_info_str->str,            /* OS*/
                                 appname,
@@ -3975,7 +3986,7 @@ capture_loop_write_packet_cb(u_char *pcap_opts_p, const struct pcap_pkthdr *phdr
         if (global_capture_opts.use_pcapng) {
             successful = libpcap_write_enhanced_packet_block(libpcap_write_to_file, global_ld.pdh,
                                                              NULL,
-                                                             phdr->ts.tv_sec, phdr->ts.tv_usec,
+                                                             phdr->ts.tv_sec, (gint32)phdr->ts.tv_usec,
                                                              phdr->caplen, phdr->len,
                                                              pcap_opts->interface_id,
                                                              ts_mul,
@@ -3983,7 +3994,7 @@ capture_loop_write_packet_cb(u_char *pcap_opts_p, const struct pcap_pkthdr *phdr
                                                              &global_ld.bytes_written, &err);
         } else {
             successful = libpcap_write_packet(libpcap_write_to_file, global_ld.pdh,
-                                              phdr->ts.tv_sec, phdr->ts.tv_usec,
+                                              phdr->ts.tv_sec, (gint32)phdr->ts.tv_usec,
                                               phdr->caplen, phdr->len,
                                               pd,
                                               &global_ld.bytes_written, &err);
@@ -4119,6 +4130,11 @@ main(int argc, char *argv[])
     GString          *comp_info_str;
     GString          *runtime_info_str;
     int               opt;
+    struct option     long_options[] = {
+        {(char *)"capture-comment", required_argument, NULL, LONGOPT_NUM_CAP_COMMENT },
+        {0, 0, 0, 0 }
+    };
+
     gboolean          arg_error             = FALSE;
 
 #ifdef _WIN32
@@ -4459,8 +4475,11 @@ main(int argc, char *argv[])
     global_capture_opts.saving_to_file      = TRUE;
     global_capture_opts.has_ring_num_files  = TRUE;
 
+	/* Pass on capture_child mode for capture_opts */
+	global_capture_opts.capture_child = capture_child;
+
     /* Now get our args */
-    while ((opt = getopt(argc, argv, OPTSTRING)) != -1) {
+    while ((opt = getopt_long(argc, argv, OPTSTRING, long_options, NULL)) != -1) {
         switch (opt) {
         case 'h':        /* Print help and exit */
             print_usage(TRUE);
@@ -4487,6 +4506,7 @@ main(int argc, char *argv[])
         case 's':        /* Set the snapshot (capture) length */
         case 'w':        /* Write to capture file x */
         case 'y':        /* Set the pcap data link type */
+        case  LONGOPT_NUM_CAP_COMMENT: /* add a capture comment */
 #ifdef HAVE_PCAP_REMOTE
         case 'u':        /* Use UDP for data transfer */
         case 'r':        /* Capture own RPCAP traffic too */
@@ -4623,11 +4643,20 @@ main(int argc, char *argv[])
         }
     } else {
         /* We're supposed to capture traffic; */
+
         /* Are we capturing on multiple interface? If so, use threads and pcapng. */
         if (global_capture_opts.ifaces->len > 1) {
             use_threads = TRUE;
             global_capture_opts.use_pcapng = TRUE;
         }
+
+        if (global_capture_opts.capture_comment &&
+            (!global_capture_opts.use_pcapng || global_capture_opts.multi_files_on)) {
+            /* XXX - for ringbuffer, should we apply the comment to each file? */
+            cmdarg_err("A capture comment can only be set if we capture into a single pcapng file.");
+            exit_main(1);
+        }
+
         /* Was the ring buffer option specified and, if so, does it make sense? */
         if (global_capture_opts.multi_files_on) {
             /* Ring buffer works only under certain conditions:
@@ -4658,7 +4687,7 @@ main(int argc, char *argv[])
         int    err;
         gchar *err_str;
 
-        if_list = capture_interface_list(&err, &err_str);
+        if_list = capture_interface_list(&err, &err_str,NULL);
         if (if_list == NULL) {
             switch (err) {
             case CANT_GET_INTERFACE_LIST:
@@ -5083,6 +5112,10 @@ signal_pipe_check_running(void)
     }
 }
 #endif
+
+
+
+
 
 /*
  * Editor modelines  -  http://www.wireshark.org/tools/modelines.html

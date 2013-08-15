@@ -26,11 +26,11 @@
 #define __FILE_H__
 
 #include "wiretap/wtap.h"
-#include "print.h"
 #include <errno.h>
 #include <epan/epan.h>
 
-#include "packet-range.h"
+#include <epan/print.h>
+#include <epan/packet-range.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -145,15 +145,15 @@ cf_read_status_t cf_read(capture_file *cf, gboolean from_save);
  * @param fdata the frame_data structure for the packet in question
  * @param phdr pointer to a wtap_pkthdr structure to contain the
  * packet's pseudo-header and other metadata
- * @param pd a guin8 array into which to read the packet's raw data
+ * @param buf a Buffer into which to read the packet's raw data
  * @return TRUE if the read succeeded, FALSE if there was an error
  */
-gboolean cf_read_frame_r(capture_file *cf, frame_data *fdata,
-                         struct wtap_pkthdr *phdr, guint8 *pd);
+gboolean cf_read_frame_r(capture_file *cf, const frame_data *fdata,
+                         struct wtap_pkthdr *phdr, Buffer *buf);
 
 /**
  * Read the pseudo-header and raw data for a packet into a
- * capture_file structure's pseudo_header and pd members.
+ * capture_file structure's pseudo_header and buf members.
  * It will pop up an alert box if there's an error.
  *
  * @param cf the capture file from which to read the packet
@@ -392,7 +392,7 @@ void cf_reftime_packets(capture_file *cf);
 /**
  * Return the time it took to load the file
  */
-gulong cf_get_computed_elapsed(void);
+gulong cf_get_computed_elapsed(capture_file *cf);
 
 /**
  * "Something" has changed, rescan all packets.
@@ -667,14 +667,16 @@ const gchar* cf_read_shb_comment(capture_file *cf);
  */
 void cf_update_capture_comment(capture_file *cf, gchar *comment);
 
+char *cf_get_comment(capture_file *cf, const frame_data *fd);
+
 /**
  * Update(replace) the comment on a capture from a frame
  *
  * @param cf the capture file
- * @param fdata the frame_data structure for the frame
- * @param comment the string replacing the old comment
+ * @param fd the frame_data structure for the frame
+ * @param new_comment the string replacing the old comment
  */
-void cf_update_packet_comment(capture_file *cf, frame_data *fdata, gchar *comment);
+gboolean cf_set_user_packet_comment(capture_file *cf, frame_data *fd, const gchar *new_comment);
 
 /**
  * What types of comments does this file have?

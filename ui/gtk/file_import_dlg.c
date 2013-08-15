@@ -49,7 +49,7 @@
 
 #include "file.h"
 #include "wsutil/file_util.h"
-#include "tempfile.h"
+#include "wsutil/tempfile.h"
 
 #define INPUT_FRM_KEY                   "input_frame"
 
@@ -125,6 +125,12 @@ timefmt_cb_toggle(GtkWidget *widget, gpointer data _U_)
     gtk_widget_set_sensitive(timefmt_te, apply_fmt);
 }
 
+enum
+{
+    ENCAP_NAME_COLUMN,
+    ENCAP_VALUE_COLUMN
+};
+
 /*****************************************************************************/
 static void
 create_encap_list_store(void)
@@ -132,8 +138,14 @@ create_encap_list_store(void)
     GtkTreeIter  iter;
     gint         encap;
     const gchar *name;
+    GtkTreeSortable *sortable;
+    GtkSortType order = GTK_SORT_ASCENDING;
 
     encap_list_store = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_UINT);
+    sortable = GTK_TREE_SORTABLE(encap_list_store);
+    gtk_tree_sortable_set_sort_func(sortable, ENCAP_NAME_COLUMN,
+        str_ptr_sort_func, GINT_TO_POINTER(ENCAP_NAME_COLUMN), NULL);
+    gtk_tree_sortable_set_sort_column_id(sortable, ENCAP_NAME_COLUMN, order);
 
     /* Scan all Wiretap encapsulation types */
     for (encap = 1; encap < wtap_get_num_encap_types(); encap++) {
@@ -181,7 +193,7 @@ encap_co_changed(GtkComboBox *widget, gpointer data)
     if (result) {
         guint encap;
         GtkTreeModel *model = gtk_combo_box_get_model(widget);
-        gtk_tree_model_get(model, &iter, 1, &encap, -1);
+        gtk_tree_model_get(model, &iter, ENCAP_VALUE_COLUMN, &encap, -1);
 
         if (encap != WTAP_ENCAP_ETHERNET)
             result = FALSE;
@@ -783,6 +795,31 @@ file_import_ok_cb(GtkWidget *widget _U_, gpointer data)
     }
 }
 
+static void
+set_default_encap(GtkWidget *encap_co, guint default_encap)
+{
+    gboolean result;
+    GtkTreeIter iter;
+    GtkTreeModel *model;
+    gboolean more_items = TRUE;
+    guint encap_value;
+
+    gtk_combo_box_set_active(GTK_COMBO_BOX(encap_co), 0);
+    result = gtk_combo_box_get_active_iter(GTK_COMBO_BOX(encap_co), &iter);
+    if (result) {
+        model = gtk_combo_box_get_model(GTK_COMBO_BOX(encap_co));
+        do {
+            gtk_tree_model_get(model, &iter, ENCAP_VALUE_COLUMN, &encap_value, -1);
+            if (encap_value == default_encap) {
+                gtk_combo_box_set_active_iter(GTK_COMBO_BOX(encap_co), &iter);
+                more_items = FALSE;
+            }
+            else
+                more_items = gtk_tree_model_iter_next(model, &iter);
+        } while (more_items);
+    }
+}
+
 /*****************************************************************************/
 
 /*
@@ -901,8 +938,9 @@ file_import_dlg_new(void)
     g_object_set_data(G_OBJECT(timefmt_cb), INPUT_TIMEFMT_LBL_KEY, timefmt_lbl);
 
     timefmt_te = gtk_entry_new();
+    gtk_entry_set_text(GTK_ENTRY(timefmt_te), "%F %T.");
     gtk_widget_set_tooltip_text(timefmt_te,
-                                "The format in which to parse timestamps in the text file (eg. %H:%M:%S.)."
+                                "The format in which to parse timestamps in the text file (eg. %F %T.)."
                                 " Format specifiers are based on strptime(3)");
     gtk_box_pack_start(GTK_BOX(timefmt_hb), timefmt_te, FALSE, FALSE, 0);
 
@@ -922,7 +960,7 @@ file_import_dlg_new(void)
                                 " (inbound or outbound) of the packet");
     gtk_box_pack_start(GTK_BOX(dir_hb), dir_cb, FALSE, FALSE, 0);
 
-    g_object_set_data(G_OBJECT(input_frm), INPUT_DIR_CB_KEY, dir_cb); 
+    g_object_set_data(G_OBJECT(input_frm), INPUT_DIR_CB_KEY, dir_cb);
 
     /* Setup the import frame */
 
@@ -1104,8 +1142,7 @@ file_import_dlg_new(void)
     g_signal_emit_by_name(G_OBJECT(header_cb), "toggled", header_frm);
 
     g_signal_emit_by_name(G_OBJECT(header_eth_rb), "toggled", header_frm);
-
-    gtk_combo_box_set_active(GTK_COMBO_BOX(encap_co), 0);
+    set_default_encap(encap_co, WTAP_ENCAP_ETHERNET);
     g_signal_connect(encap_co, "changed", G_CALLBACK(encap_co_changed), header_frm);
 
     /* Frame length */
@@ -1118,7 +1155,7 @@ file_import_dlg_new(void)
 
     framelen_te = gtk_entry_new();
     gtk_widget_set_tooltip_text(framelen_te,
-                                "The maximum size of the frames to write to the import capture file (max 64000)");
+                                "The maximum size of the frames to write to the import capture file (max 65535)");
     gtk_box_pack_start(GTK_BOX(framelen_hb), framelen_te, FALSE, FALSE, 0);
 
     g_object_set_data(G_OBJECT(import_frm), IMPORT_FRAME_LENGTH_TE_KEY, framelen_te);

@@ -126,6 +126,9 @@ expert_packet_cleanup(void);
 WS_DLL_PUBLIC int
 expert_get_highest_severity(void);
 
+WS_DLL_PUBLIC void
+expert_update_comment_count(guint64 count);
+
 /** Add an expert info.
  Add an expert info tree to a protocol item using registered expert info item
  @param pinfo Packet info of the currently processed packet. May be NULL if
@@ -136,7 +139,7 @@ expert_get_highest_severity(void);
 WS_DLL_PUBLIC void
 expert_add_info(packet_info *pinfo, proto_item *pi, expert_field* eiindex);
 
-/** Add an expert info.
+/** Add an expert info. TO BE DEPRECATED IN ITS CURRENT FORM!!!
  Add an expert info tree to a protocol item, with classification and message.
  @param pinfo Packet info of the currently processed packet. May be NULL if
         pi is supplied
@@ -163,6 +166,42 @@ WS_DLL_PUBLIC void
 expert_add_info_format_text(packet_info *pinfo, proto_item *pi, expert_field *eiindex,
 	const char *format, ...) G_GNUC_PRINTF(4, 5);
 
+/** Add an expert info associated with some byte data
+ Add an expert info tree to a protocol item using registered expert info item.
+ This function is intended to replace places where 
+ proto_tree_add_text or proto_tree_add_none_format + expert_add_info
+ would be used.
+ @param tree Current protocol item (or NULL)
+ @param pinfo Packet info of the currently processed packet. May be NULL if
+        pi is supplied
+ @param eiindex The registered expert info item
+ @param tvb the tv buffer of the current data
+ @param start start of data in tvb
+ @param length length of data in tvb
+ @return the newly created item above expert info tree
+ */
+WS_DLL_PUBLIC proto_item *
+proto_tree_add_expert(proto_tree *tree, packet_info *pinfo, expert_field* eiindex,
+        tvbuff_t *tvb, gint start, gint length);
+
+/** Add an expert info associated with some byte data
+ Add an expert info tree to a protocol item, using registered expert info item,
+ but with a formatted message.
+ This function is intended to replace places where 
+ proto_tree_add_text or proto_tree_add_none_format + expert_add_info_format_text
+ would be used.
+ @param tree Current protocol item (or NULL)
+ @param pinfo Packet info of the currently processed packet. May be NULL if tree is supplied
+ @param eiindex The registered expert info item
+ @param tvb the tv buffer of the current data
+ @param start start of data in tvb
+ @param length length of data in tvb
+ @return the newly created item above expert info tree
+ */
+WS_DLL_PUBLIC proto_item *
+proto_tree_add_expert_format(proto_tree *tree, packet_info *pinfo, expert_field* eiindex,
+        tvbuff_t *tvb, gint start, gint length, const char *format, ...) G_GNUC_PRINTF(7, 8);
+
 /*
  * Register that a protocol has expert info.
  */
@@ -188,6 +227,14 @@ expert_register_field_array(expert_module_t* module, ei_register_info *ei, const
 
 WS_DLL_PUBLIC void
 expert_add_undecoded_item(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, int length, const int severity);
+
+#define EXPERT_CHECKSUM_DISABLED    -2
+#define EXPERT_CHECKSUM_UNKNOWN     -1
+#define EXPERT_CHECKSUM_GOOD        0
+#define EXPERT_CHECKSUM_BAD         1
+
+WS_DLL_PUBLIC const value_string expert_checksum_vals[];
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

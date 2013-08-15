@@ -1,4 +1,4 @@
-/* packet-pnrp.h
+/* packet-pnrp.c
  * Routines for Peer Name Resolution Protocol (PNRP) dissection
  *
  *  Copyright 2010, Jan Gerbecks <jan.gerbecks@stud.uni-due.de>
@@ -36,7 +36,7 @@
 
 #include <epan/packet.h>
 
-#define PROTONAME "Peer Network Resolution Protocol"
+#define PROTONAME "Peer Name Resolution Protocol"
 #define PROTOSHORTNAME "PNRP"
 #define PROTOABBREV "pnrp"
 
@@ -378,7 +378,6 @@ static int dissect_pnrp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
     /* Assign Values to Variables */
     /* Use to track data */
     offset= 0;
-    padding_bytes = 0;
     /* Get the message Information beforehand */
     message_type = tvb_get_guint8(tvb,7);
 
@@ -980,7 +979,7 @@ static void dissect_encodedCPA_structure(tvbuff_t *tvb, gint offset, gint length
         offset += tvb_get_letohs(tvb,offset);
         /* Signature */
         dissect_signature_structure(tvb, offset,tvb_get_letohs(tvb,offset),pnrp_encodedCPA_tree);
-        offset += tvb_get_letohs(tvb,offset);
+        /*offset += tvb_get_letohs(tvb,offset);*/
     }
 }
 static void dissect_payload_structure(tvbuff_t *tvb, gint offset, gint length, proto_tree *tree)

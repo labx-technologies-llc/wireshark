@@ -64,7 +64,6 @@ static gint ett_tali_opcode = -1;
 static gint ett_tali_msu_length = -1;
 
 static int proto_tali  = -1;
-static dissector_handle_t tali_handle;
 static dissector_table_t tali_dissector_table;
 
 /* Initialize the protocol and registered fields */
@@ -105,10 +104,8 @@ dissect_tali_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   /* Make entries in Protocol column on summary display */
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "TALI");
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_set_str(pinfo->cinfo, COL_INFO, "");
-    col_append_fstr(pinfo->cinfo, COL_INFO, "[%s] packet, [%u] bytes in payload", opcode, length);
-  }
+  col_set_str(pinfo->cinfo, COL_INFO, "");
+  col_append_fstr(pinfo->cinfo, COL_INFO, "[%s] packet, [%u] bytes in payload", opcode, length);
 
   if (tree) {
     /* create display subtree for the protocol */
@@ -193,7 +190,6 @@ proto_register_tali(void)
   /* Register the protocol name and description */
   proto_tali = proto_register_protocol("Transport Adapter Layer Interface v1.0, RFC 3094", "TALI", "tali");
   register_dissector("tali", dissect_tali, proto_tali);
-  tali_handle = create_dissector_handle(dissect_tali, proto_tali);
 
   /* Required function calls to register the header fields and subtrees used */
   proto_register_field_array(proto_tali, hf, array_length(hf));

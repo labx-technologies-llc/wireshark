@@ -92,7 +92,7 @@ dissect_text_lines(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		}
 	}
 
-	if (data_name && check_col(pinfo->cinfo, COL_INFO))
+	if (data_name)
 		col_append_sep_fstr(pinfo->cinfo, COL_INFO, " ", "(%s)",
 				data_name);
 
@@ -167,7 +167,6 @@ proto_reg_handoff_text_lines(void)
 	dissector_add_string("media_type", "application/x-javascript", text_lines_handle);
 	dissector_add_string("media_type", "application/x-tia-p25-issi", text_lines_handle);
 	dissector_add_string("media_type", "application/x-tia-p25-sndcp", text_lines_handle);
-	dissector_add_string("media_type", "application/x-www-form-urlencoded", text_lines_handle);
 	dissector_add_string("media_type", "application/x-ns-proxy-autoconfig", text_lines_handle);
 
 	dissector_add_string("media_type", "text/vnd.sun.j2me.app-descriptor", text_lines_handle);

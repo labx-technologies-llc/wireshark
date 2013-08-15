@@ -111,9 +111,9 @@ libwireshark.lib: libwireshark.dll
 libwireshark.exp: libwireshark.dll
 
 libwireshark.dll: ..\config.h $(LIBWIRESHARK_OBJECTS) crypt ftypes dfilter wmem $(WSLUA_DIR) $(WSPYTHON_DIR) dissectors $(DOXYGEN_DEP) $(EXTRA_OBJECTS) \
-                 crypt\airpdcap.lib ftypes\ftypes.lib dfilter\dfilter.lib wmem/wmem.lib dissectors\dissectors.lib $(WSLUA_LIB) $(WSPYTHON_LIB) ..\image\libwireshark.res
+		crypt\airpdcap.lib ftypes\ftypes.lib dfilter\dfilter.lib wmem/wmem.lib dissectors\dissectors.lib $(WSLUA_LIB) $(WSPYTHON_LIB) ..\image\libwireshark.res
 	@echo Linking libwireshark.dll
-	$(link) $(dlllflags) $(conlibsdll) shell32.lib \
+	$(link) $(dlllflags) $(conlibsdll) shell32.lib psapi.lib \
 		$(LOCAL_LDFLAGS) $(DLL_LDFLAGS) \
 		/OUT:libwireshark.dll \
 		/IMPLIB:libwireshark.lib $(LIBWIRESHARK_OBJECTS) \
@@ -122,7 +122,7 @@ libwireshark.dll: ..\config.h $(LIBWIRESHARK_OBJECTS) crypt ftypes dfilter wmem 
 		$(EXTRA_OBJECTS)
 
 libwireshark.lib	: ..\config.h $(LIBWIRESHARK_OBJECTS) crypt ftypes dfilter wmem $(WSLUA_DIR) $(WSPYTHON_DIR) dissectors $(DOXYGEN_DEP) $(EXTRA_OBJECTS) \
-                  crypt\airpdcap.lib ftypes\ftypes.lib dfilter\dfilter.lib wmem/wmem.lib $(WSLUA_LIB) $(WSPYTHON_LIB) dissectors\dissectors.lib
+		crypt\airpdcap.lib ftypes\ftypes.lib dfilter\dfilter.lib wmem/wmem.lib $(WSLUA_LIB) $(WSPYTHON_LIB) dissectors\dissectors.lib
 	link /lib /out:libwireshark.lib $(LIBWIRESHARK_OBJECTS) \
 		$(EXTRA_OBJECTS)
 
@@ -135,7 +135,7 @@ clean-local:
 	rm -f $(LIBWIRESHARK_OBJECTS) $(EXTRA_OBJECTS) \
 		libwireshark.lib libwireshark.dll *.manifest libwireshark.exp \
 		*.pdb *.sbr doxygen.cfg html/*.* \
-		exntest.obj exntest.exe reassemble_test.obj reassemble_test.exe tvbtest.obj tvbtest.exe
+		exntest.obj exntest.exe exntest.exp reassemble_test.obj reassemble_test.exe tvbtest.obj tvbtest.exe tvbtest.exp
 	if exist html rm -rf html
 
 clean:  clean-local
@@ -271,18 +271,30 @@ exntest.exe: $(EXNTEST_OBJ)
 !ENDIF
 
 # Object files for tvbtest
-TVBTEST_OBJ=tvbtest.obj \
-	tvbuff.obj \
-	except.obj \
-	to_str.obj \
-	strutil.obj \
-	charsets.obj \
-	emem.obj
+TVBTEST_OBJ=tvbtest.obj
+TVBTEST_LIBS= ..\wiretap\wiretap-$(WTAP_VERSION).lib \
+	wsock32.lib user32.lib \
+	$(GLIB_LIBS) \
+	..\wsutil\libwsutil.lib \
+	$(GNUTLS_LIBS) \
+	$(PYTHON_LIBS) \
+!IFDEF ENABLE_LIBWIRESHARK
+	libwireshark.lib \
+!ELSE
+	dissectors\dissectors.lib \
+	wireshark.lib \
+	crypt\airpdcap.lib \
+	dfilter\dfilter.lib \
+	ftypes\ftypes.lib \
+	$(C_ARES_LIBS) \
+	$(ADNS_LIBS) \
+	$(ZLIB_LIBS)
+!ENDIF
 
 tvbtest.exe: $(TVBTEST_OBJ)
 	@echo Linking $@
 	$(LINK) /OUT:$@ $(conflags) $(conlibsdll) $(LOCAL_LDFLAGS) /LARGEADDRESSAWARE /SUBSYSTEM:console \
-		$(GLIB_LIBS) $(ZLIB_LIBS) $(TVBTEST_OBJ)
+		$(TVBTEST_LIBS) $(GLIB_LIBS) $(ZLIB_LIBS) $(TVBTEST_OBJ)
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "$@.manifest" -outputresource:$@;1
 !ENDIF
@@ -311,7 +323,7 @@ REASSEMBLE_TEST_LIBS= ..\wiretap\wiretap-$(WTAP_VERSION).lib \
 reassemble_test.exe: $(REASSEMBLE_TEST_OBJ)
 	@echo Linking $@
 	$(LINK) /OUT:$@ $(conflags) $(conlibsdll) $(LOCAL_LDFLAGS) /LARGEADDRESSAWARE /SUBSYSTEM:console \
-                $(REASSEMBLE_TEST_LIBS) $(GLIB_LIBS) $(ZLIB_LIBS) $(REASSEMBLE_TEST_OBJ)
+		$(REASSEMBLE_TEST_LIBS) $(GLIB_LIBS) $(ZLIB_LIBS) $(REASSEMBLE_TEST_OBJ)
 !IFDEF MANIFEST_INFO_REQUIRED
 	mt.exe -nologo -manifest "$@.manifest" -outputresource:$@;1
 !ENDIF
@@ -394,6 +406,9 @@ reassemble_test.obj: reassemble_test.c
 
 tvbtest.obj: tvbtest.c
 	$(CC) $(TEST_CFLAGS) -Fd.\ -c $?
+
+ps.c: ..\tools\rdps.py print.ps
+	$(PYTHON) ..\tools\rdps.py print.ps ps.c
 
 checkapi:
 	$(PERL) ../tools/checkAPIs.pl -g termoutput -build $(LIBWIRESHARK_SRC)

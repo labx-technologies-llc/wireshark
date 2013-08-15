@@ -60,7 +60,7 @@
 *          http://amf3cplusplus.googlecode.com/svn-history/r4/trunk/doc/amf3_spec_05_05_08.pdf
 *
 *   for AMF3.
-*      
+*
 *   Default TCP port is 1935
 */
 
@@ -1671,9 +1671,9 @@ dissect_rtmpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_conv_t 
 
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "RTMP");
 
-        RTMPT_DEBUG("Dissect: frame=%u visited=%d len=%d col=%d tree=%p\n",
+        RTMPT_DEBUG("Dissect: frame=%u visited=%d len=%d tree=%p\n",
                     pinfo->fd->num, pinfo->fd->flags.visited,
-                    tvb_length_remaining(tvb, offset), check_col(pinfo->cinfo, COL_INFO), tree);
+                    tvb_length_remaining(tvb, offset), tree);
 
         /* Clear any previous data in Info column (RTMP packets are protected by a "fence") */
         col_clear(pinfo->cinfo, COL_INFO);
@@ -1713,25 +1713,22 @@ dissect_rtmpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_conv_t 
                 }
         }
 
-        if ((check_col(pinfo->cinfo, COL_INFO) || tree) && tp->id<=RTMPT_ID_MAX)
+        if (tree && tp->id<=RTMPT_ID_MAX)
         {
                 sDesc = rtmpt_get_packet_desc(tvb, iBodyOffset, iBodyRemain, rconv, cdir, tp, &deschasopcode);
         }
 
-        if (check_col(pinfo->cinfo, COL_INFO))
-        {
-                if (tp->id>RTMPT_ID_MAX) {
-                        col_append_sep_fstr(pinfo->cinfo, COL_INFO, "|", "%s",
-                                        val_to_str(tp->id, rtmpt_handshake_vals, "Unknown (0x%01x)"));
-                        col_set_fence(pinfo->cinfo, COL_INFO);
-                } else if (sDesc) {
-                        col_append_sep_fstr(pinfo->cinfo, COL_INFO, "|", "%s", sDesc);
-                        col_set_fence(pinfo->cinfo, COL_INFO);
-                } else {
-                        col_append_sep_fstr(pinfo->cinfo, COL_INFO, "|", "%s",
-                                        val_to_str(tp->cmd, rtmpt_opcode_vals, "Unknown (0x%01x)"));
-                        col_set_fence(pinfo->cinfo, COL_INFO);
-                }
+        if (tp->id>RTMPT_ID_MAX) {
+                col_append_sep_fstr(pinfo->cinfo, COL_INFO, "|", "%s",
+                                val_to_str(tp->id, rtmpt_handshake_vals, "Unknown (0x%01x)"));
+                col_set_fence(pinfo->cinfo, COL_INFO);
+        } else if (sDesc) {
+                col_append_sep_fstr(pinfo->cinfo, COL_INFO, "|", "%s", sDesc);
+                col_set_fence(pinfo->cinfo, COL_INFO);
+        } else {
+                col_append_sep_fstr(pinfo->cinfo, COL_INFO, "|", "%s",
+                                val_to_str(tp->cmd, rtmpt_opcode_vals, "Unknown (0x%01x)"));
+                col_set_fence(pinfo->cinfo, COL_INFO);
         }
 
         if (tree)
@@ -2890,7 +2887,7 @@ proto_register_amf(void)
         proto_amf = proto_register_protocol("Action Message Format", "AMF", "amf");
         proto_register_field_array(proto_amf, hf, array_length(hf));
         proto_register_subtree_array(ett, array_length(ett));
-};
+}
 
 /*
  * Editor modelines  -  http://www.wireshark.org/tools/modelines.html

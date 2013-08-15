@@ -31,7 +31,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <epan/emem.h>
 #include <epan/strutil.h>
 #include <epan/asn1.h>
 #include <epan/sctpppids.h>
@@ -130,12 +129,11 @@ static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, p
 static void
 dissect_sbc_ap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-        proto_item      *sbc_ap_item = NULL;
-        proto_tree      *sbc_ap_tree = NULL;
+    proto_item      *sbc_ap_item = NULL;
+    proto_tree      *sbc_ap_tree = NULL;
 
-        /* make entry in the Protocol column on summary display */
-        if (check_col(pinfo->cinfo, COL_PROTOCOL))
-                col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
+    /* make entry in the Protocol column on summary display */
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
 
     /* create the sbc_ap protocol tree */
     if (tree) {

@@ -111,6 +111,10 @@ static gint ett_knet_datagram =      -1;
 static gint ett_knet_flags =         -1;
 /**@}*/
 
+static dissector_handle_t knet_handle_sctp;
+static dissector_handle_t knet_handle_tcp;
+static dissector_handle_t knet_handle_udp;
+
 /* Few Utility Variables */
 static int messageindex =         0; /*!< Index of the kNet message inside a datagram */
 static int current_protocol =     0; /*!< Protocol currently dissected */
@@ -292,8 +296,6 @@ dissect_content_length(tvbuff_t *buffer, int offset, proto_tree *tree)
     proto_tree *msgflags_tree;
     guint32     length;
 
-    msgflags_tree = NULL;
-
     length  = tvb_get_bits8(buffer, offset * 8 + 12, 4) << 8;
     length += tvb_get_bits8(buffer, offset * 8, 8);
 
@@ -301,14 +303,14 @@ dissect_content_length(tvbuff_t *buffer, int offset, proto_tree *tree)
     {
         msgflags_ti   = proto_tree_add_item(tree, hf_knet_msg_flags, buffer, offset + 1, 1, ENC_NA);
         msgflags_tree = proto_item_add_subtree(msgflags_ti, ett_knet_message_flags);
+
+        proto_tree_add_bits_item(msgflags_tree, hf_knet_msg_fs, buffer, offset * 8 + 8, 1, ENC_LITTLE_ENDIAN); /* Fragment start flag */
+        proto_tree_add_bits_item(msgflags_tree, hf_knet_msg_ff, buffer, offset * 8 + 9, 1, ENC_LITTLE_ENDIAN);  /* Fragment flag */
+        proto_tree_add_bits_item(msgflags_tree, hf_knet_msg_inorder, buffer, offset * 8 + 10, 1, ENC_LITTLE_ENDIAN); /* Inorder flag */
+        proto_tree_add_bits_item(msgflags_tree, hf_knet_msg_reliable, buffer, offset * 8 + 11, 1, ENC_LITTLE_ENDIAN); /* Reliable flag */
+
+        proto_tree_add_uint(tree, hf_knet_content_length, buffer, offset, 2, length);
     }
-
-    proto_tree_add_bits_item(msgflags_tree, hf_knet_msg_fs, buffer, offset * 8 + 8, 1, ENC_LITTLE_ENDIAN); /* Fragment start flag */
-    proto_tree_add_bits_item(msgflags_tree, hf_knet_msg_ff, buffer, offset * 8 + 9, 1, ENC_LITTLE_ENDIAN);  /* Fragment flag */
-    proto_tree_add_bits_item(msgflags_tree, hf_knet_msg_inorder, buffer, offset * 8 + 10, 1, ENC_LITTLE_ENDIAN); /* Inorder flag */
-    proto_tree_add_bits_item(msgflags_tree, hf_knet_msg_reliable, buffer, offset * 8 + 11, 1, ENC_LITTLE_ENDIAN); /* Reliable flag */
-
-    proto_tree_add_uint(tree, hf_knet_content_length, buffer, offset, 2, length);
 
     return length;
 }
@@ -461,7 +463,6 @@ dissect_payload(tvbuff_t *buffer, int offset, int messageid, proto_tree *tree, i
  * @param tvb the buffer to the data
  * @param pinfo the packet info structure
  * @param tree the parent tree where the dissected data is going to be inserted
- * @return void
  *
  */
 static void
@@ -513,7 +514,6 @@ dissect_knet_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, em
  * @param tvb the buffer to the data
  * @param pinfo the packet info structure
  * @param tree the parent tree where the dissected data is going to be inserted
- * @return void
  *
  */
 static void
@@ -672,7 +672,6 @@ get_knet_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
  * @param tvb the buffer to the data
  * @param pinfo the packet info structure
  * @param tree the parent tree where the dissected data is going to be inserted
- * @return void
  *
  */
 static void
@@ -687,12 +686,9 @@ dissect_knet_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
  * dissect_knet_sctp is the dissector which is called
  * by Wireshark when kNet STCP packets are captured.
  *
-
  * @param tvb the buffer to the data
  * @param pinfo the packet info structure
  * @param tree the parent tree where the dissected data is going to be inserted
-
- * @return void
  *
  */
 static void
@@ -707,12 +703,9 @@ dissect_knet_sctp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
  * dissect_knet_udp is the dissector which is called
  * by Wireshark when kNet UDP packets are captured.
  *
-
  * @param tvb the buffer to the data
  * @param pinfo the packet info structure
  * @param tree the parent tree where the dissected data is going to be inserted
-
- * @return void
  *
  */
 static void
@@ -725,8 +718,6 @@ dissect_knet_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 /**
  * proto_register_knet registers our kNet protocol,
  * headerfield- and subtree-array to Wireshark.
- *
- * @return void
  *
  */
 void
@@ -823,9 +814,9 @@ proto_register_knet(void)
     /* Register protocols */
     proto_knet = proto_register_protocol ("kNet Protocol", "KNET", "knet");
 
-    register_dissector("knetsctp", dissect_knet_sctp, proto_knet);
-    register_dissector("knettcp",  dissect_knet_tcp, proto_knet);
-    register_dissector("knetudp",  dissect_knet_udp, proto_knet);
+    knet_handle_sctp = register_dissector("knetsctp", dissect_knet_sctp, proto_knet);
+    knet_handle_tcp = register_dissector("knettcp",  dissect_knet_tcp, proto_knet);
+    knet_handle_udp = register_dissector("knetudp",  dissect_knet_udp, proto_knet);
 
     knet_module = prefs_register_protocol(proto_knet, proto_reg_handoff_knet);
 
@@ -843,9 +834,7 @@ proto_register_knet(void)
 }
 
 /**
- * proto_reg_handoff_knet registers our kNet dissectors to Wireshark.
- *
- * @return void
+ * proto_reg_handoff_knet registers our kNet dissectors to Wireshark
  *
  */
 void
@@ -853,20 +842,12 @@ proto_reg_handoff_knet(void)
 {
     static gboolean initialized = FALSE;
 
-    static dissector_handle_t knet_handle_sctp = 0;
-    static dissector_handle_t knet_handle_tcp = 0;
-    static dissector_handle_t knet_handle_udp = 0;
-
     static guint current_sctp_port;
     static guint current_tcp_port;
     static guint current_udp_port;
 
     if(!initialized)
     {
-        knet_handle_sctp = create_dissector_handle(dissect_knet_sctp, proto_knet);
-        knet_handle_tcp  = create_dissector_handle(dissect_knet_tcp, proto_knet);
-        knet_handle_udp  = create_dissector_handle(dissect_knet_udp, proto_knet);
-
         initialized = TRUE;
     }
     else

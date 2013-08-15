@@ -72,16 +72,12 @@ dissect_mpeg_audio_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				"Audio Layer %d", mpa_layer(&mpa) + 1);
 	if (MPA_BITRATE_VALID(&mpa) && MPA_FREQUENCY_VALID(&mpa)) {
 		data_size = (int)(MPA_DATA_BYTES(&mpa) - sizeof mpa);
-		if (check_col(pinfo->cinfo, COL_DEF_SRC)) {
-			SET_ADDRESS(&pinfo->src, AT_NONE, 0, NULL);
-			col_add_fstr(pinfo->cinfo, COL_DEF_SRC,
+		SET_ADDRESS(&pinfo->src, AT_NONE, 0, NULL);
+		col_add_fstr(pinfo->cinfo, COL_DEF_SRC,
 					"%d kb/s", mpa_bitrate(&mpa) / 1000);
-		}
-		if (check_col(pinfo->cinfo, COL_DEF_DST)) {
-			SET_ADDRESS(&pinfo->dst, AT_NONE, 0, NULL);
-			col_add_fstr(pinfo->cinfo, COL_DEF_DST,
+		SET_ADDRESS(&pinfo->dst, AT_NONE, 0, NULL);
+		col_add_fstr(pinfo->cinfo, COL_DEF_DST,
 					"%g kHz", mpa_frequency(&mpa) / (float)1000);
-		}
 	}
 
 	if (tree == NULL)
@@ -161,10 +157,10 @@ proto_register_mpeg_audio(void)
 				FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
 
 		{ &hf_id3v1,
-			{ "ID3v1", "id3v1",
+			{ "ID3v1", "mpeg-audio.id3v1",
 				FT_NONE, BASE_NONE, NULL, 0, NULL, HFILL }},
 		{ &hf_id3v2,
-			{ "ID3v2", "id3v2",
+			{ "ID3v2", "mpeg-audio.id3v2",
 				FT_NONE, BASE_NONE, NULL, 0, NULL, HFILL }},
 	};
 

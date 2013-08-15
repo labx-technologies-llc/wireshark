@@ -386,19 +386,19 @@ sipstat_draw(void *psp  )
 }
 
 static void
-sipstat_init(const char *optarg, void* userdata _U_)
+sipstat_init(const char *opt_arg, void* userdata _U_)
 {
 	sipstat_t *sp;
 	const char *filter=NULL;
 	GString	*error_string;
 
-	if (strncmp (optarg, "sip,stat,", 9) == 0){
-		filter=optarg+9;
+	if (strncmp (opt_arg, "sip,stat,", 9) == 0){
+		filter=opt_arg+9;
 	} else {
 		filter=NULL;
 	}
 
-	sp = g_new(sipstat_t,1);
+	sp = g_new0(sipstat_t,1);
 	if(filter){
 		sp->filter=g_strdup(filter);
 	} else {

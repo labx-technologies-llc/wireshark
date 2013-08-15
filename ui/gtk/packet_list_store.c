@@ -45,10 +45,10 @@
 #include <epan/epan_dissect.h>
 #include <epan/column_info.h>
 #include <epan/column.h>
-#include <epan/nstime.h>
 
 #include "color.h"
 #include "color_filters.h"
+#include "frame_tvbuff.h"
 
 #include "globals.h"
 
@@ -71,8 +71,6 @@ typedef struct _PacketListRecord {
 	/** position within the visible array */
 	gint visible_pos;
 
-	/** Has this record been columnized? */
-	guint columnized : 1;
 	/** Has this record been colorized? */
 	guint colorized : 1;
 
@@ -131,7 +129,7 @@ static gboolean packet_list_sortable_has_default_sort_func(GtkTreeSortable
 							   *sortable);
 static void packet_list_sortable_init(GtkTreeSortableIface *iface);
 static void packet_list_resort(PacketList *packet_list);
-static void packet_list_dissect_and_cache_record(PacketList *packet_list, PacketListRecord *record, gboolean dissect_columns, gboolean dissect_color );
+static void packet_list_dissect_and_cache_record(PacketList *packet_list, PacketListRecord *record, gboolean dissect_color );
 
 static GObjectClass *parent_class = NULL;
 
@@ -332,13 +330,9 @@ static gboolean
 packet_list_get_iter(GtkTreeModel *tree_model, GtkTreeIter *iter,
 			 GtkTreePath *path)
 {
-	PacketList *packet_list;
-	PacketListRecord *record;
 	gint *indices, depth;
-	gint n;
 
 	g_assert(PACKETLIST_IS_LIST(tree_model));
-	packet_list = (PacketList *) tree_model;
 
 	g_assert(path != NULL);
 
@@ -348,23 +342,7 @@ packet_list_get_iter(GtkTreeModel *tree_model, GtkTreeIter *iter,
 	/* we do not allow children since it's just a list */
 	g_assert(depth == 1);
 
-	n = indices[0]; /* the n-th top level row */
-
-	if(PACKET_LIST_RECORD_COUNT(packet_list->visible_rows) == 0)
-		return FALSE;
-
-	if(!PACKET_LIST_RECORD_INDEX_VALID(packet_list->visible_rows, n))
-		return FALSE;
-
-	record = PACKET_LIST_RECORD_GET(packet_list->visible_rows, n);
-
-	g_assert(record->visible_pos == n);
-
-	/* We simply store a pointer to our custom record in the iter */
-	iter->stamp = packet_list->stamp;
-	iter->user_data = record;
-
-	return TRUE;
+	return packet_list_iter_nth_child(tree_model, iter, NULL, indices[0]);
 }
 
 static GtkTreePath *
@@ -418,8 +396,8 @@ packet_list_get_value(GtkTreeModel *tree_model, GtkTreeIter *iter, gint column,
 
 		g_value_init(value, G_TYPE_STRING);
 
-		if (!record->columnized || !record->colorized)
-			packet_list_dissect_and_cache_record(packet_list, record, !record->columnized, !record->colorized);
+		if (record->col_text == NULL || !record->colorized)
+			packet_list_dissect_and_cache_record(packet_list, record, !record->colorized);
 
 		text_column = packet_list->col_to_text[column];
 		if (text_column == -1) { /* column based on frame_data */
@@ -491,27 +469,7 @@ static gboolean
 packet_list_iter_children(GtkTreeModel *tree_model, GtkTreeIter *iter,
 			  GtkTreeIter *parent)
 {
-	PacketList *packet_list;
-
-	g_return_val_if_fail(PACKETLIST_IS_LIST(tree_model), FALSE);
-	packet_list = (PacketList *) tree_model;
-
-	/* This is a list, nodes have no children. */
-	if(parent) {
-		g_return_val_if_fail(parent->stamp == packet_list->stamp, FALSE);
-		g_return_val_if_fail(parent->user_data, FALSE);
-		return FALSE;
-	}
-
-	/* No rows => no first row */
-	if(PACKET_LIST_RECORD_COUNT(packet_list->visible_rows) == 0)
-		return FALSE;
-
-	/* Set iter to first item in list */
-	iter->stamp = packet_list->stamp;
-	iter->user_data = PACKET_LIST_RECORD_GET(packet_list->visible_rows, 0);
-
-	return TRUE;
+	return packet_list_iter_nth_child(tree_model, iter, parent, 0);
 }
 
 static gboolean
@@ -646,10 +604,9 @@ packet_list_append_record(PacketList *packet_list, frame_data *fdata)
 	g_return_val_if_fail(PACKETLIST_IS_LIST(packet_list), -1);
 
 	newrecord = se_new(PacketListRecord);
-	newrecord->columnized   = FALSE;
 	newrecord->colorized    = FALSE;
-	newrecord->col_text_len = (gushort *)se_alloc0(sizeof(*newrecord->col_text_len) * packet_list->n_text_cols);
-	newrecord->col_text     = (const gchar **)se_alloc0(sizeof(*newrecord->col_text) * packet_list->n_text_cols);
+	newrecord->col_text_len = NULL;
+	newrecord->col_text     = NULL;
 	newrecord->fdata        = fdata;
 #ifdef PACKET_PARANOID_CHECKS
 	newrecord->physical_pos = PACKET_LIST_RECORD_COUNT(packet_list->physical_rows);
@@ -846,7 +803,7 @@ packet_list_dissect_and_cache_all(PacketList *packet_list)
 
 	for (progbar_loop_var = 0; progbar_loop_var < progbar_loop_max; ++progbar_loop_var) {
 		record = PACKET_LIST_RECORD_GET(packet_list->physical_rows, progbar_loop_var);
-		packet_list_dissect_and_cache_record(packet_list, record, TRUE, FALSE);
+		packet_list_dissect_and_cache_record(packet_list, record, FALSE);
 
 		/* Create the progress bar if necessary.
 		   We check on every iteration of the loop, so that it takes no
@@ -978,7 +935,7 @@ packet_list_compare_custom(gint sort_id, gint text_sort_id, PacketListRecord *a,
 	hfi = proto_registrar_get_byname(cfile.cinfo.col_custom_field[sort_id]);
 
 	if (hfi == NULL) {
-		return frame_data_compare(a->fdata, b->fdata, COL_NUMBER);
+		return frame_data_compare(cfile.epan, a->fdata, b->fdata, COL_NUMBER);
 	} else if ((hfi->strings == NULL) &&
 		   (((IS_FT_INT(hfi->type) || IS_FT_UINT(hfi->type)) &&
 		     ((hfi->display == BASE_DEC) || (hfi->display == BASE_DEC_HEX) ||
@@ -1025,11 +982,11 @@ packet_list_compare_records(gint sort_id, gint text_sort_id, PacketListRecord *a
 	gint ret;
 
 	if (text_sort_id == -1)	/* based on frame_data ? */
-		return frame_data_compare(a->fdata, b->fdata, cfile.cinfo.col_fmt[sort_id]);
+		return frame_data_compare(cfile.epan, a->fdata, b->fdata, cfile.cinfo.col_fmt[sort_id]);
 
 	ret = _packet_list_compare_records(sort_id, text_sort_id, a, b);
 	if (ret == 0)
-		ret = frame_data_compare(a->fdata, b->fdata, COL_NUMBER);
+		ret = frame_data_compare(cfile.epan, a->fdata, b->fdata, COL_NUMBER);
 	return ret;
 }
 
@@ -1132,7 +1089,7 @@ packet_list_recreate_visible_rows_list(PacketList *packet_list)
 }
 
 static void
-packet_list_dissect_and_cache_record(PacketList *packet_list, PacketListRecord *record, gboolean dissect_columns, gboolean dissect_color)
+packet_list_dissect_and_cache_record(PacketList *packet_list, PacketListRecord *record, gboolean dissect_color)
 {
 	epan_dissect_t edt;
 	frame_data *fdata;
@@ -1140,27 +1097,24 @@ packet_list_dissect_and_cache_record(PacketList *packet_list, PacketListRecord *
 	gint col;
 	gboolean create_proto_tree;
 	struct wtap_pkthdr phdr; /* Packet header */
-	guint8 pd[WTAP_MAX_PACKET_SIZE];  /* Packet data */
+	Buffer buf; /* Packet data */
+	gboolean dissect_columns = (record->col_text == NULL);
 
 	g_return_if_fail(packet_list);
 	g_return_if_fail(PACKETLIST_IS_LIST(packet_list));
 
-	g_assert((record->col_text != NULL)&&(record->col_text_len != NULL));
-
-	/* XXX: Does it work to check if the record is already columnized/colorized ?
-	 *      i.e.: test record->columnized and record->colorized and just return
-	 *            if they're both TRUE.
-	 *      Note: Part of the patch submitted with Bug #4273 had code to do this but it
-	 *            was commented out in the patch and was not included in SVN #33011.
-	 */
 	fdata = record->fdata;
 
-	if (dissect_columns)
+	if (dissect_columns) {
 		cinfo = &cfile.cinfo;
-	else
+
+		record->col_text     = (const gchar **)se_alloc0(sizeof(*record->col_text) * packet_list->n_text_cols);
+		record->col_text_len = (gushort *)se_alloc0(sizeof(*record->col_text_len) * packet_list->n_text_cols);
+	} else
 		cinfo = NULL;
 
-	if (!cf_read_frame_r(&cfile, fdata, &phdr, pd)) {
+	buffer_init(&buf, 1500);
+	if (!cf_read_frame_r(&cfile, fdata, &phdr, &buf)) {
 		/*
 		 * Error reading the frame.
 		 *
@@ -1176,19 +1130,19 @@ packet_list_dissect_and_cache_record(PacketList *packet_list, PacketListRecord *
 
 			for(col = 0; col < cinfo->num_cols; ++col)
 				packet_list_change_record(packet_list, record, col, cinfo);
-			record->columnized = TRUE;
 		}
 		if (dissect_color) {
 			fdata->color_filter = NULL;
 			record->colorized = TRUE;
 		}
+		buffer_free(&buf);
 		return;	/* error reading the frame */
 	}
 
 	create_proto_tree = (dissect_color && color_filters_used()) ||
 						(dissect_columns && have_custom_cols(cinfo));
 
-	epan_dissect_init(&edt,
+	epan_dissect_init(&edt, cfile.epan,
 					  create_proto_tree,
 					  FALSE /* proto_tree_visible */);
 
@@ -1201,7 +1155,7 @@ packet_list_dissect_and_cache_record(PacketList *packet_list, PacketListRecord *
 	 * XXX - need to catch an OutOfMemoryError exception and
 	 * attempt to recover from it.
 	 */
-	epan_dissect_run(&edt, &phdr, pd, fdata, cinfo);
+	epan_dissect_run(&edt, &phdr, frame_tvbuff_new_buffer(fdata, &buf), fdata, cinfo);
 
 	if (dissect_color)
 		fdata->color_filter = color_filters_colorize_packet(&edt);
@@ -1214,12 +1168,11 @@ packet_list_dissect_and_cache_record(PacketList *packet_list, PacketListRecord *
 			packet_list_change_record(packet_list, record, col, cinfo);
 	}
 
-	if (dissect_columns)
-		record->columnized = TRUE;
 	if (dissect_color)
 		record->colorized = TRUE;
 
 	epan_dissect_cleanup(&edt);
+	buffer_free(&buf);
 }
 
 void

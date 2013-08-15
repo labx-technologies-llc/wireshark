@@ -41,6 +41,8 @@
 #include <glib.h>
 #include <gtk/gtk.h>
 
+#include <wsutil/report_err.h>
+
 #include <epan/packet_info.h>
 #include <epan/epan.h>
 #include <epan/epan_dissect.h>
@@ -49,13 +51,11 @@
 #include <epan/tap.h>
 #include <epan/emem.h>
 #include <epan/packet.h>
-#include <epan/report_err.h>
 #include <epan/dissectors/packet-ip.h>
-#include <epan/nstime.h>
 #include <epan/in_cksum.h>
 
 #include "../stat_menu.h"
-#include "../timestats.h"
+#include "epan/timestats.h"
 
 #include "ui/simple_dialog.h"
 

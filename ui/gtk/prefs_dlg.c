@@ -33,9 +33,9 @@
 #include <epan/strutil.h>
 #include <epan/prefs-int.h>
 #include <epan/epan_dissect.h>
+#include <epan/print.h>
 
 #include "../file.h"
-#include "../print.h"
 #include "ui/preference_utils.h"
 #include "ui/simple_dialog.h"
 
@@ -141,11 +141,12 @@ pref_show(pref_t *pref, gpointer user_data)
   label_string = (char *)g_malloc(label_len);
   g_strlcpy(label_string, title, label_len);
 
-  tooltip_txt = pref->description? g_strdup_printf("%s.%s: %s\n%s",
+  tooltip_txt = pref->description? g_strdup_printf("%s\n\nName: %s.%s\nType: %s",
+                                                   pref->description,
                                                    module->name,
                                                    pref->name,
-                                                   type_name ? type_name : "Unknown",
-                                                   pref->description): NULL;
+                                                   type_name ? type_name : "Unknown"
+                                                   ): NULL;
 
   /*
    * Sometimes we don't want to append a ':' after a static text string...
@@ -1251,8 +1252,8 @@ prefs_main_fetch_all(GtkWidget *dlg, gboolean *must_redissect)
   /* XXX - check the non-registered preferences too */
   switch (prefs_modules_foreach(module_prefs_check, (gpointer)&badpref)) {
 
-  case PREFS_SET_SYNTAX_ERR:
-    switch (badpref->type) {
+    case PREFS_SET_SYNTAX_ERR:
+      switch (badpref->type) {
 
     case PREF_UINT:
       simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
@@ -1391,6 +1392,55 @@ static void prefs_copy(void) {
 }
 
 static void
+overwrite_existing_prefs_cb(gpointer dialog _U_, gint btn, gpointer parent_w _U_)
+{
+  switch (btn) {
+    case(ESD_BTN_SAVE):
+      prefs_main_write();
+      prefs.unknown_prefs = FALSE;
+      break;
+    case(ESD_BTN_DONT_SAVE):
+      break;
+    default:
+      g_assert_not_reached();
+  }
+}
+static void
+prefs_main_save(gpointer parent_w)
+{
+  if (prefs.unknown_prefs) {
+    gpointer dialog;
+    gchar *msg;
+    const gchar *msg1 = "These preferences were last saved at version ";
+    const gchar *msg2 = "Obsolete or unrecognized preferences have been detected. "
+                  "If you plan to use this profile with ";
+    const gchar *msg3 = "that version of Wireshark, ";
+    const gchar *msg4 = "an older or nonstandard Wireshark version, ";
+    const gchar *msg5 = "click 'Continue without Saving' and save this profile under a another name.\n";
+    
+    if (prefs.saved_at_version) {
+      gulong tot_msg_len = 246 + (gulong)strlen(prefs.saved_at_version) + 1;
+      
+      msg = (gchar *)g_malloc(tot_msg_len);
+      g_snprintf(msg, tot_msg_len, "%s\"%s\". %s%s%s",
+        msg1, prefs.saved_at_version, msg2, msg3, msg5);
+      dialog = simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTNS_SAVE_DONTSAVE, "%s", msg);
+    } else { 
+      msg = (gchar *)g_malloc(214);
+
+      g_snprintf(msg, 214, "%s%s%s", msg2, msg4, msg5);
+      dialog = simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTNS_SAVE_DONTSAVE, "%s", msg);
+    }
+
+    simple_dialog_set_cb(dialog, overwrite_existing_prefs_cb, parent_w);
+    g_free(msg);
+    
+  } else {
+    prefs_main_write();
+  }
+}
+
+static void
 prefs_main_ok_cb(GtkWidget *ok_bt _U_, gpointer parent_w)
 {
   gboolean must_redissect = FALSE;
@@ -1400,7 +1450,7 @@ prefs_main_ok_cb(GtkWidget *ok_bt _U_, gpointer parent_w)
 
   /* if we don't have a Save button, just save the settings now */
   if (!prefs.gui_use_pref_save) {
-    prefs_main_write();
+    prefs_main_save(parent_w);
   }
 
 #ifdef HAVE_AIRPCAP
@@ -1441,7 +1491,7 @@ prefs_main_apply_cb(GtkWidget *apply_bt _U_, gpointer parent_w)
 
   /* if we don't have a Save button, just save the settings now */
   if (!prefs.gui_use_pref_save) {
-    prefs_main_write();
+    prefs_main_save(parent_w);
     prefs_copy();     /* save prefs for reverting if Cancel */
   }
 
@@ -1469,7 +1519,7 @@ prefs_main_save_cb(GtkWidget *save_bt _U_, gpointer parent_w)
   if (!prefs_main_fetch_all((GtkWidget *)parent_w, &must_redissect))
     return; /* Errors in some preference setting - already reported */
 
-  prefs_main_write();
+  prefs_main_save(parent_w);
   prefs_copy();     /* save prefs for reverting if Cancel */
 
   /* Now apply those preferences.

@@ -40,16 +40,18 @@
 
 #include <gtk/gtk.h>
 
-#include "epan/filesystem.h"
-#include "epan/addr_resolv.h"
-#include "epan/prefs.h"
 #include "wsutil/file_util.h"
 #include "wsutil/unicode-utils.h"
 
+#include "wiretap/merge.h"
+
+#include "epan/filesystem.h"
+#include "epan/addr_resolv.h"
+#include "epan/prefs.h"
+#include "epan/print.h"
+
 #include "color.h"
-#include "print.h"
 #include "color_filters.h"
-#include "merge.h"
 
 #include "ui/alert_box.h"
 #include "ui/help_url.h"
@@ -387,7 +389,7 @@ win32_save_as_file(HWND h_wnd, capture_file *cf, GString *file_name, int *file_t
     ofn->nMaxFileTitle = 0;
     ofn->lpstrInitialDir = utf_8to16(get_last_open_dir());
     ofn->lpstrTitle = _T("Wireshark: Save file as");
-    ofn->Flags = OFN_ENABLESIZING  | OFN_ENABLETEMPLATE  | OFN_EXPLORER        |
+    ofn->Flags = OFN_ENABLESIZING  | OFN_ENABLETEMPLATE  | OFN_EXPLORER     |
                  OFN_NOCHANGEDIR   | OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY |
                  OFN_PATHMUSTEXIST | OFN_ENABLEHOOK      | OFN_SHOWHELP;
     ofn->lpstrDefExt = NULL;
@@ -655,6 +657,7 @@ win32_export_file(HWND h_wnd, capture_file *cf, export_type_e export_type) {
     print_args.to_file             = TRUE;
     print_args.cmd                 = NULL;
     print_args.print_summary       = TRUE;
+    print_args.print_col_headings  = TRUE;
     print_args.print_dissections   = print_dissections_as_displayed;
     print_args.print_hex           = FALSE;
     print_args.print_formfeed      = FALSE;
@@ -1031,10 +1034,20 @@ print_update_dynamic(HWND dlg_hwnd, print_args_t *args) {
     HWND cur_ctrl;
 
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_PKT_SUMMARY_CB);
-    if (SendMessage(cur_ctrl, BM_GETCHECK, 0, 0) == BST_CHECKED)
+    if (SendMessage(cur_ctrl, BM_GETCHECK, 0, 0) == BST_CHECKED) {
         args->print_summary = TRUE;
-    else
+        cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_COL_HEADINGS_CB);
+        EnableWindow(cur_ctrl, TRUE);
+        if (SendMessage(cur_ctrl, BM_GETCHECK, 0, 0) == BST_CHECKED)
+            args->print_col_headings = TRUE;
+        else
+            args->print_col_headings = FALSE;
+    } else {
         args->print_summary = FALSE;
+        args->print_col_headings = FALSE;
+        cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_COL_HEADINGS_CB);
+        EnableWindow(cur_ctrl, FALSE);
+    }
 
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_PKT_DETAIL_CB);
     if (SendMessage(cur_ctrl, BM_GETCHECK, 0, 0) == BST_CHECKED) {
@@ -1076,9 +1089,11 @@ static void
 format_handle_wm_initdialog(HWND dlg_hwnd, print_args_t *args) {
     HWND cur_ctrl;
 
-    /* Set the "Packet summary" box */
+    /* Set the "Packet summary" and "Include column headings" boxes */
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_PKT_SUMMARY_CB);
     SendMessage(cur_ctrl, BM_SETCHECK, args->print_summary, 0);
+    cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_COL_HEADINGS_CB);
+    SendMessage(cur_ctrl, BM_SETCHECK, args->print_col_headings, 0);
 
     /* Set the "Packet details" box */
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_PKT_DETAIL_CB);
@@ -1658,9 +1673,7 @@ save_as_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
                     break;
                 case CDN_FILEOK: {
                     HWND   parent;
-                    TCHAR  file_name16_selected[MAX_PATH];
-                    char  *file_name8_selected;
-                    int    selected_size;
+                    char  *file_name8;
 
                     /* Fetch our compression value */
                     cur_ctrl = GetDlgItem(sf_hwnd, EWFD_GZIP_CB);
@@ -1669,22 +1682,19 @@ save_as_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
                     else
                         g_compressed = FALSE;
 
-                    /* Check if trying to do 'save as' to the currently open file */
+                    /* Check if we're trying to overwrite the currently open file */
                     parent = GetParent(sf_hwnd);
-                    selected_size = CommDlg_OpenSave_GetFilePath(parent, file_name16_selected, MAX_PATH);
-                    if (selected_size > 0) {
-                        file_name8_selected = utf_16to8(file_name16_selected);
-                        if (files_identical(cfile.filename, file_name8_selected)) {
-                            /* XXX: Is MessageBox the best way to pop up an error ? How to make text bold ? */
-                            gchar *str = g_strdup_printf(
-                                "Capture File \"%s\" identical to loaded file !!\n\n"
-                                "Please choose a different filename.",
-                                file_name8_selected);
-                            MessageBox( parent, utf_8to16(str), _T("Error"), MB_ICONERROR | MB_APPLMODAL | MB_OK);
-                            g_free(str);
-                            SetWindowLongPtr(sf_hwnd, DWLP_MSGRESULT, 1L); /* Don't allow ! */
-                            return 1;
-                        }
+                    file_name8 = utf_16to8(notify->lpOFN->lpstrFile);
+                    if (files_identical(cfile.filename, file_name8)) {
+                        /* XXX: Is MessageBox the best way to pop up an error ? How to make text bold ? */
+                        gchar *str = g_strdup_printf(
+                            "Capture File \"%s\" identical to loaded file.\n\n"
+                            "Please choose a different filename.",
+                            file_name8);
+                        MessageBox( parent, utf_8to16(str), _T("Error"), MB_ICONERROR | MB_APPLMODAL | MB_OK);
+                        g_free(str);
+                        SetWindowLongPtr(sf_hwnd, DWLP_MSGRESULT, 1L); /* Don't allow ! */
+                        return 1;
                     }
                 }
                     break;
@@ -1763,9 +1773,7 @@ export_specified_packets_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, 
                     break;
                 case CDN_FILEOK: {
                     HWND   parent;
-                    TCHAR  file_name16_selected[MAX_PATH];
-                    char  *file_name8_selected;
-                    int    selected_size;
+                    char  *file_name8;
 
                     /* Fetch our compression value */
                     cur_ctrl = GetDlgItem(sf_hwnd, EWFD_GZIP_CB);
@@ -1774,22 +1782,19 @@ export_specified_packets_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, 
                     else
                         g_compressed = FALSE;
 
-                    /* Check if trying to do 'save as' to the currently open file */
+                    /* Check if we're trying to overwrite the currently open file */
                     parent = GetParent(sf_hwnd);
-                    selected_size = CommDlg_OpenSave_GetFilePath(parent, file_name16_selected, MAX_PATH);
-                    if (selected_size > 0) {
-                        file_name8_selected = utf_16to8(file_name16_selected);
-                        if (files_identical(cfile.filename, file_name8_selected)) {
-                            /* XXX: Is MessageBox the best way to pop up an error ? How to make text bold ? */
-                            gchar *str = g_strdup_printf(
-                                "Capture File \"%s\" identical to loaded file.\n\n"
-                                "Please choose a different filename.",
-                                file_name8_selected);
-                            MessageBox( parent, utf_8to16(str), _T("Error"), MB_ICONERROR | MB_APPLMODAL | MB_OK);
-                            g_free(str);
-                            SetWindowLongPtr(sf_hwnd, DWLP_MSGRESULT, 1L); /* Don't allow ! */
-                            return 1;
-                        }
+                    file_name8 = utf_16to8(notify->lpOFN->lpstrFile);
+                    if (files_identical(cfile.filename, file_name8)) {
+                        /* XXX: Is MessageBox the best way to pop up an error ? How to make text bold ? */
+                        gchar *str = g_strdup_printf(
+                            "Capture File \"%s\" identical to loaded file.\n\n"
+                            "Please choose a different filename.",
+                            file_name8);
+                        MessageBox( parent, utf_8to16(str), _T("Error"), MB_ICONERROR | MB_APPLMODAL | MB_OK);
+                        g_free(str);
+                        SetWindowLongPtr(sf_hwnd, DWLP_MSGRESULT, 1L); /* Don't allow ! */
+                        return 1;
                     }
                 }
                     break;

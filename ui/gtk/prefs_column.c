@@ -101,22 +101,22 @@ visible_toggled(GtkCellRendererToggle *cell _U_, gchar *path_str, gpointer data)
  */
 GtkWidget *
 column_prefs_show(GtkWidget *prefs_window) {
-    GtkWidget         *main_vb, *bottom_hb, *column_l, *add_bt, *grid, *lb;
-    GtkWidget         *list_vb, *list_lb, *list_sc;
-    GtkWidget         *add_remove_vb;
-    GtkWidget         *props_fr, *props_hb;
-    GList             *clp;
-    fmt_data          *cfmt;
-    gint               i;
-    gchar             *fmt;
-    const gchar       *column_titles[] = {"Displayed", "Title", "Field type"};
-    GtkListStore      *store;
-    GtkCellRenderer   *renderer;
-    GtkTreeViewColumn *column;
-    GtkTreeSelection  *sel;
-    GtkTreeIter        iter;
-    GtkTreeIter        first_iter;
-    gint               first_row = TRUE;
+    GtkWidget          *main_vb, *bottom_hb, *column_l, *add_bt, *grid, *lb;
+    GtkWidget          *list_vb, *list_lb, *list_sc;
+    GtkWidget          *add_remove_vb;
+    GtkWidget          *props_fr, *props_hb;
+    GList              *clp;
+    fmt_data           *cfmt;
+    gint                i;
+    gchar              *fmt;
+    static const gchar *column_titles[] = {"Displayed", "Title", "Field type"};
+    GtkListStore       *store;
+    GtkCellRenderer    *renderer;
+    GtkTreeViewColumn  *column;
+    GtkTreeSelection   *sel;
+    GtkTreeIter         iter;
+    GtkTreeIter         first_iter;
+    gint                first_row = TRUE;
 
     /* Container for each row of widgets */
     main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 5, FALSE);
@@ -267,8 +267,7 @@ column_prefs_show(GtkWidget *prefs_window) {
     ws_gtk_grid_attach_extended(GTK_GRID(grid), field_lb, 0, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(field_lb, FALSE);
     gtk_widget_set_tooltip_text(field_lb,
-                          "Field name used when field type is \"Custom\". "
-                          "This string has the same syntax as a display filter string.");
+                          "Display filter field name to show when the field type is \"Custom\".");
     gtk_widget_show(field_lb);
 
     field_te = gtk_entry_new();
@@ -288,8 +287,7 @@ column_prefs_show(GtkWidget *prefs_window) {
     ws_gtk_grid_attach_extended(GTK_GRID(grid), field_te, 1, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(field_te, FALSE);
     gtk_widget_set_tooltip_text(field_te,
-                          "Field name used when field type is \"Custom\". "
-                          "This string has the same syntax as a display filter string.");
+                          "Display filter field name to show when the field type is \"Custom\".");
     gtk_widget_show(field_te);
 
     occurrence_lb = gtk_label_new("Field occurrence:");

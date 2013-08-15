@@ -28,7 +28,7 @@ E<lt>I<outfile>E<gt>|-
 =head1 DESCRIPTION
 
 B<Text2pcap> is a program that reads in an ASCII hex dump and writes the
-data described into a B<libpcap> capture file.  B<text2pcap> can
+data described into a B<pcap> capture file.  B<text2pcap> can
 read hexdumps with multiple packets in them, and build a capture file of
 multiple packets.  B<text2pcap> is also capable of generating dummy
 Ethernet, IP and UDP, TCP, or SCTP headers, in order to build fully
@@ -116,8 +116,8 @@ for the Ethernet header in hex. Use this option if your dump has Layer
 encapsulation. Example: I<-e 0x806> to specify an ARP packet.
 
 For IP packets, instead of generating a fake Ethernet header you can
-also use I<-l 12> to indicate a raw IP packet to Wireshark. Note that
-I<-l 12> does not work for any non-IP Layer 3 packet (e.g. ARP),
+also use I<-l 101> to indicate a raw IP packet to Wireshark. Note that
+I<-l 101> does not work for any non-IP Layer 3 packet (e.g. ARP),
 whereas generating a dummy Ethernet header with I<-e> works for any
 sort of L3 packet.
 
@@ -141,7 +141,7 @@ Specify the link-layer header type of this packet.  Default is Ethernet
 of possible encapsulations.  Note that this option should be used if
 your dump is a complete hex dump of an encapsulated packet and you wish
 to specify the exact type of encapsulation.  Example: I<-l 7> for ARCNet
-packets.
+packets encapsulated BSD-style.
 
 =item -m E<lt>max-packetE<gt>
 
@@ -217,6 +217,21 @@ your dump is the UDP payload of a packet but does not include any UDP,
 IP or Ethernet headers. Note that appropriate Ethernet and IP headers
 are automatically also included with each packet.
 Example: I<-u1000,69> to make the packets look like TFTP/UDP packets.
+
+=item -4 E<lt>srcipE<gt>,E<lt>destipE<gt>
+
+Prepend dummy IP header with specified IPv4 dest and source address.
+This option should be accompanied by one of the following options: -i, -s, -S, -T, -u
+Use this option to apply "custom" IP addresses.
+Example: I<-4 10.0.0.1,10.0.0.2> to use 10.0.0.1 and 10.0.0.2 for all IP packets.
+
+=item -6 E<lt>srcipE<gt>,E<lt>destipE<gt>
+
+Prepend dummy IP header with specified IPv6 dest and source address.
+This option should be accompanied by one of the following options: -i, -s, -S, -T, -u
+Use this option to apply "custom" IP addresses.
+Example: I<-6 fe80:0:0:0:202:b3ff:fe1e:8329, 2001:0db8:85a3:0000:0000:8a2e:0370:7334> to 
+use fe80:0:0:0:202:b3ff:fe1e:8329 and 2001:0db8:85a3:0000:0000:8a2e:0370:7334 for all IP packets.
 
 =back
 

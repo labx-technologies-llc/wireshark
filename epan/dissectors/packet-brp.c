@@ -44,6 +44,8 @@ void proto_reg_handoff_brp(void);
 /* Wireshark ID of the BRP protocol */
 static int proto_brp = -1;
 
+static dissector_handle_t brp_handle;
+
 /*static int global_brp_port = 1958; *//* The port is registered for another protocol */
 
 static const value_string brp_packettype_names[] = {
@@ -144,12 +146,10 @@ dissect_brp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
     /* If there is a "tree" requested, we handle that request. */
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTO_TAG_BRP);
-    if(check_col(pinfo->cinfo,COL_INFO)){
-        /* We add some snazzy bizness to the info field to quickly ascertain
-           what type of message was sent to/from the BRS/BRC. */
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type - %s",
-             val_to_str(packet_type, brp_packettype_names, "Unknown (0x%02x)"));
-    }
+    /* We add some snazzy bizness to the info field to quickly ascertain
+        what type of message was sent to/from the BRS/BRC. */
+    col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type - %s",
+            val_to_str(packet_type, brp_packettype_names, "Unknown (0x%02x)"));
 
     /* This call adds our tree to the main dissection tree. */
 
@@ -414,18 +414,16 @@ void proto_register_brp (void)
                                    "Set the UDP port for BRP messages",
                                    10, &global_brp_port);
 
-    new_register_dissector("brp", dissect_brp, proto_brp);
+    brp_handle = new_register_dissector("brp", dissect_brp, proto_brp);
 }
 
 /*--- proto_reg_handoff_brp -------------------------------------------*/
 void proto_reg_handoff_brp(void)
 {
     static gboolean           initialized = FALSE;
-    static dissector_handle_t brp_handle;
     static guint              saved_brp_port;
 
     if (!initialized) {
-        brp_handle = new_create_dissector_handle(dissect_brp, proto_brp);
         dissector_add_handle("udp.port", brp_handle);
         initialized = TRUE;
     } else {

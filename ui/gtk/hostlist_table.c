@@ -41,7 +41,7 @@
 #ifdef HAVE_GEOIP
 #include <GeoIP.h>
 #include <epan/geoip_db.h>
-#include <epan/pint.h>
+#include <wsutil/pint.h>
 #include <epan/filesystem.h>
 #endif
 
@@ -50,7 +50,7 @@
 #include "ui/simple_dialog.h"
 #include "ui/alert_box.h"
 #include "ui/utf8_entities.h"
-#include "../tempfile.h"
+#include "wsutil/tempfile.h"
 
 #include "ui/gtk/hostlist_table.h"
 #include "ui/gtk/filter_utils.h"

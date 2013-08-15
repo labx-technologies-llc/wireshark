@@ -13,6 +13,10 @@
   <property name="windowTitle">
    <string>Wireshark</string>
   </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>:/toolbar/main/hi48-app-wireshark.png</normaloff>:/toolbar/main/hi48-app-wireshark.png</iconset>
+  </property>
   <property name="unifiedTitleAndToolBarOnMac">
    <bool>true</bool>
   </property>
@@ -93,7 +97,7 @@
      <x>0</x>
      <y>0</y>
      <width>960</width>
-     <height>22</height>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -218,12 +222,14 @@
      <addaction name="actionHelpMPWireshark"/>
      <addaction name="actionHelpMPWireshark_Filter"/>
      <addaction name="separator"/>
-     <addaction name="actionHelpMPTShark"/>
-     <addaction name="actionHelpMPRawShark"/>
+     <addaction name="actionHelpMPCapinfos"/>
      <addaction name="actionHelpMPDumpcap"/>
-     <addaction name="actionHelpMPMergecap"/>
      <addaction name="actionHelpMPEditcap"/>
+     <addaction name="actionHelpMPMergecap"/>
+     <addaction name="actionHelpMPRawShark"/>
+     <addaction name="actionHelpMPReordercap"/>
      <addaction name="actionHelpMPText2cap"/>
+     <addaction name="actionHelpMPTShark"/>
     </widget>
     <addaction name="actionHelpContents"/>
     <addaction name="menuHelpManualPages"/>
@@ -293,12 +299,29 @@
     <addaction name="menuApplyAsFilter"/>
     <addaction name="menuPrepareAFilter"/>
    </widget>
+   <widget class="QMenu" name="menuStatistics">
+    <property name="enabled">
+     <bool>true</bool>
+    </property>
+    <property name="title">
+     <string>Statistics</string>
+    </property>
+    <addaction name="actionSummary"/>
+    <addaction name="actionProtocol_Hierarchy"/>
+   </widget>
+   <widget class="QMenu" name="menuTelephony">
+    <property name="title">
+     <string>Telephony</string>
+    </property>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuView"/>
    <addaction name="menuGo"/>
    <addaction name="menuCapture"/>
    <addaction name="menuAnalyze"/>
+   <addaction name="menuStatistics"/>
+   <addaction name="menuTelephony"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
@@ -748,11 +771,17 @@
    <property name="text">
     <string>&amp;Options...</string>
    </property>
+   <property name="iconText">
+    <string>Options</string>
+   </property>
    <property name="toolTip">
     <string>Capture options</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+K</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionCaptureCaptureFilters">
@@ -1148,10 +1177,10 @@
     <bool>false</bool>
    </property>
    <property name="text">
-    <string>Name set in iconText to keep QMenuBar from grabbing it on OS X</string>
+    <string>Configuration Profiles...</string>
    </property>
    <property name="iconText">
-    <string>Configuration Profiles...</string>
+    <string>Configuration profiles</string>
    </property>
    <property name="toolTip">
     <string>Manage your configuration profiles</string>
@@ -1175,6 +1204,32 @@
    </property>
    <property name="menuRole">
     <enum>QAction::PreferencesRole</enum>
+   </property>
+  </action>
+  <action name="actionSummary">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Summary</string>
+   </property>
+  </action>
+  <action name="actionProtocol_Hierarchy">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Protocol Hierarchy</string>
+   </property>
+  </action>
+  <action name="actionHelpMPCapinfos">
+   <property name="text">
+    <string>Capinfos</string>
+   </property>
+  </action>
+  <action name="actionHelpMPReordercap">
+   <property name="text">
+    <string>Reordercap</string>
    </property>
   </action>
  </widget>

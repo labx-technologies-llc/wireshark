@@ -37,6 +37,7 @@
 #include <epan/packet.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-dap.h"
@@ -213,7 +214,7 @@ static int hf_x509if_AllowedSubset_oneLevel = -1;
 static int hf_x509if_AllowedSubset_wholeSubtree = -1;
 
 /*--- End of included file: packet-x509if-hf.c ---*/
-#line 49 "../../asn1/x509if/packet-x509if-template.c"
+#line 50 "../../asn1/x509if/packet-x509if-template.c"
 
 /* Initialize the subtree pointers */
 
@@ -294,9 +295,8 @@ static gint ett_x509if_SEQUENCE_SIZE_1_MAX_OF_AttributeType = -1;
 static gint ett_x509if_SET_SIZE_1_MAX_OF_DirectoryString = -1;
 
 /*--- End of included file: packet-x509if-ett.c ---*/
-#line 52 "../../asn1/x509if/packet-x509if-template.c"
+#line 53 "../../asn1/x509if/packet-x509if-template.c"
 
-static const char *object_identifier_id = NULL;
 static proto_tree *top_of_dn = NULL;
 static proto_tree *top_of_rdn = NULL;
 
@@ -319,7 +319,6 @@ static char *last_ava = NULL;
 static void
 x509if_frame_end(void)
 {
-  object_identifier_id = NULL;
   top_of_dn = NULL;
   top_of_rdn = NULL;
 
@@ -354,7 +353,7 @@ int dissect_x509if_AttributeCombination(gboolean implicit_tag _U_, tvbuff_t *tvb
 
 static int
 dissect_x509if_T_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -364,7 +363,7 @@ dissect_x509if_T_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 static int
 dissect_x509if_T_values_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 315 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -400,7 +399,7 @@ dissect_x509if_T_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 static int
 dissect_x509if_T_contextType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -410,7 +409,7 @@ dissect_x509if_T_contextType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 static int
 dissect_x509if_T_contextValues_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 297 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -506,7 +505,7 @@ static const ber_sequence_t Attribute_sequence[] = {
 
 int
 dissect_x509if_Attribute(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 418 "../../asn1/x509if/x509if.cnf"
+#line 417 "../../asn1/x509if/x509if.cnf"
 	doing_attr = TRUE;
 	register_frame_end_routine (actx->pinfo, x509if_frame_end);
 
@@ -522,7 +521,7 @@ dissect_x509if_Attribute(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 int
 dissect_x509if_AttributeType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -532,7 +531,7 @@ dissect_x509if_AttributeType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 int
 dissect_x509if_AttributeValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 303 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -543,7 +542,7 @@ dissect_x509if_AttributeValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_x509if_T_type_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -553,7 +552,7 @@ dissect_x509if_T_type_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 static int
 dissect_x509if_T_assertion(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 309 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -573,7 +572,7 @@ dissect_x509if_NULL(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
 
 static int
 dissect_x509if_T_ca_contextType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -583,7 +582,7 @@ dissect_x509if_T_ca_contextType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 static int
 dissect_x509if_T_ca_contextValues_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 186 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -663,10 +662,10 @@ static const ber_sequence_t AttributeValueAssertion_sequence[] = {
 
 int
 dissect_x509if_AttributeValueAssertion(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 408 "../../asn1/x509if/x509if.cnf"
+#line 407 "../../asn1/x509if/x509if.cnf"
 
 	ava_hf_index = hf_index;
-	last_ava = (char *)ep_alloc(MAX_AVA_STR_LEN); *last_ava = '\0';
+	last_ava = (char *)wmem_alloc(wmem_packet_scope(), MAX_AVA_STR_LEN); *last_ava = '\0';
 	register_frame_end_routine (actx->pinfo, x509if_frame_end);
 
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
@@ -725,13 +724,13 @@ dissect_x509if_T_type_02(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
   const char *fmt; 
   const char *name;
 
-    offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+    offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
 
-  if(object_identifier_id) {
+  if(actx->external.direct_reference) {
     /* see if we can find a nice name */
-    name = oid_resolved_from_string(object_identifier_id);
-    if(!name) name = object_identifier_id;    
+    name = oid_resolved_from_string(actx->external.direct_reference);
+    if(!name) name = actx->external.direct_reference;    
 
     if(last_rdn) { /* append it to the RDN */
       g_strlcat(last_rdn, name, MAX_RDN_STR_LEN);
@@ -746,7 +745,7 @@ dissect_x509if_T_type_02(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
     if((fmt = val_to_str(hf_index, fmt_vals, "")) && *fmt) {
       /* we have a format */
-      last_ava = (char *)ep_alloc(MAX_AVA_STR_LEN); *last_ava = '\0';
+      last_ava = (char *)wmem_alloc(wmem_packet_scope(), MAX_AVA_STR_LEN); *last_ava = '\0';
       register_frame_end_routine (actx->pinfo, x509if_frame_end);
 
       g_snprintf(last_ava, MAX_AVA_STR_LEN, "%s %s", name, fmt);
@@ -771,13 +770,13 @@ dissect_x509if_T_atadv_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
   char  	*value = NULL;
   const char 	*fmt; 
   const char	*name = NULL;
-  const char    *orig_oid = object_identifier_id;
+  const char    *orig_oid = actx->external.direct_reference;
 
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
   /* in dissecting the value we may have overridden the OID of the value - which is
      a problem if there are multiple values */
-  object_identifier_id = orig_oid;
+  actx->external.direct_reference = orig_oid;
 
   /* try and dissect as a string */
   dissect_ber_octet_string(FALSE, actx, NULL, tvb, old_offset, hf_x509if_any_string, &out_tvb);
@@ -800,11 +799,11 @@ dissect_x509if_T_atadv_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
       /* we have a format */
 
       if (!last_ava) {
-        last_ava = (char *)ep_alloc(MAX_AVA_STR_LEN);
+        last_ava = (char *)wmem_alloc(wmem_packet_scope(), MAX_AVA_STR_LEN);
       }
 
-      if(!(name = oid_resolved_from_string(object_identifier_id)))
-        name = object_identifier_id;
+      if(!(name = oid_resolved_from_string(actx->external.direct_reference)))
+        name = actx->external.direct_reference;
       g_snprintf(last_ava, MAX_AVA_STR_LEN, "%s %s %s", name, fmt, value);
 
       proto_item_append_text(tree, " %s", last_ava);
@@ -822,7 +821,7 @@ dissect_x509if_T_atadv_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 static int
 dissect_x509if_T_distingAttrValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 330 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -911,7 +910,7 @@ dissect_x509if_RelativeDistinguishedName(gboolean implicit_tag _U_, tvbuff_t *tv
 
   rdn_one_value = FALSE;
   top_of_rdn = tree;
-  last_rdn = (char *)ep_alloc(MAX_DN_STR_LEN); *last_rdn = '\0';
+  last_rdn = (char *)wmem_alloc(wmem_packet_scope(), MAX_DN_STR_LEN); *last_rdn = '\0';
   register_frame_end_routine (actx->pinfo, x509if_frame_end);
 
     offset = dissect_ber_set_of(implicit_tag, actx, tree, tvb, offset,
@@ -924,7 +923,7 @@ dissect_x509if_RelativeDistinguishedName(gboolean implicit_tag _U_, tvbuff_t *tv
   /* now append this to the DN */
   if (last_dn) {
     if(*last_dn) {
-      temp_dn = (char *)ep_alloc(MAX_DN_STR_LEN); /* is there a better way to use ep_alloc here ? */
+      temp_dn = (char *)wmem_alloc(wmem_packet_scope(), MAX_DN_STR_LEN); /* is there a better way to use ep_alloc here ? */
       g_snprintf(temp_dn, MAX_DN_STR_LEN, "%s,%s", last_rdn, last_dn);
       last_dn[0] = '\0';
       g_strlcat(last_dn, temp_dn, MAX_DN_STR_LEN);
@@ -944,7 +943,7 @@ dissect_x509if_RelativeDistinguishedName(gboolean implicit_tag _U_, tvbuff_t *tv
 
 static int
 dissect_x509if_RDNSequence_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 397 "../../asn1/x509if/x509if.cnf"
+#line 396 "../../asn1/x509if/x509if.cnf"
 
   if(!dn_one_rdn)  {
     /* this is the first element - record the top */
@@ -972,7 +971,7 @@ dissect_x509if_RDNSequence(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
   const char *fmt; 
 
   dn_one_rdn = FALSE; /* reset */
-  last_dn = (char *)ep_alloc(MAX_DN_STR_LEN); *last_dn = '\0';
+  last_dn = (char *)wmem_alloc(wmem_packet_scope(), MAX_DN_STR_LEN); *last_dn = '\0';
   top_of_dn = NULL;
   register_frame_end_routine (actx->pinfo, x509if_frame_end);
 
@@ -985,8 +984,7 @@ dissect_x509if_RDNSequence(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
   proto_item_append_text(top_of_dn, " (%s)", last_dn);
 
  /* see if we should append this to the col info */
-  if(check_col(actx->pinfo->cinfo, COL_INFO) &&
-     (fmt = val_to_str(hf_index, fmt_vals, "")) && *fmt) {
+  if((fmt = val_to_str(hf_index, fmt_vals, "")) && *fmt) {
       /* we have a format */
 	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s%s", fmt, last_dn);
   }
@@ -1371,7 +1369,7 @@ dissect_x509if_INTEGER(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 static int
 dissect_x509if_T_attributeType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -1381,7 +1379,7 @@ dissect_x509if_T_attributeType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 static int
 dissect_x509if_T_ra_selectedValues_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 276 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -1405,7 +1403,7 @@ dissect_x509if_T_ra_selectedValues(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_x509if_T_entryType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -1415,7 +1413,7 @@ dissect_x509if_T_entryType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 static int
 dissect_x509if_T_ra_values_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 282 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -1467,7 +1465,7 @@ dissect_x509if_T_defaultValues(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_x509if_T_contextType_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -1477,7 +1475,7 @@ dissect_x509if_T_contextType_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 static int
 dissect_x509if_T_contextValue_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 321 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -1568,7 +1566,7 @@ dissect_x509if_ContextCombination(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 static int
 dissect_x509if_T_restrictionType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -1578,7 +1576,7 @@ dissect_x509if_T_restrictionType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 static int
 dissect_x509if_T_restrictionValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 327 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -1689,7 +1687,7 @@ dissect_x509if_AttributeCombination(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_x509if_T_attributeType_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_x509if_object_identifier_id, &actx->external.direct_reference);
 
   return offset;
 }
@@ -1699,7 +1697,7 @@ dissect_x509if_T_attributeType_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 static int
 dissect_x509if_T_selectedValues_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 291 "../../asn1/x509if/x509if.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree);
 
 
 
@@ -2098,7 +2096,7 @@ static void dissect_HierarchyBelow_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_
 
 
 /*--- End of included file: packet-x509if-fn.c ---*/
-#line 90 "../../asn1/x509if/packet-x509if-template.c"
+#line 89 "../../asn1/x509if/packet-x509if-template.c"
 
 const char * x509if_get_last_dn(void)
 {
@@ -2764,7 +2762,7 @@ void proto_register_x509if(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-x509if-hfarr.c ---*/
-#line 135 "../../asn1/x509if/packet-x509if-template.c"
+#line 134 "../../asn1/x509if/packet-x509if-template.c"
   };
 
   /* List of subtrees */
@@ -2847,7 +2845,7 @@ void proto_register_x509if(void) {
     &ett_x509if_SET_SIZE_1_MAX_OF_DirectoryString,
 
 /*--- End of included file: packet-x509if-ettarr.c ---*/
-#line 140 "../../asn1/x509if/packet-x509if-template.c"
+#line 139 "../../asn1/x509if/packet-x509if-template.c"
   };
 
   /* Register protocol */
@@ -2905,6 +2903,6 @@ void proto_reg_handoff_x509if(void) {
 
 
 /*--- End of included file: packet-x509if-dis-tab.c ---*/
-#line 159 "../../asn1/x509if/packet-x509if-template.c"
+#line 158 "../../asn1/x509if/packet-x509if-template.c"
 }
 

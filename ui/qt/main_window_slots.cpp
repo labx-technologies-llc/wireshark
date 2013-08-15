@@ -57,6 +57,7 @@
 #include "epan/filter_expressions.h"
 
 #include "ui/alert_box.h"
+#include "ui/ui_util.h"
 #include "ui/capture_globals.h"
 #include "ui/help_url.h"
 #include "ui/main_statusbar.h"
@@ -359,6 +360,9 @@ void MainWindow::captureFileClosed(const capture_file *cf) {
     main_ui_->statusBar->popFileStatus();
     cap_file_ = NULL;
 
+    summary_dialog_.close();
+
+    setTitlebarForSelectedTreeRow();
     setMenusForSelectedTreeRow();
 }
 
@@ -418,6 +422,15 @@ void MainWindow::startCapture() {
         return;
     }
 
+    // Ideally we should have disabled the start capture
+    // toolbar buttons and menu items. This may not be the
+    // case, e.g. with QtMacExtras.
+    if(!capture_filter_valid_) {
+        QString msg = QString("Invalid capture filter");
+        main_ui_->statusBar->pushTemporaryStatus(msg);
+        return;
+    }
+
     /* XXX - we might need to init other pref data as well... */
 //    main_auto_scroll_live_changed(auto_scroll_live);
 
@@ -433,7 +446,7 @@ void MainWindow::startCapture() {
     collect_ifaces(&global_capture_opts);
 
     cfile.window = this;
-    if (capture_start(&global_capture_opts, &global_capture_session)) {
+    if (capture_start(&global_capture_opts, &global_capture_session, main_window_update)) {
         /* The capture succeeded, which means the capture filter syntax is
          valid; add this capture filter to the recent capture filter list. */
         for (i = 0; i < global_capture_opts.ifaces->len; i++) {
@@ -945,11 +958,19 @@ void MainWindow::setMenusForSelectedTreeRow(field_info *fi) {
 
 void MainWindow::interfaceSelectionChanged()
 {
-    if (global_capture_opts.num_selected > 0) {
+    // XXX This doesn't disable the toolbar button when using
+    // QtMacExtras.
+    if (global_capture_opts.num_selected > 0 && capture_filter_valid_) {
         main_ui_->actionStartCapture->setEnabled(true);
     } else {
         main_ui_->actionStartCapture->setEnabled(false);
     }
+}
+
+void MainWindow::captureFilterSyntaxChanged(bool valid)
+{
+    capture_filter_valid_ = valid;
+    interfaceSelectionChanged();
 }
 
 void MainWindow::redissectPackets()
@@ -966,6 +987,7 @@ void MainWindow::recreatePacketList()
     col_cleanup(&cfile.cinfo);
     build_column_format_array(&cfile.cinfo, prefs.num_cols, FALSE);
 
+    packet_list_->updateAll();
     packet_list_->hide();
     packet_list_->show();
 
@@ -1579,33 +1601,41 @@ void MainWindow::on_actionHelpMPWireshark_triggered() {
 
     wsApp->helpTopicAction(LOCALPAGE_MAN_WIRESHARK);
 }
-void MainWindow::on_actionHelpMPWireshark_Filter_triggered() {
 
+void MainWindow::on_actionHelpMPWireshark_Filter_triggered() {
     wsApp->helpTopicAction(LOCALPAGE_MAN_WIRESHARK_FILTER);
 }
-void MainWindow::on_actionHelpMPTShark_triggered() {
 
-    wsApp->helpTopicAction(LOCALPAGE_MAN_TSHARK);
+void MainWindow::on_actionHelpMPCapinfos_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_CAPINFOS);
 }
-void MainWindow::on_actionHelpMPRawShark_triggered() {
 
-    wsApp->helpTopicAction(LOCALPAGE_MAN_RAWSHARK);
-}
 void MainWindow::on_actionHelpMPDumpcap_triggered() {
-
     wsApp->helpTopicAction(LOCALPAGE_MAN_DUMPCAP);
 }
-void MainWindow::on_actionHelpMPMergecap_triggered() {
 
-    wsApp->helpTopicAction(LOCALPAGE_MAN_MERGECAP);
-}
 void MainWindow::on_actionHelpMPEditcap_triggered() {
-
     wsApp->helpTopicAction(LOCALPAGE_MAN_EDITCAP);
 }
-void MainWindow::on_actionHelpMPText2cap_triggered() {
 
+void MainWindow::on_actionHelpMPMergecap_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_MERGECAP);
+}
+
+void MainWindow::on_actionHelpMPRawShark_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_RAWSHARK);
+}
+
+void MainWindow::on_actionHelpMPReordercap_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_REORDERCAP);
+}
+
+ void MainWindow::on_actionHelpMPText2cap_triggered() {
     wsApp->helpTopicAction(LOCALPAGE_MAN_TEXT2PCAP);
+}
+
+void MainWindow::on_actionHelpMPTShark_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_TSHARK);
 }
 
 void MainWindow::on_actionHelpWebsite_triggered() {
@@ -1690,6 +1720,11 @@ void MainWindow::on_goToLineEdit_returnPressed()
     on_goToGo_clicked();
 }
 
+void MainWindow::on_actionCaptureOptions_triggered()
+{
+    qDebug() << "Capture options";
+}
+
 void MainWindow::on_actionStartCapture_triggered()
 {
 //#ifdef HAVE_AIRPCAP
@@ -1733,6 +1768,23 @@ void MainWindow::on_actionStartCapture_triggered()
 void MainWindow::on_actionStopCapture_triggered()
 {
     stopCapture();
+}
+
+void MainWindow::on_actionSummary_triggered()
+{
+    summary_dialog_.UpdateValues();
+
+    if (summary_dialog_.isMinimized() == true)
+    {
+        summary_dialog_.showNormal();
+    }
+    else
+    {
+        summary_dialog_.show();
+    }
+
+    summary_dialog_.raise();
+    summary_dialog_.activateWindow();
 }
 
 /*

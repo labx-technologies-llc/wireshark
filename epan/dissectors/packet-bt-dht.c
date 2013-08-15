@@ -142,16 +142,15 @@ dissect_bencoded_int(tvbuff_t *tvb, packet_info _U_*pinfo, proto_tree *tree, gui
 {
   guint start_offset;
 
-  start_offset = offset;
-
   /* we have confirmed that the first byte is 'i' */
   offset += 1;
+  start_offset = offset;
 
   while( tvb_get_guint8(tvb,offset)!='e' )
     offset += 1;
 
-  *result = tvb_get_ephemeral_string( tvb, offset, offset-start_offset-1 );
-  proto_tree_add_string_format( tree, hf_bencoded_int, tvb, offset, offset-start_offset-1, *result,
+  *result = tvb_get_ephemeral_string( tvb, start_offset, offset-start_offset);
+  proto_tree_add_string_format( tree, hf_bencoded_int, tvb, start_offset, offset-start_offset, *result,
     "%s: %s", label, *result );
 
   offset += 1;
@@ -276,6 +275,10 @@ dissect_bt_dht_values(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint
       offset += string_len;
     }
   }
+
+  if (tvb_get_guint8(tvb,offset)=='e') /* list ending delimiter */
+    offset++;
+
   proto_item_set_text( ti, "%s: %d peers", label, peer_index );
   col_append_fstr( pinfo->cinfo, COL_INFO, "reply=%d peers ", peer_index );
   *result = ep_strdup_printf("%d peers", peer_index);

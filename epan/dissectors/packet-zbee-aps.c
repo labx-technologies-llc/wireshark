@@ -139,9 +139,11 @@ static expert_field ei_zbee_aps_invalid_delivery_mode = EI_INIT;
 static expert_field ei_zbee_aps_missing_payload = EI_INIT;
 
 /* Dissector Handles. */
-static dissector_handle_t   data_handle;
 static dissector_handle_t   zbee_aps_handle;
 static dissector_handle_t   zbee_apf_handle;
+
+/* Subdissector Handles. */
+static dissector_handle_t   data_handle;
 
 /* Dissector List. */
 static dissector_table_t    zbee_aps_dissector_table;
@@ -504,9 +506,14 @@ const value_string zbee_aps_cid_names[] = {
     { ZBEE_ZCL_CID_MULTISTATE_OUTPUT_BASIC,         "Multistate Output (Basic)"},
     { ZBEE_ZCL_CID_MULTISTATE_VALUE_BASIC,          "Multistate Value (Basic)"},
     { ZBEE_ZCL_CID_COMMISSIONING,                   "Commissioning"},
+    { ZBEE_ZCL_CID_PARTITION,                       "Partition"},
+    /* */
+    { ZBEE_ZCL_CID_POWER_PROFILE,                    "Power Profile"},
+    { ZBEE_ZCL_CID_APPLIANCE_CONTROL,                "Appliance Control"},
 
 /* Closures */
     { ZBEE_ZCL_CID_SHADE_CONFIG,                    "Shade Configuration"},
+    { ZBEE_ZCL_CID_DOOR_LOCK,                       "Door Lock"},
 
 /* HVAC */
     { ZBEE_ZCL_CID_PUMP_CONFIG_CONTROL,             "Pump Configuration Control"},
@@ -562,6 +569,12 @@ const value_string zbee_aps_cid_names[] = {
     { ZBEE_ZCL_CID_MESSAGE,                         "Message"},
     { ZBEE_ZCL_CID_SMART_ENERGY_TUNNELING,          "Smart Energy Tunneling"},
     { ZBEE_ZCL_CID_PRE_PAYMENT,                     "Pre-Payment"},
+
+/* ZCL Cluster IDs - Home Automation */
+    {ZBEE_ZCL_CID_APPLIANCE_IDENTIFICATION,         "Appliance Identification"},
+    {ZBEE_ZCL_CID_METER_IDENTIFICATION,             "Meter Identification"},
+    {ZBEE_ZCL_CID_APPLIANCE_EVENTS_AND_ALERT,       "Appliance Events And Alerts"},
+    {ZBEE_ZCL_CID_APPLIANCE_STATISTICS,             "Appliance Statistics"},
 
     { 0, NULL }
 };
@@ -865,7 +878,7 @@ dissect_zbee_aps_no_endpt:
     if ((payload_tvb) && (packet.fragmentation != ZBEE_APS_EXT_FCF_FRAGMENT_NONE)) {
         guint32         msg_id;
         guint32         block_num;
-        fragment_data   *frag_msg = NULL;
+        fragment_head   *frag_msg = NULL;
         tvbuff_t        *new_tvb;
 
         /* Set the fragmented flag. */
@@ -1975,7 +1988,7 @@ void proto_register_zbee_aps(void)
 
     /* Register the APS dissector and subdissector list. */
     zbee_aps_dissector_table = register_dissector_table("zbee.profile", "ZigBee Profile ID", FT_UINT16, BASE_HEX);
-    register_dissector(ZBEE_PROTOABBREV_APS, dissect_zbee_aps, proto_zbee_aps);
+    zbee_aps_handle = register_dissector(ZBEE_PROTOABBREV_APS, dissect_zbee_aps, proto_zbee_aps);
 
     /* Register the init routine. */
     register_init_routine(proto_init_zbee_aps);
@@ -1986,7 +1999,7 @@ void proto_register_zbee_aps(void)
     proto_register_subtree_array(ett_apf, array_length(ett_apf));
 
     /* Register the App dissector. */
-    register_dissector(ZBEE_PROTOABBREV_APF, dissect_zbee_apf, proto_zbee_apf);
+    zbee_apf_handle = register_dissector(ZBEE_PROTOABBREV_APF, dissect_zbee_apf, proto_zbee_apf);
 } /* proto_register_zbee_aps */
 
 /*FUNCTION:------------------------------------------------------
@@ -2004,8 +2017,6 @@ void proto_reg_handoff_zbee_aps(void)
 {
     /* Find the other dissectors we need. */
     data_handle     = find_dissector("data");
-    zbee_aps_handle = find_dissector(ZBEE_PROTOABBREV_APS);
-    zbee_apf_handle = find_dissector(ZBEE_PROTOABBREV_APF);
 } /* proto_reg_handoff_zbee_aps */
 
 /*FUNCTION:------------------------------------------------------

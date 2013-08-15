@@ -195,11 +195,11 @@ if registertype == "plugin" or registertype == "plugin_wtap":
 #include "ws_symbol_export.h"
 
 #ifndef ENABLE_STATIC
-WS_DLL_PUBLIC_NOEXTERN const gchar version[] = VERSION;
+WS_DLL_PUBLIC_DEF const gchar version[] = VERSION;
 
 /* Start the functions we need for the plugin stuff */
 
-WS_DLL_PUBLIC_NOEXTERN void
+WS_DLL_PUBLIC_DEF void
 plugin_register (void)
 {
 """
@@ -223,7 +223,7 @@ reg_code += "}\n"
 # Make the routine to register all protocol handoffs
 if registertype == "plugin" or registertype == "plugin_wtap":
 	reg_code += """
-WS_DLL_PUBLIC_NOEXTERN void
+WS_DLL_PUBLIC_DEF void
 plugin_reg_handoff(void)
 {
 """
@@ -246,7 +246,7 @@ if registertype == "plugin":
 	reg_code += "#endif\n"
 elif registertype == "plugin_wtap":
 	reg_code += """
-WS_DLL_PUBLIC_NOEXTERN void
+WS_DLL_PUBLIC_DEF void
 register_wtap_module(void)
 {
 """
@@ -285,7 +285,12 @@ gulong register_count(void)
 
 # Compare current and new content and update the file if anything has changed.
 
-new_hash = hashlib.sha1(reg_code).hexdigest()
+try:	# Python >= 2.6, >= 3.0
+	reg_code_bytes = bytes(reg_code.encode('utf-8'))
+except:
+	reg_code_bytes = reg_code
+
+new_hash = hashlib.sha1(reg_code_bytes).hexdigest()
 
 try:
 	fh = open(final_filename, 'rb')
@@ -296,12 +301,12 @@ except:
 
 try:
 	if new_hash != cur_hash:
-		print ('Updating ' + final_filename)
+		print(('Updating ' + final_filename))
 		fh = open(final_filename, 'w')
 		fh.write(reg_code)
 		fh.close()
 	else:
-		print(final_filename + ' unchanged.')
+		print((final_filename + ' unchanged.'))
 		os.utime(final_filename, None)
 except OSError:
 	sys.exit('Unable to write ' + final_filename + '.\n')

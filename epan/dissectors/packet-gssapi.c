@@ -191,7 +191,7 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	gint32 tag;
 	guint32 len1;
 	const char *oid;
-	fragment_data *fd_head=NULL;
+	fragment_head *fd_head=NULL;
 	gssapi_frag_info_t *fi;
 	tvbuff_t *volatile gss_tvb=NULL;
 	asn1_ctx_t asn1_ctx;
@@ -271,7 +271,7 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			gss_info->do_reassembly=FALSE;
 			fi->reassembled_in=pinfo->fd->num;
 
-			gss_tvb=tvb_new_child_real_data(tvb, fd_head->data, fd_head->datalen, fd_head->datalen);
+			gss_tvb=tvb_new_chain(tvb, fd_head->tvb_data);
 			add_new_data_source(pinfo, gss_tvb, "Reassembled GSSAPI");
 		}
 		/* We have seen this packet before.
@@ -286,7 +286,7 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 				if(fd_head && (fd_head->flags&FD_DEFRAGMENTED)){
 					if(pinfo->fd->num==fi->reassembled_in){
 					        proto_item *frag_tree_item;
-						gss_tvb=tvb_new_child_real_data(tvb, fd_head->data, fd_head->datalen, fd_head->datalen);
+						gss_tvb=tvb_new_chain(tvb, fd_head->tvb_data);
 						add_new_data_source(pinfo, gss_tvb, "Reassembled GSSAPI");
 						show_fragment_tree(fd_head, &gssapi_frag_items, tree, pinfo, tvb, &frag_tree_item);
 					} else {

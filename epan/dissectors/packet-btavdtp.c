@@ -227,6 +227,10 @@ static gint ett_btavdtp_sep           = -1;
 static gint ett_btavdtp_capabilities  = -1;
 static gint ett_btavdtp_service       = -1;
 
+static expert_field ei_btavdtp_sbc_min_bitpool_out_of_range = EI_INIT;
+static expert_field ei_btavdtp_sbc_max_bitpool_out_of_range = EI_INIT;
+static expert_field ei_btavdtp_unexpected_losc_data = EI_INIT;
+
 static gboolean force_avdtp = FALSE;
 
 static dissector_handle_t btavdtp_handle;
@@ -234,9 +238,9 @@ static dissector_handle_t bta2dp_handle;
 static dissector_handle_t btvdp_handle;
 static dissector_handle_t rtp_handle;
 
-static emem_tree_t *sep_list          = NULL;
-static emem_tree_t *sep_open          = NULL;
-static emem_tree_t *cid_to_type_table = NULL;
+static wmem_tree_t *sep_list          = NULL;
+static wmem_tree_t *sep_open          = NULL;
+static wmem_tree_t *cid_to_type_table = NULL;
 
 /* A2DP declarations */
 static int proto_bta2dp                        = -1;
@@ -414,7 +418,7 @@ static const char *
 get_sep_type(guint32 frame_number, guint seid)
 {
     sep_entry_t      *sep;
-    emem_tree_key_t  key[3];
+    wmem_tree_key_t  key[3];
     guint32          t_seid;
     guint32          t_frame_number;
 
@@ -428,7 +432,7 @@ get_sep_type(guint32 frame_number, guint seid)
     key[2].length = 0;
     key[2].key = NULL;
 
-    sep = (sep_entry_t *)se_tree_lookup32_array_le(sep_list, key);
+    sep = (sep_entry_t *)wmem_tree_lookup32_array_le(sep_list, key);
     if (sep && sep->seid == seid) {
         return val_to_str_const(sep->type, sep_type_vals, "unknown");
     }
@@ -440,7 +444,7 @@ static const char *
 get_sep_media_type(guint32 frame_number, guint seid)
 {
     sep_entry_t      *sep;
-    emem_tree_key_t  key[3];
+    wmem_tree_key_t  key[3];
     guint32          t_seid;
     guint32          t_frame_number;
 
@@ -454,7 +458,7 @@ get_sep_media_type(guint32 frame_number, guint seid)
     key[2].length = 0;
     key[2].key = NULL;
 
-    sep = (sep_entry_t *)se_tree_lookup32_array_le(sep_list, key);
+    sep = (sep_entry_t *)wmem_tree_lookup32_array_le(sep_list, key);
     if (sep && sep->seid == seid) {
         return val_to_str_const(sep->media_type, media_type_vals, "unknown");
     }
@@ -475,7 +479,7 @@ dissect_sep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint offset)
     guint            in_use;
     guint            items;
     sep_entry_t      *sep_data;
-    emem_tree_key_t  key[3];
+    wmem_tree_key_t  key[3];
     guint32          t_seid;
     guint32          t_frame_number;
 
@@ -523,7 +527,7 @@ dissect_sep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint offset)
                 sep_data->state = SEP_STATE_FREE;
             }
 
-            se_tree_insert32_array(sep_list, key, sep_data);
+            wmem_tree_insert32_array(sep_list, key, sep_data);
         }
 
         offset += 1;
@@ -567,15 +571,13 @@ dissect_codec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gint offset,
                     pitem = proto_tree_add_item(tree, hf_btavdtp_sbc_min_bitpool, tvb, offset + 2, 1, ENC_BIG_ENDIAN);
                     bitpool = tvb_get_guint8(tvb, offset + 2);
                     if (bitpool < 2 || bitpool > 250) {
-                        expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN,
-                            "Bitpool is out of range. Should be 2..250.");
+                        expert_add_info(pinfo, pitem, &ei_btavdtp_sbc_min_bitpool_out_of_range);
                     }
 
                     pitem = proto_tree_add_item(tree, hf_btavdtp_sbc_max_bitpool, tvb, offset + 3, 1, ENC_BIG_ENDIAN);
                     bitpool = tvb_get_guint8(tvb, offset + 3);
                     if (bitpool < 2 || bitpool > 250) {
-                        expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN,
-                            "Bitpool is out of range. Should be 2..250.");
+                        expert_add_info(pinfo, pitem, &ei_btavdtp_sbc_max_bitpool_out_of_range);
                     }
                     break;
                 case CODEC_MPEG12_AUDIO:
@@ -870,8 +872,7 @@ dissect_capabilities(tvbuff_t *tvb, packet_info *pinfo,
             pitem = proto_tree_add_item(service_tree, hf_btavdtp_data, tvb, offset, losc, ENC_NA);
             offset += losc;
 
-            expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN,
-                    "Unexpected losc data");
+            expert_add_info(pinfo, pitem, &ei_btavdtp_unexpected_losc_data);
         }
     }
 
@@ -932,7 +933,7 @@ dissect_btavdtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gint             message_type  = 0;
     gint             signal_id     = 0;
     guint            delay;
-    emem_tree_key_t  key[4];
+    wmem_tree_key_t  key[4];
     guint32          t_type;
     guint32          t_cid;
     guint32          t_frame_number;
@@ -983,7 +984,7 @@ dissect_btavdtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             /* It is AVDTP Signaling rsp side */
             cid_type_data->type = STREAM_TYPE_SIGNAL;
         } else {
-            sep = (sep_entry_t *)se_tree_lookup32_le(sep_open, pinfo->fd->num);
+            sep = (sep_entry_t *)wmem_tree_lookup32_le(sep_open, pinfo->fd->num);
 
             if (sep && sep->state == SEP_STATE_OPEN) {
                 sep->state = SEP_STATE_IN_USE;
@@ -1004,7 +1005,7 @@ dissect_btavdtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         key[3].length = 0;
         key[3].key    = NULL;
 
-        se_tree_insert32_array(cid_to_type_table, key, cid_type_data);
+        wmem_tree_insert32_array(cid_to_type_table, key, cid_type_data);
     }
 
 
@@ -1022,7 +1023,7 @@ dissect_btavdtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         key[3].length = 0;
         key[3].key    = NULL;
 
-        cid_type_data = (cid_type_data_t *)se_tree_lookup32_array_le(cid_to_type_table, key);
+        cid_type_data = (cid_type_data_t *)wmem_tree_lookup32_array_le(cid_to_type_table, key);
         if (cid_type_data && cid_type_data->type == STREAM_TYPE_MEDIA && cid_type_data->cid == l2cap_data->cid) {
             /* AVDTP Media */
 
@@ -1137,7 +1138,7 @@ dissect_btavdtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 key[2].length = 0;
                 key[2].key = NULL;
 
-                sep = (sep_entry_t *)se_tree_lookup32_array_le(sep_list, key);
+                sep = (sep_entry_t *)wmem_tree_lookup32_array_le(sep_list, key);
                 if (sep && sep->seid == seid) {
                     sep->codec = codec;
                 }
@@ -1177,7 +1178,7 @@ dissect_btavdtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 key[2].length = 0;
                 key[2].key = NULL;
 
-                sep = (sep_entry_t *)se_tree_lookup32_array_le(sep_list, key);
+                sep = (sep_entry_t *)wmem_tree_lookup32_array_le(sep_list, key);
                 if (sep && sep->seid == seid) {
                     sep->codec = codec;
                 }
@@ -1205,12 +1206,12 @@ dissect_btavdtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 key[2].length = 0;
                 key[2].key = NULL;
 
-                sep = (sep_entry_t *)se_tree_lookup32_array_le(sep_list, key);
+                sep = (sep_entry_t *)wmem_tree_lookup32_array_le(sep_list, key);
                 if (sep && sep->seid == seid) {
                     sep->state = SEP_STATE_OPEN;
                 }
 
-                se_tree_insert32(sep_open, pinfo->fd->num, sep);
+                wmem_tree_insert32(sep_open, pinfo->fd->num, sep);
                 break;
             }
             if (message_type == MESSAGE_TYPE_REJECT) {
@@ -1942,9 +1943,9 @@ proto_register_btavdtp(void)
             "Force decoding as AVDTP Signaling",
             &force_avdtp);
 
-    sep_list = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "btavdtp sep list");
-    sep_open = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "btavdtp open seps");
-    cid_to_type_table = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "btavdtp cid to type");
+    sep_list = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
+    sep_open = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
+    cid_to_type_table = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope()); /* cid: type */
 }
 
 void
@@ -2156,15 +2157,24 @@ void
 proto_register_btvdp(void)
 {
     module_t *module;
+    expert_module_t* expert_btavdtp;
 
     static gint *ett[] = {
         &ett_btvdp
+    };
+
+    static ei_register_info ei[] = {
+        { &ei_btavdtp_sbc_min_bitpool_out_of_range, { "btavdtp.codec.sbc.minimum_bitpool.out_of_range", PI_PROTOCOL, PI_WARN, "Bitpool is out of range. Should be 2..250.", EXPFILL }},
+        { &ei_btavdtp_sbc_max_bitpool_out_of_range, { "btavdtp.codec.sbc.maximum_bitpool.out_of_range", PI_PROTOCOL, PI_WARN, "Bitpool is out of range. Should be 2..250.", EXPFILL }},
+        { &ei_btavdtp_unexpected_losc_data, { "btavdtp.unexpected_losc_data", PI_PROTOCOL, PI_WARN, "Unexpected losc data", EXPFILL }},
     };
 
     proto_btvdp = proto_register_protocol("Bluetooth VDP Profile", "BT VDP", "btvdp");
     new_register_dissector("btvdp", dissect_btvdp, proto_btvdp);
 
     proto_register_subtree_array(ett, array_length(ett));
+    expert_btavdtp = expert_register_protocol(proto_btvdp);
+    expert_register_field_array(expert_btavdtp, ei, array_length(ei));
 
     module = prefs_register_protocol(proto_btvdp, NULL);
     prefs_register_static_text_preference(module, "vdp.version",
@@ -2175,7 +2185,7 @@ proto_register_btvdp(void)
 void
 proto_reg_handoff_btvdp(void)
 {
-    h263_handle = find_dissector("h63");
+    h263_handle = find_dissector("h263");
     mp4v_es_handle = find_dissector("mp4v-es");
 
     rtp_handle   = find_dissector("rtp");

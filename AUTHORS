@@ -2365,6 +2365,7 @@ Francesco Fondelli	<francesco.fondelli[AT]gmail.com> {
 	Support for MPLS Packet Loss and Delay Measurement, RFC 6374
 	Support for DCCP Simultaneous-Open for NAT Traversal, RFC 5596
 	MPLS-TP Protection State Coordination (PSC) Protocol, RFC 6378
+	Support for Exclude Routes (XRO) in RSVP-TE, RFC 4874
 	Support for Shared Use of Experimental TCP Options
 	Support for TCP Fast Open
 }
@@ -2720,6 +2721,7 @@ Robin Seggelmann	<seggelmann[AT]fh-muenster.de> {
 Chris Bontje		<cbontje[AT]gmail.com> {
 	Support for DNP3 Application Layer dissection
 	Support for SEL Fast Message dissection
+	Support for RTAC Serial dissection
 }
 
 Ryan Wamsley		<wamslers[AT]sbcglobal.net> {
@@ -3513,6 +3515,18 @@ Tomasz Moń		<desowin[AT]gmail.com> {
 	USBPcap support
 }
 
+Uli Heilmeier		<uh[AT]heilmeier.eu> {
+	CARP dissector
+	Improved SMTP Authentication dissection
+}
+
+Rupesh Patro		<rbpatro[AT]ncsu.edu> {
+	Support for Upstream-Assigned Label TLVs and Sub-TLVs as per RFC 6389
+}
+
+Vaibhav Katkade		<katkade_v[AT]yahoo.com> {
+	Support for Cisco MetaData (CMD) ethertype
+}
 
 and by:
 
@@ -3703,7 +3717,7 @@ Paul Stath		<pstath[AT]axxcelera.com>
 DeCount			<aatrade[AT]libero.it>
 Andras Veres-Szentkiralyi	<vsza[AT]vsza.hu>
 Jakob Hirsch 		<jh.wireshark-bugzilla[AT]plonk.de>
-Роман Донченко		<DXDragon[AT]yandex.ru>
+Роман Донченко		<dpb[AT]corrigendum.ru>
 			<billyjeans[AT]gmail.com>
 Evan Huus		<eapache[AT]gmail.com>
 Tom Cook		<tcook[AT]ixiacom.com>
@@ -3733,10 +3747,16 @@ Max Baker		<max[AT]warped.org>
 Diederik de Groot	<dkgroot[AT]talon.nl>
 Hauke Mehrtens		<hauke[AT]hauke-m.de>
 0xBismarck		<0xbismarck[AT]gmail.com>
-Peter Van Eynde		<pevaneyn[AT]cisco.com> 
+Peter Van Eynde		<pevaneyn[AT]cisco.com>
 Marko Hrastovec		<marko.hrastovec[AT]sloveniacontrol.si>
 Mike Garratt		<mg.wireshark[AT]evn.co.nz>
 Fabio Tarabelloni	<fabio.tarabelloni[AT]reloc.it>
+Chas Williams		<chas[AT]cmf.nrl.navy.mil>
+Javier Godoy		<uce[AT]rjgodoy.com.ar>
+Matt Texier		<mtexier[AT]arbor.net>
+Linas Vepstas		<linasvepstas[AT]gmail.com>
+Simon Zhong			<szhong[AT]juniper.net>
+Bart Van Assche		<bvanassche[AT]acm.org>
 
 Dan Lasley <dlasley[AT]promus.com> gave permission for his
 dumpit() hex-dump routine to be used.

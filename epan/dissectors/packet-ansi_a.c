@@ -43,8 +43,9 @@
 #include <epan/prefs.h>
 #include <epan/tap.h>
 #include <epan/strutil.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
+#include <epan/base64.h>
 
 #include "packet-rtp.h"
 #include "packet-bssap.h"
@@ -63,7 +64,7 @@ void proto_register_ansi_a(void);
 void proto_reg_handoff_ansi_a(void);
 
 static const gchar *
-my_try_val_to_str_idx(guint32 val, const ext_value_string_t *vs, gint *idx, gint *dec_idx)
+my_try_val_to_str_idx(guint32 val, const ext_value_string_t *vs, gint *dec_idx)
 {
     gint i = 0;
 
@@ -71,7 +72,6 @@ my_try_val_to_str_idx(guint32 val, const ext_value_string_t *vs, gint *idx, gint
     {
         if (vs[i].value == val)
         {
-            *idx = i;
             *dec_idx = vs[i].dec_index;
             return(vs[i].strptr);
         }
@@ -79,7 +79,6 @@ my_try_val_to_str_idx(guint32 val, const ext_value_string_t *vs, gint *idx, gint
         i++;
     }
 
-    *idx = -1;
     *dec_idx = -1;
     return(NULL);
 }
@@ -927,10 +926,8 @@ ansi_a_so_int_to_str(
 #define EXTRANEOUS_DATA_CHECK_EXPERT(edc_len, edc_max_len) \
     if ((edc_len) > (edc_max_len)) \
     { \
-        proto_item *expert_item; \
-        expert_item = proto_tree_add_text(tree, tvb, \
-            curr_offset, (edc_len) - (edc_max_len), "Extraneous Data, dissector bug or later version spec(report to wireshark.org)"); \
-        expert_add_info(pinfo, expert_item, &ei_ansi_a_extraneous_data); \
+        proto_tree_add_expert(tree, pinfo, &ei_ansi_a_extraneous_data, \
+            tvb, curr_offset, (edc_len) - (edc_max_len)); \
         curr_offset += ((edc_len) - (edc_max_len)); \
     }
 
@@ -8322,11 +8319,11 @@ elem_a2p_bearer_format(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, 
             format_assigned &&
             (first_assigned_found == FALSE))
         {
-            key  = se_new(gint);
+            key  = wmem_new(wmem_file_scope(), gint);
             *key = rtp_payload_type;
 
-            encoding_name_and_rate = se_new(encoding_name_and_rate_t);
-            encoding_name_and_rate->encoding_name = se_strdup(mime_type);
+            encoding_name_and_rate = wmem_new(wmem_file_scope(), encoding_name_and_rate_t);
+            encoding_name_and_rate->encoding_name = wmem_strdup(wmem_file_scope(), mime_type);
             encoding_name_and_rate->sample_rate = sample_rate;
 
             g_hash_table_insert(rtp_dyn_payload, key, encoding_name_and_rate);
@@ -8339,11 +8336,11 @@ elem_a2p_bearer_format(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, 
 
         if (in_band_format_assigned)
         {
-            key = (gint *) se_alloc(sizeof(gint));
+            key = (gint *) wmem_alloc(wmem_file_scope(), sizeof(gint));
             *key = rtp_payload_type;
 
-            encoding_name_and_rate = se_new(encoding_name_and_rate_t);
-            encoding_name_and_rate->encoding_name = se_strdup("telephone-event");
+            encoding_name_and_rate = wmem_new(wmem_file_scope(), encoding_name_and_rate_t);
+            encoding_name_and_rate->encoding_name = wmem_strdup(wmem_file_scope(), "telephone-event");
             encoding_name_and_rate->sample_rate = sample_rate;
 
             g_hash_table_insert(rtp_dyn_payload, key, encoding_name_and_rate);
@@ -8749,7 +8746,7 @@ elem_tlv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, elem_idx_t idx, gu
             {
                 gchar *a_add_string;
 
-                a_add_string = (gchar *) ep_alloc(1024);
+                a_add_string = (gchar *) wmem_alloc(wmem_packet_scope(), 1024);
                 a_add_string[0] = '\0';
                 consumed =
                     (*elem_1_fcn[dec_idx])(tvb, pinfo, subtree, curr_offset + 2,
@@ -8827,7 +8824,7 @@ elem_tv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, elem_idx_t idx, gui
         {
             gchar *a_add_string;
 
-            a_add_string = (gchar *) ep_alloc(1024);
+            a_add_string = (gchar *) wmem_alloc(wmem_packet_scope(), 1024);
             a_add_string[0] = '\0';
             consumed = (*elem_1_fcn[dec_idx])(tvb, pinfo, subtree, curr_offset + 1, -1, a_add_string, 1024);
 
@@ -8936,7 +8933,7 @@ elem_lv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, elem_idx_t idx, gui
         {
             gchar *a_add_string;
 
-            a_add_string = (gchar *) ep_alloc(1024);
+            a_add_string = (gchar *) wmem_alloc(wmem_packet_scope(), 1024);
             a_add_string[0] = '\0';
             consumed =
                 (*elem_1_fcn[dec_idx])(tvb, pinfo, subtree, curr_offset + 1,
@@ -8989,7 +8986,7 @@ elem_v(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, elem_idx_t idx, guin
     {
         gchar *a_add_string;
 
-        a_add_string = (gchar *) ep_alloc(1024);
+        a_add_string = (gchar *) wmem_alloc(wmem_packet_scope(), 1024);
         a_add_string[0] = '\0';
         consumed = (*elem_1_fcn[dec_idx])(tvb, pinfo, tree, curr_offset, -1, a_add_string, 1024);
     }
@@ -9070,7 +9067,9 @@ elem_v(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, elem_idx_t idx, guin
 
 #define ELEM_MAND_LV(elem_idx, elem_name_addition) \
 {\
-    if ((consumed = elem_lv(tvb, pinfo, tree, elem_idx, curr_offset, curr_len, elem_name_addition)) > 0) \
+    if ((consumed = (GPOINTER_TO_UINT(pinfo->private_data) ? \
+                         elem_tlv(tvb, pinfo, tree, elem_idx, curr_offset, curr_len, elem_name_addition) : \
+                         elem_lv(tvb, pinfo, tree, elem_idx, curr_offset, curr_len, elem_name_addition))) > 0) \
     { \
         curr_offset += consumed; \
         curr_len -= consumed; \
@@ -9084,7 +9083,9 @@ elem_v(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, elem_idx_t idx, guin
 
 #define ELEM_MAND_V(elem_idx) \
 {\
-    if ((consumed = elem_v(tvb, pinfo, tree, elem_idx, curr_offset)) > 0) \
+    if ((consumed = (GPOINTER_TO_UINT(pinfo->private_data) ? \
+                         elem_tv(tvb, pinfo, tree, elem_idx, curr_offset, "") : \
+                         elem_v(tvb, pinfo, tree, elem_idx, curr_offset))) > 0) \
     { \
         curr_offset += consumed; \
         curr_len -= consumed; \
@@ -11632,7 +11633,7 @@ dissect_cdma2000_a1_elements(tvbuff_t *tvb, _U_ packet_info *pinfo, proto_tree *
 /* GENERIC DISSECTOR FUNCTIONS */
 
 static void
-dissect_bsmap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_bsmap_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean from_sip)
 {
     static ansi_a_tap_rec_t     tap_rec[16];
     static ansi_a_tap_rec_t     *tap_p;
@@ -11640,10 +11641,11 @@ dissect_bsmap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint8                      oct;
     guint32                     offset, saved_offset;
     guint32                     len;
-    gint                        idx, dec_idx;
+    gint                        dec_idx;
     proto_item                  *bsmap_item = NULL;
     proto_tree                  *bsmap_tree = NULL;
     const gchar                 *msg_str;
+    void                        *pd_save;
 
 
     col_append_str(pinfo->cinfo, COL_INFO, "(BSMAP) ");
@@ -11671,7 +11673,7 @@ dissect_bsmap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      */
     oct = tvb_get_guint8(tvb, offset++);
 
-    msg_str = my_try_val_to_str_idx((guint32) oct, ansi_a_bsmap_strings, &idx, &dec_idx);
+    msg_str = my_try_val_to_str_idx((guint32) oct, ansi_a_bsmap_strings, &dec_idx);
 
     /*
      * create the a protocol tree
@@ -11713,6 +11715,8 @@ dissect_bsmap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if ((len - offset) <= 0) return;
 
     a_meid_configured = FALSE;
+    pd_save = pinfo->private_data;
+    pinfo->private_data = GUINT_TO_POINTER((guint)from_sip);
 
     /*
      * decode elements
@@ -11727,10 +11731,18 @@ dissect_bsmap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     {
         (*bsmap_msg_fcn[dec_idx])(tvb, pinfo, bsmap_tree, offset, len - offset);
     }
+
+    pinfo->private_data = pd_save;
 }
 
 static void
-dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_bsmap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+    dissect_bsmap_common(tvb, pinfo, tree, FALSE);
+}
+
+static void
+dissect_dtap_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean from_sip)
 {
     static ansi_a_tap_rec_t     tap_rec[16];
     static ansi_a_tap_rec_t     *tap_p;
@@ -11738,19 +11750,19 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint8                      oct;
     guint32                     offset, saved_offset;
     guint32                     len;
-    guint32                     oct_1, oct_2;
-    gint                        idx, dec_idx;
+    guint32                     oct_1=0, oct_2=0;
+    gint                        dec_idx;
     proto_item                  *dtap_item = NULL;
     proto_tree                  *dtap_tree = NULL;
     proto_item                  *oct_1_item = NULL;
     proto_tree                  *oct_1_tree = NULL;
     const gchar                 *msg_str;
     const gchar                 *str;
-
+    void                        *pd_save;
 
     len = tvb_length(tvb);
 
-    if (len < 3)
+    if ((len < 3) && !from_sip)
     {
         /*
          * too short to be DTAP
@@ -11780,15 +11792,17 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /*
      * get protocol discriminator
      */
-    oct_1 = tvb_get_guint8(tvb, offset++);
-    oct_2 = tvb_get_guint8(tvb, offset++);
+    if (!from_sip) {
+        oct_1 = tvb_get_guint8(tvb, offset++);
+        oct_2 = tvb_get_guint8(tvb, offset++);
+    }
 
     /*
      * add DTAP message name
      */
     oct = tvb_get_guint8(tvb, offset++);
 
-    msg_str = my_try_val_to_str_idx((guint32) oct, ansi_a_dtap_strings, &idx, &dec_idx);
+    msg_str = my_try_val_to_str_idx((guint32) oct, ansi_a_dtap_strings, &dec_idx);
 
     /*
      * create the a protocol tree
@@ -11814,75 +11828,77 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         col_append_fstr(pinfo->cinfo, COL_INFO, "%s ", msg_str);
     }
 
-    /*
-     * octet 1
-     */
-    switch (oct_1 & 0x0f)
-    {
-    case 3: str = "Call Control, call related SS"; break;
-    case 5: str = "Mobility Management"; break;
-    case 6: str = "Radio Resource Management"; break;
-    case 9: str = "Facility Management"; break;
-    case 11: str = "Other Signaling Procedures"; break;
-    case 15: str = "Reserved for tests"; break;
-    default:
-        str = "Unknown";
-        break;
-    }
+    if (!from_sip) {
+        /*
+         * octet 1
+         */
+        switch (oct_1 & 0x0f)
+        {
+        case 3: str = "Call Control, call related SS"; break;
+        case 5: str = "Mobility Management"; break;
+        case 6: str = "Radio Resource Management"; break;
+        case 9: str = "Facility Management"; break;
+        case 11: str = "Other Signaling Procedures"; break;
+        case 15: str = "Reserved for tests"; break;
+        default:
+            str = "Unknown";
+            break;
+        }
 
-    oct_1_item =
-        proto_tree_add_text(dtap_tree,
+        oct_1_item =
+            proto_tree_add_text(dtap_tree,
+                tvb, 0, 1,
+                "Protocol Discriminator: %s",
+                str);
+
+        oct_1_tree = proto_item_add_subtree(oct_1_item, ett_dtap_oct_1);
+
+        other_decode_bitfield_value(a_bigbuf, oct_1, 0xf0, 8);
+        proto_tree_add_text(oct_1_tree,
             tvb, 0, 1,
-            "Protocol Discriminator: %s",
-            str);
-
-    oct_1_tree = proto_item_add_subtree(oct_1_item, ett_dtap_oct_1);
-
-    other_decode_bitfield_value(a_bigbuf, oct_1, 0xf0, 8);
-    proto_tree_add_text(oct_1_tree,
-        tvb, 0, 1,
-        "%s :  Reserved",
-        a_bigbuf);
-
-    other_decode_bitfield_value(a_bigbuf, oct_1, 0x0f, 8);
-    proto_tree_add_text(oct_1_tree,
-        tvb, 0, 1,
-        "%s :  Protocol Discriminator: %u",
-        a_bigbuf,
-        oct_1 & 0x0f);
-
-    /*
-     * octet 2
-     */
-    switch (global_a_variant)
-    {
-    case A_VARIANT_IS634:
-        other_decode_bitfield_value(a_bigbuf, oct_2, 0x80, 8);
-        proto_tree_add_text(dtap_tree,
-            tvb, 1, 1,
-            "%s :  Transaction Identifier (TI) Flag: %s",
-            a_bigbuf,
-            ((oct_2 & 0x80) ?  "allocated by receiver" : "allocated by sender"));
-
-        other_decode_bitfield_value(a_bigbuf, oct_2, 0x70, 8);
-        proto_tree_add_text(dtap_tree,
-            tvb, 1, 1,
-            "%s :  Transaction Identifier (TI): %u",
-            a_bigbuf,
-            (oct_2 & 0x70) >> 4);
-
-        other_decode_bitfield_value(a_bigbuf, oct_2, 0x0f, 8);
-        proto_tree_add_text(dtap_tree,
-            tvb, 1, 1,
             "%s :  Reserved",
             a_bigbuf);
-        break;
 
-    default:
-        proto_tree_add_text(dtap_tree,
-            tvb, 1, 1,
-            "Reserved Octet");
-        break;
+        other_decode_bitfield_value(a_bigbuf, oct_1, 0x0f, 8);
+        proto_tree_add_text(oct_1_tree,
+            tvb, 0, 1,
+            "%s :  Protocol Discriminator: %u",
+            a_bigbuf,
+            oct_1 & 0x0f);
+
+        /*
+         * octet 2
+         */
+        switch (global_a_variant)
+        {
+        case A_VARIANT_IS634:
+            other_decode_bitfield_value(a_bigbuf, oct_2, 0x80, 8);
+            proto_tree_add_text(dtap_tree,
+                tvb, 1, 1,
+                "%s :  Transaction Identifier (TI) Flag: %s",
+                a_bigbuf,
+                ((oct_2 & 0x80) ?  "allocated by receiver" : "allocated by sender"));
+
+            other_decode_bitfield_value(a_bigbuf, oct_2, 0x70, 8);
+            proto_tree_add_text(dtap_tree,
+                tvb, 1, 1,
+                "%s :  Transaction Identifier (TI): %u",
+                a_bigbuf,
+                (oct_2 & 0x70) >> 4);
+
+            other_decode_bitfield_value(a_bigbuf, oct_2, 0x0f, 8);
+            proto_tree_add_text(dtap_tree,
+                tvb, 1, 1,
+                "%s :  Reserved",
+                a_bigbuf);
+            break;
+
+        default:
+            proto_tree_add_text(dtap_tree,
+                tvb, 1, 1,
+                "Reserved Octet");
+            break;
+        }
     }
 
     /*
@@ -11902,6 +11918,8 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if ((len - offset) <= 0) return;
 
     a_meid_configured = FALSE;
+    pd_save = pinfo->private_data;
+    pinfo->private_data = GUINT_TO_POINTER((guint)from_sip);
 
     /*
      * decode elements
@@ -11916,8 +11934,59 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     {
         (*dtap_msg_fcn[dec_idx])(tvb, pinfo, dtap_tree, offset, len - offset);
     }
+
+    pinfo->private_data = pd_save;
 }
 
+static void
+dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+    dissect_dtap_common(tvb, pinfo, tree, FALSE);
+}
+
+static void
+dissect_sip_dtap_bsmap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+    gint linelen, offset, next_offset, begin;
+    guint8 *msg_type;
+    tvbuff_t *ansi_a_tvb;
+    gboolean is_dtap = TRUE;
+
+    offset = 0;
+    if ((linelen = tvb_find_line_end(tvb, offset, -1, &next_offset, TRUE)) > 0) {
+        if (linelen >= 2) {
+            ansi_a_tvb = tvb_new_composite();
+            msg_type = (guint8*)wmem_alloc(wmem_packet_scope(), 1);
+            msg_type[0] = (guint8)strtoul(tvb_get_ephemeral_string(tvb, offset, 2), NULL, 16);
+            if ((begin = tvb_find_guint8(tvb, offset, linelen, '"')) > 0) {
+                if (tvb_get_guint8(tvb, begin + 1) == '1') {
+                    is_dtap = FALSE;
+                }
+            } else {
+                if (my_try_val_to_str_idx((guint32) msg_type[0], ansi_a_dtap_strings, &linelen) == NULL) {
+                    is_dtap = FALSE;
+                }
+            }
+            tvb_composite_append(ansi_a_tvb, tvb_new_child_real_data(tvb, msg_type, 1, 1));
+            offset = next_offset;
+            while ((linelen = tvb_find_line_end(tvb, offset, -1, &next_offset, TRUE)) > 0) {
+                if ((begin = tvb_find_guint8(tvb, offset, linelen, '=')) > 0) {
+                    begin++;
+                    tvb_composite_append(ansi_a_tvb, base64_to_tvb(tvb, tvb_get_ephemeral_string(tvb, begin, offset + linelen - begin)));
+                }
+                offset = next_offset;
+            }
+            tvb_composite_finalize(ansi_a_tvb);
+            if (is_dtap) {
+                add_new_data_source(pinfo, ansi_a_tvb, "ANSI DTAP");
+                dissect_dtap_common(ansi_a_tvb, pinfo, tree, TRUE);
+            } else {
+                add_new_data_source(pinfo, ansi_a_tvb, "ANSI BSMAP");
+                dissect_bsmap_common(ansi_a_tvb, pinfo, tree, TRUE);
+            }
+       }
+    }
+}
 
 /* Register the protocol with Wireshark */
 void
@@ -12211,14 +12280,17 @@ proto_reg_handoff_ansi_a(void)
 
     if (!ansi_a_prefs_initialized)
     {
-        dissector_handle_t bsmap_handle;
+        dissector_handle_t bsmap_handle, sip_dtap_bsmap_handle;
         bsmap_handle = create_dissector_handle(dissect_bsmap, proto_a_bsmap);
         dtap_handle = create_dissector_handle(dissect_dtap, proto_a_dtap);
+        sip_dtap_bsmap_handle = create_dissector_handle(dissect_sip_dtap_bsmap, proto_a_dtap);
         data_handle = find_dissector("data");
         rtp_handle = find_dissector("rtp");
 
         dissector_add_uint("bsap.pdu_type",  BSSAP_PDU_TYPE_BSMAP, bsmap_handle);
         dissector_add_uint("bsap.pdu_type",  BSSAP_PDU_TYPE_DTAP, dtap_handle);
+        dissector_add_string("media_type", "application/femtointerfacemsg", sip_dtap_bsmap_handle); 
+        dissector_add_string("media_type", "application/vnd.3gpp2.femtointerfacemsg", sip_dtap_bsmap_handle); 
 
         ansi_a_prefs_initialized = TRUE;
     }

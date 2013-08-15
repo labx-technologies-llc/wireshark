@@ -29,7 +29,6 @@
 #include <glib.h>
 #include <epan/packet.h>
 
-#include <epan/emem.h>
 #include <epan/strutil.h>
 #include <epan/asn1.h>
 #include <epan/sctpppids.h>
@@ -127,8 +126,7 @@ dissect_m3ap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   proto_tree      *m3ap_tree = NULL;
 
   /* make entry in the Protocol column on summary display */
-  if (check_col(pinfo->cinfo, COL_PROTOCOL))
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
+  col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
 
   /* create the m3ap protocol tree */
   if (tree) {

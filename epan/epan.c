@@ -36,9 +36,10 @@
 #endif /* HAVE_LIBGNUTLS */
 
 #include <glib.h>
+#include "epan-int.h"
 #include "epan.h"
 #include "epan_dissect.h"
-#include "report_err.h"
+#include "wsutil/report_err.h"
 
 #include "conversation.h"
 #include "circuit.h"
@@ -91,6 +92,9 @@ epan_init(void (*register_all_protocols_func)(register_cb cb, gpointer client_da
 	/* initialize the GUID to name mapping table */
 	guids_init();
 
+        /* initialize name resolution (addr_resolv.c) */
+        addr_resolv_init();
+
 	except_init();
 #ifdef HAVE_LIBGCRYPT
 	/* initialize libgcrypt (beware, it won't be thread-safe) */
@@ -104,12 +108,12 @@ epan_init(void (*register_all_protocols_func)(register_cb cb, gpointer client_da
 	tap_init();
 	prefs_init();
 	expert_init();
+	packet_init();
 	proto_init(register_all_protocols_func, register_all_handoffs_func,
 	    cb, client_data);
-	packet_init();
+	packet_cache_proto_handles();
 	dfilter_init();
 	final_registration_all_protocols();
-	/*host_name_lookup_init();*//* We load the hostname file in cf_open, no need to do it here? */
 	expert_packet_init();
 #ifdef HAVE_LUA
 	wslua_init(cb, client_data);
@@ -119,7 +123,6 @@ epan_init(void (*register_all_protocols_func)(register_cb cb, gpointer client_da
 void
 epan_cleanup(void)
 {
-	cleanup_dissection();
 	dfilter_cleanup();
 	proto_cleanup();
 	prefs_cleanup();
@@ -130,8 +133,62 @@ epan_cleanup(void)
 	gnutls_global_deinit();
 #endif
 	except_deinit();
-	host_name_lookup_cleanup();
+	addr_resolv_cleanup();
 	wmem_cleanup();
+}
+
+epan_t *
+epan_new(void)
+{
+	epan_t *session = g_slice_new(epan_t);
+
+	/* XXX, it should take session as param */
+	init_dissection();
+
+	return session;
+}
+
+const char *
+epan_get_user_comment(const epan_t *session, const frame_data *fd)
+{
+	if (session->get_user_comment)
+		return session->get_user_comment(session->data, fd);
+
+	return NULL;
+}
+
+const char *
+epan_get_interface_name(const epan_t *session, guint32 interface_id)
+{
+	if (session->get_interface_name)
+		return session->get_interface_name(session->data, interface_id);
+
+	return NULL;
+}
+
+const nstime_t *
+epan_get_frame_ts(const epan_t *session, guint32 frame_num)
+{
+	const nstime_t *abs_ts = NULL;
+
+	if (session->get_frame_ts)
+		abs_ts = session->get_frame_ts(session->data, frame_num);
+
+	if (!abs_ts)
+		g_warning("!!! couldn't get frame ts for %u !!!\n", frame_num);
+
+	return abs_ts;
+}
+
+void
+epan_free(epan_t *session)
+{
+	if (session) {
+		/* XXX, it should take session as param */
+		cleanup_dissection();
+
+		g_slice_free(epan_t, session);
+	}
 }
 
 void
@@ -159,10 +216,11 @@ epan_circuit_cleanup(void)
 }
 
 epan_dissect_t*
-epan_dissect_init(epan_dissect_t *edt, const gboolean create_proto_tree, const gboolean proto_tree_visible)
+epan_dissect_init(epan_dissect_t *edt, epan_t *session, const gboolean create_proto_tree, const gboolean proto_tree_visible)
 {
 	g_assert(edt);
 
+	edt->session = session;
 	edt->pi.pool = wmem_allocator_new(WMEM_ALLOCATOR_SIMPLE);
 
 	if (create_proto_tree) {
@@ -179,13 +237,13 @@ epan_dissect_init(epan_dissect_t *edt, const gboolean create_proto_tree, const g
 }
 
 epan_dissect_t*
-epan_dissect_new(const gboolean create_proto_tree, const gboolean proto_tree_visible)
+epan_dissect_new(epan_t *session, const gboolean create_proto_tree, const gboolean proto_tree_visible)
 {
 	epan_dissect_t *edt;
 
 	edt = g_new0(epan_dissect_t, 1);
 
-	return epan_dissect_init(edt, create_proto_tree, proto_tree_visible);
+	return epan_dissect_init(edt, session, create_proto_tree, proto_tree_visible);
 }
 
 void
@@ -197,13 +255,13 @@ epan_dissect_fake_protocols(epan_dissect_t *edt, const gboolean fake_protocols)
 
 void
 epan_dissect_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
-        const guint8* data, frame_data *fd, column_info *cinfo)
+        tvbuff_t *tvb, frame_data *fd, column_info *cinfo)
 {
 #ifdef HAVE_LUA
 	wslua_prime_dfilter(edt); /* done before entering wmem scope */
 #endif
 	wmem_enter_packet_scope();
-	dissect_packet(edt, phdr, data, fd, cinfo);
+	dissect_packet(edt, phdr, tvb, fd, cinfo);
 
 	/* free all memory allocated */
 	ep_free_all();
@@ -212,11 +270,11 @@ epan_dissect_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
 
 void
 epan_dissect_run_with_taps(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
-        const guint8* data, frame_data *fd, column_info *cinfo)
+        tvbuff_t *tvb, frame_data *fd, column_info *cinfo)
 {
 	wmem_enter_packet_scope();
 	tap_queue_init(edt);
-	dissect_packet(edt, phdr, data, fd, cinfo);
+	dissect_packet(edt, phdr, tvb, fd, cinfo);
 	tap_push_tapped_queue(edt);
 
 	/* free all memory allocated */

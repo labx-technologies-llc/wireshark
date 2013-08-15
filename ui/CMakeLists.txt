@@ -29,12 +29,15 @@ set(COMMON_UI_SRC
 	export_object_http.c
 	export_object_smb.c
 	help_url.c
+	packet_list_utils.c
 	iface_lists.c
 	preference_utils.c
 	profile.c
 	recent.c
 	ssl_key_export.c
 	software_update.c
+	tap-megaco-common.c
+	tap-rtp-common.c
 	text_import.c
 	time_shift.c
 	util.c

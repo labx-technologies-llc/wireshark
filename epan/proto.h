@@ -46,7 +46,7 @@
 #include <glib.h>
 
 #include "ipv4.h"
-#include "nstime.h"
+#include "wsutil/nstime.h"
 #include "time_fmt.h"
 #include "tvbuff.h"
 #include "ftypes/ftypes.h"
@@ -56,6 +56,16 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+/** @defgroup prototree The Protocol Tree
+ *
+ * Dissectors use proto_tree_add_* to add items to the protocol tree. In
+ * most cases you'll want to use proto_tree_add_item(). In general
+ * proto_tree_add_text() should be avoided unless you explicitly don't
+ * want to allow filtering.
+ *
+ * @{
+ */
 
 /** The header-field index for the special text pseudo-field. Exported by libwireshark.dll */
 WS_DLL_PUBLIC int hf_text_only;
@@ -325,10 +335,10 @@ typedef enum {
 } base_display_e;
 
 /* Following constants have to be ORed with a base_display_e when dissector
- * want to use specials MACROs (for the moment, only RVALS) for a
- * header_field_info */
+ * want to use specials value-string MACROs for a header_field_info */
 #define BASE_RANGE_STRING 0x10
-#define BASE_EXT_STRING 0x20
+#define BASE_EXT_STRING   0x20
+#define BASE_VAL64_STRING 0x40
 
 /** BASE_ values that cause the field value to be displayed twice */
 #define IS_BASE_DUAL(b) ((b)==BASE_DEC_HEX||(b)==BASE_HEX_DEC)
@@ -363,9 +373,8 @@ struct _header_field_info {
 	int			 id;             /**< Field ID */
 	int			 parent;         /**< parent protocol tree */
 	hf_ref_type		 ref_type;       /**< is this field referenced by a filter */
-	int			 bitshift;       /**< bits to shift */
+	int                      same_name_prev_id; /**< ID of previous hfinfo with same abbrev */
 	header_field_info	*same_name_next; /**< Link to next hfinfo with same abbrev */
-	header_field_info	*same_name_prev; /**< Link to previous hfinfo with same abbrev */
 };
 
 /**
@@ -373,12 +382,12 @@ struct _header_field_info {
  * _header_field_info. If new fields are added or removed, it should
  * be changed as necessary.
  */
-#define HFILL 0, 0, HF_REF_TYPE_NONE, 0, NULL, NULL
+#define HFILL 0, 0, HF_REF_TYPE_NONE, -1, NULL
 
 /** Used when registering many fields at once, using proto_register_field_array() */
 typedef struct hf_register_info {
-	int						*p_id;		 /**< written to by register() function */
-	header_field_info		hfinfo;      /**< the field info to be registered */
+	int				*p_id;	/**< written to by register() function */
+	header_field_info		hfinfo;	/**< the field info to be registered */
 } hf_register_info;
 
 
@@ -393,15 +402,15 @@ typedef struct _item_label_t {
 /** Contains the field information for the proto_item. */
 typedef struct field_info {
 	header_field_info	*hfinfo;          /**< pointer to registered field information */
-	gint				 start;           /**< current start of data in field_info.ds_tvb */
-	gint				 length;          /**< current data length of item in field_info.ds_tvb */
-	gint				 appendix_start;  /**< start of appendix data */
-	gint				 appendix_length; /**< length of appendix data */
-	gint				 tree_type;       /**< one of ETT_ or -1 */
+	gint			 start;           /**< current start of data in field_info.ds_tvb */
+	gint			 length;          /**< current data length of item in field_info.ds_tvb */
+	gint			 appendix_start;  /**< start of appendix data */
+	gint			 appendix_length; /**< length of appendix data */
+	gint			 tree_type;       /**< one of ETT_ or -1 */
+	guint32			 flags;           /**< bitfield like FI_GENERATED, ... */
 	item_label_t		*rep;             /**< string for GUI tree */
-	guint32				 flags;           /**< bitfield like FI_GENERATED, ... */
-	tvbuff_t			*ds_tvb;          /**< data source tvbuff */
-	fvalue_t			 value;
+	tvbuff_t		*ds_tvb;          /**< data source tvbuff */
+	fvalue_t		 value;
 } field_info;
 
 
@@ -685,16 +694,6 @@ WS_DLL_PUBLIC void proto_item_set_end(proto_item *ti, tvbuff_t *tvb, gint end);
  @param ti the item to get the length from
  @return the current length */
 WS_DLL_PUBLIC int proto_item_get_len(const proto_item *ti);
-
-/**
- * Sets an expert info to the proto_item.
- @param ti the item to set the expert info
- @param group the group of this info (e.g. PI_CHECKSUM)
- @param severity of this info (e.g. PI_ERROR)
- @return TRUE if value was written
- */
-WS_DLL_PUBLIC gboolean proto_item_set_expert_flags(proto_item *ti, const int group, const guint severity);
-
 
 
 
@@ -1773,7 +1772,6 @@ WS_DLL_PUBLIC const char *proto_get_protocol_short_name(const protocol_t *protoc
 WS_DLL_PUBLIC const char *proto_get_protocol_long_name(const protocol_t *protocol);
 
 /** Is protocol's decoding enabled ?
- @param protocol
  @return TRUE if decoding is enabled, FALSE if not */
 WS_DLL_PUBLIC gboolean proto_is_protocol_enabled(const protocol_t *protocol);
 
@@ -1842,16 +1840,15 @@ WS_DLL_PUBLIC void proto_registrar_dump_fields(void);
 WS_DLL_PUBLIC void proto_registrar_dump_ftypes(void);
 
 
-
-/** Points to the first element of an array of Booleans, indexed by
-   a subtree item type. That array element is TRUE if subtrees of
-   an item of that type are to be expanded. With MSVC and a
-   libwireshark.dll, we need a special declaration. */
-WS_DLL_PUBLIC gboolean	     *tree_is_expanded;
-
 /** Number of elements in the tree_is_expanded array. With MSVC and a
  * libwireshark.dll, we need a special declaration. */
 WS_DLL_PUBLIC int           num_tree_types;
+
+/** Returns TRUE if subtrees of that type are to be expanded. */
+WS_DLL_PUBLIC gboolean tree_expanded(int tree_type);
+
+/** Sets if subtrees of that type are to be expanded. */
+WS_DLL_PUBLIC void tree_expanded_set(int tree_type, gboolean value);
 
 /** glib doesn't have g_ptr_array_len of all things!*/
 #ifndef g_ptr_array_len
@@ -1864,8 +1861,8 @@ WS_DLL_PUBLIC int           num_tree_types;
 extern int
 hfinfo_bitwidth(const header_field_info *hfinfo);
 
-
-
+WS_DLL_PUBLIC int
+hfinfo_bitshift(const header_field_info *hfinfo);
 
 #include "epan.h"
 
@@ -1946,7 +1943,7 @@ proto_tree_add_bitmask_len(proto_tree *tree, tvbuff_t *tvb, const guint offset, 
  @param ett subtree index
  @param fields NULL-terminated array of bitfield indexes
  @param encoding big or little endian byte representation (ENC_BIG_ENDIAN/ENC_LITTLE_ENDIAN)
- @param flags
+ @param flags bitmask field
  @return the newly created item */
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_bitmask_text(proto_tree *tree, tvbuff_t *tvb, const guint offset, const guint len,
@@ -2103,6 +2100,8 @@ proto_custom_set(proto_tree* tree, const int field_id,
                              gint occurrence,
                              gchar *result,
                              gchar *expr, const int size );
+
+/** @} */
 
 #ifdef __cplusplus
 }

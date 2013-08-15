@@ -45,11 +45,17 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #cmakedefine HAVE_DLFCN_H 1
 
+/* Define to 1 if you have the dladdr function */
+#cmakedefine HAVE_DLADDR 1
+
 /* Define to 1 if you have the <fcntl.h> header file. */
 #cmakedefine HAVE_FCNTL_H 1
 
-/* Define to 1 if you have the <getopt.h> header file. */
+/* Define to 1 if you have the 'getopt' function. */
 #cmakedefine HAVE_GETOPT 1
+
+/* Define to 1 if you have the <getopt.h> header file. */
+#cmakedefine HAVE_GETOPT_H 1
 
 /* Define to 1 if you have the `chown' function. */
 #cmakedefine HAVE_CHOWN 1
@@ -377,6 +383,12 @@
 /* Define to 1 if your processor stores words with the most significant byte
    first (like Motorola and SPARC, unlike Intel and VAX). */
 #cmakedefine WORDS_BIGENDIAN 1
+
+/* Large file support */
+#cmakedefine _LARGEFILE_SOURCE
+#cmakedefine _LARGEFILE64_SOURCE
+#cmakedefine _LARGE_FILES
+#cmakedefine _FILE_OFFSET_BITS @_FILE_OFFSET_BITS@
 
 /* Define WS_MSVC_NORETURN appropriately for declarations of routines that
    never return (just like Charlie on the MTA).

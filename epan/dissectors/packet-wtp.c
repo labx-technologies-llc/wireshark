@@ -681,7 +681,7 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              ) && tvb_bytes_exist(tvb, dataOffset, dataLen) )
         {
             /* Try reassembling fragments */
-            fragment_data *fd_wtp = NULL;
+            fragment_head *fd_wtp = NULL;
             guint32 reassembled_in = 0;
             gboolean save_fragmented = pinfo->fragmented;
 
@@ -733,27 +733,18 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     call_dissector(wsp_handle, wsp_tvb, pinfo, tree);
                 } else {
                     /* Not reassembled in this packet */
-                    if (check_col(pinfo->cinfo, COL_INFO)) {
-                        col_append_fstr(pinfo->cinfo, COL_INFO,
-                                "%s (WTP payload reassembled in packet %u)",
-                                szInfo, fd_wtp->reassembled_in);
-                    }
-                    if (tree) {
-                        proto_tree_add_text(wtp_tree, tvb, dataOffset, -1,
-                                "Payload");
-                    }
+                    col_append_fstr(pinfo->cinfo, COL_INFO,
+                            "%s (WTP payload reassembled in packet %u)",
+                            szInfo, fd_wtp->reassembled_in);
+
+                    proto_tree_add_text(wtp_tree, tvb, dataOffset, -1, "Payload");
                 }
             } else {
                 /* Not reassembled yet, or not reassembled at all */
-                if (check_col(pinfo->cinfo, COL_INFO)) {
-                    col_append_fstr(pinfo->cinfo, COL_INFO,
-                            "%s (Unreassembled fragment %u)",
-                            szInfo, psn);
-                }
-                if (tree) {
-                    proto_tree_add_text(wtp_tree, tvb, dataOffset, -1,
-                            "Payload");
-                }
+                col_append_fstr(pinfo->cinfo, COL_INFO,
+                        "%s (Unreassembled fragment %u)",
+                        szInfo, psn);
+                proto_tree_add_text(wtp_tree, tvb, dataOffset, -1, "Payload");
             }
             /* Now reset fragmentation information in pinfo */
             pinfo->fragmented = save_fragmented;
@@ -768,15 +759,13 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         else
         {
             /* Nothing to hand to subdissector */
-            if (check_col(pinfo->cinfo, COL_INFO))
-                col_append_str(pinfo->cinfo, COL_INFO, szInfo);
+            col_append_str(pinfo->cinfo, COL_INFO, szInfo);
         }
     }
     else
     {
         /* Nothing to hand to subdissector */
-        if (check_col(pinfo->cinfo, COL_INFO))
-            col_append_str(pinfo->cinfo, COL_INFO, szInfo);
+        col_append_str(pinfo->cinfo, COL_INFO, szInfo);
     }
 }
 

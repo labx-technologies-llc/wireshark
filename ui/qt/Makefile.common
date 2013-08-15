@@ -50,8 +50,10 @@ NODIST_GENERATED_HEADER_FILES = \
 	ui_print_dialog.h \
 	ui_profile_dialog.h \
 	ui_search_frame.h \
+	ui_summary_dialog.h \
 	ui_splash_overlay.h \
-	ui_time_shift_dialog.h
+	ui_time_shift_dialog.h \
+	ui_uat_dialog.h
 
 # Generated C source files that we want in the distribution.
 GENERATED_C_FILES =
@@ -90,6 +92,9 @@ MOC_HDRS = \
 	byte_view_tab.h \
 	byte_view_text.h \
 	capture_file_dialog.h \
+	capture_filter_combo.h \
+	capture_filter_edit.h \
+	capture_filter_syntax_worker.h \
 	capture_info_dialog.h \
 	capture_interface_dialog.h \
 	color_dialog.h \
@@ -98,6 +103,7 @@ MOC_HDRS = \
 	column_preferences_frame.h \
 	display_filter_combo.h \
 	display_filter_edit.h \
+	elided_label.h \
 	export_dissection_dialog.h \
 	export_object_dialog.h \
 	file_set_dialog.h \
@@ -123,12 +129,15 @@ MOC_HDRS = \
 	progress_bar.h \
 	proto_tree.h \
 	recent_file_status.h \
+	related_packet_delegate.h \
 	search_frame.h \
 	simple_dialog_qt.h \
+	summary_dialog.h \
 	sparkline_delegate.h \
 	splash_overlay.h \
 	syntax_line_edit.h \
 	time_shift_dialog.h \
+	uat_dialog.h \
 	wireshark_application.h
 
 
@@ -155,8 +164,10 @@ UI_FILES = \
 	print_dialog.ui			\
 	profile_dialog.ui		\
 	search_frame.ui			\
+	summary_dialog.ui 		\
 	splash_overlay.ui		\
-	time_shift_dialog.ui
+	time_shift_dialog.ui		\
+	uat_dialog.ui
 
 #
 # The .moc.cpp files generated from them.
@@ -171,10 +182,10 @@ MOC_SRC = $(MOC_HDRS:.h=.moc.cpp)
 #
 # Should QRC_FILES or QRC_SRC depend on QRC_IMAGES?
 QRC_FILES = \
-	../../image/display_filter.qrc \
-	../../image/layout.qrc \
-	../../image/status.qrc \
-	../../image/toolbar.qrc \
+	$(top_srcdir)/image/display_filter.qrc \
+	$(top_srcdir)/image/layout.qrc \
+	$(top_srcdir)/image/status.qrc \
+	$(top_srcdir)/image/toolbar.qrc \
 	i18n.qrc \
 	welcome.qrc
 
@@ -206,6 +217,9 @@ WIRESHARK_QT_SRC = \
 	byte_view_tab.cpp \
 	byte_view_text.cpp \
 	capture_file_dialog.cpp \
+	capture_filter_combo.cpp \
+	capture_filter_edit.cpp \
+	capture_filter_syntax_worker.cpp \
 	capture_info_dialog.cpp \
 	capture_interface_dialog.cpp \
 	color_dialog.cpp \
@@ -214,6 +228,7 @@ WIRESHARK_QT_SRC = \
 	column_preferences_frame.cpp \
 	display_filter_combo.cpp \
 	display_filter_edit.cpp \
+	elided_label.cpp \
 	export_dissection_dialog.cpp \
 	export_object_dialog.cpp \
 	file_set_dialog.cpp \
@@ -243,12 +258,15 @@ WIRESHARK_QT_SRC = \
 	proto_tree.cpp \
 	qt_ui_utils.cpp \
 	recent_file_status.cpp \
+	related_packet_delegate.cpp \
 	search_frame.cpp \
 	simple_dialog_qt.cpp \
 	sparkline_delegate.cpp \
+	summary_dialog.cpp 		\
 	splash_overlay.cpp \
 	syntax_line_edit.cpp \
 	time_shift_dialog.cpp \
+	uat_dialog.cpp \
 	wireshark_application.cpp
 
 noinst_HEADERS = \

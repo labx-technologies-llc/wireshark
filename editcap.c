@@ -76,6 +76,9 @@
 #endif
 
 #include <wsutil/privileges.h>
+#include <wsutil/report_err.h>
+#include <wsutil/strnatcmp.h>
+#include <wsutil/md5.h>
 
 /*
  * The symbols declared in the below are exported from libwireshark,
@@ -85,11 +88,8 @@
  */
 #define WS_BUILD_DLL
 #define RESET_SYMBOL_EXPORT /* wsutil/wsgetopt.h set export behavior above. */
-#include "epan/crypt/md5.h"
 #include "epan/plugins.h"
-#include "epan/report_err.h"
 #include "epan/filesystem.h"
-#include "epan/nstime.h"
 #undef WS_BUILD_DLL
 #define RESET_SYMBOL_EXPORT
 
@@ -732,7 +732,8 @@ usage(gboolean is_error)
   fprintf(output, "  -s <snaplen>           truncate each packet to max. <snaplen> bytes of data.\n");
   fprintf(output, "  -C <choplen>           chop each packet by <choplen> bytes. Positive values\n");
   fprintf(output, "                         chop at the packet beginning, negative values at the\n");
-  fprintf(output, "                         packet end.\n");
+  fprintf(output, "                         packet end. You can use this option more than once.\n");
+  fprintf(output, "  -L                     adjust the frame length when chopping and/or snapping\n");
   fprintf(output, "  -t <time adjustment>   adjust the timestamp of each packet;\n");
   fprintf(output, "                         <time adjustment> is in relative seconds (e.g. -0.5).\n");
   fprintf(output, "  -S <strict adjustment> adjust timestamp of packets if necessary to insure\n");
@@ -743,21 +744,21 @@ usage(gboolean is_error)
   fprintf(output, "                         that each packet's delta time is the absolute value\n");
   fprintf(output, "                         of the adjustment specified. A value of -0 will set\n");
   fprintf(output, "                         all packets to the timestamp of the first packet.\n");
-  fprintf(output, "  -E <error probability> set the probability (between 0.0 and 1.0 incl.)\n");
-  fprintf(output, "                         that a particular packet byte will be randomly changed.\n");
+  fprintf(output, "  -E <error probability> set the probability (between 0.0 and 1.0 incl.) that\n");
+  fprintf(output, "                         a particular packet byte will be randomly changed.\n");
   fprintf(output, "\n");
   fprintf(output, "Output File(s):\n");
-  fprintf(output, "  -c <packets per file>  split the packet output to different files\n");
-  fprintf(output, "                         based on uniform packet counts\n");
-  fprintf(output, "                         with a maximum of <packets per file> each.\n");
-  fprintf(output, "  -i <seconds per file>  split the packet output to different files\n");
-  fprintf(output, "                         based on uniform time intervals\n");
-  fprintf(output, "                         with a maximum of <seconds per file> each.\n");
-  fprintf(output, "  -F <capture type>      set the output file type; default is pcapng.\n");
-  fprintf(output, "                         an empty \"-F\" option will list the file types.\n");
-  fprintf(output, "  -T <encap type>        set the output file encapsulation type;\n");
-  fprintf(output, "                         default is the same as the input file.\n");
-  fprintf(output, "                         an empty \"-T\" option will list the encapsulation types.\n");
+  fprintf(output, "  -c <packets per file>  split the packet output to different files based on\n");
+  fprintf(output, "                         uniform packet counts with a maximum of\n");
+  fprintf(output, "                         <packets per file> each.\n");
+  fprintf(output, "  -i <seconds per file>  split the packet output to different files based on\n");
+  fprintf(output, "                         uniform time intervals with a maximum of\n");
+  fprintf(output, "                         <seconds per file> each.\n");
+  fprintf(output, "  -F <capture type>      set the output file type; default is pcapng. An empty\n");
+  fprintf(output, "                         \"-F\" option will list the file types.\n");
+  fprintf(output, "  -T <encap type>        set the output file encapsulation type; default is the\n");
+  fprintf(output, "                         same as the input file. An empty \"-T\" option will\n");
+  fprintf(output, "                         list the encapsulation types.\n");
   fprintf(output, "\n");
   fprintf(output, "Miscellaneous:\n");
   fprintf(output, "  -h                     display this help and exit.\n");
@@ -777,6 +778,13 @@ static gint
 string_compare(gconstpointer a, gconstpointer b)
 {
     return strcmp(((const struct string_elem *)a)->sstr,
+        ((const struct string_elem *)b)->sstr);
+}
+
+static gint
+string_nat_compare(gconstpointer a, gconstpointer b)
+{
+    return strnatcmp(((const struct string_elem *)a)->sstr,
         ((const struct string_elem *)b)->sstr);
 }
 
@@ -820,7 +828,7 @@ list_encap_types(void) {
         encaps[i].sstr = wtap_encap_short_string(i);
         if (encaps[i].sstr != NULL) {
             encaps[i].lstr = wtap_encap_string(i);
-            list = g_slist_insert_sorted(list, &encaps[i], string_compare);
+            list = g_slist_insert_sorted(list, &encaps[i], string_nat_compare);
         }
     }
     g_slist_foreach(list, string_elem_print, NULL);
@@ -851,7 +859,9 @@ main(int argc, char *argv[])
 
   char *p;
   guint32 snaplen = 0;                  /* No limit               */
-  int choplen = 0;                      /* No chop                */
+  int choplen_begin = 0;                /* No chop at beginning   */
+  int choplen_end = 0;                  /* No chop at end         */
+  gboolean adjlen = FALSE;
   wtap_dumper *pdh = NULL;
   unsigned int count = 1;
   unsigned int duplicate_count = 0;
@@ -900,145 +910,8 @@ main(int argc, char *argv[])
 #endif
 
   /* Process the options */
-  while ((opt = getopt(argc, argv, "A:B:c:C:dD:E:F:hrs:i:t:S:T:vw:")) !=-1) {
-
+  while ((opt = getopt(argc, argv, "A:B:c:C:dD:E:F:hi:Lrs:S:t:T:vw:")) !=-1) {
     switch (opt) {
-
-    case 'E':
-      err_prob = strtod(optarg, &p);
-      if (p == optarg || err_prob < 0.0 || err_prob > 1.0) {
-        fprintf(stderr, "editcap: probability \"%s\" must be between 0.0 and 1.0\n",
-            optarg);
-        exit(1);
-      }
-      srand( (unsigned int) (time(NULL) + getpid()) );
-      break;
-
-    case 'F':
-      out_file_type = wtap_short_string_to_file_type(optarg);
-      if (out_file_type < 0) {
-        fprintf(stderr, "editcap: \"%s\" isn't a valid capture file type\n\n",
-            optarg);
-        list_capture_types();
-        exit(1);
-      }
-      break;
-
-    case 'c':
-      split_packet_count = (int)strtol(optarg, &p, 10);
-      if (p == optarg || *p != '\0') {
-        fprintf(stderr, "editcap: \"%s\" isn't a valid packet count\n",
-            optarg);
-        exit(1);
-      }
-      if (split_packet_count <= 0) {
-        fprintf(stderr, "editcap: \"%d\" packet count must be larger than zero\n",
-            split_packet_count);
-        exit(1);
-      }
-      break;
-
-    case 'C':
-      choplen = (int)strtol(optarg, &p, 10);
-      if (p == optarg || *p != '\0') {
-        fprintf(stderr, "editcap: \"%s\" isn't a valid chop length\n",
-            optarg);
-        exit(1);
-      }
-      break;
-
-    case 'd':
-      dup_detect = TRUE;
-      dup_detect_by_time = FALSE;
-      dup_window = DEFAULT_DUP_DEPTH;
-      break;
-
-    case 'D':
-      dup_detect = TRUE;
-      dup_detect_by_time = FALSE;
-      dup_window = (int)strtol(optarg, &p, 10);
-      if (p == optarg || *p != '\0') {
-        fprintf(stderr, "editcap: \"%s\" isn't a valid duplicate window value\n",
-            optarg);
-        exit(1);
-      }
-      if (dup_window < 0 || dup_window > MAX_DUP_DEPTH) {
-        fprintf(stderr, "editcap: \"%d\" duplicate window value must be between 0 and %d inclusive.\n",
-            dup_window, MAX_DUP_DEPTH);
-        exit(1);
-      }
-      break;
-
-    case 'w':
-      dup_detect = FALSE;
-      dup_detect_by_time = TRUE;
-      dup_window = MAX_DUP_DEPTH;
-      set_rel_time(optarg);
-      break;
-
-    case '?':              /* Bad options if GNU getopt */
-      switch(optopt) {
-      case'F':
-        list_capture_types();
-        break;
-      case'T':
-        list_encap_types();
-        break;
-      default:
-        usage(TRUE);
-      }
-      exit(1);
-      break;
-
-    case 'h':
-      usage(FALSE);
-      exit(1);
-      break;
-
-    case 'r':
-      keep_em = !keep_em;  /* Just invert */
-      break;
-
-    case 's':
-      snaplen = (guint32)strtol(optarg, &p, 10);
-      if (p == optarg || *p != '\0') {
-        fprintf(stderr, "editcap: \"%s\" isn't a valid snapshot length\n",
-                optarg);
-        exit(1);
-      }
-      break;
-
-    case 't':
-      set_time_adjustment(optarg);
-      break;
-
-    case 'S':
-      set_strict_time_adj(optarg);
-      do_strict_time_adjustment = TRUE;
-      break;
-
-    case 'T':
-      out_frame_type = wtap_short_string_to_encap(optarg);
-      if (out_frame_type < 0) {
-        fprintf(stderr, "editcap: \"%s\" isn't a valid encapsulation type\n\n",
-          optarg);
-        list_encap_types();
-        exit(1);
-      }
-      break;
-
-    case 'v':
-      verbose = !verbose;  /* Just invert */
-      break;
-
-    case 'i': /* break capture file based on time interval */
-      secs_per_block = atoi(optarg);
-      if(secs_per_block <= 0) {
-        fprintf(stderr, "editcap: \"%s\" isn't a valid time interval\n\n", optarg);
-        exit(1);
-        }
-      break;
-
     case 'A':
     {
       struct tm starttm;
@@ -1072,8 +945,154 @@ main(int argc, char *argv[])
       stoptime = mktime(&stoptm);
       break;
     }
+
+    case 'c':
+      split_packet_count = (int)strtol(optarg, &p, 10);
+      if (p == optarg || *p != '\0') {
+        fprintf(stderr, "editcap: \"%s\" isn't a valid packet count\n",
+            optarg);
+        exit(1);
+      }
+      if (split_packet_count <= 0) {
+        fprintf(stderr, "editcap: \"%d\" packet count must be larger than zero\n",
+            split_packet_count);
+        exit(1);
+      }
+      break;
+
+    case 'C':
+    {
+      int choplen;
+
+      choplen = (int)strtol(optarg, &p, 10);
+      if (p == optarg || *p != '\0') {
+        fprintf(stderr, "editcap: \"%s\" isn't a valid chop length\n",
+            optarg);
+        exit(1);
+      }
+      if (choplen > 0)
+        choplen_begin += choplen;
+      else if (choplen < 0)
+        choplen_end += choplen;
+      break;
     }
 
+    case 'd':
+      dup_detect = TRUE;
+      dup_detect_by_time = FALSE;
+      dup_window = DEFAULT_DUP_DEPTH;
+      break;
+
+    case 'D':
+      dup_detect = TRUE;
+      dup_detect_by_time = FALSE;
+      dup_window = (int)strtol(optarg, &p, 10);
+      if (p == optarg || *p != '\0') {
+        fprintf(stderr, "editcap: \"%s\" isn't a valid duplicate window value\n",
+            optarg);
+        exit(1);
+      }
+      if (dup_window < 0 || dup_window > MAX_DUP_DEPTH) {
+        fprintf(stderr, "editcap: \"%d\" duplicate window value must be between 0 and %d inclusive.\n",
+            dup_window, MAX_DUP_DEPTH);
+        exit(1);
+      }
+      break;
+
+    case 'E':
+      err_prob = strtod(optarg, &p);
+      if (p == optarg || err_prob < 0.0 || err_prob > 1.0) {
+        fprintf(stderr, "editcap: probability \"%s\" must be between 0.0 and 1.0\n",
+            optarg);
+        exit(1);
+      }
+      srand( (unsigned int) (time(NULL) + getpid()) );
+      break;
+
+    case 'F':
+      out_file_type = wtap_short_string_to_file_type(optarg);
+      if (out_file_type < 0) {
+        fprintf(stderr, "editcap: \"%s\" isn't a valid capture file type\n\n",
+            optarg);
+        list_capture_types();
+        exit(1);
+      }
+      break;
+
+    case 'h':
+      usage(FALSE);
+      exit(1);
+      break;
+
+    case 'i': /* break capture file based on time interval */
+      secs_per_block = atoi(optarg);
+      if(secs_per_block <= 0) {
+        fprintf(stderr, "editcap: \"%s\" isn't a valid time interval\n\n", optarg);
+        exit(1);
+        }
+      break;
+
+    case 'L':
+      adjlen = TRUE;
+      break;
+
+    case 'r':
+      keep_em = !keep_em;  /* Just invert */
+      break;
+
+    case 's':
+      snaplen = (guint32)strtol(optarg, &p, 10);
+      if (p == optarg || *p != '\0') {
+        fprintf(stderr, "editcap: \"%s\" isn't a valid snapshot length\n",
+                optarg);
+        exit(1);
+      }
+      break;
+
+    case 'S':
+      set_strict_time_adj(optarg);
+      do_strict_time_adjustment = TRUE;
+      break;
+
+    case 't':
+      set_time_adjustment(optarg);
+      break;
+
+    case 'T':
+      out_frame_type = wtap_short_string_to_encap(optarg);
+      if (out_frame_type < 0) {
+        fprintf(stderr, "editcap: \"%s\" isn't a valid encapsulation type\n\n",
+          optarg);
+        list_encap_types();
+        exit(1);
+      }
+      break;
+
+    case 'v':
+      verbose = !verbose;  /* Just invert */
+      break;
+
+    case 'w':
+      dup_detect = FALSE;
+      dup_detect_by_time = TRUE;
+      dup_window = MAX_DUP_DEPTH;
+      set_rel_time(optarg);
+      break;
+
+    case '?':              /* Bad options if GNU getopt */
+      switch(optopt) {
+      case'F':
+        list_capture_types();
+        break;
+      case'T':
+        list_encap_types();
+        break;
+      default:
+        usage(TRUE);
+      }
+      exit(1);
+      break;
+    }
   }
 
 #ifdef DEBUG
@@ -1270,26 +1289,47 @@ main(int argc, char *argv[])
 
         phdr = wtap_phdr(wth);
 
-        if (snaplen != 0 && phdr->caplen > snaplen) {
+        if (snaplen != 0) {
+          if (phdr->caplen > snaplen) {
+            snap_phdr = *phdr;
+            snap_phdr.caplen = snaplen;
+            phdr = &snap_phdr;
+          }
+          if (adjlen && phdr->len > snaplen) {
+            snap_phdr = *phdr;
+            snap_phdr.len = snaplen;
+            phdr = &snap_phdr;
+          }
+        }
+
+        if (choplen_end < 0) {
           snap_phdr = *phdr;
-          snap_phdr.caplen = snaplen;
+          if (((signed int) phdr->caplen + choplen_end) > 0)
+            snap_phdr.caplen += choplen_end;
+          else
+            snap_phdr.caplen = 0;
+          if (adjlen) {
+            if (((signed int) phdr->len + choplen_end) > 0)
+              snap_phdr.len += choplen_end;
+            else
+              snap_phdr.len = 0;
+          }
           phdr = &snap_phdr;
         }
 
-        if (choplen < 0) {
+        if (choplen_begin > 0) {
           snap_phdr = *phdr;
-          if (((signed int) phdr->caplen + choplen) > 0)
-            snap_phdr.caplen += choplen;
-          else
-            snap_phdr.caplen = 0;
-          phdr = &snap_phdr;
-        } else if (choplen > 0) {
-          snap_phdr = *phdr;
-          if (phdr->caplen > (unsigned int) choplen) {
-            snap_phdr.caplen -= choplen;
-            buf += choplen;
+          if (phdr->caplen > (unsigned int) choplen_begin) {
+            snap_phdr.caplen -= choplen_begin;
+            buf += choplen_begin;
           } else
             snap_phdr.caplen = 0;
+          if (adjlen) {
+            if (phdr->len > (unsigned int) choplen_begin) {
+              snap_phdr.len -= choplen_begin;
+            } else
+              snap_phdr.len = 0;
+          }
           phdr = &snap_phdr;
         }
 

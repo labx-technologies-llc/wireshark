@@ -38,7 +38,7 @@
 #include <glib.h>
 #include <epan/packet.h>
 
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/strutil.h>
 #include <epan/asn1.h>
 #include <epan/prefs.h>
@@ -13176,7 +13176,7 @@ dissect_ranap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		if (! sccp_msg_lcl->data.co.label && ProcedureCode != 0xFFFFFFFF) {
 			const gchar* str = val_to_str(ProcedureCode, ranap_ProcedureCode_vals,"Unknown RANAP");
-			sccp_msg_lcl->data.co.label = se_strdup(str);
+			sccp_msg_lcl->data.co.label = wmem_strdup(wmem_file_scope(), str);
 		}
 	}
 }
@@ -16479,6 +16479,10 @@ void proto_register_ranap(void) {
   prefs_register_uint_preference(ranap_module, "sccp_ssn", "SCCP SSN for RANAP",
 				 "The SCCP SubSystem Number for RANAP (default 142)", 10,
 				 &global_ranap_sccp_ssn);
+  prefs_register_bool_preference(ranap_module, "dissect_rrc_container",
+                                 "Attempt to dissect RRC-Container",
+                                 "Attempt to dissect RRC message embedded in RRC-Container IE",
+                                 &glbl_dissect_container);
 }
 
 
@@ -16829,7 +16833,7 @@ proto_reg_handoff_ranap(void)
 
 
 /*--- End of included file: packet-ranap-dis-tab.c ---*/
-#line 373 "../../asn1/ranap/packet-ranap-template.c"
+#line 377 "../../asn1/ranap/packet-ranap-template.c"
 	} else {
 		dissector_delete_uint("sccp.ssn", local_ranap_sccp_ssn, ranap_handle);
 	}

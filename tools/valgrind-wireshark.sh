@@ -36,7 +36,7 @@ VALID=0
 PCAP=""
 TOOL=""
 
-while getopts ":2b:C:lmnprtTwcevW" OPTCHAR ; do
+while getopts ":2b:C:lmnprtTYwcevW" OPTCHAR ; do
     case $OPTCHAR in
         2) COMMAND_ARGS="-2 $COMMAND_ARGS" ;;
         b) BIN_DIR=$OPTARG ;;
@@ -49,6 +49,7 @@ while getopts ":2b:C:lmnprtTwcevW" OPTCHAR ; do
         r) REACHABLE="--show-reachable=yes" ;;
         t) TRACK_ORIGINS="--track-origins=yes" ;;
         T) COMMAND_ARGS="-Vx $COMMAND_ARGS" ;; # "build the Tree"
+        Y) COMMAND_ARGS="-Yframe $COMMAND_ARGS" ;; # Run with a read filter (but no tree)
         w) COMMAND=wireshark
            COMMAND_ARGS="-nr" ;;
         c) COMMAND=capinfos
@@ -75,7 +76,7 @@ fi
 
 if [ $VALID -eq 0 ]
 then
-    printf "Usage: $0 [-2] [-b bin_dir] [-c] [-e] [-C config_profile] [-l] [-n] [-r] [-t] [-T] [-w] [-v] /path/to/file.pcap\n"
+    printf "Usage: $0 [-2] [-b bin_dir] [-c] [-e] [-C config_profile] [-l] [-m] [-n] [-p] [-r] [-t] [-T] [-w] [-v] /path/to/file.pcap\n"
     exit 1
 fi
 

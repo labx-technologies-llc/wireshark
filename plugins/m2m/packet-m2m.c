@@ -154,6 +154,8 @@ static gint hf_m2m_value_preamble_uint16 = -1;
 static gint hf_m2m_value_harq_ack_burst_bytes = -1;
 static gint hf_m2m_phy_attributes = -1;
 
+static expert_field ei_m2m_unexpected_length = EI_INIT;
+
 /* Register M2M defrag table init routine. */
 static void
 m2m_defragment_init(void)
@@ -394,7 +396,7 @@ static void dissect_m2m(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				if (offset - tlv_offset == expected_len) {
 					proto_tree_add_tlv(&m2m_tlv_info, tvb, offset - tlv_offset, pinfo, tlv_tree, hf, encoding);
 				} else {
-					expert_add_info_format(pinfo, NULL, PI_MALFORMED, PI_ERROR, "Expected length %d, got %d.", expected_len, offset - tlv_offset);
+					expert_add_info_format_text(pinfo, NULL, &ei_m2m_unexpected_length, "Expected length %d, got %d.", expected_len, offset - tlv_offset);
 				}
 			}
 			offset += tlv_len;
@@ -433,7 +435,7 @@ static void cdma_code_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint
 /* Decode and display the PDU Burst */
 static void pdu_burst_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint length, packet_info *pinfo, gint burst_number, gint frag_type, gint frag_number)
 {
-	fragment_data *pdu_frag;
+	fragment_head *pdu_frag;
 	tvbuff_t *pdu_tvb = NULL;
 
 	/* update the info column */
@@ -454,12 +456,12 @@ static void pdu_burst_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint
 		pdu_tvb =  tvb_new_subset(tvb, offset, length, length);
 	}
 	else	/* fragmented PDU */
-	{	/* add the frag */
+	{	/* add the fragment */
 		pdu_frag = fragment_add_seq(&pdu_reassembly_table, tvb, offset, pinfo, burst_number, NULL, frag_number - 1, length, ((frag_type==TLV_LAST_FRAG)?0:1), 0);
 		if(pdu_frag && frag_type == TLV_LAST_FRAG)
 		{
-			/* create the new tvb for defraged frame */
-			pdu_tvb = tvb_new_child_real_data(tvb, pdu_frag->data, pdu_frag->len, pdu_frag->len);
+			/* create the new tvb for defragmented frame */
+			pdu_tvb = tvb_new_chain(tvb, pdu_frag->tvb_data);
 			/* add the defragmented data to the data source list */
 			add_new_data_source(pinfo, pdu_tvb, "Reassembled WiMax PDU Frame");
 		}
@@ -773,7 +775,13 @@ void proto_register_m2m(void)
 			&ett_m2m_ffb,
 		};
 
-	proto_m2m = proto_register_protocol (
+	static ei_register_info ei[] = {
+		{ &ei_m2m_unexpected_length, { "m2m.unexpected_length", PI_MALFORMED, PI_ERROR, "Unexpected length", EXPFILL }},
+	};
+
+	expert_module_t* expert_m2m;
+
+    proto_m2m = proto_register_protocol (
 		"WiMax Mac to Mac Packet", /* name       */
 		"M2M  (m2m)",              /* short name */
 		"m2m"                      /* abbrev     */
@@ -782,6 +790,8 @@ void proto_register_m2m(void)
 	proto_register_field_array(proto_m2m, hf, array_length(hf));
 	proto_register_field_array(proto_m2m, hf_tlv, array_length(hf_tlv));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_m2m = expert_register_protocol(proto_m2m);
+	expert_register_field_array(expert_m2m, ei, array_length(ei));
 
 	/* Register the PDU fragment table init routine */
 	register_init_routine(m2m_defragment_init);

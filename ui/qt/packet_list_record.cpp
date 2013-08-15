@@ -35,13 +35,10 @@ QVariant PacketListRecord::data(int col_num, column_info *cinfo) const
     if (!cinfo)
         return QVariant();
 
-    if (col_based_on_frame_data(cinfo, col_num)) //{
+    if (col_based_on_frame_data(cinfo, col_num))
         col_fill_in_frame_data(fdata_, cinfo, col_num, FALSE);
-        return cinfo->col_data[col_num];
-//    } else {
-//        QString unknown;
-//        return unknown.sprintf("Unknown: frame %d col %d", fdata->num, col_num);
-//    }
+
+    return cinfo->col_data[col_num];
 }
 
 frame_data *PacketListRecord::getFdata() {

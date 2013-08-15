@@ -112,8 +112,10 @@ capture_opts_init(capture_options *capture_opts)
   capture_opts->autostop_filesize               = 1024;             /* 1 MB */
   capture_opts->has_autostop_duration           = FALSE;
   capture_opts->autostop_duration               = 60;               /* 1 min */
+  capture_opts->capture_comment                 = NULL;
 
   capture_opts->output_to_pipe                  = FALSE;
+  capture_opts->capture_child                   = FALSE;
 }
 
 
@@ -452,7 +454,7 @@ capture_opts_add_iface_opt(capture_options *capture_opts, const char *optarg_str
             cmdarg_err("There is no interface with that adapter index");
             return 1;
         }
-        if_list = capture_interface_list(&err, &err_str);
+        if_list = capture_interface_list(&err, &err_str, NULL);
         if (if_list == NULL) {
             switch (err) {
 
@@ -488,6 +490,11 @@ capture_opts_add_iface_opt(capture_options *capture_opts, const char *optarg_str
             interface_opts.console_display_name = g_strdup(if_info->name);
         }
         free_interface_list(if_list);
+    } else if (capture_opts->capture_child) {
+        /* In Wireshark capture child mode, thus proper device name is supplied. */
+        /* No need for trying to match it for friendly names. */
+        interface_opts.name = g_strdup(optarg_str_p);
+        interface_opts.console_display_name = g_strdup(optarg_str_p);
     } else {
         /*
          * Retrieve the interface list so that we can search for the
@@ -499,7 +506,7 @@ capture_opts_add_iface_opt(capture_options *capture_opts, const char *optarg_str
          * the interface name, so that the user can try specifying an
          * interface explicitly for testing purposes.
          */
-        if_list = capture_interface_list(&err, NULL);
+        if_list = capture_interface_list(&err, NULL, NULL);
         if (if_list != NULL) {
             /* try and do an exact match (case insensitive) */
             GList   *if_entry;
@@ -620,6 +627,13 @@ capture_opts_add_opt(capture_options *capture_opts, int opt, const char *optarg_
     int status, snaplen;
 
     switch(opt) {
+    case LONGOPT_NUM_CAP_COMMENT:  /* capture comment */
+        if (capture_opts->capture_comment) {
+            cmdarg_err("--capture-comment can be set only once per file");
+            return 1;
+        }
+        capture_opts->capture_comment = g_strdup(optarg_str_p);
+        break;
     case 'a':        /* autostop criteria */
         if (set_autostop_criterion(capture_opts, optarg_str_p) == FALSE) {
             cmdarg_err("Invalid or unknown -a flag \"%s\"", optarg_str_p);

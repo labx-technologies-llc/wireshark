@@ -27,11 +27,20 @@
 
 #include <epan/column_info.h>
 #include <epan/tvbuff.h>
-#include <epan/nstime.h>
+#include <wsutil/nstime.h>
 #include "ws_symbol_export.h"
 
 #define PINFO_FD_NUM(pinfo)       ((pinfo)->fd->num)
 #define PINFO_FD_VISITED(pinfo)   ((pinfo)->fd->flags.visited)
+
+/** @file
+ * Low-level frame data and metadata.
+ */
+
+/** @defgroup framedata Frame Data
+ *
+ * @{
+ */
 
 /** @todo XXX - some of this stuff is used only while a packet is being dissected;
    should we keep that stuff in the "packet_info" structure, instead, to
@@ -49,8 +58,6 @@ typedef enum {
 typedef struct _frame_data {
   GSList      *pfd;          /**< Per frame proto data */
   guint32      num;          /**< Frame number */
-  guint32      interface_id; /**< identifier of the interface. */
-  guint32      pack_flags;   /**< Packet Flags */
   guint32      pkt_len;      /**< Packet length */
   guint32      cap_len;      /**< Amount actually captured */
   guint32      cum_bytes;    /**< Cumulative bytes into the capture */
@@ -66,18 +73,16 @@ typedef struct _frame_data {
     unsigned int ref_time       : 1; /**< 1 = marked as a reference time frame, 0 = normal */
     unsigned int ignored        : 1; /**< 1 = ignore this frame, 0 = normal */
     unsigned int has_ts         : 1; /**< 1 = has time stamp, 0 = no time stamp */
-    unsigned int has_if_id      : 1; /**< 1 = has interface ID, 0 = no interface ID */
-    unsigned int has_pack_flags : 1; /**< 1 = has packet flags, 0 = no packet flags */
+    unsigned int has_phdr_comment : 1; /** 1 = there's comment for this packet */
+    unsigned int has_user_comment : 1; /** 1 = user set (also deleted) comment for this packet */
   } flags;
 
   const void *color_filter;  /**< Per-packet matching color_filter_t object */
 
   nstime_t     abs_ts;       /**< Absolute timestamp */
   nstime_t     shift_offset; /**< How much the abs_tm of the frame is shifted */
-  nstime_t     rel_ts;       /**< Relative timestamp (yes, it can be negative) */
-  const struct _frame_data *prev_dis;   /**< Previous displayed frame */
-  const struct _frame_data *prev_cap;   /**< Previous captured frame */
-  gchar        *opt_comment; /**< NULL if not available */
+  guint32      frame_ref_num; /**< Previous reference frame (0 if this is one) */
+  guint32      prev_dis_num; /**< Previous displayed frame (0 if first one) */
 } frame_data;
 
 #ifdef WANT_PACKET_EDITOR
@@ -95,8 +100,11 @@ WS_DLL_PUBLIC void *p_get_proto_data(frame_data *fd, int proto, guint8 key);
 void p_remove_proto_data(frame_data *fd, int proto, guint8 key);
 gchar *p_get_proto_name_and_key(frame_data *fd, guint pfd_index);
 
+/* no sense to include epan.h + dependencies for opaque epan session type */
+struct epan_session;
+
 /** compare two frame_datas */
-WS_DLL_PUBLIC gint frame_data_compare(const frame_data *fdata1, const frame_data *fdata2, int field);
+WS_DLL_PUBLIC gint frame_data_compare(const struct epan_session *epan, const frame_data *fdata1, const frame_data *fdata2, int field);
 
 WS_DLL_PUBLIC void frame_data_reset(frame_data *fdata);
 
@@ -106,18 +114,19 @@ WS_DLL_PUBLIC void frame_data_init(frame_data *fdata, guint32 num,
                 const struct wtap_pkthdr *phdr, gint64 offset,
                 guint32 cum_bytes);
 
-extern void frame_delta_abs_time(const frame_data *fdata,
-                const frame_data *prev, nstime_t *delta);
+extern void frame_delta_abs_time(const struct epan_session *epan, const frame_data *fdata,
+                guint32 prev_num, nstime_t *delta);
 /**
  * Sets the frame data struct values before dissection.
  */
 WS_DLL_PUBLIC void frame_data_set_before_dissect(frame_data *fdata,
                 nstime_t *elapsed_time,
-                nstime_t *first_ts,
-                const frame_data *prev_dis,
-                const frame_data *prev_cap);
+                const frame_data **frame_ref,
+                const frame_data *prev_dis);
 
 WS_DLL_PUBLIC void frame_data_set_after_dissect(frame_data *fdata,
                 guint32 *cum_bytes);
+
+/** @} */
 
 #endif  /* __FRAME_DATA__ */

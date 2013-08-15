@@ -523,8 +523,7 @@ dissect_smrse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *
 	}
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "SMRSE");
-  	if (check_col(pinfo->cinfo, COL_INFO))
-  		col_add_str(pinfo->cinfo, COL_INFO, val_to_str(tag, tag_vals,"Unknown Tag:0x%02x"));
+	col_add_str(pinfo->cinfo, COL_INFO, val_to_str(tag, tag_vals,"Unknown Tag:0x%02x"));
 
 	proto_tree_add_item(tree, hf_smrse_reserved, tvb, 0, 1, ENC_BIG_ENDIAN);
 	proto_tree_add_item(tree, hf_smrse_length, tvb, 1, 2, ENC_BIG_ENDIAN);
@@ -695,7 +694,7 @@ void proto_register_smrse(void) {
         "SMS_Address", HFILL }},
 
 /*--- End of included file: packet-smrse-hfarr.c ---*/
-#line 162 "../../asn1/smrse/packet-smrse-template.c"
+#line 161 "../../asn1/smrse/packet-smrse-template.c"
   };
 
   /* List of subtrees */
@@ -717,7 +716,7 @@ void proto_register_smrse(void) {
     &ett_smrse_RPAlertSC,
 
 /*--- End of included file: packet-smrse-ettarr.c ---*/
-#line 168 "../../asn1/smrse/packet-smrse-template.c"
+#line 167 "../../asn1/smrse/packet-smrse-template.c"
   };
 
   /* Register protocol */

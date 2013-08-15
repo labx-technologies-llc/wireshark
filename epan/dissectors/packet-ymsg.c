@@ -189,7 +189,7 @@ enum yahoo_status {
         YAHOO_STATUS_WEBLOGIN	    = 0x5a55aa55,
         YAHOO_STATUS_OFFLINE	    = 0x5a55aa56, /* don't ask */
         YAHOO_STATUS_TYPING	    = 0x16,
-        YAHOO_STATUS_DISCONNECTED   = 0xffffffff /* in ymsg 15. doesnt mean the normal sense of 'disconnected' */
+        YAHOO_STATUS_DISCONNECTED   = -1 /* in ymsg 15. doesnt mean the normal sense of 'disconnected' */
 };
 
 enum ypacket_status {
@@ -390,15 +390,13 @@ dissect_ymsg_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "YMSG");
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 			"%s (status=%s)   ",
 			val_to_str(tvb_get_ntohs(tvb, offset + 10),
 				 ymsg_service_vals, "Unknown Service: %u"),
 			val_to_str(tvb_get_ntohl(tvb, offset + 12),
 				 ymsg_status_vals, "Unknown Status: %u")
 		);
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_ymsg, tvb, offset, -1, ENC_NA);

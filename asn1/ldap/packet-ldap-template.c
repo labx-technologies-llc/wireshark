@@ -94,6 +94,7 @@
 #include <epan/prefs.h>
 #include <epan/tap.h>
 #include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/oids.h>
 #include <epan/strutil.h>
 #include <epan/show_exception.h>
@@ -196,6 +197,9 @@ static gint ett_mscldap_ntver_flags = -1;
 static gint ett_mscldap_ipdetails = -1;
 
 #include "packet-ldap-ett.c"
+
+static expert_field ei_ldap_exceeded_filter_length = EI_INIT;
+static expert_field ei_ldap_too_many_filter_elements = EI_INIT;
 
 static dissector_table_t ldap_name_dissector_table=NULL;
 static const char *object_identifier_id = NULL; /* LDAP OID */
@@ -511,7 +515,7 @@ attribute_types_initialize_cb(void)
       hf[i].hfinfo.display = BASE_NONE;
       hf[i].hfinfo.strings = NULL;
       hf[i].hfinfo.blurb = g_strdup(attribute_types[i].attribute_desc);
-      hf[i].hfinfo.same_name_prev = NULL;
+      hf[i].hfinfo.same_name_prev_id = -1;
       hf[i].hfinfo.same_name_next = NULL;
 
       g_hash_table_insert(attribute_types_hash, attribute_type, hf_id);
@@ -2249,6 +2253,12 @@ void proto_register_ldap(void) {
      UAT_END_FIELDS
   };
 
+  static ei_register_info ei[] = {
+     { &ei_ldap_exceeded_filter_length, { "ldap.exceeded_filter_length", PI_UNDECODED, PI_ERROR, "Filter length exceeds number. Giving up", EXPFILL }},
+     { &ei_ldap_too_many_filter_elements, { "ldap.too_many_filter_elements", PI_UNDECODED, PI_ERROR, "Found more than %%u filter elements. Giving up.", EXPFILL }},
+  };
+
+  expert_module_t* expert_ldap;
   module_t *ldap_module;
   uat_t *attributes_uat;
 
@@ -2257,7 +2267,8 @@ void proto_register_ldap(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_ldap, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-
+  expert_ldap = expert_register_protocol(proto_ldap);
+  expert_register_field_array(expert_ldap, ei, array_length(ei));
 
   register_dissector("ldap", dissect_ldap_tcp, proto_ldap);
 

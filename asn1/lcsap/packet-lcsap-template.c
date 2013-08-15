@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2011 by Spenser Sheng <spenser.sheng@ericsson.com>
  *
- * $Id: packet-lcsap.c 28770 2011-06-18 21:30:42Z stig  Spenser Sheng$
+ * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -229,8 +229,7 @@ dissect_lcsap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree	*lcsap_tree = NULL;
 
 	/* make entry in the Protocol column on summary display */
-	if (check_col(pinfo->cinfo, COL_PROTOCOL))
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, "LCSAP");
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "LCSAP");
 
 	/* create the lcsap protocol tree */
 	lcsap_item = proto_tree_add_item(tree, proto_lcsap, tvb, 0, -1, ENC_NA);

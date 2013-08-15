@@ -45,6 +45,8 @@
 
 #include "wsutil/str_util.h"
 
+#include "frame_tvbuff.h"
+
 #include <QTreeWidget>
 #include <QTabWidget>
 #include <QTextEdit>
@@ -232,7 +234,7 @@ PacketList::PacketList(QWidget *parent) :
     setSortingEnabled(TRUE);
     setUniformRowHeights(TRUE);
     setAccessibleName("Packet list");
-
+    setItemDelegateForColumn(0, &related_packet_delegate_);
 
     packet_list_model_ = new PacketListModel(this, cap_file_);
     setModel(packet_list_model_);
@@ -370,6 +372,7 @@ void PacketList::setProtoTree (ProtoTree *proto_tree) {
     proto_tree_ = proto_tree;
 
     connect(proto_tree_, SIGNAL(goToFrame(int)), this, SLOT(goToPacket(int)));
+    connect(proto_tree_, SIGNAL(relatedFrame(int)), this, SLOT(addRelatedFrame(int)));
 }
 
 void PacketList::setByteViewTab (ByteViewTab *byte_view_tab) {
@@ -408,18 +411,24 @@ void PacketList::selectionChanged (const QItemSelection & selected, const QItemS
 
     if (!cap_file_) return;
 
-    if (proto_tree_) {
-        int row = selected.first().top();
-        cf_select_packet(cap_file_, row);
+    int row = selected.first().top();
+    cf_select_packet(cap_file_, row);
+    related_packet_delegate_.clear();
 
-        if (!cap_file_->edt && !cap_file_->edt->tree) {
-            return;
-        }
+    if (!cap_file_->edt) return;
 
+    if (proto_tree_ && cap_file_->edt->tree) {
         proto_tree_->fillProtocolTree(cap_file_->edt->tree);
+        packet_info *pi = &cap_file_->edt->pi;
+        conversation_t *conv = find_conversation(pi->fd->num, &pi->src, &pi->dst, pi->ptype,
+                                                pi->srcport, pi->destport, 0);
+        if (conv) {
+            related_packet_delegate_.setConversationSpan(conv->setup_frame, conv->last_frame);
+        }
+        viewport()->update();
     }
 
-    if (byte_view_tab_ && cap_file_->edt) {
+    if (byte_view_tab_) {
         GSList *src_le;
         struct data_source *source;
 
@@ -502,10 +511,13 @@ void PacketList::updateAll() {
     if (cap_file_->edt && cap_file_->edt->tree) {
         proto_tree_->fillProtocolTree(cap_file_->edt->tree);
     }
+
+    packet_list_model_->resetColumns();
 }
 
 void PacketList::clear() {
     //    packet_history_clear();
+    related_packet_delegate_.clear();
     packet_list_model_->clear();
     proto_tree_->clear();
     byte_view_tab_->clear();
@@ -513,7 +525,7 @@ void PacketList::clear() {
     /* XXX is this correct in all cases?
      * Reset the sort column, use packetlist as model in case the list is frozen.
      */
-    gbl_cur_packet_list->sortByColumn(0, Qt::AscendingOrder);
+    sortByColumn(0, Qt::AscendingOrder);
 }
 
 void PacketList::writeRecent(FILE *rf) {
@@ -567,10 +579,10 @@ QString &PacketList::getFilterFromRowAndColumn()
         if (!cf_read_frame(cap_file_, fdata))
             return filter; /* error reading the frame */
         /* proto tree, visible. We need a proto tree if there's custom columns */
-        epan_dissect_init(&edt, have_custom_cols(&cap_file_->cinfo), FALSE);
+        epan_dissect_init(&edt, cap_file_->epan, have_custom_cols(&cap_file_->cinfo), FALSE);
         col_custom_prime_edt(&edt, &cap_file_->cinfo);
 
-        epan_dissect_run(&edt, &cap_file_->phdr, cap_file_->pd, fdata, &cap_file_->cinfo);
+        epan_dissect_run(&edt, &cap_file_->phdr, frame_tvbuff_new_buffer(fdata, &cap_file_->buf), fdata, &cap_file_->cinfo);
         epan_dissect_fill_in_columns(&edt, TRUE, TRUE);
 
         if ((cap_file_->cinfo.col_custom_occurrence[ctx_column_]) ||
@@ -616,6 +628,7 @@ QString PacketList::packetComment()
 {
     int row = currentIndex().row();
     frame_data *fdata;
+    char *pkt_comment;
 
     if (!cap_file_ || !packet_list_model_) return NULL;
 
@@ -623,7 +636,11 @@ QString PacketList::packetComment()
 
     if (!fdata) return NULL;
 
-    return QString(fdata->opt_comment);
+    pkt_comment = cf_get_comment(cap_file_, fdata);
+
+    return QString(pkt_comment);
+
+    /* XXX, g_free(pkt_comment) */
 }
 
 void PacketList::setPacketComment(QString new_comment)
@@ -638,20 +655,12 @@ void PacketList::setPacketComment(QString new_comment)
 
     if (!fdata) return;
 
-    /* Check if the comment has changed */
-    if (fdata->opt_comment) {
-        if (strcmp(fdata->opt_comment, new_packet_comment) == 0) {
-            return;
-        }
-    }
-
     /* Check if we are clearing the comment */
     if(new_comment.isEmpty()) {
         new_packet_comment = NULL;
     }
 
-    /* The comment has changed, let's update it */
-    cf_update_packet_comment(cap_file_, fdata, g_strdup(new_packet_comment));
+    cf_set_user_packet_comment(cap_file_, fdata, new_packet_comment);
 
     updateAll();
 }
@@ -666,8 +675,12 @@ QString PacketList::allPacketComments()
 
     for (framenum = 1; framenum <= cap_file_->count ; framenum++) {
         fdata = frame_data_sequence_find(cap_file_->frames, framenum);
-        if (fdata->opt_comment) {
-            buf_str.append(QString(tr("Frame %1: %2 \n\n")).arg(framenum).arg(fdata->opt_comment));
+
+        char *pkt_comment = cf_get_comment(cap_file_, fdata);
+
+        if (pkt_comment) {
+            buf_str.append(QString(tr("Frame %1: %2 \n\n")).arg(framenum).arg(pkt_comment));
+            g_free(pkt_comment);
         }
         if (buf_str.length() > max_comments_to_fetch_) {
             buf_str.append(QString(tr("[ Comment text exceeds %1. Stopping. ]"))
@@ -804,6 +817,11 @@ void PacketList::unsetAllTimeReferences()
         }
     }
     updateAll();
+}
+
+void PacketList::addRelatedFrame(int related_frame)
+{
+    related_packet_delegate_.addRelatedFrame(related_frame);
 }
 
 /*

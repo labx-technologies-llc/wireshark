@@ -38,7 +38,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
@@ -73,6 +73,8 @@ int proto_clacse = -1;
 /* Initialize the subtree pointers */
 static gint ett_acse = -1;
 #include "packet-acse-ett.c"
+
+static expert_field ei_acse_dissector_not_available = EI_INIT;
 
 static struct SESSION_DATA_STRUCTURE* session = NULL;
 
@@ -123,9 +125,9 @@ static void
 register_ctx_id_and_oid(packet_info *pinfo _U_, guint32 idx, char *oid)
 {
 	acse_ctx_oid_t *aco, *tmpaco;
-	aco=se_alloc(sizeof(acse_ctx_oid_t));
+	aco=wmem_new(wmem_file_scope(), acse_ctx_oid_t);
 	aco->ctx_id=idx;
-	aco->oid=se_strdup(oid);
+	aco->oid=wmem_strdup(wmem_file_scope(), oid);
 
 	/* if this ctx already exists, remove the old one first */
 	tmpaco=(acse_ctx_oid_t *)g_hash_table_lookup(acse_ctx_oid_table, aco);
@@ -184,7 +186,7 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		if(session->spdu_type == 0 ) {
 			if(parent_tree){
 				REPORT_DISSECTOR_BUG(
-					ep_strdup_printf("Wrong spdu type %x from session dissector.",session->spdu_type));
+					wmem_strdup_printf(wmem_packet_scope(), "Wrong spdu type %x from session dissector.",session->spdu_type));
 				return  ;
 			}
 		}
@@ -214,8 +216,8 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			}
 			call_ber_oid_callback(oid, tvb, offset, pinfo, parent_tree);
 		} else {
-			proto_item *ti = proto_tree_add_text(parent_tree, tvb, offset, -1, "dissector is not available");
-			expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "Dissector is not available");
+			proto_tree_add_expert(parent_tree, pinfo, &ei_acse_dissector_not_available,
+                                    tvb, offset, -1);
 		}
 		top_tree = NULL;
 		return;
@@ -275,6 +277,12 @@ void proto_register_acse(void) {
 #include "packet-acse-ettarr.c"
   };
 
+  static ei_register_info ei[] = {
+     { &ei_acse_dissector_not_available, { "acse.dissector_not_available", PI_UNDECODED, PI_WARN, "Dissector is not available", EXPFILL }},
+  };
+
+  expert_module_t* expert_acse;
+
   /* Register protocol */
   proto_acse = proto_register_protocol(PNAME, PSNAME, PFNAME);
   register_dissector("acse", dissect_acse, proto_acse);
@@ -286,7 +294,8 @@ void proto_register_acse(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_acse, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-
+  expert_acse = expert_register_protocol(proto_acse);
+  expert_register_field_array(expert_acse, ei, array_length(ei));
 }
 
 

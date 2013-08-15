@@ -608,6 +608,15 @@ static struct encap_type_info encap_table_base[] = {
 
 	/* WTAP_ENCAP_USBPCAP */
 	{ "USB packets with USBPcap header", "usb-usbpcap" },
+
+	/* WTAP_ENCAP_RTAC_SERIAL */
+	{ "RTAC serial-line", "rtac-serial" },
+
+	/* WTAP_ENCAP_BLUETOOTH_LE_LL */
+	{ "Bluetooth Low Energy Link Layer", "bluetooth-le-ll" },
+
+	/* WTAP_ENCAP_WIRESHARK_UPPER_PDU */
+	{ "Wireshark Upper PDU export", "wireshark-upper-pdu" },
 };
 
 WS_DLL_LOCAL
@@ -703,6 +712,7 @@ static const char *wtap_errlist[] = {
 	"Uncompression error: bad LZ77 offset",
 	"The standard input cannot be opened for random access",
 	"That file format doesn't support compression",
+	NULL,
 	NULL,
 	"Uncompression error",
 	"Internal error"
@@ -896,6 +906,34 @@ wtap_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 }
 
 /*
+ * Read packet data into a Buffer, growing the buffer as necessary.
+ *
+ * This returns an error on a short read, even if the short read hit
+ * the EOF immediately.  (The assumption is that each packet has a
+ * header followed by raw packet data, and that we've already read the
+ * header, so if we get an EOF trying to read the packet data, the file
+ * has been cut short, even if the read didn't read any data at all.)
+ */
+gboolean
+wtap_read_packet_bytes(FILE_T fh, Buffer *buf, guint length, int *err,
+    gchar **err_info)
+{
+	int	bytes_read;
+
+	buffer_assure_space(buf, length);
+	errno = WTAP_ERR_CANT_READ;
+	bytes_read = file_read(buffer_start_ptr(buf), length, fh);
+
+	if (bytes_read < 0 || (guint)bytes_read != length) {
+		*err = file_error(fh, err_info);
+		if (*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return FALSE;
+	}
+	return TRUE;
+}
+
+/*
  * Return an approximation of the amount of data we've read sequentially
  * from the file so far.  (gint64, in case that's 64 bits.)
  */
@@ -919,20 +957,9 @@ wtap_buf_ptr(wtap *wth)
 
 gboolean
 wtap_seek_read(wtap *wth, gint64 seek_off,
-	struct wtap_pkthdr *phdr, guint8 *pd, int len,
+	struct wtap_pkthdr *phdr, Buffer *buf, int len,
 	int *err, gchar **err_info)
 {
-	phdr->presence_flags = 0;
-	phdr->pkt_encap = wth->file_encap;
-	phdr->len = phdr->caplen = len;
-
-	if (!wth->subtype_seek_read(wth, seek_off, phdr, pd, len, err, err_info))
-		return FALSE;
-
-	if (phdr->caplen > phdr->len)
-		phdr->caplen = phdr->len;
-			
-	/* g_assert(phdr->pkt_encap != WTAP_ENCAP_PER_PACKET); */
-
-	return TRUE;
+	return wth->subtype_seek_read(wth, seek_off, phdr, buf, len,
+		err, err_info);
 }

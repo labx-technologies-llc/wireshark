@@ -31,12 +31,14 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <wsutil/report_err.h>
+
 #include "emem.h"
+#include "wmem/wmem.h"
 #include "uat.h"
 #include "prefs.h"
 #include "proto.h"
 #include "packet.h"
-#include "report_err.h"
 #include "filesystem.h"
 #include "dissectors/packet-ber.h"
 
@@ -81,6 +83,7 @@ static const oid_value_type_t float_type =      { FT_FLOAT,  BASE_DEC,  BER_CLAS
 static const oid_value_type_t double_type =     { FT_DOUBLE, BASE_DEC,  BER_CLASS_UNI, BER_UNI_TAG_OCTETSTRING, 8,   8, OID_KEY_TYPE_WRONG,   0};
 static const oid_value_type_t ether_type =      { FT_ETHER,  BASE_NONE, BER_CLASS_UNI, BER_UNI_TAG_OCTETSTRING, 6,   6, OID_KEY_TYPE_ETHER,   6};
 static const oid_value_type_t string_type =     { FT_STRING, BASE_NONE, BER_CLASS_UNI, BER_UNI_TAG_OCTETSTRING, 0,  -1, OID_KEY_TYPE_STRING,  0};
+static const oid_value_type_t date_and_time_type = { FT_STRING,  BASE_NONE, BER_CLASS_UNI, BER_UNI_TAG_OCTETSTRING, 8,  11, OID_KEY_TYPE_DATE_AND_TIME,   0};
 static const oid_value_type_t unknown_type =    { FT_BYTES,  BASE_NONE, BER_CLASS_ANY, BER_TAG_ANY,             0,  -1, OID_KEY_TYPE_WRONG,   0};
 
 static oid_info_t oid_root = { 0, NULL, OID_KIND_UNKNOWN, NULL, &unknown_type, -2, NULL, NULL, NULL};
@@ -304,7 +307,7 @@ static const oid_value_type_t* get_typedata(SmiType* smiType) {
 		{"TimeStamp",SMI_BASETYPE_UNKNOWN,&timeticks_type},
 		{"DisplayString",SMI_BASETYPE_UNKNOWN,&string_type},
 		{"SnmpAdminString",SMI_BASETYPE_UNKNOWN,&string_type},
-		{"DateAndTime",SMI_BASETYPE_UNKNOWN,&string_type},
+		{"DateAndTime",SMI_BASETYPE_UNKNOWN,&date_and_time_type},
 		{"Counter",SMI_BASETYPE_UNKNOWN,&counter32_type},
 		{"Counter32",SMI_BASETYPE_UNKNOWN,&counter32_type},
 		{"Unsigned32",SMI_BASETYPE_UNKNOWN,&unsigned32_type},
@@ -518,8 +521,8 @@ static void register_mibs(void) {
 	SmiNode *smiNode;
 	guint i;
 	int proto_mibs = -1;
-	GArray* hfa = g_array_new(FALSE,TRUE,sizeof(hf_register_info));
-	GArray* etta = g_array_new(FALSE,TRUE,sizeof(gint*));
+	wmem_array_t* hfa;
+	GArray* etta;
 	gchar* path_str;
 
 	if (!load_smi_modules) {
@@ -535,6 +538,9 @@ static void register_mibs(void) {
 	} else {
 		oids_init_done = TRUE;
 	}
+
+	hfa = wmem_array_new(wmem_epan_scope(), sizeof(hf_register_info));
+	etta = g_array_new(FALSE,TRUE,sizeof(gint*));
 
 	smiInit(NULL);
 
@@ -681,7 +687,7 @@ static void register_mibs(void) {
 					g_array_append_val(hfa,hf2);
 				}
 #endif /* packet-snmp does not use this yet */
-				g_array_append_val(hfa,hf);
+				wmem_array_append_one(hfa,hf);
 			}
 
 			if ((key = oid_data->key)) {
@@ -700,7 +706,7 @@ static void register_mibs(void) {
 						 key->name, key->num_subids, key->key_type ));
 
 					if (key->hfid == -2) {
-						g_array_append_val(hfa,hf);
+						wmem_array_append_one(hfa,hf);
 						key->hfid = -1;
 					} else {
 						g_free((void*)hf.hfinfo.abbrev);
@@ -712,13 +718,11 @@ static void register_mibs(void) {
 
 	proto_mibs = proto_register_protocol("MIBs", "MIBS", "mibs");
 
-	proto_register_field_array(proto_mibs, (hf_register_info*)(void*)hfa->data, hfa->len);
+	proto_register_field_array(proto_mibs, (hf_register_info*)wmem_array_get_raw(hfa), wmem_array_get_count(hfa));
 
 	proto_register_subtree_array((gint**)(void*)etta->data, etta->len);
 
-
 	g_array_free(etta,TRUE);
-	g_array_free(hfa,FALSE);
 }
 #endif
 

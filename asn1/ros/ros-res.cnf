@@ -23,16 +23,16 @@
   if (!res_handle || 
       !proto_is_protocol_enabled(find_protocol_by_id(dissector_handle_get_protocol_index(res_handle)))) {
     if (actx->rose_ctx->d.code == 0)
-      descr = ep_strdup_printf("RES: %d", actx->rose_ctx->d.code_local);
+      descr = wmem_strdup_printf(wmem_packet_scope(), "RES: %d", actx->rose_ctx->d.code_local);
     else if (actx->rose_ctx->d.code == 1)
-      descr = ep_strdup_printf("RES: %s", actx->rose_ctx->d.code_global);
+      descr = wmem_strdup_printf(wmem_packet_scope(), "RES: %s", actx->rose_ctx->d.code_global);
   } else {
-    descr = ep_strdup_printf("RES:");
+    descr = wmem_strdup_printf(wmem_packet_scope(), "RES:");
   }
 
   if (actx->rose_ctx->apdu_depth >= 0)
     proto_item_append_text(proto_item_get_parent_nth(proto_tree_get_parent(tree), actx->rose_ctx->apdu_depth), "  %s", descr);
-  if (actx->rose_ctx->fillin_info && check_col(actx->pinfo->cinfo, COL_INFO))
+  if (actx->rose_ctx->fillin_info)
     col_append_str(actx->pinfo->cinfo, COL_INFO, descr);
   if (actx->rose_ctx->fillin_ptr)
     g_strlcat(actx->rose_ctx->fillin_ptr, descr, actx->rose_ctx->fillin_buf_size);
@@ -44,7 +44,7 @@
     actx->pinfo->private_data = actx->rose_ctx;
     call_dissector((res_handle)?res_handle:data_handle, res_next_tvb, actx->pinfo, tree); 
     if (!res_handle) {
-      expert_add_info_format(actx->pinfo, tree, PI_UNDECODED, PI_WARN, "Undecoded %s", descr);
+      expert_add_info_format_text(actx->pinfo, tree, &ei_ros_undecoded, "Undecoded %s", descr);
     }
   }
 #.END

@@ -261,8 +261,9 @@ static gboolean check_slsk_format(tvbuff_t *tvb, int offset, const char format[]
   }
 
   if (format[1] == '\0' ) {
-    if (tvb_length_remaining(tvb, offset) != 0) return FALSE;  /* Checks for additional bytes at the end */
-      return TRUE;
+    if (tvb_length_remaining(tvb, offset) > 0) /* Checks for additional bytes at the end */
+      return FALSE;
+    return TRUE;
   }
   return check_slsk_format(tvb, offset, &format[1]);
 
@@ -333,10 +334,7 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
 
   col_set_str(pinfo->cinfo, COL_INFO, "SoulSeek Message");
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_append_fstr(pinfo->cinfo, COL_INFO, ": %s", message_type);
-  }
-
+  col_append_fstr(pinfo->cinfo, COL_INFO, ": %s", message_type);
 
   if (tree) {
 

@@ -27,10 +27,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef _UAT_H_
-#define _UAT_H_
+#ifndef __UAT_H__
+#define __UAT_H__
 
 #include "ws_symbol_export.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /*
  * uat mantains a dynamically allocated table accessible to the user
@@ -238,7 +242,7 @@ typedef struct _uat_field_t {
  * @param filename The filename to be used (either in userdir or datadir)
  * @param from_profile TRUE if profile directory to be used
  * @param data_ptr A pointer to a null terminated array of pointers to the data
- * @param num_items_ptr
+ * @param num_items_ptr A pointer with number of items
  * @param flags flags indicating what this UAT affects
  * @param help A pointer to help text
  * @param copy_cb A function that copies the data in the struct
@@ -571,4 +575,8 @@ static void basename ## _ ## field_name ## _tostr_cb(void* rec, const char** out
 	{#field_name, title, PT_TXTMOD_STRING,{uat_fld_chk_range,basename ## _ ## field_name ## _set_cb,basename ## _ ## field_name ## _tostr_cb},\
 	  {0,0,0},GUINT_TO_POINTER(max),desc,FLDFILL}
 
-#endif
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* __UAT_H__ */

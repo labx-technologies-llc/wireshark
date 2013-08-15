@@ -38,12 +38,16 @@
 #include <epan/expert.h>
 #include <epan/reassemble.h>
 
+#include <epan/tvbuff-int.h> /* XXX, for tvb_new_proxy() */
+
 /* The MPEG2 TS packet size */
 #define MP2T_PACKET_SIZE 188
 #define MP2T_SYNC_BYTE 0x47
 
 #define MP2T_PID_DOCSIS	0x1FFE
 #define MP2T_PID_NULL	0x1FFF
+
+static dissector_handle_t mp2t_handle;
 
 static dissector_handle_t docsis_handle;
 static dissector_handle_t mpeg_pes_handle;
@@ -295,7 +299,7 @@ enum pid_payload_type {
 	pid_pload_docsis,
 	pid_pload_pes,
 	pid_pload_sect,
-	pid_pload_null,
+	pid_pload_null
 };
 
 typedef struct subpacket_analysis_data {
@@ -461,7 +465,7 @@ mp2t_get_packet_length(tvbuff_t *tvb, guint offset, packet_info *pinfo,
 			guint32 frag_id, enum pid_payload_type pload_type)
 {
 
-	fragment_data *frag    = NULL;
+	fragment_head *frag    = NULL;
 	tvbuff_t      *len_tvb = NULL, *frag_tvb = NULL, *data_tvb = NULL;
 	gint           pkt_len = 0;
 	guint          remaining_len;
@@ -486,7 +490,7 @@ mp2t_get_packet_length(tvbuff_t *tvb, guint offset, packet_info *pinfo,
 
 	} else {
 		/* Create a composite tvb out of the two */
-		frag_tvb = tvb_new_real_data(frag->data, frag->len, frag->len);
+		frag_tvb = tvb_new_proxy(frag->tvb_data);
 		len_tvb = tvb_new_composite();
 		tvb_composite_append(len_tvb, frag_tvb);
 
@@ -530,7 +534,7 @@ mp2t_fragment_handle(tvbuff_t *tvb, guint offset, packet_info *pinfo,
 		     gboolean fragment_last, enum pid_payload_type pload_type)
 {
 	/* proto_item *ti; */
-	fragment_data *frag_msg = NULL;
+	fragment_head *frag_msg = NULL;
 	tvbuff_t      *new_tvb  = NULL;
 	gboolean       save_fragmented;
 
@@ -1547,7 +1551,9 @@ proto_register_mp2t(void)
 	expert_module_t* expert_mp2t;
 
 	proto_mp2t = proto_register_protocol("ISO/IEC 13818-1", "MP2T", "mp2t");
-	register_dissector("mp2t", dissect_mp2t, proto_mp2t);
+
+	mp2t_handle = register_dissector("mp2t", dissect_mp2t, proto_mp2t);
+
 	proto_register_field_array(proto_mp2t, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
 	expert_mp2t = expert_register_protocol(proto_mp2t);
@@ -1563,11 +1569,8 @@ proto_register_mp2t(void)
 void
 proto_reg_handoff_mp2t(void)
 {
-	dissector_handle_t mp2t_handle;
-
 	heur_dissector_add("udp", heur_dissect_mp2t, proto_mp2t);
 
-	mp2t_handle = create_dissector_handle(dissect_mp2t, proto_mp2t);
 	dissector_add_uint("rtp.pt", PT_MP2T, mp2t_handle);
 	dissector_add_handle("udp.port", mp2t_handle);  /* for decode-as */
 	heur_dissector_add("usb.bulk", heur_dissect_mp2t, proto_mp2t);

@@ -32,7 +32,7 @@
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include <epan/dissectors/packet-smb.h>
-#include "timestats.h"
+#include "epan/timestats.h"
 
 #define MICROSECS_PER_SEC   1000000
 #define NANOSECS_PER_SEC    1000000000
@@ -180,15 +180,15 @@ smbstat_draw(void *pss)
 
 
 static void
-smbstat_init(const char *optarg,void* userdata _U_)
+smbstat_init(const char *opt_arg,void* userdata _U_)
 {
 	smbstat_t *ss;
 	guint32 i;
 	const char *filter=NULL;
 	GString *error_string;
 
-	if(!strncmp(optarg,"smb,srt,",8)){
-		filter=optarg+8;
+	if(!strncmp(opt_arg,"smb,srt,",8)){
+		filter=opt_arg+8;
 	} else {
 		filter=NULL;
 	}

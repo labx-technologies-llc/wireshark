@@ -671,7 +671,8 @@ guint32 payload_crc_value;
 #.FN_BODY DCH-Specific-FDD-Item/dCH-ID
 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 255U, &dch_id, FALSE);
+                                                            0U, maxNrOfDCHs, &dch_id, FALSE);
+
     if(g_num_dch_in_flow>0){
         g_dchs_in_flow_list[g_num_dch_in_flow-1]=dch_id;
         nbap_dch_chnl_info[dch_id].next_dch = 0;
@@ -1300,7 +1301,7 @@ BindingID_port = 0;
                     if((cur_val=(nbap_com_context_id_t *)g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) != NULL){
                         umts_fp_conversation_info->com_context_id = cur_val->crnc_context;
                     }else{
-                        expert_add_info_format(actx->pinfo, NULL, PI_MALFORMED, PI_WARN, "Couldn't not set Communication Context-ID, fragments over reconfigured channels might fail");
+                        expert_add_info(actx->pinfo, NULL, &ei_nbap_no_set_comm_context_id);
                     }
                 }
 
@@ -1474,7 +1475,7 @@ BindingID_port = 0;
                     if((cur_val=(nbap_com_context_id_t *)g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) != NULL){
                         umts_fp_conversation_info->com_context_id = cur_val->crnc_context;
                     }else{
-                        expert_add_info_format(actx->pinfo, NULL, PI_MALFORMED, PI_WARN, "Couldn't not set Communication Context-ID, fragments over reconfigured channels might fail");
+                        expert_add_info(actx->pinfo, NULL, &ei_nbap_no_set_comm_context_id);
                     }
                 }
 
@@ -1518,13 +1519,13 @@ num_items = 1;
         if((cur_val=(nbap_com_context_id_t *)g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) != NULL){
             com_context_id= cur_val->crnc_context;
         }else{
-            expert_add_info_format(actx->pinfo, NULL, PI_MALFORMED, PI_WARN, "Couldn't not find Communication Context-ID, unable to reconfigure this E-DCH flow.");
+            expert_add_info(actx->pinfo, NULL, &ei_nbap_no_find_comm_context_id);
         }
     }
 
     /*This should not happen*/
     if(( old_info = (nbap_edch_port_info_t *)g_tree_lookup(edch_flow_port_map, GINT_TO_POINTER((gint)com_context_id))) == NULL ){
-        expert_add_info_format(actx->pinfo, NULL, PI_MALFORMED, PI_WARN, "Couldn't not find port information for reconfigured E-DCH flow, unable to reconfigure");
+        expert_add_info(actx->pinfo, NULL, &ei_nbap_no_find_port_info);
         return offset;
     }
     nbap_debug1("    Found com_context_id %%u", com_context_id);
@@ -1671,7 +1672,7 @@ nbap_edch_channel_info[e_dch_macdflow_id].no_ddi_entries = num_items;
                     }
                 }
 %(DEFAULT_BODY)s
-                add_hsdsch_bind(actx->pinfo,tree);
+                add_hsdsch_bind(actx->pinfo);
 
             break;
             default:
@@ -2090,7 +2091,7 @@ nbap_com_context_id_t *cur_val;
 
    /*If both are avaible we can update the map*/
 if(crcn_context_present){
-        if( (cur_val=(nbap_com_context_id_t *)g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) == NULL ){
+        if( (nbap_com_context_id_t *)g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id)) == NULL ){
 
             cur_val = g_new(nbap_com_context_id_t,1);
             cur_val->crnc_context = com_context_id;
@@ -2121,6 +2122,7 @@ int i;
                                nbap_hsdsch_channel_info[i].crnc_port, 0, NO_ADDR_B);
             if(conversation != NULL){
                 umts_fp_conversation_info = (umts_fp_conversation_info_t *)conversation_get_proto_data(conversation, proto_fp);
+                DISSECTOR_ASSERT(umts_fp_conversation_info != NULL);
                 umts_fp_conversation_info->hrnti = hrnti;
             }
          }

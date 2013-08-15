@@ -24,7 +24,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 
@@ -34,7 +34,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "ws80211_utils.h"
 
 #if defined(HAVE_LIBNL) && defined(HAVE_NL80211)
-#include <strings.h>
+#include <string.h>
 #include <errno.h>
 #include <unistd.h>
 
@@ -127,7 +127,7 @@ static int ack_handler(struct nl_msg *msg _U_, void *arg)
 
 static int nl80211_do_cmd(struct nl_msg *msg, struct nl_cb *cb)
 {
-	int err;
+	volatile int err;
 
 	if (!nl_state.nl_sock)
 		return -ENOLINK;
@@ -138,9 +138,9 @@ static int nl80211_do_cmd(struct nl_msg *msg, struct nl_cb *cb)
 
 	err = 1;
 
-	nl_cb_err(cb, NL_CB_CUSTOM, error_handler, &err);
-	nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, &err);
-	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, ack_handler, &err);
+	nl_cb_err(cb, NL_CB_CUSTOM, error_handler, (void *)&err);
+	nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, (void *)&err);
+	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, ack_handler, (void *)&err);
 
 	while (err > 0)
 		nl_recvmsgs(nl_state.nl_sock, cb);
@@ -188,12 +188,13 @@ static int get_phys_handler(struct nl_msg *msg, void *arg)
 
 	struct nlattr *tb_freq[NL80211_FREQUENCY_ATTR_MAX + 1];
 	static struct nla_policy freq_policy[NL80211_FREQUENCY_ATTR_MAX + 1] = {
-		[NL80211_FREQUENCY_ATTR_FREQ] = { .type = NLA_U32 },
-		[NL80211_FREQUENCY_ATTR_DISABLED] = { .type = NLA_FLAG },
-		[NL80211_FREQUENCY_ATTR_PASSIVE_SCAN] = { .type = NLA_FLAG },
-		[NL80211_FREQUENCY_ATTR_NO_IBSS] = { .type = NLA_FLAG },
-		[NL80211_FREQUENCY_ATTR_RADAR] = { .type = NLA_FLAG },
-		[NL80211_FREQUENCY_ATTR_MAX_TX_POWER] = { .type = NLA_U32 },
+		{NLA_UNSPEC, 0, 0},		/* __NL80211_FREQUENCY_ATTR_INVALID */
+		{NLA_U32, 0, 0},		/* NL80211_FREQUENCY_ATTR_FREQ */
+		{NLA_FLAG, 0, 0},		/* NL80211_FREQUENCY_ATTR_DISABLED */
+		{NLA_FLAG, 0, 0},		/* NL80211_FREQUENCY_ATTR_PASSIVE_SCAN */
+		{NLA_FLAG, 0, 0},		/* NL80211_FREQUENCY_ATTR_NO_IBSS */
+		{NLA_FLAG, 0, 0},		/* NL80211_FREQUENCY_ATTR_RADAR */
+		{NLA_U32, 0, 0}			/* NL80211_FREQUENCY_ATTR_MAX_TX_POWER */
 	};
 
 	struct nlattr *nl_band;

@@ -63,8 +63,8 @@ dfw_append_read_tree(dfwork_t *dfw, header_field_info *hfinfo)
 	gboolean	added_new_hfinfo = FALSE;
 
 	/* Rewind to find the first field of this name. */
-	while (hfinfo->same_name_prev) {
-		hfinfo = hfinfo->same_name_prev;
+	while (hfinfo->same_name_prev_id != -1) {
+		hfinfo = proto_registrar_get_nth(hfinfo->same_name_prev_id);
 	}
 
 	/* Keep track of which registers
@@ -133,15 +133,17 @@ dfw_append_put_fvalue(dfwork_t *dfw, fvalue_t *fv)
 
 /* returns register number */
 static int
-dfw_append_mk_range(dfwork_t *dfw, stnode_t *node)
+dfw_append_mk_range(dfwork_t *dfw, stnode_t *node, dfvm_value_t **p_jmp)
 {
 	int			hf_reg, reg;
-	header_field_info	*hfinfo;
+	stnode_t                *entity;
 	dfvm_insn_t		*insn;
 	dfvm_value_t		*val;
 
-	hfinfo = sttype_range_hfinfo(node);
-	hf_reg = dfw_append_read_tree(dfw, hfinfo);
+	entity = sttype_range_entity(node);
+
+	/* XXX, check if p_jmp logic is OK */
+	hf_reg = gen_entity(dfw, entity, p_jmp);
 
 	insn = dfvm_insn_new(MK_RANGE);
 
@@ -304,7 +306,7 @@ gen_entity(dfwork_t *dfw, stnode_t *st_arg, dfvm_value_t **p_jmp)
 		reg = dfw_append_put_fvalue(dfw, (fvalue_t *)stnode_data(st_arg));
 	}
 	else if (e_type == STTYPE_RANGE) {
-		reg = dfw_append_mk_range(dfw, st_arg);
+		reg = dfw_append_mk_range(dfw, st_arg, p_jmp);
 	}
 	else if (e_type == STTYPE_FUNCTION) {
 		reg = dfw_append_function(dfw, st_arg, p_jmp);
@@ -339,8 +341,8 @@ gen_test(dfwork_t *dfw, stnode_t *st_node)
 			hfinfo = (header_field_info*)stnode_data(st_arg1);
 
 			/* Rewind to find the first field of this name. */
-			while (hfinfo->same_name_prev) {
-				hfinfo = hfinfo->same_name_prev;
+			while (hfinfo->same_name_prev_id != -1) {
+				hfinfo = proto_registrar_get_nth(hfinfo->same_name_prev_id);
 			}
 			val1->value.hfinfo = hfinfo;
 			insn = dfvm_insn_new(CHECK_EXISTS);

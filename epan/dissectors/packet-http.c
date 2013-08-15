@@ -116,7 +116,7 @@ static int hf_http_next_request_in = -1;
 static int hf_http_next_response_in = -1;
 static int hf_http_prev_request_in = -1;
 static int hf_http_prev_response_in = -1;
-static int hf_http_response_ts = -1;
+static int hf_http_time = -1;
 
 static gint ett_http = -1;
 static gint ett_http_ntlmssp = -1;
@@ -130,10 +130,11 @@ static gint ett_http_header_item = -1;
 static expert_field ei_http_chat = EI_INIT;
 static expert_field ei_http_subdissector_failed = EI_INIT;
 
+static dissector_handle_t http_handle;
+
 static dissector_handle_t data_handle;
 static dissector_handle_t media_handle;
 static dissector_handle_t websocket_handle;
-static dissector_handle_t http_handle;
 
 /* Stuff for generation/handling of fields for custom HTTP headers */
 typedef struct _header_field_t {
@@ -766,26 +767,23 @@ dissect_http_message(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		break;
 	}
 
-	if (check_col(pinfo->cinfo, COL_PROTOCOL))
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, proto_tag);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		/*
-		 * Put the first line from the buffer into the summary
-		 * if it's an HTTP request or reply (but leave out the
-		 * line terminator).
-		 * Otherwise, just call it a continuation.
-		 *
-		 * Note that "tvb_find_line_end()" will return a value that
-		 * is not longer than what's in the buffer, so the
-		 * "tvb_get_ptr()" call won't throw an exception.
-		 */
-		if (is_request_or_reply) {
-		    line = tvb_get_ptr(tvb, offset, first_linelen);
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", format_text(line, first_linelen));
-		}
-		else
-			col_set_str(pinfo->cinfo, COL_INFO, "Continuation or non-HTTP traffic");
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, proto_tag);
+	/*
+	 * Put the first line from the buffer into the summary
+	 * if it's an HTTP request or reply (but leave out the
+	 * line terminator).
+	 * Otherwise, just call it a continuation.
+	 *
+	 * Note that "tvb_find_line_end()" will return a value that
+	 * is not longer than what's in the buffer, so the
+	 * "tvb_get_ptr()" call won't throw an exception.
+	 */
+	if (is_request_or_reply) {
+	    line = tvb_get_ptr(tvb, offset, first_linelen);
+		col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", format_text(line, first_linelen));
 	}
+	else
+		col_set_str(pinfo->cinfo, COL_INFO, "Continuation or non-HTTP traffic");
 
 	orig_offset = offset;
 	if (tree) {
@@ -1046,7 +1044,7 @@ dissect_http_message(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
 				if (! nstime_is_unset(&(curr->req_ts))) {
 					nstime_delta(&delta, &pinfo->fd->abs_ts, &(curr->req_ts));
-					pi = proto_tree_add_time(http_tree, hf_http_response_ts, tvb, 0, 0, &delta);
+					pi = proto_tree_add_time(http_tree, hf_http_time, tvb, 0, 0, &delta);
 					PROTO_ITEM_SET_GENERATED(pi);
 				}
 			}
@@ -1917,10 +1915,11 @@ http_payload_subdissector(tvbuff_t *tvb, proto_tree *tree,
 			  packet_info *pinfo, http_conv_t *conv_data)
 {
 	guint32 *ptr = NULL;
- 	guint32 dissect_as, saved_port;
+ 	guint32 uri_port, saved_port, srcport, destport;
 	gchar **strings; /* An array for splitting the request URI into hostname and port */
 	proto_item *item;
 	proto_tree *proxy_tree;
+	conversation_t *conv;
 
 	/* Grab the destination port number from the request URI to find the right subdissector */
 	strings = g_strsplit(conv_data->request_uri, ":", 2);
@@ -1943,15 +1942,28 @@ http_payload_subdissector(tvbuff_t *tvb, proto_tree *tree,
 			PROTO_ITEM_SET_GENERATED(item);
 		}
 
-		/* We're going to get stuck in a loop if we let process_tcp_payload call
-		   us, so call the data dissector instead for proxy connections to http ports. */
-		dissect_as = (int)strtol(strings[1], NULL, 10); /* Convert string to a base-10 integer */
+		uri_port = (int)strtol(strings[1], NULL, 10); /* Convert string to a base-10 integer */
 
-		if (value_is_in_range(http_tcp_range, dissect_as)) {
+		if (value_is_in_range(http_tcp_range, pinfo->destport)) {
+			srcport = pinfo->srcport;
+			destport = uri_port;
+		} else {
+			srcport = uri_port;
+			destport = pinfo->destport;
+		}
+
+		conv = find_conversation(PINFO_FD_NUM(pinfo), &pinfo->src, &pinfo->dst, PT_TCP, srcport, destport, 0);
+
+		/* We may get stuck in a recursion loop if we let process_tcp_payload() call us.
+		 * So, if the port in the URI is one we're registered for or we have set up a
+		 * conversation (e.g., one we detected heuristically or via Decode-As) call the data
+		 * dissector directly.
+		 */
+		if (value_is_in_range(http_tcp_range, uri_port) || (conv && conv->dissector_handle == http_handle)) {
 			call_dissector(data_handle, tvb, pinfo, tree);
 		} else {
 			/* set pinfo->{src/dst port} and call the TCP sub-dissector lookup */
-			if ( !ptr && value_is_in_range(http_tcp_range, pinfo->destport) )
+			if (value_is_in_range(http_tcp_range, pinfo->destport))
 				ptr = &pinfo->destport;
 			else
 				ptr = &pinfo->srcport;
@@ -1964,7 +1976,7 @@ http_payload_subdissector(tvbuff_t *tvb, proto_tree *tree,
 				pinfo->can_desegment++;
 
 			saved_port = *ptr;
-			*ptr = dissect_as;
+			*ptr = uri_port;
 			decode_tcp_ports(tvb, 0, pinfo, tree,
 				pinfo->srcport, pinfo->destport, NULL);
 			*ptr = saved_port;
@@ -2278,7 +2290,7 @@ header_fields_initialize_cb(void)
 			hf[i].hfinfo.display = BASE_NONE;
 			hf[i].hfinfo.strings = NULL;
 			hf[i].hfinfo.blurb = g_strdup(header_fields[i].header_desc);
-			hf[i].hfinfo.same_name_prev = NULL;
+			hf[i].hfinfo.same_name_prev_id = -1;
 			hf[i].hfinfo.same_name_next = NULL;
 
 			g_hash_table_insert(header_fields_hash, header_name, hf_id);
@@ -2636,8 +2648,7 @@ dissect_http(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			 * first HTTP message; set a fence so that subsequent
 			 * HTTP messages don't overwrite the Info column.
 			 */
-			if (check_col(pinfo->cinfo, COL_INFO))
-				col_set_fence(pinfo->cinfo, COL_INFO);
+			col_set_fence(pinfo->cinfo, COL_INFO);
 		}
 	}
 }
@@ -2907,8 +2918,8 @@ proto_register_http(void)
 	      { "Prev response in frame","http.prev_response_in",
 		FT_FRAMENUM, BASE_NONE, NULL, 0,
 		"The previous HTTP response starts in packet number", HFILL }},
-	    { &hf_http_response_ts,
-	      { "Time since request", "http.response_ts",
+	    { &hf_http_time,
+	      { "Time since request", "http.time",
 		FT_RELATIVE_TIME, BASE_NONE, NULL, 0,
 		"Time since the request was send", HFILL }},
 	};
@@ -2945,7 +2956,9 @@ proto_register_http(void)
 	proto_register_subtree_array(ett, array_length(ett));
 	expert_http = expert_register_protocol(proto_http);
 	expert_register_field_array(expert_http, ei, array_length(ei));
-	register_dissector("http", dissect_http, proto_http);
+
+	http_handle = register_dissector("http", dissect_http, proto_http);
+
 	http_module = prefs_register_protocol(proto_http, reinit_http);
 	prefs_register_bool_preference(http_module, "desegment_headers",
 	    "Reassemble HTTP headers spanning multiple TCP segments",
@@ -3009,8 +3022,6 @@ proto_register_http(void)
 	prefs_register_uat_preference(http_module, "custom_http_header_fields", "Custom HTTP headers fields",
 	    "A table to define custom HTTP header for which fields can be setup and used for filtering/data extraction etc.",
 	   headers_uat);
-
-	http_handle = create_dissector_handle(dissect_http, proto_http);
 
 	/*
 	 * Dissectors shouldn't register themselves in this table;

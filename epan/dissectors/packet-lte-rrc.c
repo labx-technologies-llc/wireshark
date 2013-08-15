@@ -9,7 +9,7 @@
 /* packet-lte-rrc-template.c
  * Routines for Evolved Universal Terrestrial Radio Access (E-UTRA);
  * Radio Resource Control (RRC) protocol specification
- * (3GPP TS 36.331 V11.3.0 Release 11) packet dissection
+ * (3GPP TS 36.331 V11.4.0 Release 11) packet dissection
  * Copyright 2008, Vincent Helfre
  * Copyright 2009-2013, Pascal Quantin
  *
@@ -48,6 +48,8 @@
 #include "packet-lpp.h"
 #include "packet-gsm_map.h"
 #include "packet-cell_broadcast.h"
+#include "packet-mac-lte.h"
+#include "packet-rlc-lte.h"
 
 #define PNAME  "LTE Radio Resource Control (RRC) protocol"
 #define PSNAME "LTE RRC"
@@ -58,10 +60,6 @@ static dissector_handle_t rrc_irat_ho_to_utran_cmd_handle = NULL;
 static dissector_handle_t rrc_sys_info_cont_handle = NULL;
 static dissector_handle_t gsm_a_dtap_handle = NULL;
 static dissector_handle_t gsm_rlcmac_dl_handle = NULL;
-static guint32 lte_rrc_rat_type_value = -1;
-static guint32 lte_rrc_ho_target_rat_type_value = -1;
-static gint lte_rrc_si_or_psi_geran_val = -1;
-static guint32 lte_rrc_etws_cmas_dcs_key = -1;
 
 static GHashTable *lte_rrc_etws_cmas_dcs_hash = NULL;
 
@@ -69,6 +67,10 @@ static GHashTable *lte_rrc_etws_cmas_dcs_hash = NULL;
 static GHashTable *lte_rrc_system_info_value_changed_hash = NULL;
 static guint8     system_info_value_current;
 static gboolean   system_info_value_current_set;
+
+
+extern int proto_mac_lte;
+
 
 /* Include constants */
 
@@ -168,7 +170,7 @@ typedef enum _RAT_Type_enum {
 } RAT_Type_enum;
 
 /*--- End of included file: packet-lte-rrc-val.h ---*/
-#line 67 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
+#line 69 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
 
 /* Initialize the protocol and registered fields */
 static int proto_lte_rrc = -1;
@@ -1099,10 +1101,13 @@ static int hf_lte_rrc_eab_Category_r11 = -1;      /* T_eab_Category_r11 */
 static int hf_lte_rrc_eab_BarringBitmap_r11 = -1;  /* BIT_STRING_SIZE_10 */
 static int hf_lte_rrc_mbms_SAI_IntraFreq_r11 = -1;  /* MBMS_SAI_List_r11 */
 static int hf_lte_rrc_mbms_SAI_InterFreqList_r11 = -1;  /* MBMS_SAI_InterFreqList_r11 */
+static int hf_lte_rrc_mbms_SAI_InterFreqList_v1140 = -1;  /* MBMS_SAI_InterFreqList_v1140 */
 static int hf_lte_rrc_MBMS_SAI_List_r11_item = -1;  /* MBMS_SAI_r11 */
 static int hf_lte_rrc_MBMS_SAI_InterFreqList_r11_item = -1;  /* MBMS_SAI_InterFreq_r11 */
+static int hf_lte_rrc_MBMS_SAI_InterFreqList_v1140_item = -1;  /* MBMS_SAI_InterFreq_v1140 */
 static int hf_lte_rrc_dl_CarrierFreq_r11 = -1;    /* ARFCN_ValueEUTRA_r9 */
 static int hf_lte_rrc_mbms_SAI_List_r11 = -1;     /* MBMS_SAI_List_r11 */
+static int hf_lte_rrc_multiBandInfoList_r11 = -1;  /* MultiBandInfoList_r11 */
 static int hf_lte_rrc_timeInfo_r11 = -1;          /* T_timeInfo_r11 */
 static int hf_lte_rrc_timeInfoUTC_r11 = -1;       /* T_timeInfoUTC_r11 */
 static int hf_lte_rrc_dayLightSavingTime_r11 = -1;  /* T_dayLightSavingTime_r11 */
@@ -1263,9 +1268,9 @@ static int hf_lte_rrc_numberPRB_Pairs_r11 = -1;   /* T_numberPRB_Pairs_r11 */
 static int hf_lte_rrc_resourceBlockAssignment_r11_01 = -1;  /* BIT_STRING_SIZE_4_38 */
 static int hf_lte_rrc_dmrs_ScramblingSequenceInt_r11 = -1;  /* INTEGER_0_503 */
 static int hf_lte_rrc_pucch_ResourceStartOffset_r11 = -1;  /* INTEGER_0_2047 */
-static int hf_lte_rrc_re_MappingQCL_ConfigListId_r11 = -1;  /* PDSCH_RE_MappingQCL_ConfigId_r11 */
+static int hf_lte_rrc_re_MappingQCL_ConfigId_r11 = -1;  /* PDSCH_RE_MappingQCL_ConfigId_r11 */
 static int hf_lte_rrc_ul_SpecificParameters = -1;  /* T_ul_SpecificParameters */
-static int hf_lte_rrc_priority = -1;              /* INTEGER_1_16 */
+static int hf_lte_rrc_priority = -1;              /* T_priority */
 static int hf_lte_rrc_prioritisedBitRate = -1;    /* T_prioritisedBitRate */
 static int hf_lte_rrc_bucketSizeDuration = -1;    /* T_bucketSizeDuration */
 static int hf_lte_rrc_logicalChannelGroup = -1;   /* INTEGER_0_3 */
@@ -1559,7 +1564,7 @@ static int hf_lte_rrc_DRB_ToAddModList_item = -1;  /* DRB_ToAddMod */
 static int hf_lte_rrc_eps_BearerIdentity = -1;    /* INTEGER_0_15 */
 static int hf_lte_rrc_pdcp_Config = -1;           /* PDCP_Config */
 static int hf_lte_rrc_rlc_Config_01 = -1;         /* RLC_Config */
-static int hf_lte_rrc_logicalChannelIdentity = -1;  /* INTEGER_3_10 */
+static int hf_lte_rrc_logicalChannelIdentity = -1;  /* T_logicalChannelIdentity */
 static int hf_lte_rrc_logicalChannelConfig_01 = -1;  /* LogicalChannelConfig */
 static int hf_lte_rrc_DRB_ToReleaseList_item = -1;  /* DRB_Identity */
 static int hf_lte_rrc_setup_24 = -1;              /* MeasSubframePattern_r10 */
@@ -1768,6 +1773,7 @@ static int hf_lte_rrc_n_CellChangeMedium = -1;    /* INTEGER_1_16 */
 static int hf_lte_rrc_n_CellChangeHigh = -1;      /* INTEGER_1_16 */
 static int hf_lte_rrc_MultiBandInfoList_item = -1;  /* FreqBandIndicator */
 static int hf_lte_rrc_MultiBandInfoList_v9e0_item = -1;  /* MultiBandInfo_v9e0 */
+static int hf_lte_rrc_MultiBandInfoList_r11_item = -1;  /* FreqBandIndicator_r11 */
 static int hf_lte_rrc_start_01 = -1;              /* PhysCellId */
 static int hf_lte_rrc_range = -1;                 /* T_range */
 static int hf_lte_rrc_PhysCellIdRangeUTRA_FDDList_r9_item = -1;  /* PhysCellIdRangeUTRA_FDD_r9 */
@@ -2302,7 +2308,7 @@ static int hf_lte_rrc_CandidateCellInfoList_r10_item = -1;  /* CandidateCellInfo
 static int hf_lte_rrc_dummy_eag_field = -1; /* never registered */ 
 
 /*--- End of included file: packet-lte-rrc-hf.c ---*/
-#line 72 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
+#line 74 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
 
 static int hf_lte_rrc_eutra_cap_feat_group_ind_1 = -1;
 static int hf_lte_rrc_eutra_cap_feat_group_ind_2 = -1;
@@ -2955,7 +2961,9 @@ static gint ett_lte_rrc_EAB_Config_r11 = -1;
 static gint ett_lte_rrc_SystemInformationBlockType15_r11 = -1;
 static gint ett_lte_rrc_MBMS_SAI_List_r11 = -1;
 static gint ett_lte_rrc_MBMS_SAI_InterFreqList_r11 = -1;
+static gint ett_lte_rrc_MBMS_SAI_InterFreqList_v1140 = -1;
 static gint ett_lte_rrc_MBMS_SAI_InterFreq_r11 = -1;
+static gint ett_lte_rrc_MBMS_SAI_InterFreq_v1140 = -1;
 static gint ett_lte_rrc_SystemInformationBlockType16_r11 = -1;
 static gint ett_lte_rrc_T_timeInfo_r11 = -1;
 static gint ett_lte_rrc_AntennaInfoCommon = -1;
@@ -3229,6 +3237,7 @@ static gint ett_lte_rrc_CarrierFreqEUTRA_v9e0 = -1;
 static gint ett_lte_rrc_MobilityStateParameters = -1;
 static gint ett_lte_rrc_MultiBandInfoList = -1;
 static gint ett_lte_rrc_MultiBandInfoList_v9e0 = -1;
+static gint ett_lte_rrc_MultiBandInfoList_r11 = -1;
 static gint ett_lte_rrc_MultiBandInfo_v9e0 = -1;
 static gint ett_lte_rrc_PhysCellIdRange = -1;
 static gint ett_lte_rrc_PhysCellIdRangeUTRA_FDDList_r9 = -1;
@@ -3497,7 +3506,7 @@ static gint ett_lte_rrc_CandidateCellInfoList_r10 = -1;
 static gint ett_lte_rrc_CandidateCellInfo_r10 = -1;
 
 /*--- End of included file: packet-lte-rrc-ett.c ---*/
-#line 182 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
+#line 184 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
 
 static gint ett_lte_rrc_featureGroupIndicators = -1;
 static gint ett_lte_rrc_featureGroupIndRel9Add = -1;
@@ -3512,6 +3521,15 @@ static gint ett_lte_rrc_serialNumber = -1;
 static gint ett_lte_rrc_warningType = -1;
 static gint ett_lte_rrc_dataCodingScheme = -1;
 static gint ett_lte_rrc_warningMessageSegment = -1;
+
+static expert_field ei_lte_rrc_number_pages_le15 = EI_INIT;
+static expert_field ei_lte_rrc_si_info_value_changed = EI_INIT;
+static expert_field ei_lte_rrc_sibs_changing = EI_INIT;
+static expert_field ei_lte_rrc_earthquake_warning_sys = EI_INIT;
+static expert_field ei_lte_rrc_commercial_mobile_alert_sys = EI_INIT;
+static expert_field ei_lte_rrc_unexpected_type_value = EI_INIT;
+static expert_field ei_lte_rrc_unexpected_length_value = EI_INIT;
+static expert_field ei_lte_rrc_too_many_group_a_rapids = EI_INIT;
 
 /* Forward declarations */
 static int dissect_DL_DCCH_Message_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_);
@@ -5113,7 +5131,7 @@ dissect_lte_rrc_warningMessageSegment(tvbuff_t *warning_msg_seg_tvb, proto_tree 
   nb_of_pages = tvb_get_guint8(warning_msg_seg_tvb, 0);
   ti = proto_tree_add_uint(tree, hf_lte_rrc_warningMessageSegment_nb_pages, warning_msg_seg_tvb, 0, 1, nb_of_pages);
   if (nb_of_pages > 15) {
-    expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR,
+    expert_add_info_format_text(pinfo, ti, &ei_lte_rrc_number_pages_le15,
                            "Number of pages should be <=15 (found %u)", nb_of_pages);
     nb_of_pages = 15;
   }
@@ -5533,8 +5551,13 @@ static const value_string lte_rrc_T_numberOfRA_Preambles_vals[] = {
 
 static int
 dissect_lte_rrc_T_numberOfRA_Preambles(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint value;
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
-                                     16, NULL, FALSE, 0, NULL);
+                                     16, &value, FALSE, 0, NULL);
+
+  /* This is mandatory, store value */
+  actx->private_data = GUINT_TO_POINTER(value);
+
 
   return offset;
 }
@@ -5562,8 +5585,21 @@ static const value_string lte_rrc_T_sizeOfRA_PreamblesGroupA_vals[] = {
 
 static int
 dissect_lte_rrc_T_sizeOfRA_PreamblesGroupA(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint ra_value, value;
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
-                                     15, NULL, FALSE, 0, NULL);
+                                     15, &value, FALSE, 0, NULL);
+
+  /* Retrived stored value for RA (both Group A & Group B) */
+  ra_value = GPOINTER_TO_UINT(actx->private_data);
+  if (value > ra_value) {
+    /* Something is wrong if A has more RAPIDs than A & B combined! */
+    expert_add_info_format_text(actx->pinfo, actx->created_item, &ei_lte_rrc_too_many_group_a_rapids,
+                                "Group A size (%s) > Total RA size (%s)!",
+                                val_to_str_const(value, lte_rrc_T_sizeOfRA_PreamblesGroupA_vals, "Unknown"),
+                                val_to_str_const(ra_value, lte_rrc_T_numberOfRA_Preambles_vals, "Unknown"));
+
+  }
+  actx->private_data = NULL;
 
   return offset;
 }
@@ -5635,6 +5671,9 @@ static int
 dissect_lte_rrc_T_preambleInfo(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_lte_rrc_T_preambleInfo, T_preambleInfo_sequence);
+
+  actx->private_data = NULL;
+
 
   return offset;
 }
@@ -9180,7 +9219,7 @@ dissect_lte_rrc_T_messageIdentifier_01(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 
 
   if (msg_id_tvb) {
-    lte_rrc_etws_cmas_dcs_key = tvb_get_ntohs(msg_id_tvb, 0) << 16;
+    actx->private_data = GUINT_TO_POINTER(tvb_get_ntohs(msg_id_tvb, 0) << 16);
     actx->created_item = proto_tree_add_item(tree, hf_index, msg_id_tvb, 0, 2, ENC_BIG_ENDIAN);
   }
 
@@ -9199,7 +9238,7 @@ dissect_lte_rrc_T_serialNumber_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 
   if (serial_nb_tvb) {
     proto_tree *subtree;
-    lte_rrc_etws_cmas_dcs_key |= tvb_get_ntohs(serial_nb_tvb, 0);
+    actx->private_data = GUINT_TO_POINTER(GPOINTER_TO_UINT(actx->private_data) | tvb_get_ntohs(serial_nb_tvb, 0));
     subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_serialNumber);
     proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_gs, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
     proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_msg_code, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
@@ -9236,7 +9275,7 @@ dissect_lte_rrc_T_warningMessageSegment(tvbuff_t *tvb _U_, int offset _U_, asn1_
 
 
 
-  p_dcs = g_hash_table_lookup(lte_rrc_etws_cmas_dcs_hash, GUINT_TO_POINTER(lte_rrc_etws_cmas_dcs_key));
+  p_dcs = g_hash_table_lookup(lte_rrc_etws_cmas_dcs_hash, actx->private_data);
   if (warning_msg_seg_tvb && p_dcs) {
     proto_tree *subtree;
     subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_warningMessageSegment);
@@ -9261,7 +9300,7 @@ dissect_lte_rrc_T_dataCodingScheme(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
     guint32 dataCodingScheme;
     subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_dataCodingScheme);
     dataCodingScheme = dissect_cbs_data_coding_scheme(data_coding_scheme_tvb, actx->pinfo, subtree, 0);
-    g_hash_table_insert(lte_rrc_etws_cmas_dcs_hash, GUINT_TO_POINTER(lte_rrc_etws_cmas_dcs_key),
+    g_hash_table_insert(lte_rrc_etws_cmas_dcs_hash, actx->private_data,
                         GUINT_TO_POINTER(dataCodingScheme));
   }
 
@@ -9302,7 +9341,7 @@ dissect_lte_rrc_T_messageIdentifier_r9(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 
 
   if (msg_id_tvb) {
-    lte_rrc_etws_cmas_dcs_key = tvb_get_ntohs(msg_id_tvb, 0) << 16;
+    actx->private_data = GUINT_TO_POINTER(tvb_get_ntohs(msg_id_tvb, 0) << 16);
     actx->created_item = proto_tree_add_item(tree, hf_index, msg_id_tvb, 0, 2, ENC_BIG_ENDIAN);
   }
 
@@ -9321,7 +9360,7 @@ dissect_lte_rrc_T_serialNumber_r9(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 
   if (serial_nb_tvb) {
     proto_tree *subtree;
-    lte_rrc_etws_cmas_dcs_key |= tvb_get_ntohs(serial_nb_tvb, 0);
+    actx->private_data = GUINT_TO_POINTER(GPOINTER_TO_UINT(actx->private_data) | tvb_get_ntohs(serial_nb_tvb, 0));
     subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_serialNumber);
     proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_gs, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
     proto_tree_add_item(subtree, hf_lte_rrc_serialNumber_msg_code, serial_nb_tvb, 0, 2, ENC_BIG_ENDIAN);
@@ -9358,7 +9397,7 @@ dissect_lte_rrc_T_warningMessageSegment_r9(tvbuff_t *tvb _U_, int offset _U_, as
 
 
 
-  p_dcs = g_hash_table_lookup(lte_rrc_etws_cmas_dcs_hash, GUINT_TO_POINTER(lte_rrc_etws_cmas_dcs_key));
+  p_dcs = g_hash_table_lookup(lte_rrc_etws_cmas_dcs_hash, actx->private_data);
   if (warning_msg_seg_tvb && p_dcs) {
     proto_tree *subtree;
     subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_warningMessageSegment);
@@ -9383,7 +9422,7 @@ dissect_lte_rrc_T_dataCodingScheme_r9(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
     guint32 dataCodingScheme;
     subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_dataCodingScheme);
     dataCodingScheme = dissect_cbs_data_coding_scheme(data_coding_scheme_tvb, actx->pinfo, subtree, 0);
-    g_hash_table_insert(lte_rrc_etws_cmas_dcs_hash, GUINT_TO_POINTER(lte_rrc_etws_cmas_dcs_key),
+    g_hash_table_insert(lte_rrc_etws_cmas_dcs_hash, actx->private_data,
                         GUINT_TO_POINTER(dataCodingScheme));
   }
 
@@ -9775,10 +9814,76 @@ dissect_lte_rrc_MBMS_SAI_InterFreqList_r11(tvbuff_t *tvb _U_, int offset _U_, as
 }
 
 
+
+static int
+dissect_lte_rrc_FreqBandIndicator_r11(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, maxFBI2, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t MultiBandInfoList_r11_sequence_of[1] = {
+  { &hf_lte_rrc_MultiBandInfoList_r11_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lte_rrc_FreqBandIndicator_r11 },
+};
+
+static int
+dissect_lte_rrc_MultiBandInfoList_r11(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lte_rrc_MultiBandInfoList_r11, MultiBandInfoList_r11_sequence_of,
+                                                  1, maxMultiBands, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t MBMS_SAI_InterFreq_v1140_sequence[] = {
+  { &hf_lte_rrc_multiBandInfoList_r11, ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lte_rrc_MultiBandInfoList_r11 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lte_rrc_MBMS_SAI_InterFreq_v1140(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lte_rrc_MBMS_SAI_InterFreq_v1140, MBMS_SAI_InterFreq_v1140_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t MBMS_SAI_InterFreqList_v1140_sequence_of[1] = {
+  { &hf_lte_rrc_MBMS_SAI_InterFreqList_v1140_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lte_rrc_MBMS_SAI_InterFreq_v1140 },
+};
+
+static int
+dissect_lte_rrc_MBMS_SAI_InterFreqList_v1140(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lte_rrc_MBMS_SAI_InterFreqList_v1140, MBMS_SAI_InterFreqList_v1140_sequence_of,
+                                                  1, maxFreq, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t SystemInformationBlockType15_r11_eag_1_sequence[] = {
+  { &hf_lte_rrc_mbms_SAI_InterFreqList_v1140, ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lte_rrc_MBMS_SAI_InterFreqList_v1140 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lte_rrc_SystemInformationBlockType15_r11_eag_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence_eag(tvb, offset, actx, tree, SystemInformationBlockType15_r11_eag_1_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t SystemInformationBlockType15_r11_sequence[] = {
   { &hf_lte_rrc_mbms_SAI_IntraFreq_r11, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_MBMS_SAI_List_r11 },
   { &hf_lte_rrc_mbms_SAI_InterFreqList_r11, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_MBMS_SAI_InterFreqList_r11 },
   { &hf_lte_rrc_lateNonCriticalExtension, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_OCTET_STRING },
+  { &hf_lte_rrc_dummy_eag_field, ASN1_NOT_EXTENSION_ROOT, ASN1_NOT_OPTIONAL, dissect_lte_rrc_SystemInformationBlockType15_r11_eag_1 },
   { NULL, 0, 0, NULL }
 };
 
@@ -10458,7 +10563,7 @@ dissect_lte_rrc_T_systemInfoValueTag(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
     if (p_previous != NULL) {
       /* Subtract one from stored result to get previous value */
       guint32 previous = GPOINTER_TO_UINT(p_previous) - 1;
-      expert_add_info_format(actx->pinfo, actx->created_item, PI_SEQUENCE, PI_WARN,
+      expert_add_info_format_text(actx->pinfo, actx->created_item, &ei_lte_rrc_si_info_value_changed,
                              "SI Info Value changed (now %u, was %u)", value, previous);
     }
   }
@@ -11311,7 +11416,7 @@ dissect_lte_rrc_T_systemInfoModification(tvbuff_t *tvb _U_, int offset _U_, asn1
                                      1, NULL, FALSE, 0, NULL);
 
   col_append_str(actx->pinfo->cinfo, COL_INFO, " (systemInfoModification)");
-  expert_add_info_format(actx->pinfo, actx->created_item, PI_SEQUENCE, PI_WARN, "SIBs changing in next BCCH modification period - signalled in Paging message");
+  expert_add_info(actx->pinfo, actx->created_item, &ei_lte_rrc_sibs_changing);
 
 
   return offset;
@@ -11329,6 +11434,10 @@ dissect_lte_rrc_T_etws_Indication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
                                      1, NULL, FALSE, 0, NULL);
 
+  col_append_str(actx->pinfo->cinfo, COL_INFO, " (ETWS)");
+  expert_add_info(actx->pinfo, actx->created_item, &ei_lte_rrc_earthquake_warning_sys);
+
+
   return offset;
 }
 
@@ -11343,6 +11452,10 @@ static int
 dissect_lte_rrc_T_cmas_Indication_r9(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
                                      1, NULL, FALSE, 0, NULL);
+
+  col_append_str(actx->pinfo->cinfo, COL_INFO, " (CMAS)");
+  expert_add_info(actx->pinfo, actx->created_item, &ei_lte_rrc_commercial_mobile_alert_sys);
+
 
   return offset;
 }
@@ -11868,8 +11981,15 @@ static const value_string lte_rrc_SN_FieldLength_vals[] = {
 
 static int
 dissect_lte_rrc_SN_FieldLength(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint32 value;
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
-                                     2, NULL, FALSE, 0, NULL);
+                                     2, &value, FALSE, 0, NULL);
+
+  if (actx->private_data != NULL) {
+    ((drb_mapping_t*)actx->private_data)->um_sn_length = (value==0) ? 5 : 10;
+    ((drb_mapping_t*)actx->private_data)->um_sn_length_present = TRUE;
+  }
+
 
   return offset;
 }
@@ -11965,9 +12085,21 @@ static const per_choice_t RLC_Config_choice[] = {
 
 static int
 dissect_lte_rrc_RLC_Config(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint32 value;
   offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
                                  ett_lte_rrc_RLC_Config, RLC_Config_choice,
-                                 NULL);
+                                 &value);
+
+  if (actx->private_data != NULL) {
+    ((drb_mapping_t*)actx->private_data)->rlcMode = (value==0) ? RLC_AM_MODE : RLC_UM_MODE;
+    ((drb_mapping_t*)actx->private_data)->rlcMode_present = TRUE;
+
+    if (((drb_mapping_t*)actx->private_data)->rlcMode == RLC_AM_MODE) {
+        ((drb_mapping_t*)actx->private_data)->pdcp_sn_size = 12;
+        ((drb_mapping_t*)actx->private_data)->pdcp_sn_size_present = TRUE;
+    }
+  }
+
 
   return offset;
 }
@@ -11990,6 +12122,23 @@ dissect_lte_rrc_T_rlc_Config(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
   offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
                                  ett_lte_rrc_T_rlc_Config, T_rlc_Config_choice,
                                  NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lte_rrc_T_priority(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint32 value;
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, 16U, &value, FALSE);
+
+  if (actx->private_data != NULL) {
+    ((drb_mapping_t*)actx->private_data)->ul_priority = value;
+    ((drb_mapping_t*)actx->private_data)->ul_priority_present = TRUE;
+  }
+
 
   return offset;
 }
@@ -12048,7 +12197,7 @@ dissect_lte_rrc_T_bucketSizeDuration(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 
 
 static const per_sequence_t T_ul_SpecificParameters_sequence[] = {
-  { &hf_lte_rrc_priority    , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lte_rrc_INTEGER_1_16 },
+  { &hf_lte_rrc_priority    , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lte_rrc_T_priority },
   { &hf_lte_rrc_prioritisedBitRate, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lte_rrc_T_prioritisedBitRate },
   { &hf_lte_rrc_bucketSizeDuration, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lte_rrc_T_bucketSizeDuration },
   { &hf_lte_rrc_logicalChannelGroup, ASN1_NO_EXTENSIONS     , ASN1_OPTIONAL    , dissect_lte_rrc_INTEGER_0_3 },
@@ -12162,8 +12311,14 @@ dissect_lte_rrc_SRB_ToAddModList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 
 static int
 dissect_lte_rrc_DRB_Identity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint32 value;
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            1U, 32U, NULL, FALSE);
+                                                            1U, 32U, &value, FALSE);
+
+  if (actx->private_data != NULL) {
+    ((drb_mapping_t*)actx->private_data)->drbid = (guint8)value;
+  }
+
 
   return offset;
 }
@@ -12214,8 +12369,15 @@ static const value_string lte_rrc_T_pdcp_SN_Size_vals[] = {
 
 static int
 dissect_lte_rrc_T_pdcp_SN_Size(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint32 value;
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
-                                     2, NULL, FALSE, 0, NULL);
+                                     2, &value, FALSE, 0, NULL);
+
+  if (actx->private_data != NULL) {
+    ((drb_mapping_t*)actx->private_data)->pdcp_sn_size = (value==0) ? 7 : 12;
+    ((drb_mapping_t*)actx->private_data)->pdcp_sn_size_present = TRUE;
+  }
+
 
   return offset;
 }
@@ -12343,6 +12505,12 @@ dissect_lte_rrc_T_pdcp_SN_Size_v1130(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
                                      1, NULL, FALSE, 0, NULL);
 
+  if (actx->private_data != NULL) {
+    ((drb_mapping_t*)actx->private_data)->pdcp_sn_size = 15;
+    ((drb_mapping_t*)actx->private_data)->pdcp_sn_size_present = TRUE;
+  }
+
+
   return offset;
 }
 
@@ -12381,9 +12549,16 @@ dissect_lte_rrc_PDCP_Config(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 
 
 static int
-dissect_lte_rrc_INTEGER_3_10(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lte_rrc_T_logicalChannelIdentity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint32 value;
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            3U, 10U, NULL, FALSE);
+                                                            3U, 10U, &value, FALSE);
+
+  if (actx->private_data != NULL) {
+    ((drb_mapping_t*)actx->private_data)->lcid = (guint8)value;
+    ((drb_mapping_t*)actx->private_data)->lcid_present = TRUE;
+  }
+
 
   return offset;
 }
@@ -12394,15 +12569,45 @@ static const per_sequence_t DRB_ToAddMod_sequence[] = {
   { &hf_lte_rrc_drb_Identity, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lte_rrc_DRB_Identity },
   { &hf_lte_rrc_pdcp_Config , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_PDCP_Config },
   { &hf_lte_rrc_rlc_Config_01, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_RLC_Config },
-  { &hf_lte_rrc_logicalChannelIdentity, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_INTEGER_3_10 },
+  { &hf_lte_rrc_logicalChannelIdentity, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_T_logicalChannelIdentity },
   { &hf_lte_rrc_logicalChannelConfig_01, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_LogicalChannelConfig },
   { NULL, 0, 0, NULL }
 };
 
 static int
 dissect_lte_rrc_DRB_ToAddMod(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  struct mac_lte_info  *p_mac_lte_info;
+  /* Clear out the struct */
+  static drb_mapping_t drb_mapping;
+  memset(&drb_mapping, 0, sizeof(drb_mapping));
+  actx->private_data = (void*)&drb_mapping;
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_lte_rrc_DRB_ToAddMod, DRB_ToAddMod_sequence);
+
+  /* Need UE identifier */
+  p_mac_lte_info = (mac_lte_info *)p_get_proto_data(actx->pinfo->fd, proto_mac_lte, 0);
+  if (p_mac_lte_info == NULL) {
+    return offset;
+  }
+  else {
+    drb_mapping.ueid = p_mac_lte_info->ueid;
+  }
+
+  /* Tell MAC about this mapping */
+  set_mac_lte_channel_mapping(&drb_mapping);
+  /* Clear out struct again, just in case */
+
+  /* Also tell RLC how many PDCP sequence number bits */
+  if (drb_mapping.pdcp_sn_size_present) {
+    set_rlc_lte_drb_pdcp_seqnum_length(drb_mapping.ueid,
+                                       drb_mapping.drbid,
+                                       drb_mapping.pdcp_sn_size);
+  }
+
+  /* Clear out the struct again */
+  memset(&drb_mapping, 0, sizeof(drb_mapping));
+
+
 
   return offset;
 }
@@ -16198,7 +16403,7 @@ static const per_sequence_t EPDCCH_SetConfig_r11_sequence[] = {
   { &hf_lte_rrc_resourceBlockAssignment_r11, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lte_rrc_T_resourceBlockAssignment_r11 },
   { &hf_lte_rrc_dmrs_ScramblingSequenceInt_r11, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lte_rrc_INTEGER_0_503 },
   { &hf_lte_rrc_pucch_ResourceStartOffset_r11, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lte_rrc_INTEGER_0_2047 },
-  { &hf_lte_rrc_re_MappingQCL_ConfigListId_r11, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_PDSCH_RE_MappingQCL_ConfigId_r11 },
+  { &hf_lte_rrc_re_MappingQCL_ConfigId_r11, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lte_rrc_PDSCH_RE_MappingQCL_ConfigId_r11 },
   { NULL, 0, 0, NULL }
 };
 
@@ -18673,9 +18878,11 @@ static const value_string lte_rrc_T_targetRAT_Type_vals[] = {
 
 static int
 dissect_lte_rrc_T_targetRAT_Type(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint32 target_rat_type;
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
-                                     8, &lte_rrc_ho_target_rat_type_value, TRUE, 0, NULL);
+                                     8, &target_rat_type, TRUE, 0, NULL);
 
+  actx->private_data = GUINT_TO_POINTER(target_rat_type+1);
 
 
   return offset;
@@ -18693,33 +18900,36 @@ dissect_lte_rrc_T_targetRAT_MessageContainer(tvbuff_t *tvb _U_, int offset _U_, 
     guint8 byte;
     proto_tree *subtree;
     subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_targetRAT_MessageContainer);
-    switch(lte_rrc_ho_target_rat_type_value){
-    case T_targetRAT_Type_utra:
-      /* utra */
-      if (rrc_irat_ho_to_utran_cmd_handle)
-        call_dissector(rrc_irat_ho_to_utran_cmd_handle, target_rat_msg_cont_tvb, actx->pinfo, subtree);
-      break;
-    case T_targetRAT_Type_geran:
-      /* geran */
-      byte = tvb_get_guint8(target_rat_msg_cont_tvb, 0);
-      if (byte == 0x06) {
-        if (gsm_a_dtap_handle) {
-          call_dissector(gsm_a_dtap_handle, target_rat_msg_cont_tvb, actx->pinfo, subtree);
+    if (actx->private_data) {
+      switch(GPOINTER_TO_UINT(actx->private_data)-1){
+      case T_targetRAT_Type_utra:
+        /* utra */
+        if (rrc_irat_ho_to_utran_cmd_handle)
+          call_dissector(rrc_irat_ho_to_utran_cmd_handle, target_rat_msg_cont_tvb, actx->pinfo, subtree);
+        break;
+      case T_targetRAT_Type_geran:
+        /* geran */
+        byte = tvb_get_guint8(target_rat_msg_cont_tvb, 0);
+        if (byte == 0x06) {
+          if (gsm_a_dtap_handle) {
+            call_dissector(gsm_a_dtap_handle, target_rat_msg_cont_tvb, actx->pinfo, subtree);
+          }
+        } else {
+          if (gsm_rlcmac_dl_handle) {
+            call_dissector(gsm_rlcmac_dl_handle, target_rat_msg_cont_tvb, actx->pinfo, subtree);
+          }
         }
-      } else {
-        if (gsm_rlcmac_dl_handle) {
-          call_dissector(gsm_rlcmac_dl_handle, target_rat_msg_cont_tvb, actx->pinfo, subtree);
-        }
+        break;
+      case T_targetRAT_Type_cdma2000_1XRTT:
+        /* cdma2000-1XRTT */
+        break;
+      case T_targetRAT_Type_cdma2000_HRPD:
+        /* cdma2000-HRPD */
+        break;
+      default:
+        break;
       }
-      break;
-    case T_targetRAT_Type_cdma2000_1XRTT:
-      /* cdma2000-1XRTT */
-      break;
-    case T_targetRAT_Type_cdma2000_HRPD:
-      /* cdma2000-HRPD */
-      break;
-    default:
-      break;
+      actx->private_data = NULL;
     }
   }
 
@@ -18759,21 +18969,24 @@ dissect_lte_rrc_SystemInfoListGERAN_item(tvbuff_t *tvb _U_, int offset _U_, asn1
 
   if (sys_info_list_tvb) {
     subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_siPsiSibContainer);
-    switch (lte_rrc_si_or_psi_geran_val) {
-    case SI_OrPSI_GERAN_si:
-      /* SI message */
-      if (gsm_a_dtap_handle) {
-        call_dissector(gsm_a_dtap_handle, sys_info_list_tvb, actx->pinfo, subtree);
+    if (actx->private_data) {
+      switch (GPOINTER_TO_UINT(actx->private_data)-1) {
+      case SI_OrPSI_GERAN_si:
+        /* SI message */
+        if (gsm_a_dtap_handle) {
+          call_dissector(gsm_a_dtap_handle, sys_info_list_tvb, actx->pinfo, subtree);
+        }
+        break;
+      case SI_OrPSI_GERAN_psi:
+        /* PSI message */
+        if (gsm_rlcmac_dl_handle) {
+          call_dissector(gsm_rlcmac_dl_handle, sys_info_list_tvb, actx->pinfo, subtree);
+        }
+        break;
+      default:
+        break;
       }
-      break;
-    case SI_OrPSI_GERAN_psi:
-      /* PSI message */
-      if (gsm_rlcmac_dl_handle) {
-        call_dissector(gsm_rlcmac_dl_handle, sys_info_list_tvb, actx->pinfo, subtree);
-      }
-      break;
-    default:
-      break;
+      actx->private_data = NULL;
     }
   }
 
@@ -18810,10 +19023,12 @@ static const per_choice_t SI_OrPSI_GERAN_choice[] = {
 
 static int
 dissect_lte_rrc_SI_OrPSI_GERAN(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint32 si_or_psi_geran;
   offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
                                  ett_lte_rrc_SI_OrPSI_GERAN, SI_OrPSI_GERAN_choice,
-                                 &lte_rrc_si_or_psi_geran_val);
+                                 &si_or_psi_geran);
 
+  actx->private_data = GUINT_TO_POINTER(si_or_psi_geran+1);
 
 
   return offset;
@@ -18830,7 +19045,7 @@ static const per_sequence_t Handover_sequence[] = {
 
 static int
 dissect_lte_rrc_Handover(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  lte_rrc_ho_target_rat_type_value = -1;
+  actx->private_data = NULL;
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_lte_rrc_Handover, Handover_sequence);
 
@@ -23028,7 +23243,7 @@ static const per_sequence_t CellInfoGERAN_r9_sequence[] = {
 
 static int
 dissect_lte_rrc_CellInfoGERAN_r9(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  lte_rrc_si_or_psi_geran_val = SI_OrPSI_GERAN_si; /* SI message */
+  actx->private_data = GUINT_TO_POINTER(SI_OrPSI_GERAN_si+1); /* SI message */
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_lte_rrc_CellInfoGERAN_r9, CellInfoGERAN_r9_sequence);
 
@@ -23538,9 +23753,11 @@ static const value_string lte_rrc_RAT_Type_vals[] = {
 
 static int
 dissect_lte_rrc_RAT_Type(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  guint32 rat_type;
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
-                                     8, &lte_rrc_rat_type_value, TRUE, 0, NULL);
+                                     8, &rat_type, TRUE, 0, NULL);
 
+  actx->private_data = GUINT_TO_POINTER(rat_type+1);
 
 
 
@@ -27157,51 +27374,54 @@ if(ue_cap_tvb){
   proto_tree *subtree, *subtree2;
   guint8 byte;
   subtree = proto_item_add_subtree(actx->created_item, ett_lte_rrc_UE_CapabilityRAT_Container);
-  switch(lte_rrc_rat_type_value){
-  case RAT_Type_eutra:
-    /* eutra */
-    dissect_lte_rrc_UE_EUTRA_Capability_PDU(ue_cap_tvb, actx->pinfo, subtree, NULL);
-    break;
-  case RAT_Type_utra:
-    /* utra */
-    dissect_rrc_InterRATHandoverInfo_PDU(ue_cap_tvb, actx->pinfo, subtree, NULL);
-    break;
-  case RAT_Type_geran_cs:
-    /* geran-cs */
-    /* Mobile Station Classmark 2 is formatted as TLV with the two first bytes set to 0x33 0x03 */
-    item = proto_tree_add_text(subtree, ue_cap_tvb, 0, 5, "Mobile Station Classmark 2");
-    subtree2 = proto_item_add_subtree(item, ett_lte_rrc_UE_CapabilityRAT_Container);
-    byte = tvb_get_guint8(ue_cap_tvb, 0);
-    if (byte != 0x33) {
-      expert_add_info_format(actx->pinfo, item, PI_MALFORMED, PI_ERROR,
-                             "Unexpected type value (found 0x%02X)", byte);
+  if (actx->private_data) {
+    switch(GPOINTER_TO_UINT(actx->private_data)-1){
+    case RAT_Type_eutra:
+      /* eutra */
+      dissect_lte_rrc_UE_EUTRA_Capability_PDU(ue_cap_tvb, actx->pinfo, subtree, NULL);
+      break;
+    case RAT_Type_utra:
+      /* utra */
+      dissect_rrc_InterRATHandoverInfo_PDU(ue_cap_tvb, actx->pinfo, subtree, NULL);
+      break;
+    case RAT_Type_geran_cs:
+      /* geran-cs */
+      /* Mobile Station Classmark 2 is formatted as TLV with the two first bytes set to 0x33 0x03 */
+      item = proto_tree_add_text(subtree, ue_cap_tvb, 0, 5, "Mobile Station Classmark 2");
+      subtree2 = proto_item_add_subtree(item, ett_lte_rrc_UE_CapabilityRAT_Container);
+      byte = tvb_get_guint8(ue_cap_tvb, 0);
+      if (byte != 0x33) {
+        expert_add_info_format_text(actx->pinfo, item, &ei_lte_rrc_unexpected_type_value,
+                               "Unexpected type value (found 0x%02X)", byte);
+      }
+      byte = tvb_get_guint8(ue_cap_tvb, 1);
+      if (byte != 0x03) {
+        expert_add_info_format_text(actx->pinfo, item, &ei_lte_rrc_unexpected_length_value,
+                               "Unexpected length value (found %d)", byte);
+      }
+      de_ms_cm_2(ue_cap_tvb, subtree2, actx->pinfo, 2, 3, NULL, 0);
+      /* Mobile Station Classmark 3 is formatted as V */
+      length = tvb_ensure_length_remaining(ue_cap_tvb, 5);
+      item = proto_tree_add_text(subtree, ue_cap_tvb, 5, length, "Mobile Station Classmark 3");
+      subtree2 = proto_item_add_subtree(item, ett_lte_rrc_UE_CapabilityRAT_Container);
+      de_ms_cm_3(ue_cap_tvb, subtree2, actx->pinfo, 5, length, NULL, 0);
+      break;
+    case RAT_Type_geran_ps:
+      /* geran-ps */
+      /* MS Radio Access Capability is formatted as V */
+      length = tvb_length(ue_cap_tvb);
+      item = proto_tree_add_text(subtree, ue_cap_tvb, 0, length, "MS Radio Access Capability");
+      subtree2 = proto_item_add_subtree(item, ett_lte_rrc_UE_CapabilityRAT_Container);
+      de_gmm_ms_radio_acc_cap(ue_cap_tvb, subtree2, actx->pinfo, 0, length, NULL, 0);
+      break;
+    case RAT_Type_cdma2000_1XRTT:
+      /* cdma2000-1XRTT */
+      /* dissection of "A21 Mobile Subscription Information" could be added to packet-ansi_a.c */
+      break;
+    default:
+      break;
     }
-    byte = tvb_get_guint8(ue_cap_tvb, 1);
-    if (byte != 0x03) {
-      expert_add_info_format(actx->pinfo, item, PI_MALFORMED, PI_ERROR,
-                             "Unexpected length value (found %d)", byte);
-    }
-    de_ms_cm_2(ue_cap_tvb, subtree2, actx->pinfo, 2, 3, NULL, 0);
-    /* Mobile Station Classmark 3 is formatted as V */
-    length = tvb_ensure_length_remaining(ue_cap_tvb, 5);
-    item = proto_tree_add_text(subtree, ue_cap_tvb, 5, length, "Mobile Station Classmark 3");
-    subtree2 = proto_item_add_subtree(item, ett_lte_rrc_UE_CapabilityRAT_Container);
-    de_ms_cm_3(ue_cap_tvb, subtree2, actx->pinfo, 5, length, NULL, 0);
-    break;
-  case RAT_Type_geran_ps:
-    /* geran-ps */
-    /* MS Radio Access Capability is formatted as V */
-    length = tvb_length(ue_cap_tvb);
-    item = proto_tree_add_text(subtree, ue_cap_tvb, 0, length, "MS Radio Access Capability");
-    subtree2 = proto_item_add_subtree(item, ett_lte_rrc_UE_CapabilityRAT_Container);
-    de_gmm_ms_radio_acc_cap(ue_cap_tvb, subtree2, actx->pinfo, 0, length, NULL, 0);
-    break;
-  case RAT_Type_cdma2000_1XRTT:
-    /* cdma2000-1XRTT */
-    /* dissection of "A21 Mobile Subscription Information" could be added to packet-ansi_a.c */
-    break;
-  default:
-    break;
+    actx->private_data = NULL;
   }
 }
 
@@ -27217,7 +27437,7 @@ static const per_sequence_t UE_CapabilityRAT_Container_sequence[] = {
 
 static int
 dissect_lte_rrc_UE_CapabilityRAT_Container(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  lte_rrc_rat_type_value = -1;
+  actx->private_data = NULL;
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_lte_rrc_UE_CapabilityRAT_Container, UE_CapabilityRAT_Container_sequence);
 
@@ -33955,7 +34175,7 @@ static int dissect_UEAssistanceInformation_r11_PDU(tvbuff_t *tvb _U_, packet_inf
 
 
 /*--- End of included file: packet-lte-rrc-fn.c ---*/
-#line 1935 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
+#line 1946 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
 
 static void
 dissect_lte_rrc_DL_CCCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
@@ -33981,12 +34201,10 @@ dissect_lte_rrc_DL_DCCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "LTE RRC DL_DCCH");
   col_clear(pinfo->cinfo, COL_INFO);
-  
-  if (tree) {
-    ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
-    lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
-    dissect_DL_DCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
-  }
+
+  ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
+  lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
+  dissect_DL_DCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
 }
 
 
@@ -37801,6 +38019,10 @@ void proto_register_lte_rrc(void) {
       { "mbms-SAI-InterFreqList-r11", "lte-rrc.mbms_SAI_InterFreqList_r11",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
+    { &hf_lte_rrc_mbms_SAI_InterFreqList_v1140,
+      { "mbms-SAI-InterFreqList-v1140", "lte-rrc.mbms_SAI_InterFreqList_v1140",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
     { &hf_lte_rrc_MBMS_SAI_List_r11_item,
       { "MBMS-SAI-r11", "lte-rrc.MBMS_SAI_r11",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -37809,12 +38031,20 @@ void proto_register_lte_rrc(void) {
       { "MBMS-SAI-InterFreq-r11", "lte-rrc.MBMS_SAI_InterFreq_r11_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
+    { &hf_lte_rrc_MBMS_SAI_InterFreqList_v1140_item,
+      { "MBMS-SAI-InterFreq-v1140", "lte-rrc.MBMS_SAI_InterFreq_v1140_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
     { &hf_lte_rrc_dl_CarrierFreq_r11,
       { "dl-CarrierFreq-r11", "lte-rrc.dl_CarrierFreq_r11",
         FT_UINT32, BASE_DEC, NULL, 0,
         "ARFCN_ValueEUTRA_r9", HFILL }},
     { &hf_lte_rrc_mbms_SAI_List_r11,
       { "mbms-SAI-List-r11", "lte-rrc.mbms_SAI_List_r11",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_multiBandInfoList_r11,
+      { "multiBandInfoList-r11", "lte-rrc.multiBandInfoList_r11",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lte_rrc_timeInfo_r11,
@@ -38457,8 +38687,8 @@ void proto_register_lte_rrc(void) {
       { "pucch-ResourceStartOffset-r11", "lte-rrc.pucch_ResourceStartOffset_r11",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_2047", HFILL }},
-    { &hf_lte_rrc_re_MappingQCL_ConfigListId_r11,
-      { "re-MappingQCL-ConfigListId-r11", "lte-rrc.re_MappingQCL_ConfigListId_r11",
+    { &hf_lte_rrc_re_MappingQCL_ConfigId_r11,
+      { "re-MappingQCL-ConfigId-r11", "lte-rrc.re_MappingQCL_ConfigId_r11",
         FT_UINT32, BASE_DEC, NULL, 0,
         "PDSCH_RE_MappingQCL_ConfigId_r11", HFILL }},
     { &hf_lte_rrc_ul_SpecificParameters,
@@ -38468,7 +38698,7 @@ void proto_register_lte_rrc(void) {
     { &hf_lte_rrc_priority,
       { "priority", "lte-rrc.priority",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_1_16", HFILL }},
+        NULL, HFILL }},
     { &hf_lte_rrc_prioritisedBitRate,
       { "prioritisedBitRate", "lte-rrc.prioritisedBitRate",
         FT_UINT32, BASE_DEC, VALS(lte_rrc_T_prioritisedBitRate_vals), 0,
@@ -39644,7 +39874,7 @@ void proto_register_lte_rrc(void) {
     { &hf_lte_rrc_logicalChannelIdentity,
       { "logicalChannelIdentity", "lte-rrc.logicalChannelIdentity",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_3_10", HFILL }},
+        NULL, HFILL }},
     { &hf_lte_rrc_logicalChannelConfig_01,
       { "logicalChannelConfig", "lte-rrc.logicalChannelConfig_element",
         FT_NONE, BASE_NONE, NULL, 0,
@@ -40476,6 +40706,10 @@ void proto_register_lte_rrc(void) {
     { &hf_lte_rrc_MultiBandInfoList_v9e0_item,
       { "MultiBandInfo-v9e0", "lte-rrc.MultiBandInfo_v9e0_element",
         FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_MultiBandInfoList_r11_item,
+      { "FreqBandIndicator-r11", "lte-rrc.FreqBandIndicator_r11",
+        FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_lte_rrc_start_01,
       { "start", "lte-rrc.start",
@@ -42603,7 +42837,7 @@ void proto_register_lte_rrc(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-lte-rrc-hfarr.c ---*/
-#line 2086 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
+#line 2095 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
 
     { &hf_lte_rrc_eutra_cap_feat_group_ind_1,
       { "Indicator 1", "lte-rrc.eutra_cap_feat_group_ind_1",
@@ -43569,7 +43803,9 @@ void proto_register_lte_rrc(void) {
     &ett_lte_rrc_SystemInformationBlockType15_r11,
     &ett_lte_rrc_MBMS_SAI_List_r11,
     &ett_lte_rrc_MBMS_SAI_InterFreqList_r11,
+    &ett_lte_rrc_MBMS_SAI_InterFreqList_v1140,
     &ett_lte_rrc_MBMS_SAI_InterFreq_r11,
+    &ett_lte_rrc_MBMS_SAI_InterFreq_v1140,
     &ett_lte_rrc_SystemInformationBlockType16_r11,
     &ett_lte_rrc_T_timeInfo_r11,
     &ett_lte_rrc_AntennaInfoCommon,
@@ -43843,6 +44079,7 @@ void proto_register_lte_rrc(void) {
     &ett_lte_rrc_MobilityStateParameters,
     &ett_lte_rrc_MultiBandInfoList,
     &ett_lte_rrc_MultiBandInfoList_v9e0,
+    &ett_lte_rrc_MultiBandInfoList_r11,
     &ett_lte_rrc_MultiBandInfo_v9e0,
     &ett_lte_rrc_PhysCellIdRange,
     &ett_lte_rrc_PhysCellIdRangeUTRA_FDDList_r9,
@@ -44111,7 +44348,7 @@ void proto_register_lte_rrc(void) {
     &ett_lte_rrc_CandidateCellInfo_r10,
 
 /*--- End of included file: packet-lte-rrc-ettarr.c ---*/
-#line 2509 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
+#line 2518 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
 
     &ett_lte_rrc_featureGroupIndicators,
     &ett_lte_rrc_featureGroupIndRel9Add,
@@ -44128,6 +44365,18 @@ void proto_register_lte_rrc(void) {
     &ett_lte_rrc_warningMessageSegment
   };
 
+  static ei_register_info ei[] = {
+     { &ei_lte_rrc_number_pages_le15, { "lte_rrc.number_pages_le15", PI_MALFORMED, PI_ERROR, "Number of pages should be <=15", EXPFILL }},
+     { &ei_lte_rrc_si_info_value_changed, { "lte_rrc.si_info_value_changed", PI_SEQUENCE, PI_WARN, "SI Info Value changed", EXPFILL }},
+     { &ei_lte_rrc_sibs_changing, { "lte_rrc.sibs_changing", PI_SEQUENCE, PI_WARN, "SIBs changing in next BCCH modification period - signalled in Paging message", EXPFILL }},
+     { &ei_lte_rrc_earthquake_warning_sys, { "lte_rrc.earthquake_warning_sys", PI_SEQUENCE, PI_WARN, "Earthquake and Tsunami Warning System Indication!", EXPFILL }},
+     { &ei_lte_rrc_commercial_mobile_alert_sys, { "lte_rrc.commercial_mobile_alert_sys", PI_SEQUENCE, PI_WARN, "Commercial Mobile Alert System Indication!", EXPFILL }},
+     { &ei_lte_rrc_unexpected_type_value, { "lte_rrc.unexpected_type_value", PI_MALFORMED, PI_ERROR, "Unexpected type value", EXPFILL }},
+     { &ei_lte_rrc_unexpected_length_value, { "lte_rrc.unexpected_length_value", PI_MALFORMED, PI_ERROR, "Unexpected type length", EXPFILL }},
+     { &ei_lte_rrc_too_many_group_a_rapids, { "lte_rrc.too_many_groupa_rapids", PI_MALFORMED, PI_ERROR, "Too many group A RAPIDs", EXPFILL }},
+  };
+
+  expert_module_t* expert_lte_rrc;
 
   /* Register protocol */
   proto_lte_rrc = proto_register_protocol(PNAME, PSNAME, PFNAME);
@@ -44145,6 +44394,8 @@ void proto_register_lte_rrc(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_lte_rrc, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_lte_rrc = expert_register_protocol(proto_lte_rrc);
+  expert_register_field_array(expert_lte_rrc, ei, array_length(ei));
 
   /* Register the dissectors defined in lte-rrc.conf */
 
@@ -44163,7 +44414,7 @@ void proto_register_lte_rrc(void) {
 
 
 /*--- End of included file: packet-lte-rrc-dis-reg.c ---*/
-#line 2545 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
+#line 2568 "../../asn1/lte-rrc/packet-lte-rrc-template.c"
 
   register_init_routine(&lte_rrc_init_protocol);
 }

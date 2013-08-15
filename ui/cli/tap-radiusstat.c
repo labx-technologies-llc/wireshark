@@ -32,7 +32,7 @@
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include <epan/dissectors/packet-radius.h>
-#include "timestats.h"
+#include "epan/timestats.h"
 
 typedef enum _radius_category {
 	RADIUS_CAT_OVERALL = 0,
@@ -185,15 +185,15 @@ radiusstat_draw(void *prs)
 
 
 static void
-radiusstat_init(const char *optarg, void* userdata _U_)
+radiusstat_init(const char *opt_arg, void* userdata _U_)
 {
 	radiusstat_t *rs;
 	int i;
 	GString *error_string;
 
 	rs=g_new(radiusstat_t,1);
-	if(!strncmp(optarg,"radius,rtd,",11)){
-		rs->filter=g_strdup(optarg+11);
+	if(!strncmp(opt_arg,"radius,rtd,",11)){
+		rs->filter=g_strdup(opt_arg+11);
 	} else {
 		rs->filter=NULL;
 	}

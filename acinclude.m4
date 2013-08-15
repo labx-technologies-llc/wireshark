@@ -160,7 +160,7 @@ AC_DEFUN([AC_WIRESHARK_IPV6_STACK],
 	v6lib=none
 
 	AC_MSG_CHECKING([ipv6 stack type])
-	for i in v6d toshiba kame inria zeta linux linux-glibc solaris8; do
+	for i in v6d toshiba kame inria zeta linux linux-glibc solaris; do
 		case $i in
 		v6d)
 			AC_EGREP_CPP(yes, [
@@ -228,11 +228,11 @@ yes
 #endif],
 			[v6type=$i; v6lib=inet6; CPPFLAGS="-DINET6 $CPPFLAGS"])
 			;;
-		solaris8)
-			if test "`uname -s`" = "SunOS" && test "`uname -r`" = "5.8"; then
+		solaris)
+			if test "`uname -s`" = "SunOS"; then
 				v6type=$i
 				v6lib=inet6
-				[CPPFLAGS="-DINET6 -DSOLARIS8_INET6 $CPPFLAGS"]
+				[CPPFLAGS="-DINET6 $CPPFLAGS"]
 			fi
 			;;
 		esac
@@ -803,7 +803,7 @@ AC_DEFUN([AC_WIRESHARK_LIBLUA_CHECK],[
 		AC_MSG_CHECKING(Lua version)
 		for i in 5.0 5.1 5.2
 		do
-			[[ -d "/usr/include/lua$i" ]] && lua_ver=$i 
+			[[ -d "/usr/include/lua$i" ]] && lua_ver=$i
 		done
 		AC_MSG_RESULT(Lua ${lua_ver})
 		wireshark_save_CPPFLAGS="$CPPFLAGS"
@@ -1580,10 +1580,40 @@ else
 fi
 ])
 
+dnl
+dnl Check whether, if you pass an unknown warning option to the
+dnl compiler, it fails or just prints a warning message and succeeds.
+dnl Set ac_wireshark_unknown_warning_option_error to the appropriate flag
+dnl to force an error if it would otherwise just print a warning message
+dnl and succeed.
+dnl
+AC_DEFUN([AC_WIRESHARK_CHECK_UNKNOWN_WARNING_OPTION_ERROR],
+    [
+	AC_MSG_CHECKING([whether the compiler fails when given an unknown warning option])
+	save_CFLAGS="$CFLAGS"
+	CFLAGS="$CFLAGS -Wxyzzy-this-will-never-succeed-xyzzy"
+	AC_TRY_COMPILE(
+	    [],
+	    [return 0],
+	    [
+		AC_MSG_RESULT([no, adding -Werror=unknown-warning-option])
+		#
+		# We're assuming this is clang, where
+		# -Werror=unknown-warning-option is the appropriate
+		# option to force the compiler to fail.
+		# 
+		ac_wireshark_unknown_warning_option_error="-Werror=unknown-warning-option"
+	    ],
+	    [
+		AC_MSG_RESULT([yes])
+	    ])
+	CFLAGS="$save_CFLAGS"
+    ])
+
 #
-# AC_WIRESHARK_GCC_CFLAGS_CHECK
+# AC_WIRESHARK_COMPILER_FLAGS_CHECK
 #
-# $1 : cflags to test
+# $1 : flags to test
 # $2 : if supplied, C for C-only flags, CXX for C++-only flags
 # $3 : if supplied, a program to try to compile with the flag
 #      and, if the compile fails when -Werror is turned on,
@@ -1600,166 +1630,159 @@ fi
 # We do this because not all such options are necessarily supported by
 # the version of the particular compiler we're using.
 #
-# NOTE: clang, by default, only warns about unknown -W options.
-# If we're using clang, we turn on -Werror=unknown-warning-option
-# so that it fails if we pass it a -W option it doesn't know about
-# but doesn't fail for any other warning that the test program might
-# produce.
-#
-AC_DEFUN([AC_WIRESHARK_GCC_CFLAGS_CHECK],
+AC_DEFUN([AC_WIRESHARK_COMPILER_FLAGS_CHECK],
 [GCC_OPTION="$1"
-case "$2" in
-C)
-  AC_MSG_CHECKING(whether we can add $GCC_OPTION to CFLAGS)
-  ;;
-
-CXX)
-  AC_MSG_CHECKING(whether we can add $GCC_OPTION to CXXFLAGS)
-  ;;
-
-*)
-  AC_MSG_CHECKING(whether we can add $GCC_OPTION to CFLAGS and CXXFLAGS)
-  ;;
-esac
-
+can_add_to_cflags=""
+can_add_to_cxxflags=""
 if test "x$ac_supports_gcc_flags" = "xyes" ; then
   if test "$2" != CXX ; then
     #
     # Not C++-only; if this can be added to the C compiler flags, add them.
     #
+    # If the option begins with "-W", add
+    # $ac_wireshark_unknown_warning_option_error to make sure that
+    # we'll get an error if it's an unknown warning option; not all
+    # compilers treat unknown warning options as errors (I'm looking at
+    # you, clang).
+    #
+    # If the option begins with "-f", add -Werror to make sure that
+    # we'll get an error if we get "argument unused during compilation"
+    # warnings, as those will either cause a failure for files compiled
+    # with -Werror or annoying noise for files compiled without it.
+    # (Yeah, you, clang.)
+    #
+    AC_MSG_CHECKING(whether we can add $GCC_OPTION to CFLAGS)
     CFLAGS_saved="$CFLAGS"
-    CFLAGS="$CFLAGS $GCC_OPTION"
-    if test "x$CC" = "xclang" ; then
-      #
-      # Force clang to fail on an unknown warning option; by default,
-      # it whines but doesn't fail, so we add unknown options and,
-      # as a result, get a lot of that whining when we compile.
-      #
-      CFLAGS="$CFLAGS -Werror=unknown-warning-option"
+    if expr "x$GCC_OPTION" : "x-W.*" >/dev/null
+    then
+      CFLAGS="$CFLAGS $ac_wireshark_unknown_warning_option_error $GCC_OPTION"
+    elif expr "x$GCC_OPTION" : "x-f.*" >/dev/null
+    then
+      CFLAGS="$CFLAGS -Werror $GCC_OPTION"
     fi
-    AC_COMPILE_IFELSE([
-      AC_LANG_SOURCE([[
-                        int foo;
-                    ]])],
-                    [
-                      AC_MSG_RESULT(yes)
-                      #
-		      # OK, do we have a test program?  If so, check
-		      # whether it fails with this option and -Werror,
-		      # and, if so, don't include it.
-		      #
-		      # We test arg 4 here because arg 3 is a program which
-		      # could contain quotes (breaking the comparison).
-		      #
-		      if test "x$4" != "x" ; then
-                        CFLAGS="$CFLAGS -Werror"
-                        AC_MSG_CHECKING(whether $GCC_OPTION $4)
-                        AC_COMPILE_IFELSE([
-                          AC_LANG_SOURCE($3)],
-                          [
-                            AC_MSG_RESULT(no)
-                            #
-                            # Remove -Werror=unknown-warning-option, if we
-                            # added it, and -Werror by setting CFLAGS to
-                            # the saved value plus just the new option.
-                            #
-                            CFLAGS="$CFLAGS_saved $GCC_OPTION"
-                            #
-                            # Add it to the flags we use when building
-                            # build tools.
-                            #
-                            CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD $GCC_OPTION"
-                            if test "$2" != C ; then
-                              #
-                              # Add it to the C++ flags as well.
-                              #
-                              CXXFLAGS="$CXXFLAGS $GCC_OPTION"
-                            fi
-                          ],
-                          [
-                            AC_MSG_RESULT(yes)
-                            CFLAGS="$CFLAGS_saved"
-                          ])
-                      else
-                        #
-                        # Remove -Werror=unknown-warning-option, if we
-                        # added it, and -Werror by setting CFLAGS to
-                        # the saved value plus just the new option.
-                        #
-                        CFLAGS="$CFLAGS_saved $GCC_OPTION"
-                        #
-                        # Add it to the flags we use when building
-                        # build tools.
-                        #
-                        CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD $GCC_OPTION"
-                        if test "$2" != C ; then
-                          #
-                          # Add it to the C++ flags as well.
-                          #
-                          CXXFLAGS="$CXXFLAGS $GCC_OPTION"
-                        fi
-                      fi
-                    ],
-                    [
-                      AC_MSG_RESULT(no)
-                      CFLAGS="$CFLAGS_saved"
-                    ])
-  else
+    AC_COMPILE_IFELSE(
+      [
+        AC_LANG_SOURCE([[int foo;]])
+      ],
+      [
+        AC_MSG_RESULT(yes)
+        can_add_to_cflags=yes
+        #
+        # OK, do we have a test program?  If so, check
+        # whether it fails with this option and -Werror,
+        # and, if so, don't include it.
+        #
+        # We test arg 4 here because arg 3 is a program which
+        # could contain quotes (breaking the comparison).
+        #
+        if test "x$4" != "x" ; then
+          CFLAGS="$CFLAGS -Werror"
+          AC_MSG_CHECKING(whether $GCC_OPTION $4)
+          AC_COMPILE_IFELSE(
+	    [AC_LANG_SOURCE($3)],
+            [
+              AC_MSG_RESULT(no)
+              #
+              # Remove "force an error for a warning" options, if we
+              # added them, by setting CFLAGS to the saved value plus
+              # just the new option.
+              #
+              CFLAGS="$CFLAGS_saved $GCC_OPTION"
+              #
+              # Add it to the flags we use when building build tools.
+              #
+              CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD $GCC_OPTION"
+            ],
+            [
+              AC_MSG_RESULT(yes)
+              CFLAGS="$CFLAGS_saved"
+            ])
+        else
+          #
+          # Remove "force an error for a warning" options, if we
+          # added them, by setting CFLAGS to the saved value plus
+          # just the new option.
+          #
+          CFLAGS="$CFLAGS_saved $GCC_OPTION"
+          #
+          # Add it to the flags we use when building build tools.
+          #
+          CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD $GCC_OPTION"
+        fi
+      ],
+      [
+        AC_MSG_RESULT(no)
+        can_add_to_cflags=no
+        CFLAGS="$CFLAGS_saved"
+      ])
+  fi
+  if test "$2" != C ; then
     #
-    # C++-only; if this can be added to the C++ compiler flags, add them.
+    # Not C-only; if this can be added to the C++ compiler flags, add them.
     #
+    AC_MSG_CHECKING(whether we can add $GCC_OPTION to CXXFLAGS)
     CXXFLAGS_saved="$CXXFLAGS"
-    CXXFLAGS="$CXXFLAGS $GCC_OPTION"
-    if test "x$CC" = "xclang" ; then
-      CXXFLAGS="$CXXFLAGS -Werror=unknown-warning-option"
+    if expr "x$GCC_OPTION" : "x-W.*" >/dev/null
+    then
+      CXXFLAGS="$CXXFLAGS $ac_wireshark_unknown_warning_option_error $GCC_OPTION"
+    elif expr "x$GCC_OPTION" : "x-f.*" >/dev/null
+    then
+      CXXFLAGS="$CXXFLAGS -Werror $GCC_OPTION"
     fi
     AC_LANG_PUSH([C++])
-    AC_COMPILE_IFELSE([
-      AC_LANG_SOURCE([[
-                        int foo;
-                    ]])],
-                    [
-                      AC_MSG_RESULT(yes)
-                      #
-		      # OK, do we have a test program?  If so, check
-		      # whether it fails with this option and -Werror,
-		      # and, if so, don't include it.
-		      #
-		      # We test arg 4 here because arg 3 is a program which
-		      # could contain quotes (breaking the comparison).
-		      #
-		      if test "x$4" != "x" ; then
-                        CXXFLAGS="$CXXFLAGS -Werror"
-                        AC_MSG_CHECKING(whether $GCC_OPTION $4)
-                        AC_COMPILE_IFELSE([
-                          AC_LANG_SOURCE($3)],
-                          [
-                            AC_MSG_RESULT(no)
-                            #
-                            # Remove -Werror=unknown-warning-option, if we
-                            # added it, and -Werror by setting CXXFLAGS to
-                            # the saved value plus just the new option.
-                            #
-                            CXXFLAGS="$CXXFLAGS_saved $GCC_OPTION"
-                          ],
-                          [
-                            AC_MSG_RESULT(yes)
-                            CXXFLAGS="$CXXFLAGS_saved"
-                          ])
-                      else
-                        #
-                        # Remove -Werror=unknown-warning-option, if we
-                        # added it, and -Werror by setting CXXFLAGS to
-                        # the saved value plus just the new option.
-                        #
-                        CXXFLAGS="$CXXFLAGS_saved $GCC_OPTION"
-                      fi
-                    ],
-                    [
-                      AC_MSG_RESULT(no)
-                      CXXFLAGS="$CXXFLAGS_saved"
-                    ])
+    AC_COMPILE_IFELSE(
+      [
+        AC_LANG_SOURCE([[int foo;]])
+      ],
+      [
+        AC_MSG_RESULT(yes)
+        can_add_to_cxxflags=yes
+        #
+        # OK, do we have a test program?  If so, check
+        # whether it fails with this option and -Werror,
+        # and, if so, don't include it.
+        #
+        # We test arg 4 here because arg 3 is a program which
+        # could contain quotes (breaking the comparison).
+        #
+        if test "x$4" != "x" ; then
+          CXXFLAGS="$CXXFLAGS -Werror"
+          AC_MSG_CHECKING(whether $GCC_OPTION $4)
+          AC_COMPILE_IFELSE(
+            [AC_LANG_SOURCE($3)],
+            [
+              AC_MSG_RESULT(no)
+              #
+              # Remove "force an error for a warning" options, if we
+              # added them, by setting CXXFLAGS to the saved value plus
+              # just the new option.
+              #
+              CXXFLAGS="$CXXFLAGS_saved $GCC_OPTION"
+            ],
+            [
+              AC_MSG_RESULT(yes)
+              CXXFLAGS="$CXXFLAGS_saved"
+            ])
+        else
+          #
+          # Remove "force an error for a warning" options, if we
+          # added them, by setting CXXFLAGS to the saved value plus
+          # just the new option.
+          #
+          CXXFLAGS="$CXXFLAGS_saved $GCC_OPTION"
+        fi
+      ],
+      [
+        AC_MSG_RESULT(no)
+        can_add_to_cxxflags=no
+        CXXFLAGS="$CXXFLAGS_saved"
+      ])
     AC_LANG_POP([C++])
+  fi
+  if test "(" "$can_add_to_cflags" = "yes" -a "$can_add_to_cxxflags" = "no" ")" \
+       -o "(" "$can_add_to_cflags" = "no" -a "$can_add_to_cxxflags" = "yes" ")"
+  then
+    AC_MSG_WARN([$CC and $CXX appear to be a mismatched pair])
   fi
 else
   AC_MSG_RESULT(no)
@@ -1888,6 +1911,127 @@ AC_DEFUN([AC_WIRESHARK_OSX_INTEGRATION_CHECK],
 	fi
 	CFLAGS="$ac_save_CFLAGS"
 	LIBS="$ac_save_LIBS"
+])
+
+# Based on AM_PATH_GTK in gtk-2.0.m4.
+
+dnl AC_WIRESHARK_QT_MODULE_CHECK([MODULE, MINIMUM-VERSION, [ACTION-IF-FOUND,
+dnl     [ACTION-IF-NOT-FOUND]]])
+dnl Test for a particular Qt module and add the flags and libraries
+dnl for it to Qt_CFLAGS and Qt_LIBS.
+dnl
+AC_DEFUN([AC_WIRESHARK_QT_MODULE_CHECK],
+[
+	#
+	# Version of the module we're checking for.
+	# Default to 4.0.0.
+	#
+	min_qt_version=ifelse([$2], ,4.0.0,$2)
+
+	#
+	# Prior to Qt 5, modules were named QtXXX.
+	# In Qt 5, they're named Qt5XXX.
+	#
+	# Try the Qt 5 version first.
+	# (And be prepared to add Qt6 at some point....)
+	#
+	for modprefix in Qt5 Qt
+	do
+		pkg_config_module="${modprefix}$1"
+		AC_MSG_CHECKING(for $pkg_config_module - version >= $min_qt_version)
+		if $PKG_CONFIG --atleast-version $min_qt_version $pkg_config_module; then
+			mod_version=`$PKG_CONFIG --modversion $pkg_config_module`
+			AC_MSG_RESULT(yes (version $mod_version))
+			Qt_CFLAGS="$Qt_CFLAGS `$PKG_CONFIG --cflags $pkg_config_module`"
+			Qt_LIBS="$Qt_LIBS `$PKG_CONFIG --libs $pkg_config_module`"
+			found_$1=yes
+			break
+		else
+			AC_MSG_RESULT(no)
+		fi
+	done
+
+	if test "x$found_$1" = "xyes"; then
+		# Run Action-If-Found
+		ifelse([$3], , :, [$3])
+	else
+		# Run Action-If-Not-Found
+		ifelse([$4], , :, [$4])
+	fi
+])
+
+dnl AC_WIRESHARK_QT_CHECK([MINIMUM-VERSION, [ACTION-IF-FOUND,
+dnl     [ACTION-IF-NOT-FOUND]]])
+dnl Test for Qt and define Qt_CFLAGS and Qt_LIBS.
+dnl
+AC_DEFUN([AC_WIRESHARK_QT_CHECK],
+[
+	no_qt=""
+
+	AC_PATH_PROG(PKG_CONFIG, pkg-config, no)
+
+	if test x$PKG_CONFIG != xno ; then
+		if pkg-config --atleast-pkgconfig-version 0.7 ; then
+			:
+		else
+			echo *** pkg-config too old; version 0.7 or better required.
+			no_qt=yes
+			PKG_CONFIG=no
+		fi
+	else
+		no_qt=yes
+	fi
+
+	if test x"$no_qt" = x ; then
+		#
+		# OK, we have an adequate version of pkg-config.
+		#
+		# Check for the Core module; if we don't have that,
+		# we don't have Qt.
+		#
+		AC_WIRESHARK_QT_MODULE_CHECK(Core, $1, , [no_qt=yes])
+	fi
+
+	if test x"$no_qt" = x ; then
+		#
+		# We need the Gui module as well.
+		#
+		AC_WIRESHARK_QT_MODULE_CHECK(Gui, $1, , [no_qt=yes])
+	fi
+
+	if test x"$no_qt" = x ; then
+		#
+		# Qt 5.0 appears to move the widgets out of Qt GUI
+		# to Qt Widgets; look for the Widgets module, but
+		# don't fail if we don't have it.
+		#
+		AC_WIRESHARK_QT_MODULE_CHECK(Widgets, $1)
+
+		#
+		# Qt 5.0 also appears to move the printing support into
+		# the Qt PrintSupport module.
+		#
+		AC_WIRESHARK_QT_MODULE_CHECK(PrintSupport, $1)
+
+		#
+		# While we're at it, look for QtMacExtras.  (Presumably
+		# if we're not building for OS X, it won't be present.)
+		#
+		# XXX - is there anything in QtX11Extras or QtWinExtras
+		# that we should be using?
+		#
+		AC_WIRESHARK_QT_MODULE_CHECK(MacExtras, $1,
+			AC_DEFINE(QT_MACEXTRAS_LIB, 1, [Define if we have QtMacExtras]))
+
+		AC_SUBST(Qt_LIBS)
+
+		# Run Action-If-Found
+		ifelse([$2], , :, [$2])
+	else
+		# Run Action-If-Not-Found
+		ifelse([$3], , :, [$3])
+	fi
+
 ])
 
 #

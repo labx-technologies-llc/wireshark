@@ -36,10 +36,9 @@ S<[ B<-q> ]>
 S<[ B<-Q> ]>
 S<[ B<-r> E<lt>infileE<gt> ]>
 S<[ B<-R> E<lt>Read filterE<gt> ]>
-S<[ B<-Y> E<lt>displaY filterE<gt> ]>
 S<[ B<-s> E<lt>capture snaplenE<gt> ]>
 S<[ B<-S> E<lt>separatorE<gt> ]>
-S<[ B<-t> ad|a|r|d|dd|e ]>
+S<[ B<-t> a|ad|d|dd|e|r|u|ud ]>
 S<[ B<-T> pdml|psml|ps|text|fields ]>
 S<[ B<-v> ]>
 S<[ B<-V> ]>
@@ -48,7 +47,9 @@ S<[ B<-W> E<lt>file format optionE<gt>]>
 S<[ B<-x> ]>
 S<[ B<-X> E<lt>eXtension optionE<gt>]>
 S<[ B<-y> E<lt>capture link typeE<gt> ]>
+S<[ B<-Y> E<lt>displaY filterE<gt> ]>
 S<[ B<-z> E<lt>statisticsE<gt> ]>
+S<[ B<--capture-comment> E<lt>commentE<gt> ]>
 S<[ E<lt>capture filterE<gt> ]>
 
 B<tshark>
@@ -60,7 +61,7 @@ B<TShark> is a network protocol analyzer.  It lets you capture packet
 data from a live network, or read packets from a previously saved
 capture file, either printing a decoded form of those packets to the
 standard output or writing the packets to a file.  B<TShark>'s native
-capture file format is B<libpcap> format, which is also the format used
+capture file format is B<pcap> format, which is also the format used
 by B<tcpdump> and various other tools.
 
 Without any options set, B<TShark> will work much like B<tcpdump>.  It will
@@ -103,7 +104,7 @@ B<TShark> without the B<-w> option, and redirect its standard output to
 the file (do I<not> use the B<-w> option).
 
 When writing packets to a file, B<TShark>, by default, writes the
-file in B<libpcap> format, and writes all of the packets it sees to the
+file in B<pcap> format, and writes all of the packets it sees to the
 output file.  The B<-F> option can be used to specify the format in which
 to write the file.  This list of available file formats is displayed by
 the B<-F> flag without a value.  However, you can't specify a file format
@@ -461,7 +462,7 @@ B<TShark> reports an error and doesn't start the capture.
 
 Pipe names should be either the name of a FIFO (named pipe) or ``-'' to
 read data from the standard input.  Data read from pipes must be in
-standard libpcap format.
+standard pcap format.
 
 This option can occur multiple times.  When capturing from multiple
 interfaces, the capture file will be saved in pcap-ng format.
@@ -619,20 +620,6 @@ Note that forward-looking fields such as 'response in frame #' cannot be used
 with this filter, since they will not have been calculate when this filter is
 applied.
 
-=item -Y  E<lt>displaY filterE<gt>
-
-Cause the specified filter (which uses the syntax of read/display filters,
-rather than that of capture filters) to be applied before printing a
-decoded form of packets or writing packets to a file.  Packets matching the
-filter are printed or written to file; packets that the matching packets
-depend upon (e.g., fragments), are not printed but are written to file;
-packets not matching the filter nor depended upon are discarded rather
-than being printed or written.
-
-Use this instead of -R for filtering using single-pass analysis. If doing
-two-pass analysis (see -2) then only packets matching the read filter (if there
-is one) will be checked against this filter.
-
 =item -s  E<lt>capture snaplenE<gt>
 
 Set the default snapshot length to use when capturing live data.
@@ -651,19 +638,16 @@ the default snapshot length is used if provided.
 
 Set the line separator to be printed between packets.
 
-=item -t  ad|a|r|d|dd|e
+=item -t  a|ad|d|dd|e|r|u|ud
 
 Set the format of the packet timestamp printed in summary lines.
 The format can be one of:
 
-B<ad> absolute with date: The absolute date and time is the actual time and
-date the packet was captured
-
 B<a> absolute: The absolute time is the actual time the packet was captured,
 with no date displayed
 
-B<r> relative: The relative time is the time elapsed between the first packet
-and the current packet
+B<ad> absolute with date: The absolute date and time is the actual time and
+date the packet was captured
 
 B<d> delta: The delta time is the time since the previous packet was
 captured
@@ -672,6 +656,15 @@ B<dd> delta_displayed: The delta_displayed time is the time since the
 previous displayed packet was captured
 
 B<e> epoch: The time in seconds since epoch (Jan 1, 1970 00:00:00)
+
+B<r> relative: The relative time is the time elapsed between the first packet
+and the current packet
+
+B<u> UTC: The UTC time is the actual time the packet was captured,
+with no date displayed
+
+B<ud> UTC with date: The UTC date and time is the actual time and
+date the packet was captured
 
 The default format is relative.
 
@@ -762,6 +755,20 @@ If used after an B<-i> option, it sets the capture link type for
 the interface specified by the last B<-i> option occurring before
 this option.  If the capture link type is not set specifically,
 the default capture link type is used if provided.
+
+=item -Y  E<lt>displaY filterE<gt>
+
+Cause the specified filter (which uses the syntax of read/display filters,
+rather than that of capture filters) to be applied before printing a
+decoded form of packets or writing packets to a file.  Packets matching the
+filter are printed or written to file; packets that the matching packets
+depend upon (e.g., fragments), are not printed but are written to file;
+packets not matching the filter nor depended upon are discarded rather
+than being printed or written.
+
+Use this instead of -R for filtering using single-pass analysis. If doing
+two-pass analysis (see -2) then only packets matching the read filter (if there
+is one) will be checked against this filter.
 
 =item -z  E<lt>statisticsE<gt>
 
@@ -1393,6 +1400,13 @@ on those calls that match that filter.
 Example: B<-z "smb,srt,ip.addr==1.2.3.4"> will only collect stats for
 SMB packets exchanged by the host at IP address 1.2.3.4 .
 
+=item --capture-comment E<lt>commentE<gt>
+
+Add a capture comment to the output file.
+
+This option is only available if a new output file in pcapng format is
+created. Only one capture comment may be set per output file.
+
 =back
 
 =back
@@ -1474,7 +1488,7 @@ whitespace.  The same directory as for the personal preferences file is
 used.
 
 Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems and WinPCAP on Windows.  As such the Wireshark personal F<hosts> file
+systems and WinPcap on Windows.  As such the Wireshark personal F<hosts> file
 will not be consulted for capture filter name resolution.
 
 =item Name Resolution (ethers)
@@ -1501,7 +1515,7 @@ The personal F<ethers> file is looked for in the same directory as the personal
 preferences file.
 
 Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems and WinPCAP on Windows.  As such the Wireshark personal F<ethers> file
+systems and WinPcap on Windows.  As such the Wireshark personal F<ethers> file
 will not be consulted for capture filter name resolution.
 
 =item Name Resolution (manuf)
@@ -1641,6 +1655,18 @@ you are not running it in a debugger, it will, on some OSes, assuming
 your environment is configured correctly, generate a core dump file.
 This can be useful to developers attempting to troubleshoot a problem
 with a protocol dissector.
+
+=item WIRESHARK_ABORT_ON_TOO_MANY_ITEMS
+
+If this environment variable is set, B<TShark> will call abort(3)
+if a dissector tries to add too many items to a tree (generally this
+is an indication of the dissector not breaking out of a loop soon enough).
+abort(3) will cause the program to exit abnormally; if you are running
+B<TShark> in a debugger, it should halt in the debugger and allow
+inspection of the process, and, if you are not running it in a debugger,
+it will, on some OSes, assuming your environment is configured correctly,
+generate a core dump file.  This can be useful to developers attempting to
+troubleshoot a problem with a protocol dissector.
 
 =item WIRESHARK_EP_VERIFY_POINTERS
 

@@ -75,7 +75,7 @@
 #include <nettle/des.h>
 #include <nettle/cbc.h>
 #endif
-#include <epan/crypt/md5.h>
+#include <wsutil/md5.h>
 #include <sys/stat.h>   /* For keyfile manipulation */
 #endif
 
@@ -638,7 +638,7 @@ read_keytab_file(const char *filename)
     }
 
     do{
-        new_key=g_malloc(sizeof(enc_key_t));
+        new_key=(enc_key_t*)g_malloc(sizeof(enc_key_t));
         new_key->next=enc_key_list;
         ret = krb5_kt_next_entry(krb5_ctx, keytab, &key, &cursor);
         if(ret==0){
@@ -658,7 +658,7 @@ read_keytab_file(const char *filename)
             *pos=0;
             new_key->keytype=key.keyblock.keytype;
             new_key->keylength=key.keyblock.keyvalue.length;
-            new_key->keyvalue=g_memdup(key.keyblock.keyvalue.data, key.keyblock.keyvalue.length);
+            new_key->keyvalue=(char*)g_memdup(key.keyblock.keyvalue.data, key.keyblock.keyvalue.length);
             enc_key_list=new_key;
         }
     }while(ret==0);
@@ -709,7 +709,7 @@ decrypt_krb5_data(proto_tree *tree, packet_info *pinfo,
         key.keyblock.keytype=ek->keytype;
         key.keyblock.keyvalue.length=ek->keylength;
         key.keyblock.keyvalue.data=ek->keyvalue;
-        ret = krb5_crypto_init(krb5_ctx, &(key.keyblock), 0, &crypto);
+        ret = krb5_crypto_init(krb5_ctx, &(key.keyblock), (krb5_enctype)0, &crypto);
         if(ret){
             return NULL;
         }
@@ -720,7 +720,7 @@ decrypt_krb5_data(proto_tree *tree, packet_info *pinfo,
            keys. So just give it a copy of the crypto data instead.
            This has been seen for RC4-HMAC blobs.
         */
-        cryptocopy=g_memdup(cryptotext, length);
+        cryptocopy=(guint8*)g_memdup(cryptotext, length);
         ret = krb5_decrypt_ivec(krb5_ctx, crypto, usage,
                                 cryptocopy, length,
                                 &data,
@@ -733,7 +733,7 @@ printf("woohoo decrypted keytype:%d in frame:%u\n", ek->keytype, pinfo->fd->num)
             proto_tree_add_text(tree, NULL, 0, 0, "[Decrypted using: %s]", ek->key_origin);
             krb5_crypto_destroy(krb5_ctx, crypto);
             /* return a private g_malloced blob to the caller */
-            user_data=g_memdup(data.data, data.length);
+            user_data=(char*)g_memdup(data.data, data.length);
             if (datalen) {
                 *datalen = data.length;
             }
@@ -1674,7 +1674,7 @@ static int
 dissect_krb5_error_code(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_ctx_t *actx _U_)
 {
     offset=dissect_ber_integer(FALSE, actx, tree, tvb, offset, hf_krb_error_code, &krb5_errorcode);
-    if(krb5_errorcode && check_col(actx->pinfo->cinfo, COL_INFO)) {
+    if(krb5_errorcode) {
         col_add_fstr(actx->pinfo->cinfo, COL_INFO,
                      "KRB Error: %s",
                      val_to_str(krb5_errorcode, krb5_error_codes,
@@ -1916,7 +1916,7 @@ dissect_krb5_msg_type(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_ctx_t *a
 
     offset=dissect_ber_integer(FALSE, actx, tree, tvb, offset, hf_krb_msg_type, &msgtype);
 
-    if (gbl_do_col_info & check_col(actx->pinfo->cinfo, COL_INFO)) {
+    if (gbl_do_col_info) {
         col_add_str(actx->pinfo->cinfo, COL_INFO,
                     val_to_str(msgtype, krb5_msg_types,
                                "Unknown msg type %#x"));
@@ -2295,7 +2295,7 @@ dissect_krb5_PW_SALT(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_ctx_t *ac
      */
     proto_tree_add_item(tree, hf_krb_smb_nt_status, tvb, offset, 4, ENC_LITTLE_ENDIAN);
     nt_status=tvb_get_letohl(tvb, offset);
-    if(nt_status && check_col(actx->pinfo->cinfo, COL_INFO)) {
+    if(nt_status) {
         col_append_fstr(actx->pinfo->cinfo, COL_INFO,
                         " NT Status: %s",
                         val_to_str(nt_status, NT_errors,

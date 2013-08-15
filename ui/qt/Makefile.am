@@ -62,7 +62,7 @@ libqtui_a_CFLAGS = $(AM_CLEAN_CFLAGS)
 libqtui_a_DEPENDENCIES =
 
 # Common headers
-AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap $(LIBGCRYPT_CFLAGS) $(LIBGNUTLS_CFLAGS) $(PORTAUDIO_INCLUDES)
+AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap $(LIBGCRYPT_CFLAGS) $(LIBGNUTLS_CFLAGS) $(PORTAUDIO_INCLUDES) $(PIE_CFLAGS)
 
 AM_V_MOC = $(am__v_MOC_@AM_V@)
 am__v_MOC_ = $(am__v_MOC_@AM_DEFAULT_V@)
@@ -135,7 +135,11 @@ search_frame.cpp search_frame.h: ui_search_frame.h
 
 splash_overlay.cpp splash_overlay.h: ui_splash_overlay.h
 
+summary_dialog.cpp summary_dialog.h: ui_summary_dialog.h
+
 time_shift_dialog.cpp time_shift_dialog.h: ui_time_shift_dialog.h
+
+uat_dialog.cpp uat_dialog.h: ui_uat_dialog.h
 
 doxygen:
 if HAVE_DOXYGEN

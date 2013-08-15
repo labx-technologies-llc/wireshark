@@ -96,20 +96,20 @@
 #include <epan/conversation.h>
 #include <epan/reassemble.h>
 #include <epan/prefs.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/asn1.h>
 #include <epan/dissectors/packet-x509af.h>
 #include <epan/dissectors/packet-ocsp.h>
 #include <epan/tap.h>
 #include <epan/filesystem.h>
-#include <epan/report_err.h>
 #include <epan/expert.h>
 #include "packet-x509if.h"
 #include "packet-ssl.h"
 #include "packet-ssl-utils.h"
 #include <wsutil/file_util.h>
 #include <epan/uat.h>
+#include <epan/exported_pdu.h>
 
 static ssldecrypt_assoc_t *sslkeylist_uats = NULL;
 static guint nssldecrypt = 0;
@@ -128,6 +128,7 @@ gboolean ssl_ignore_mac_failed = FALSE;
 
 /* Initialize the protocol and registered fields */
 static gint ssl_tap                           = -1;
+static gint exported_pdu_tap                  = -1;
 static gint proto_ssl                         = -1;
 static gint hf_ssl_record                     = -1;
 static gint hf_ssl_record_content_type        = -1;
@@ -747,7 +748,7 @@ dissect_ssl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if (conv_data != NULL)
         ssl_session = (SslDecryptSession *)conv_data;
     else {
-        ssl_session = (SslDecryptSession *)se_alloc0(sizeof(SslDecryptSession));
+        ssl_session = (SslDecryptSession *)wmem_alloc0(wmem_file_scope(), sizeof(SslDecryptSession));
         ssl_session_init(ssl_session);
         ssl_session->version = SSL_VER_UNKNOWN;
         conversation_add_proto_data(conversation, proto_ssl, ssl_session);
@@ -973,7 +974,7 @@ desegment_ssl(tvbuff_t *tvb, packet_info *pinfo, int offset,
               proto_tree *root_tree, proto_tree *tree,
               SslFlow *flow)
 {
-    fragment_data *ipfd_head;
+    fragment_head *ipfd_head;
     gboolean       must_desegment;
     gboolean       called_dissector;
     int            another_pdu_follows;
@@ -1015,7 +1016,7 @@ again:
      * dissection of the desegmented pdu if we'd already seen the end of
      * the pdu).
      */
-    if ((msp = (struct tcp_multisegment_pdu *)se_tree_lookup32(flow->multisegment_pdus, seq))) {
+    if ((msp = (struct tcp_multisegment_pdu *)wmem_tree_lookup32(flow->multisegment_pdus, seq))) {
         const char *prefix;
 
         if (msp->first_frame == PINFO_FD_NUM(pinfo)) {
@@ -1031,7 +1032,7 @@ again:
     }
 
     /* Else, find the most previous PDU starting before this sequence number */
-    msp = (struct tcp_multisegment_pdu *)se_tree_lookup32_le(flow->multisegment_pdus, seq-1);
+    msp = (struct tcp_multisegment_pdu *)wmem_tree_lookup32_le(flow->multisegment_pdus, seq-1);
     if (msp && msp->seq <= seq && msp->nxtpdu > seq) {
         int len;
 
@@ -1127,9 +1128,7 @@ again:
             int old_len;
 
             /* create a new TVB structure for desegmented data */
-            next_tvb = tvb_new_child_real_data(tvb, ipfd_head->data,
-                                               ipfd_head->datalen,
-                                               ipfd_head->datalen);
+            next_tvb = tvb_new_chain(tvb, ipfd_head->tvb_data);
 
             /* add desegmented data to the data source list */
             add_new_data_source(pinfo, next_tvb, "Reassembled SSL");
@@ -1387,6 +1386,18 @@ process_ssl_payload(tvbuff_t *tvb, volatile int offset, packet_info *pinfo,
         if (dissector_try_heuristic(ssl_heur_subdissector_list, next_tvb,
                                     pinfo, proto_tree_get_root(tree), NULL)) {
         } else {
+            if (have_tap_listener(exported_pdu_tap)) {
+                exp_pdu_data_t *exp_pdu_data;
+
+                exp_pdu_data = load_export_pdu_tags(pinfo, dissector_handle_get_dissector_name(association->handle), -1,
+                                                    (EXP_PDU_TAG_IP_SRC_BIT | EXP_PDU_TAG_IP_DST_BIT | EXP_PDU_TAG_SRC_PORT_BIT |
+                                                     EXP_PDU_TAG_DST_PORT_BIT | EXP_PDU_TAG_ORIG_FNO_BIT));
+
+                exp_pdu_data->tvb_length = tvb_length(next_tvb); 
+                exp_pdu_data->pdu_tvb = next_tvb;
+
+                tap_queue_packet(exported_pdu_tap, pinfo, exp_pdu_data);
+            }
             call_dissector(association->handle, next_tvb, pinfo, proto_tree_get_root(tree));
         }
     }
@@ -2162,7 +2173,7 @@ dissect_ssl3_handshake(tvbuff_t *tvb, packet_info *pinfo,
                         psk_len = size > 0 ? size / 2 : 0;
                         pre_master_len = psk_len * 2 + 4;
 
-                        pre_master_secret.data = (guchar *)se_alloc(pre_master_len);
+                        pre_master_secret.data = (guchar *)wmem_alloc(wmem_file_scope(), pre_master_len);
                         pre_master_secret.data_len = pre_master_len;
                         /* 2 bytes psk_len*/
                         pre_master_secret.data[0] = psk_len >> 8;
@@ -2208,7 +2219,7 @@ dissect_ssl3_handshake(tvbuff_t *tvb, packet_info *pinfo,
                                 break;
                             }
                         }
-                        encrypted_pre_master.data = (guchar *)se_alloc(encrlen);
+                        encrypted_pre_master.data = (guchar *)wmem_alloc(wmem_file_scope(), encrlen);
                         encrypted_pre_master.data_len = encrlen;
                         tvb_memcpy(tvb, encrypted_pre_master.data, offset+skip, encrlen);
 
@@ -4672,7 +4683,7 @@ void ssl_set_master_secret(guint32 frame_num, address *addr_srv, address *addr_c
     if (conv_data) {
         ssl = (SslDecryptSession *)conv_data;
     } else {
-        ssl = (SslDecryptSession *)se_alloc0(sizeof(SslDecryptSession));
+        ssl = (SslDecryptSession *)wmem_alloc0(wmem_file_scope(), sizeof(SslDecryptSession));
         ssl_session_init(ssl);
         ssl->version = SSL_VER_UNKNOWN;
         conversation_add_proto_data(conversation, proto_ssl, ssl);
@@ -6000,6 +6011,7 @@ proto_reg_handoff_ssl(void)
     /* parse key list */
     ssl_parse_uat();
     ssl_parse_old_keys();
+    exported_pdu_tap = find_tap_id(EXPORT_PDU_TAP_NAME_LAYER_7);
 }
 
 void

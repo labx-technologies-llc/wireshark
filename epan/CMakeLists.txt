@@ -45,13 +45,6 @@ set(CRYPT_FILES
 	crypt/airpdcap_debug.c
 	crypt/airpdcap_rijndael.c
 	crypt/airpdcap_tkip.c
-	crypt/aes.c
-	crypt/des.c
-	crypt/eax.c
-	crypt/md4.c
-	crypt/md5.c
-	crypt/rc4.c
-	crypt/sha1.c
 )
 
 set(DFILTER_FILES
@@ -216,7 +209,6 @@ set(ASN1_DISSECTOR_SRC
 	dissectors/packet-h501.c
 	dissectors/packet-hnbap.c
 	dissectors/packet-idmp.c
-	dissectors/packet-idrp.c
 	dissectors/packet-inap.c
 	dissectors/packet-isdn-sup.c
 	dissectors/packet-lcsap.c
@@ -231,7 +223,6 @@ set(ASN1_DISSECTOR_SRC
 	dissectors/packet-nbap.c
 	dissectors/packet-ns_cert_exts.c
 	dissectors/packet-ocsp.c
-	dissectors/packet-opsi.c
 	dissectors/packet-p22.c
 	dissectors/packet-p7.c
 	dissectors/packet-p772.c
@@ -249,7 +240,6 @@ set(ASN1_DISSECTOR_SRC
 	dissectors/packet-qsig.c
 	dissectors/packet-ranap.c
 	dissectors/packet-ros.c
-	dissectors/packet-rpki-rtr.c
 	dissectors/packet-rrc.c
 	dissectors/packet-rrlp.c
 	dissectors/packet-rtse.c
@@ -260,11 +250,9 @@ set(ASN1_DISSECTOR_SRC
 	dissectors/packet-smrse.c
 	dissectors/packet-spnego.c
 	dissectors/packet-sv.c
-	dissectors/packet-sysex.c
 	dissectors/packet-t38.c
 	dissectors/packet-ulp.c
 	dissectors/packet-wlancertextn.c
-	dissectors/packet-x224.c
 	dissectors/packet-x2ap.c
 	dissectors/packet-x509af.c
 	dissectors/packet-x509ce.c
@@ -295,6 +283,7 @@ set(DIRTY_ASN1_DISSECTOR_SRC
 )
 
 set(DISSECTOR_SRC
+	dissectors/file-mp4.c
 	dissectors/packet-2dparityfec.c
 	dissectors/packet-3com-njack.c
 	dissectors/packet-3com-xns.c
@@ -400,6 +389,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-bssgp.c
 	dissectors/packet-bt-dht.c
 	dissectors/packet-bt-utp.c
+	dissectors/packet-bt3ds.c
 	dissectors/packet-btamp.c
 	dissectors/packet-btatt.c
 	dissectors/packet-btbnep.c
@@ -426,6 +416,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-calcappprotocol.c
 	dissectors/packet-canopen.c
 	dissectors/packet-capwap.c
+	dissectors/packet-carp.c
 	dissectors/packet-cast.c
 	dissectors/packet-catapult-dct2000.c
 	dissectors/packet-ccsds.c
@@ -441,6 +432,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-cipmotion.c
 	dissectors/packet-cipsafety.c
 	dissectors/packet-cisco-erspan.c
+	dissectors/packet-cisco-metadata.c
 	dissectors/packet-cisco-oui.c
 	dissectors/packet-cisco-sm.c
 	dissectors/packet-cisco-wids.c
@@ -733,6 +725,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-hsr.c
 	dissectors/packet-hsrp.c
 	dissectors/packet-http.c
+	dissectors/packet-http-urlencoded.c
 	dissectors/packet-hyperscsi.c
 	dissectors/packet-i2c.c
 	dissectors/packet-iana-oui.c
@@ -745,6 +738,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-icp.c
 	dissectors/packet-icq.c
 	dissectors/packet-idp.c
+	dissectors/packet-idrp.c
 	dissectors/packet-iec104.c
 	dissectors/packet-ieee1722.c
 	dissectors/packet-ieee17221.c
@@ -818,6 +812,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-jxta.c
 	dissectors/packet-k12.c
 	dissectors/packet-kadm5.c
+	dissectors/packet-kafka.c
 	dissectors/packet-kdp.c
 	dissectors/packet-kdsp.c
 	dissectors/packet-kerberos.c
@@ -974,9 +969,11 @@ set(DISSECTOR_SRC
 	dissectors/packet-olsr.c
 	dissectors/packet-omapi.c
 	dissectors/packet-omron-fins.c
+	dissectors/packet-openflow.c
 	dissectors/packet-opensafety.c
 	dissectors/packet-openvpn.c
 	dissectors/packet-openwire.c
+	dissectors/packet-opsi.c
 	dissectors/packet-osi-options.c
 	dissectors/packet-osi.c
 	dissectors/packet-ositp.c
@@ -1070,6 +1067,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-roofnet.c
 	dissectors/packet-rpc.c
 	dissectors/packet-rpcap.c
+	dissectors/packet-rpki-rtr.c
 	dissectors/packet-rpl.c
 	dissectors/packet-rquota.c
 	dissectors/packet-rsh.c
@@ -1078,6 +1076,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-rstat.c
 	dissectors/packet-rsvp.c
 	dissectors/packet-rsync.c
+	dissectors/packet-rtacser.c
 	dissectors/packet-rtcdc.c
 	dissectors/packet-rtcp.c
 	dissectors/packet-rtmpt.c
@@ -1157,6 +1156,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-ssh.c
 	dissectors/packet-ssl-utils.c
 	dissectors/packet-ssl.c
+	dissectors/packet-stanag4607.c
 	dissectors/packet-starteam.c
 	dissectors/packet-stat-notify.c
 	dissectors/packet-stat.c
@@ -1166,6 +1166,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-sync.c
 	dissectors/packet-synergy.c
 	dissectors/packet-synphasor.c
+	dissectors/packet-sysex.c
 	dissectors/packet-syslog.c
 	dissectors/packet-t30.c
 	dissectors/packet-tacacs.c
@@ -1208,6 +1209,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-ucp.c
 	dissectors/packet-udld.c
 	dissectors/packet-udp.c
+	dissectors/packet-udt.c
 	dissectors/packet-uhd.c
 	dissectors/packet-uma.c
 	dissectors/packet-umts_fp.c
@@ -1265,6 +1267,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-wsp.c
 	dissectors/packet-wtls.c
 	dissectors/packet-wtp.c
+	dissectors/packet-x224.c
 	dissectors/packet-x25.c
 	dissectors/packet-x29.c
 	dissectors/packet-xcsl.c
@@ -1292,7 +1295,10 @@ set(DISSECTOR_SRC
 	dissectors/packet-zbee-nwk.c
 	dissectors/packet-zbee-security.c
 	dissectors/packet-zbee-zcl.c
-	dissectors/packet-zbee-zcl-on-off.c
+	dissectors/packet-zbee-zcl-general.c
+	dissectors/packet-zbee-zcl-ha.c
+	dissectors/packet-zbee-zcl-meas-sensing.c
+	dissectors/packet-zbee-zcl-se.c
 	dissectors/packet-zbee-zdp-binding.c
 	dissectors/packet-zbee-zdp-discovery.c
 	dissectors/packet-zbee-zdp-management.c
@@ -1374,15 +1380,18 @@ set(FTYPE_FILES
 )
 
 set(WMEM_FILES
+	wmem/wmem_array.c
 	wmem/wmem_core.c
 	wmem/wmem_allocator_block.c
 	wmem/wmem_allocator_simple.c
 	wmem/wmem_allocator_strict.c
+	wmem/wmem_list.c
+	wmem/wmem_miscutl.c
 	wmem/wmem_scopes.c
-	wmem/wmem_slist.c
 	wmem/wmem_stack.c
 	wmem/wmem_strbuf.c
 	wmem/wmem_strutl.c
+	wmem/wmem_tree.c
 	wmem/wmem_user_cb.c
 )
 
@@ -1398,12 +1407,24 @@ ADD_CUSTOM_COMMAND(
       ${CMAKE_SOURCE_DIR}/tools/make-sminmpec.pl
 )
 
+ADD_CUSTOM_COMMAND(
+	OUTPUT	ps.c
+	COMMAND	${PYTHON_EXECUTABLE}
+		${CMAKE_SOURCE_DIR}/tools/rdps.py
+		${CMAKE_CURRENT_SOURCE_DIR}/print.ps
+		ps.c
+	DEPENDS
+		${CMAKE_SOURCE_DIR}/tools/rdps.py
+		${CMAKE_CURRENT_SOURCE_DIR}/print.ps
+)
+
 set(LIBWIRESHARK_FILES
 	addr_and_mask.c
 	addr_resolv.c
 	address_to_str.c
 	adler32.c
 	afn.c
+	app_mem_usage.c
 	asn1.c
 	atalk-utils.c
 	base64.c
@@ -1418,6 +1439,7 @@ set(LIBWIRESHARK_FILES
 	crc16-tvb.c
 	crc32-tvb.c
 	crc8-tvb.c
+	disabled_protos.c
 	dissector_filters.c
 	emem.c
 	epan.c
@@ -1429,6 +1451,7 @@ set(LIBWIRESHARK_FILES
 	filter_expressions.c
 	follow.c
 	frame_data.c
+	frame_data_sequence.c
 	frequency-utils.c
 	funnel.c
 	gcp.c
@@ -1440,17 +1463,18 @@ set(LIBWIRESHARK_FILES
 	ipproto.c
 	ipv4.c
 	next_tvb.c
-	nstime.c
 	oids.c
 	osi-utils.c
+	packet-range.c
 	packet.c
 	plugins.c
+	print.c
 	prefs.c
 	proto.c
+	ps.c
 	range.c
 	reassemble.c
 	reedsolomon.c
-	report_err.c
 	req_resp_hdrs.c
 	show_exception.c
 	sigcomp_state_hdlr.c
@@ -1465,10 +1489,14 @@ set(LIBWIRESHARK_FILES
 	tap.c
 	tcap-persistentdata.c
 	timestamp.c
+	timestats.c
 	tfs.c
 	to_str.c
 	tvbparse.c
 	tvbuff.c
+	tvbuff_composite.c
+	tvbuff_real.c
+	tvbuff_subset.c
 	uat.c
 	value_string.c
 	xdlc.c

@@ -257,6 +257,8 @@ static gint ett_rtps_sample_info_list           = -1;
 static gint ett_rtps_sample_info                = -1;
 static gint ett_rtps_sample_batch_list          = -1;
 
+static expert_field rtps_sm_octets_to_next_header_error = EI_INIT;
+
 /***************************************************************************/
 /* Preferences                                                             */
 /***************************************************************************/
@@ -2071,6 +2073,11 @@ static gint rtps_util_add_typecode(proto_tree *tree, tvbuff_t * tvb, gint offset
         LONG_ALIGN(offset);
         dim_max = NEXT_guint32(tvb, offset, little_endian);
         offset += 4;
+
+        if (dim_max > MAX_ARRAY_DIMENSION) {
+            /* We don't have a tree item to add expert info to... */
+            dim_max = MAX_ARRAY_DIMENSION;
+        }
 
         for (i = 0; i < MAX_ARRAY_DIMENSION; ++i) size[i] = 0;
         for (i = 0; i < dim_max; ++i) {
@@ -4127,7 +4134,7 @@ static void dissect_DATA_v1(tvbuff_t *tvb, packet_info *pinfo, gint offset, guin
   if ((flags & FLAG_DATA_D) != 0) min_len += 4;
 
   if (octets_to_next_header < min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= %u)", min_len);
     return;
   }
 
@@ -4274,7 +4281,7 @@ static void dissect_DATA_v2(tvbuff_t *tvb, packet_info *pinfo, gint offset, guin
   if ((flags & FLAG_DATA_H) != 0) min_len += 12;
 
   if (octets_to_next_header < min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= %u)", min_len);
     return;
   }
 
@@ -4405,7 +4412,7 @@ static void dissect_DATA_FRAG(tvbuff_t *tvb, packet_info *pinfo, gint offset, gu
   if ((flags & FLAG_DATA_FRAG_H) != 0) min_len += 12;
 
   if (octets_to_next_header < min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= %u)", min_len);
     return;
   }
 
@@ -4572,7 +4579,7 @@ static void dissect_NOKEY_DATA(tvbuff_t *tvb, packet_info *pinfo, gint offset, g
   if ((flags & FLAG_NOKEY_DATA_Q) != 0) min_len += 4;
 
   if (octets_to_next_header < min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= %u)", min_len);
     return;
   }
 
@@ -4663,7 +4670,7 @@ static void dissect_NOKEY_DATA_FRAG(tvbuff_t *tvb, packet_info *pinfo, gint offs
   if ((flags & FLAG_NOKEY_DATA_Q) != 0) min_len += 4;
 
   if (octets_to_next_header < min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= %u)", min_len);
     return;
   }
 
@@ -4769,7 +4776,7 @@ static void dissect_ACKNACK(tvbuff_t *tvb, packet_info *pinfo, gint offset, guin
                         little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
   if (octets_to_next_header < 20) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= 20)");
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= 20)");
     return;
   }
 
@@ -4864,7 +4871,7 @@ static void dissect_NACK_FRAG(tvbuff_t *tvb, packet_info *pinfo, gint offset, gu
                         offset + 2, 2, little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
   if (octets_to_next_header < 24) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= 24)");
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= 24)");
     return;
   }
 
@@ -4965,11 +4972,11 @@ static void dissect_HEARTBEAT(tvbuff_t *tvb, packet_info *pinfo, gint offset, gu
                         little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
   if ((octets_to_next_header < 24) && (version <= 0x0101)) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= 24)");
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= 24)");
     return;
   }
   else if (octets_to_next_header < 28) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= 28)");
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= 28)");
     return;
   }
 
@@ -5041,7 +5048,7 @@ static void dissect_HEARTBEAT_BATCH(tvbuff_t *tvb, packet_info *pinfo, gint offs
                         offset + 2, 2, little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
   if (octets_to_next_header < 36) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= 36)");
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= 36)");
     return;
   }
 
@@ -5114,7 +5121,7 @@ static void dissect_HEARTBEAT_FRAG(tvbuff_t *tvb, packet_info *pinfo, gint offse
                         offset + 2, 2, little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
   if (octets_to_next_header < 24) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= 24)");
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= 24)");
     return;
   }
 
@@ -5230,7 +5237,7 @@ static void dissect_RTPS_DATA(tvbuff_t *tvb, packet_info *pinfo, gint offset, gu
   if ((flags & FLAG_RTPS_DATA_K) != 0) min_len += 4;
 
   if (octets_to_next_header < min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= %u)", min_len);
     return;
   }
 
@@ -5428,7 +5435,7 @@ static void dissect_RTPS_DATA_FRAG(tvbuff_t *tvb,
   if ((flags & FLAG_RTPS_DATA_FRAG_Q) != 0) min_len += 4;
 
   if (octets_to_next_header < min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= %u)", min_len);
     return;
   }
 
@@ -5615,7 +5622,7 @@ static void dissect_RTPS_DATA_BATCH(tvbuff_t *tvb, packet_info *pinfo, gint offs
   if ((flags & FLAG_RTPS_DATA_BATCH_Q) != 0) min_len += 4;
 
   if (octets_to_next_header < min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= %u)", min_len);
     return;
   }
 
@@ -5884,7 +5891,7 @@ static void dissect_GAP(tvbuff_t *tvb,
                         offset + 2, 2, little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
   if (octets_to_next_header < 24) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= 24)");
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= 24)");
     return;
   }
 
@@ -5954,7 +5961,7 @@ void dissect_INFO_TS(tvbuff_t *tvb, packet_info *pinfo, gint offset, guint8 flag
   if ((flags & FLAG_INFO_TS_T) == 0) min_len += 8;
 
   if (octets_to_next_header != min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be == %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be == %u)", min_len);
     return;
   }
 
@@ -6013,7 +6020,7 @@ void dissect_INFO_SRC(tvbuff_t *tvb, packet_info *pinfo, gint offset, guint8 fla
                         offset + 2, 2, little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
   if (octets_to_next_header != 16) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be == 16)");
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be == 16)");
     return;
   }
 
@@ -6099,7 +6106,7 @@ static void dissect_INFO_REPLY_IP4(tvbuff_t *tvb, packet_info *pinfo, gint offse
   if ((flags & FLAG_INFO_REPLY_IP4_M) != 0) min_len += 8;
 
   if (octets_to_next_header != min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be == %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be == %u)", min_len);
     return;
   }
 
@@ -6153,7 +6160,7 @@ static void dissect_INFO_DST(tvbuff_t *tvb, packet_info *pinfo, gint offset, gui
                         offset + 2, 2, little_endian ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
   if (octets_to_next_header != 8) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be == 8)");
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be == 8)");
     return;
   }
 
@@ -6216,7 +6223,7 @@ static void dissect_INFO_REPLY(tvbuff_t *tvb,
   if ((flags & FLAG_INFO_REPLY_M) != 0) min_len += 4;
 
   if (octets_to_next_header < min_len) {
-    expert_add_info_format(pinfo, octet_item, PI_PROTOCOL, PI_WARN, "(Error: should be >= %u)", min_len);
+    expert_add_info_format_text(pinfo, octet_item, &rtps_sm_octets_to_next_header_error, "(Error: should be >= %u)", min_len);
     return;
   }
 
@@ -7735,7 +7742,12 @@ void proto_register_rtps(void) {
     &ett_rtps_sample_batch_list
   };
 
+  static ei_register_info ei[] = {
+     { &rtps_sm_octets_to_next_header_error, { "rtps.sm.octetsToNextHeader.error", PI_PROTOCOL, PI_WARN, "(Error: bad length)", EXPFILL }},
+  };
+
   module_t *rtps_module;
+  expert_module_t* expert_rtps;
 
   proto_rtps = proto_register_protocol(
                         "Real-Time Publish-Subscribe Wire Protocol",
@@ -7743,6 +7755,8 @@ void proto_register_rtps(void) {
                         "rtps");
   proto_register_field_array(proto_rtps, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_rtps = expert_register_protocol(proto_rtps);
+  expert_register_field_array(expert_rtps, ei, array_length(ei));
 
   /* Registers the control in the preference panel */
   rtps_module = prefs_register_protocol(proto_rtps, NULL);

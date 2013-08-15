@@ -36,7 +36,7 @@ then
 fi
 
 TEST_TYPE="manual"
-. `dirname $0`/test-common.sh
+. `dirname $0`/test-common.sh || exit 1
 
 # set some limits to the child processes, e.g. stop it if it's running longer then MAX_CPU_TIME seconds
 # (ulimit is not supported well on cygwin and probably other platforms, e.g. cygwin shows some warnings)
@@ -55,6 +55,14 @@ do
 		if $BIN_DIR/tshark -nr $file > /dev/null
 		then
 			echo "OK"
+			echo -n " - without tree but with a read filter... "
+			if $BIN_DIR/tshark -Yframe -nr $file > /dev/null
+			then
+				echo "OK"
+			else
+				echo "Failed"
+				exit 1
+			fi
 		else
 			echo "Failed"
 			exit 1

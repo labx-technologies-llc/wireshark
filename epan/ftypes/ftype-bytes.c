@@ -149,6 +149,13 @@ ax25_fvalue_set(fvalue_t *fv, gpointer value, gboolean already_copied)
 }
 
 static void
+vines_fvalue_set(fvalue_t *fv, gpointer value, gboolean already_copied)
+{
+	g_assert(!already_copied);
+	common_fvalue_set(fv, (guint8 *)value, FT_VINES_ADDR_LEN);
+}
+
+static void
 ether_fvalue_set(fvalue_t *fv, gpointer value, gboolean already_copied)
 {
 	g_assert(!already_copied);
@@ -217,8 +224,6 @@ bytes_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value _U_, Log
 static gboolean
 ax25_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value, LogFunc logfunc)
 {
-	gchar	*mac;
-
 	/*
 	 * Don't log a message if this fails; we'll try looking it
 	 * up as another way if it does, and if that fails,
@@ -239,15 +244,68 @@ ax25_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value, LogFunc 
 		return TRUE;
 	}
 
-	mac = get_ax25_name(s);
-	if (!mac) {
-		logfunc("\"%s\" is not a valid AX.25 address.",
-		    s);
-		return FALSE;
+	/*
+	 * XXX - what needs to be done here is something such as:
+	 *
+	 * Look for a "-" in the string.
+	 *
+	 * If we find it, make sure that there are 1-6 alphanumeric
+	 * ASCII characters before it, and that there are 2 decimal
+	 * digits after it, from 00 to 15; if we don't find it, make
+	 * sure that there are 1-6 alphanumeric ASCII characters
+	 * in the string.
+	 *
+	 * If so, make the first 6 octets of the address the ASCII
+	 * characters, with lower-case letters mapped to upper-case
+	 * letters, shifted left by 1 bit, padded to 6 octets with
+	 * spaces, also shifted left by 1 bit, and, if we found a
+	 * "-", convert what's after it to a number and make the 7th
+	 * octet the number, shifted left by 1 bit, otherwise make the
+	 * 7th octet zero.
+	 *
+	 * We should also change all the comparison functions for
+	 * AX.25 addresses check the upper 7 bits of all but the last
+	 * octet of the address, ignoring the "end of address" bit,
+	 * and compare only the 4 bits above the low-order bit for
+	 * the last octet, ignoring the "end of address" bit and
+	 * various reserved bits and bits used for other purposes.
+	 *
+	 * See section 3.12 "Address-Field Encoding" of the AX.25
+	 * spec and
+	 *
+	 *	http://www.itu.int/ITU-R/terrestrial/docs/fixedmobile/fxm-art19-sec3.pdf
+	 */
+	logfunc("\"%s\" is not a valid AX.25 address.", s);
+	return FALSE;
+}
+
+static gboolean
+vines_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value, LogFunc logfunc)
+{
+	/*
+	 * Don't log a message if this fails; we'll try looking it
+	 * up as another way if it does, and if that fails,
+	 * we'll log a message.
+	 */
+	if (bytes_from_unparsed(fv, s, TRUE, NULL)) {
+		if (fv->value.bytes->len > FT_VINES_ADDR_LEN) {
+			logfunc("\"%s\" contains too many bytes to be a valid Vines address.",
+			    s);
+			return FALSE;
+		}
+		else if (fv->value.bytes->len < FT_VINES_ADDR_LEN && !allow_partial_value) {
+			logfunc("\"%s\" contains too few bytes to be a valid Vines address.",
+			    s);
+			return FALSE;
+		}
+
+		return TRUE;
 	}
 
-	ax25_fvalue_set(fv, mac, FALSE);
-	return TRUE;
+	/* XXX - need better validation of Vines address */
+
+	logfunc("\"%s\" is not a valid Vines address.", s);
+	return FALSE;
 }
 
 static gboolean
@@ -485,12 +543,36 @@ cmp_matches(const fvalue_t *fv_a, const fvalue_t *fv_b)
 	if (! regex) {
 		return FALSE;
 	}
+	/*
+	 * XXX - do we want G_REGEX_RAW or not?
+	 *
+	 * If we're matching against a string, we don't want it (and
+	 * we want the string value encoded in UTF-8 - and, if it can't
+	 * be converted to UTF-8, because it's in a character encoding
+	 * that doesn't map every possible byte sequence to Unicode (and
+	 * that includes strings that are supposed to be in UTF-8 but
+	 * that contain invalid UTF-8 sequences!), treat the match as
+	 * failing.
+	 *
+	 * If we're matching against binary data, and matching a binary
+	 * pattern (e.g. "0xfa, 3 or more 0xff, and 0x37, in order"),
+	 * we'd want G_REGEX_RAW. If we're matching a text pattern,
+	 * it's not clear *what* the right thing to do is - if they're
+	 * matching against a pattern containing non-ASCII characters,
+	 * they might want it to match in whatever encoding the binary
+	 * data is, but Wireshark might not have a clue what that
+	 * encoding is.  In addition, it's not clear how to tell
+	 * whether a pattern is "binary" or not, short of having
+	 * a different (non-PCRE) syntax for binary patterns.
+	 *
+	 * So we don't use G_REGEX_RAW for now.
+	 */
 	return g_regex_match_full(
 		regex,			/* Compiled PCRE */
-		a->data,		/* The data to check for the pattern... */
-		(int)a->len,	/* ... and its length */
-		0,				/* Start offset within data */
-		(GRegexMatchFlags)0,				/* GRegexMatchFlags */
+		(char *)a->data,	/* The data to check for the pattern... */
+		(int)a->len,		/* ... and its length */
+		0,			/* Start offset within data */
+		(GRegexMatchFlags)0,	/* GRegexMatchFlags */
 		NULL,			/* We are not interested in the match information */
 		NULL			/* We don't want error information */
 		);
@@ -615,6 +697,44 @@ ftype_register_bytes(void)
 		slice,
 	};
 
+	static ftype_t vines_type = {
+		FT_VINES,			/* ftype */
+		"FT_VINES",			/* name */
+		"VINES address",		/* pretty_name */
+		FT_VINES_ADDR_LEN,		/* wire_size */
+		bytes_fvalue_new,		/* new_value */
+		bytes_fvalue_free,		/* free_value */
+		vines_from_unparsed,	/* val_from_unparsed */
+		NULL,				/* val_from_string */
+		bytes_to_repr,			/* val_to_string_repr */
+		bytes_repr_len,			/* len_string_repr */
+
+		vines_fvalue_set,		/* set_value */
+		NULL,				/* set_value_uinteger */
+		NULL,				/* set_value_integer */
+		NULL,				/* set_value_integer64 */
+		NULL,				/* set_value_floating */
+
+		value_get,			/* get_value */
+		NULL,				/* set_value_uinteger */
+		NULL,				/* get_value_integer */
+		NULL,				/* get_value_integer64 */
+		NULL,				/* get_value_floating */
+
+		cmp_eq,
+		cmp_ne,
+		cmp_gt,
+		cmp_ge,
+		cmp_lt,
+		cmp_le,
+		cmp_bitwise_and,
+		cmp_contains,
+		CMP_MATCHES,
+
+		len,
+		slice,
+	};
+
 	static ftype_t ether_type = {
 		FT_ETHER,			/* ftype */
 		"FT_ETHER",			/* name */
@@ -694,6 +814,7 @@ ftype_register_bytes(void)
 	ftype_register(FT_BYTES, &bytes_type);
 	ftype_register(FT_UINT_BYTES, &uint_bytes_type);
 	ftype_register(FT_AX25, &ax25_type);
+	ftype_register(FT_VINES, &vines_type);
 	ftype_register(FT_ETHER, &ether_type);
 	ftype_register(FT_OID, &oid_type);
 }

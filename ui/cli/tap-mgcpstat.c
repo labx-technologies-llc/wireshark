@@ -32,7 +32,7 @@
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include "epan/dissectors/packet-mgcp.h"
-#include "timestats.h"
+#include "epan/timestats.h"
 
 #define NUM_TIMESTATS 11
 
@@ -169,15 +169,15 @@ mgcpstat_draw(void *pms)
 
 
 static void
-mgcpstat_init(const char *optarg, void* userdata _U_)
+mgcpstat_init(const char *opt_arg, void* userdata _U_)
 {
 	mgcpstat_t *ms;
 	int i;
 	GString *error_string;
 
 	ms=g_new(mgcpstat_t,1);
-	if(!strncmp(optarg,"mgcp,rtd,",9)){
-		ms->filter=g_strdup(optarg+9);
+	if(!strncmp(opt_arg,"mgcp,rtd,",9)){
+		ms->filter=g_strdup(opt_arg+9);
 	} else {
 		ms->filter=NULL;
 	}

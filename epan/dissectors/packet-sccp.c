@@ -707,6 +707,14 @@ static gint ett_sccp_xudt_msg_fragment = -1;
 static gint ett_sccp_xudt_msg_fragments = -1;
 static gint ett_sccp_assoc = -1;
 
+static expert_field ei_sccp_wrong_length = EI_INIT;
+static expert_field ei_sccp_international_standard_address = EI_INIT;
+static expert_field ei_sccp_no_ssn_present = EI_INIT;
+static expert_field ei_sccp_ssn_zero = EI_INIT;
+static expert_field ei_sccp_class_unexpected = EI_INIT;
+static expert_field ei_sccp_handling_invalid = EI_INIT;
+
+
 /* Declarations to desegment XUDT Messages */
 static gboolean sccp_xudt_desegment = TRUE;
 static gboolean show_key_params = FALSE;
@@ -790,7 +798,6 @@ static const value_string sccp_users_vals[] = {
 static guint32  sccp_source_pc_global = 0;
 static gboolean sccp_show_length      = FALSE;
 
-static module_t *sccp_module;
 static heur_dissector_list_t heur_subdissector_list;
 
 /*  Keep track of SSN value of current message so if/when we get to the data
@@ -1493,12 +1500,11 @@ dissect_sccp_unknown_param(tvbuff_t *tvb, proto_tree *tree, guint8 type, guint l
 static void
 dissect_sccp_dlr_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  proto_item *lr_item, *expert_item;
+  proto_item *lr_item;
 
   if (length != 3) {
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 3, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 3, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 3, got %u", length);
     return;
   }
 
@@ -1514,12 +1520,11 @@ dissect_sccp_dlr_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guin
 static void
 dissect_sccp_slr_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  proto_item *lr_item, *expert_item;
+  proto_item *lr_item;
 
   if (length != 3) {
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 3, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 3, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 3, got %u", length);
     return;
   }
 
@@ -1771,9 +1776,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
                                       : hf_sccp_calling_ansi_national_indicator,
                                       tvb, 0, ADDRESS_INDICATOR_LENGTH, national);
     if (national == 0)
-      expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_WARN, "Address is coded to "
-                             "international standards.  This doesn't normally happen in ANSI "
-                             "networks.");
+      expert_add_info(pinfo, expert_item, &ei_sccp_international_standard_address);
   } else {
     guint8 natl_use_bit = tvb_get_guint8(tvb, 0) & ITU_RESERVED_MASK;
 
@@ -1804,8 +1807,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
                                       called ? hf_sccp_called_itu_ssn_indicator : hf_sccp_calling_itu_ssn_indicator,
                                       tvb, 0, ADDRESS_INDICATOR_LENGTH, ssni);
     if ((routing_ind == ROUTE_ON_SSN) && (ssni == 0)) {
-      expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_WARN,
-                             "Message is routed on SSN, but SSN is not present");
+      expert_add_info(pinfo, expert_item, &ei_sccp_no_ssn_present);
     }
 
     pci = tvb_get_guint8(tvb, 0) & ITU_PC_INDICATOR_MASK;
@@ -1818,11 +1820,9 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
     if (pci) {
       if (decode_mtp3_standard == ITU_STANDARD || national == 0) {
         if (length < offset + ITU_PC_LENGTH) {
-          expert_item = proto_tree_add_text(call_tree, tvb, 0, -1,
+          proto_tree_add_expert_format(call_tree, pinfo, &ei_sccp_wrong_length, tvb, 0, -1,
                                             "Wrong length indicated (%u) should be at least %u, PC is %u octets",
                                             length, offset + ITU_PC_LENGTH, ITU_PC_LENGTH);
-          expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated");
-          PROTO_ITEM_SET_GENERATED(expert_item);
           return;
         }
         proto_tree_add_item(call_tree, called ? hf_sccp_called_itu_pc : hf_sccp_calling_itu_pc,
@@ -1832,11 +1832,9 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
       } else if (decode_mtp3_standard == JAPAN_STANDARD) {
 
         if (length < offset + JAPAN_PC_LENGTH) {
-          expert_item = proto_tree_add_text(call_tree, tvb, 0, -1,
+          proto_tree_add_expert_format(call_tree, pinfo, &ei_sccp_wrong_length, tvb, 0, -1,
                                             "Wrong length indicated (%u) should be at least %u, PC is %u octets",
                                             length, offset + JAPAN_PC_LENGTH, JAPAN_PC_LENGTH);
-          expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated");
-          PROTO_ITEM_SET_GENERATED(expert_item);
           return;
         }
         proto_tree_add_item(call_tree, called ? hf_sccp_called_japan_pc : hf_sccp_calling_japan_pc,
@@ -1847,11 +1845,9 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
       } else /* CHINESE_ITU_STANDARD */ {
 
         if (length < offset + ANSI_PC_LENGTH) {
-          expert_item = proto_tree_add_text(call_tree, tvb, 0, -1,
+          proto_tree_add_expert_format(call_tree, pinfo, &ei_sccp_wrong_length, tvb, 0, -1,
                                             "Wrong length indicated (%u) should be at least %u, PC is %u octets",
                                             length, offset + ANSI_PC_LENGTH, ANSI_PC_LENGTH);
-          expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated");
-          PROTO_ITEM_SET_GENERATED(expert_item);
           return;
         }
         offset = dissect_sccp_3byte_pc(tvb, call_tree, offset, called);
@@ -1864,8 +1860,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
       ssn = tvb_get_guint8(tvb, offset);
 
       if ((routing_ind == ROUTE_ON_SSN) && (ssn == 0)) {
-        expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_WARN,
-                               "Message is routed on SSN, but SSN is zero (unspecified)");
+        expert_add_info(pinfo, expert_item, &ei_sccp_ssn_zero);
       }
 
       if (called && assoc)
@@ -1940,8 +1935,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
                                       : hf_sccp_calling_ansi_ssn_indicator,
                                       tvb, 0, ADDRESS_INDICATOR_LENGTH, ssni);
     if ((routing_ind == ROUTE_ON_SSN) && (ssni == 0)) {
-      expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_WARN,
-                             "Message is routed on SSN, but SSN is not present");
+      expert_add_info(pinfo, expert_item, &ei_sccp_no_ssn_present);
     }
 
     offset = ADDRESS_INDICATOR_LENGTH;
@@ -1951,8 +1945,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
       ssn = tvb_get_guint8(tvb, offset);
 
       if ((routing_ind == ROUTE_ON_SSN) && (ssn == 0)) {
-        expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_WARN,
-                               "Message is routed on SSN, but SSN is zero (unspecified)");
+        expert_add_info(pinfo, expert_item, &ei_sccp_ssn_zero);
       }
 
       if (called && assoc) {
@@ -2016,9 +2009,8 @@ dissect_sccp_class_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gu
   gboolean    invalid_class = FALSE;
 
   if (length != 1) {
-    pi = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(pi);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
@@ -2061,7 +2053,7 @@ dissect_sccp_class_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gu
   }
 
   if (invalid_class)
-    expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unexpected message class for this message type");
+    expert_add_info(pinfo, pi, &ei_sccp_class_unexpected);
 
   if (msg_class == 0 || msg_class == 1) {
     guint8 handling = tvb_get_guint8(tvb, 0) & CLASS_SPARE_HANDLING_MASK;
@@ -2070,7 +2062,7 @@ dissect_sccp_class_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gu
     handling >>= CLASS_SPARE_HANDLING_SHIFT;
 
     if (try_val_to_str(handling, sccp_class_handling_values) == NULL) {
-      expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Invalid message handling");
+      expert_add_info(pinfo, pi, &ei_sccp_handling_invalid);
     }
   }
 }
@@ -2079,10 +2071,8 @@ static void
 dissect_sccp_segmenting_reassembling_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
@@ -2095,10 +2085,8 @@ dissect_sccp_receive_sequence_number_param(tvbuff_t *tvb, packet_info *pinfo, pr
   guint8 rsn;
 
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
@@ -2136,11 +2124,8 @@ static void
 dissect_sccp_credit_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR,
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
                            "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
     return;
   }
 
@@ -2150,105 +2135,76 @@ dissect_sccp_credit_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
 static void
 dissect_sccp_release_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length,
-                                      "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR,
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
                            "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_release_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_release_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 static void
 dissect_sccp_return_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR,
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
                            "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_return_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_return_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 static void
 dissect_sccp_reset_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR,
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
                            "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_reset_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_reset_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 static void
 dissect_sccp_error_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_error_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_error_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 static void
 dissect_sccp_refusal_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_refusal_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_refusal_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 
@@ -2363,10 +2319,8 @@ dissect_sccp_segmentation_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
   proto_tree_add_item(param_tree, hf_sccp_segmentation_remaining, tvb, 0, 1, ENC_NA);
 
   if (length-1 != 3) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length-1, "Wrong length indicated. Expected 3, got %u", length-1);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 3, got %u", length-1);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length-1,
+                                 "Wrong length indicated. Expected 3, got %u", length-1);
     return;
   }
 
@@ -2386,10 +2340,8 @@ static void
 dissect_sccp_importance_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
@@ -2679,7 +2631,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
   guint16   offset = 0;
   gboolean  save_fragmented;
   tvbuff_t *new_tvb = NULL;
-  fragment_data *frag_msg = NULL;
+  fragment_head *frag_msg = NULL;
   guint32   source_local_ref = 0;
   guint8    more;
   guint     msg_offset = tvb_offset_from_real_beginning(tvb);
@@ -4006,6 +3958,18 @@ proto_register_sccp(void)
     &ett_sccp_assoc
   };
 
+  static ei_register_info ei[] = {
+     { &ei_sccp_wrong_length, { "sccp.wrong_length", PI_MALFORMED, PI_ERROR, "Wrong length indicated.", EXPFILL }},
+     { &ei_sccp_international_standard_address, { "sccp.international_standard_address", PI_MALFORMED, PI_WARN, 
+            "Address is coded to international standards.  This doesn't normally happen in ANSI networks.", EXPFILL }},
+     { &ei_sccp_no_ssn_present, { "sccp.ssn.not_present", PI_PROTOCOL, PI_WARN, "Message is routed on SSN, but SSN is not present", EXPFILL }},
+     { &ei_sccp_ssn_zero, { "sccp.ssn.is_zero", PI_PROTOCOL, PI_WARN, "Message is routed on SSN, but SSN is zero (unspecified)", EXPFILL }},
+     { &ei_sccp_class_unexpected, { "sccp.class_unexpected", PI_MALFORMED, PI_ERROR, "Unexpected message class for this message type", EXPFILL }},
+     { &ei_sccp_handling_invalid, { "sccp.handling_invalid", PI_MALFORMED, PI_ERROR, "Invalid message handling", EXPFILL }},
+  };
+
+  module_t *sccp_module;
+  expert_module_t* expert_sccp;
 
   static uat_field_t users_flds[] = {
     UAT_FLD_DEC(sccp_users, ni, "Network Indicator", "Network Indicator"),
@@ -4032,7 +3996,8 @@ proto_register_sccp(void)
   /* Required function calls to register the header fields and subtrees used */
   proto_register_field_array(proto_sccp, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-
+  expert_sccp = expert_register_protocol(proto_sccp);
+  expert_register_field_array(expert_sccp, ei, array_length(ei));
 
   sccp_ssn_dissector_table = register_dissector_table("sccp.ssn", "SCCP SSN", FT_UINT8, BASE_DEC);
 

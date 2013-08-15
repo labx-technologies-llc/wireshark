@@ -84,7 +84,7 @@ static gboolean commview_read(wtap *wth, int *err, gchar **err_info,
 			      gint64 *data_offset);
 static gboolean commview_seek_read(wtap *wth, gint64 seek_off,
 				   struct wtap_pkthdr *phdr,
-				   guint8 *pd, int length, int *err,
+				   Buffer *buf, int length, int *err,
 				   gchar **err_info);
 static gboolean commview_read_header(commview_header_t *cv_hdr, FILE_T fh,
 				     int *err, gchar **err_info);
@@ -132,7 +132,7 @@ int commview_open(wtap *wth, int *err, gchar **err_info)
 }
 
 static int
-commview_read_and_process_header(FILE_T fh, struct wtap_pkthdr *phdr,
+commview_read_packet(FILE_T fh, struct wtap_pkthdr *phdr, Buffer *buf,
     int *err, gchar **err_info)
 {
 	commview_header_t cv_hdr;
@@ -152,7 +152,8 @@ commview_read_and_process_header(FILE_T fh, struct wtap_pkthdr *phdr,
 		phdr->pkt_encap = WTAP_ENCAP_IEEE_802_11_WITH_RADIO;
 		phdr->pseudo_header.ieee_802_11.fcs_len = -1; /* Unknown */
 		phdr->pseudo_header.ieee_802_11.channel = cv_hdr.channel;
-		phdr->pseudo_header.ieee_802_11.data_rate = cv_hdr.rate;
+		phdr->pseudo_header.ieee_802_11.data_rate =
+		    cv_hdr.rate | (cv_hdr.direction << 8);
 		phdr->pseudo_header.ieee_802_11.signal_level = cv_hdr.signal_level_percent;
 		break;
 
@@ -183,23 +184,7 @@ commview_read_and_process_header(FILE_T fh, struct wtap_pkthdr *phdr,
 	phdr->ts.secs = mktime(&tm);
 	phdr->ts.nsecs = cv_hdr.usecs * 1000;
 
-	return TRUE;
-}
-
-static gboolean
-commview_read_record_data(FILE_T fh, guint8 *buf, guint len, int *err,
-			  gchar **err_info)
-{
-	int bytes_read;
-
-	bytes_read = file_read(buf, len, fh);
-	if(bytes_read != (int)len) {
-		*err = file_error(fh, err_info);
-		if(*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
-	return TRUE;
+	return wtap_read_packet_bytes(fh, buf, phdr->caplen, err, err_info);
 }
 
 static gboolean
@@ -207,43 +192,18 @@ commview_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 {
 	*data_offset = file_tell(wth->fh);
 
-	if(!commview_read_and_process_header(wth->fh, &wth->phdr, err,
-	    err_info))
-		return FALSE;
-
-	buffer_assure_space(wth->frame_buffer, wth->phdr.caplen);
-	if(!commview_read_record_data(wth->fh, buffer_start_ptr(wth->frame_buffer),
-	    wth->phdr.caplen, err, err_info))
-		return FALSE;
-
-	return TRUE;
+	return commview_read_packet(wth->fh, &wth->phdr, wth->frame_buffer, err,
+	    err_info);
 }
 
 static gboolean
 commview_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr,
-		   guint8 *pd, int length, int *err, gchar **err_info)
+		   Buffer *buf, int length _U_, int *err, gchar **err_info)
 {
 	if(file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
 
-	if(!commview_read_and_process_header(wth->random_fh, phdr, err,
-	    err_info)) {
-		if(*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
-
-	if(length != (int)phdr->caplen) {
-		*err = WTAP_ERR_BAD_FILE;
-		*err_info = g_strdup_printf("commview: record length %u doesn't match requested length %d", phdr->caplen, length);
-		return FALSE;
-	}
-
-	if(!commview_read_record_data(wth->random_fh, pd, phdr->caplen,
-	    err, err_info))
-		return FALSE;
-
-	return TRUE;
+	return commview_read_packet(wth->random_fh, phdr, buf, err, err_info);
 }
 
 static gboolean

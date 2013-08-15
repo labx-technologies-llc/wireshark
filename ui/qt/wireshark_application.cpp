@@ -25,6 +25,7 @@
 
 #include <epan/filesystem.h>
 #include <epan/timestamp.h>
+#include <epan/disabled_protos.h>
 
 #include "ui/recent.h"
 #include "ui/simple_dialog.h"
@@ -33,7 +34,6 @@
 
 #include "capture.h"
 #include "color_filters.h"
-#include "disabled_protos.h"
 #include "filters.h"
 #include "log.h"
 #include "recent_file_status.h"
@@ -181,7 +181,6 @@ void WiresharkApplication::refreshRecentFiles(void) {
         connect(rf_status, SIGNAL(statusFound(QString, qint64, bool)), this, SLOT(itemStatusFinished(QString, qint64, bool)));
         connect(rf_status, SIGNAL(finished()), rf_thread, SLOT(quit()));
         connect(rf_status, SIGNAL(finished()), rf_status, SLOT(deleteLater()));
-//        connect(rf_status, SIGNAL(finished()), rf_thread, SLOT(deleteLater()));
 
         rf_thread->start();
     }
@@ -486,11 +485,11 @@ void WiresharkApplication::setLastOpenDir(const char *dir_name)
     if (dir_name) {
         len = strlen(dir_name);
         if (dir_name[len-1] == G_DIR_SEPARATOR) {
-            new_last_open_dir = g_strconcat(dir_name, NULL);
+            new_last_open_dir = g_strconcat(dir_name, (char *)NULL);
         }
         else {
             new_last_open_dir = g_strconcat(dir_name,
-                                            G_DIR_SEPARATOR_S, NULL);
+                                            G_DIR_SEPARATOR_S, (char *)NULL);
         }
 
         if (last_open_dir == NULL ||

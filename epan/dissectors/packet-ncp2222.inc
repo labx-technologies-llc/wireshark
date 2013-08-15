@@ -2061,7 +2061,8 @@ padd_normal(ptvcursor_t *ptvc, const ptvc_record *rec)
 {
     return
         ptvcursor_add(ptvc, *rec->hf_ptr,
-                      rec->length, rec->endianness);
+                      rec->length,
+                      rec->endianness ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 }
 
 static proto_item*
@@ -2071,7 +2072,8 @@ padd_date(ptvcursor_t *ptvc, const ptvc_record *rec)
     nw_date_t   nw_date;
 
     item = ptvcursor_add(ptvc, *rec->hf_ptr,
-                         rec->length, rec->endianness);
+                         rec->length,
+                         rec->endianness ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
     if (item) {
         uint_to_nwdate(get_item_value(item), &nw_date);
@@ -2090,7 +2092,8 @@ padd_time(ptvcursor_t *ptvc, const ptvc_record *rec)
     nw_time_t   nw_time;
 
     item = ptvcursor_add(ptvc, *rec->hf_ptr,
-                         rec->length, rec->endianness);
+                         rec->length,
+                         rec->endianness ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
     if (item) {
         uint_to_nwtime(get_item_value(item), &nw_time);
@@ -2116,7 +2119,8 @@ padd_uni(ptvcursor_t *ptvc, const ptvc_record *rec)
     /* nw_uni.buffer[0] = '\0'; */
 
     item = ptvcursor_add(ptvc, *rec->hf_ptr,
-                         rec->length, rec->endianness);
+                         rec->length,
+                         rec->endianness ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
     if (item) {
         proto_item_set_text(item, "%s", get_item_name(item));
@@ -2146,7 +2150,7 @@ process_bitfield_sub_ptvc_record(ptvcursor_t *ptvc, const ptvc_record *rec,
 
         /* Add the item */
         item = ptvcursor_add(ptvc, *rec->hf_ptr, rec->length,
-                             rec->endianness);
+                             rec->endianness ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
 
         ett = *rec->sub_ptvc_rec->ett;
 
@@ -2162,7 +2166,8 @@ process_bitfield_sub_ptvc_record(ptvcursor_t *ptvc, const ptvc_record *rec,
         while(sub_rec->hf_ptr != NULL) {
             DISSECTOR_ASSERT(!sub_rec->sub_ptvc_rec);
             ptvcursor_add_no_advance(sub_ptvc, *sub_rec->hf_ptr,
-                                     sub_rec->length, sub_rec->endianness);
+                                     sub_rec->length,
+                                     sub_rec->endianness ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN);
             sub_rec++;
         }
 
@@ -7120,7 +7125,7 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
     guint               len=0;
     guint32             tid = 1;
     tvbuff_t            *frag_tvb = NULL;
-    fragment_data       *fd_head;
+    fragment_head       *fd_head;
     ncp_req_hash_value  *request_value = NULL;
     conversation_t      *conversation;
     guint32             nds_frag;
@@ -7256,9 +7261,7 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
                     }
                     else
                     {
-                        if (check_col(pinfo->cinfo, COL_INFO)) {
-                            col_add_fstr(pinfo->cinfo, COL_INFO, "[Retransmitted NDS Fragment 0x%08x]", frags[frag_count].nds_frag);
-                        }
+                        col_add_fstr(pinfo->cinfo, COL_INFO, "[Retransmitted NDS Fragment 0x%08x]", frags[frag_count].nds_frag);
                         return;
                     }
                 }
@@ -7273,8 +7276,7 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
                 /* Is this the last fragment? nds_frag will indicate */
                 if (fd_head->next != NULL && !request_value->nds_frag)
                 {
-                    frag_tvb = tvb_new_child_real_data(tvb, fd_head->data,
-                                                 fd_head->len, fd_head->len);
+                    frag_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
                     add_new_data_source(pinfo,
                                         frag_tvb,
                                         "Reassembled NDS");
@@ -7325,25 +7327,20 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
                 {
                     /* This is either a beggining or middle fragment on second dissection */
                     frag_tvb = tvb_new_subset(tvb, 0, -1, -1);
-                    if (check_col(pinfo->cinfo, COL_INFO))
+                    if (request_value->nds_frag)
                     {
-                      if (request_value->nds_frag)
-                      {
-                        col_add_fstr(pinfo->cinfo, COL_INFO, "[NDS Fragment 0x%08x]", frags[frag_count].nds_frag);
-                      }
+                      col_add_fstr(pinfo->cinfo, COL_INFO, "[NDS Fragment 0x%08x]", frags[frag_count].nds_frag);
                     }
                 }
             }
             else
             {
                 /* Fragment from first pass of dissection */
-                if (check_col(pinfo->cinfo, COL_INFO))
+                if (request_value->nds_frag)
                 {
-                  if (request_value->nds_frag)
-                  {
-                     col_add_fstr(pinfo->cinfo, COL_INFO, "[NDS Fragment 0x%08x]", frags[frag_count].nds_frag);
-                  }
+                   col_add_fstr(pinfo->cinfo, COL_INFO, "[NDS Fragment 0x%08x]", frags[frag_count].nds_frag);
                 }
+
                 frag_tvb = NULL;
             }
         }
@@ -7376,9 +7373,7 @@ nds_defrag(tvbuff_t *tvb, packet_info *pinfo, guint32 nw_connection, guint8 sequ
         request_value->nds_frag = FALSE;
         /* Trap for retransmitted end fragment */
         if (request_value->nds_end_frag < pinfo->fd->num) {
-            if (check_col(pinfo->cinfo, COL_INFO)) {
-                col_add_fstr(pinfo->cinfo, COL_INFO, "[Retransmitted end of NDS Fragment 0x%08x, see packet #%d for details.]", request_value->nds_frag_num, request_value->nds_end_frag);
-            }
+            col_add_fstr(pinfo->cinfo, COL_INFO, "[Retransmitted end of NDS Fragment 0x%08x, see packet #%d for details.]", request_value->nds_frag_num, request_value->nds_end_frag);
         }
         else
         {
@@ -7494,30 +7489,29 @@ dissect_ncp_request(tvbuff_t *tvb, packet_info *pinfo,
     }
 
     /* Fill in the INFO column. */
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        if (ncp_rec) {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "C %s", ncp_rec->name);
-            if (ncp_rec->req_info_str) {
-                /* We want to add more stuff to the Info
-                   column. */
-                run_info_str = TRUE;
-            }
-        }
-        else {
-            if (requires_subfunc) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                             "C Unknown Function %u %u (0x%02X/0x%02x)",
-                             func, subfunc, func, subfunc);
-                return;
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                             "C Unknown Function %u (0x%02x)",
-                             func, func);
-                return;
-            }
+    if (ncp_rec) {
+        col_add_fstr(pinfo->cinfo, COL_INFO, "C %s", ncp_rec->name);
+        if (ncp_rec->req_info_str) {
+            /* We want to add more stuff to the Info
+                column. */
+            run_info_str = TRUE;
         }
     }
+    else {
+        if (requires_subfunc) {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                            "C Unknown Function %u %u (0x%02X/0x%02x)",
+                            func, subfunc, func, subfunc);
+            return;
+        }
+        else {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                            "C Unknown Function %u (0x%02x)",
+                            func, func);
+            return;
+        }
+    }
+
     if (!pinfo->fd->flags.visited) {
         /* This is the first time we've looked at this packet.
            Keep track of the address and connection whence the request
@@ -8950,11 +8944,9 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
      */
     tap_queue_packet(ncp_tap->stat, pinfo, request_value);
 
-    if (check_col(pinfo->cinfo, COL_PROTOCOL)) {
-        if (ncp_rec && ncp_rec->func==0x68 &&
-            (ncp_rec->subfunc==0x02 || ncp_rec->subfunc==0x01)) {
-            col_set_str(pinfo->cinfo, COL_PROTOCOL, "NDS");
-        }
+    if (ncp_rec && ncp_rec->func==0x68 &&
+        (ncp_rec->subfunc==0x02 || ncp_rec->subfunc==0x01)) {
+        col_set_str(pinfo->cinfo, COL_PROTOCOL, "NDS");
     }
 
     /* A completion code of 0 always means OK. Non-zero means failure,
@@ -8999,11 +8991,9 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
             nds_error_string = val_to_str_const(nds_error_code, nds_reply_errors, "NDS Error - No Definition Found");
         }
     }
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
-                     type == NCP_SERVICE_REPLY ? "R" : "ACK",
-                     nds_error_string ? nds_error_string : error_string);
-    }
+    col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
+                    type == NCP_SERVICE_REPLY ? "R" : "ACK",
+                    nds_error_string ? nds_error_string : error_string);
 
     if (ncp_tree) {
 
@@ -11543,24 +11533,22 @@ dissect_nds_request(tvbuff_t *tvb, packet_info *pinfo,
         }
     }
     /* Fill in the INFO column. */
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        if (ncp_rec) {
-            col_set_str(pinfo->cinfo, COL_PROTOCOL, "NDS");
-            if (nds_frag != 0xffffffff) {
-                col_add_fstr(pinfo->cinfo, COL_INFO, "C Continue NDS Fragment 0x%08x", nds_frag);
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO, "C NDS %s", verb_string);
-            }
-            run_info_str = TRUE;
+    if (ncp_rec) {
+        col_set_str(pinfo->cinfo, COL_PROTOCOL, "NDS");
+        if (nds_frag != 0xffffffff) {
+            col_add_fstr(pinfo->cinfo, COL_INFO, "C Continue NDS Fragment 0x%08x", nds_frag);
         }
         else {
-            col_add_fstr(pinfo->cinfo, COL_INFO,
-                         "C Unknown Function %d (0x%02x)",
-                         func, func);
+            col_add_fstr(pinfo->cinfo, COL_INFO, "C NDS %s", verb_string);
         }
-
+        run_info_str = TRUE;
     }
+    else {
+        col_add_fstr(pinfo->cinfo, COL_INFO,
+                        "C Unknown Function %d (0x%02x)",
+                        func, func);
+    }
+
     /* Keep track of the address and connection whence the request
        came, and the address and connection to which the request
        is being sent, so that we can match up calls with replies.
@@ -11741,13 +11729,11 @@ dissect_nds_request(tvbuff_t *tvb, packet_info *pinfo,
                              * for MVTYPE_PROC_ENTRY_SPECIFIERS,
                              * to add string to columninfo
                              */
-                            if (check_col(pinfo->cinfo, COL_INFO)) {
-                                if (!added_arrow) {
-                                    col_append_str(pinfo->cinfo, COL_INFO, " -> ");
-                                    added_arrow = TRUE;
-                                }
-                                col_append_str(pinfo->cinfo, COL_INFO, pvalues[i].vstring);
+                            if (!added_arrow) {
+                                col_append_str(pinfo->cinfo, COL_INFO, " -> ");
+                                added_arrow = TRUE;
                             }
+                            col_append_str(pinfo->cinfo, COL_INFO, pvalues[i].vstring);
                         }
                         break;
 
@@ -11771,15 +11757,13 @@ dissect_nds_request(tvbuff_t *tvb, packet_info *pinfo,
                              * and the last string for MVTYPE_ATTR_REQUEST,
                              * by "process_multivalues()".
                              */
-                            if (check_col(pinfo->cinfo, COL_INFO)) {
-                                col_append_str(pinfo->cinfo, COL_INFO, pvalues[i].vstring);
-                                if (pvalues[i].mvtype != MVTYPE_PROCESS_ITERATOR) {
-                                    if (!added_arrow) {
-                                        col_append_str(pinfo->cinfo, COL_INFO, " -> ");
-                                        added_arrow = TRUE;
-                                    }
-                                    col_append_str(pinfo->cinfo, COL_INFO, mv_resolve_name_string);
+                            col_append_str(pinfo->cinfo, COL_INFO, pvalues[i].vstring);
+                            if (pvalues[i].mvtype != MVTYPE_PROCESS_ITERATOR) {
+                                if (!added_arrow) {
+                                    col_append_str(pinfo->cinfo, COL_INFO, " -> ");
+                                    added_arrow = TRUE;
                                 }
+                                col_append_str(pinfo->cinfo, COL_INFO, mv_resolve_name_string);
                             }
                         }
                         break;
@@ -11805,11 +11789,8 @@ dissect_nds_request(tvbuff_t *tvb, packet_info *pinfo,
                 if(resolve_eid) {
                     if (request_eid_value) {
                         g_strlcpy(global_object_name, request_eid_value->object_name, 256);
-                        if (check_col(pinfo->cinfo, COL_INFO))
-                        {
-                            col_append_str(pinfo->cinfo, COL_INFO, ", Object Name - ");
-                            col_append_str(pinfo->cinfo, COL_INFO, global_object_name);
-                        }
+                        col_append_str(pinfo->cinfo, COL_INFO, ", Object Name - ");
+                        col_append_str(pinfo->cinfo, COL_INFO, global_object_name);
                     }
                 }
                 if (request_value)

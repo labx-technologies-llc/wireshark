@@ -22,33 +22,55 @@
  */
 
 #ifndef __PACKET_BLUETOOTH_HCI_H__
-#define __PACKET_BLUETOOTH_HCI__H__
+#define __PACKET_BLUETOOTH_HCI_H__
 
-#define HCI_H4_TYPE_CMD		0x01
-#define HCI_H4_TYPE_ACL		0x02
-#define HCI_H4_TYPE_SCO		0x03
-#define HCI_H4_TYPE_EVT		0x04
+#include <epan/wmem/wmem.h>
+
+#define HCI_H4_TYPE_CMD   0x01
+#define HCI_H4_TYPE_ACL   0x02
+#define HCI_H4_TYPE_SCO   0x03
+#define HCI_H4_TYPE_EVT   0x04
+
+#define HCI_OGF_LINK_CONTROL           0x01
+#define HCI_OGF_LINK_POLICY            0x02
+#define HCI_OGF_HOST_CONTROLLER        0x03
+#define HCI_OGF_INFORMATIONAL          0x04
+#define HCI_OGF_STATUS                 0x05
+#define HCI_OGF_TESTING                0x06
+#define HCI_OGF_LOW_ENERGY             0x08
+#define HCI_OGF_LOGO_TESTING           0x3e
+#define HCI_OGF_VENDOR_SPECIFIC        0x3f
+
 
 extern value_string_ext bthci_cmd_opcode_vals_ext;
-
-#define HCI_OGF_LINK_CONTROL		0x01
-#define HCI_OGF_LINK_POLICY		0x02
-#define HCI_OGF_HOST_CONTROLLER		0x03
-#define HCI_OGF_INFORMATIONAL		0x04
-#define HCI_OGF_STATUS		        0x05
-#define HCI_OGF_TESTING		        0x06
-#define HCI_OGF_LOW_ENERGY	    0x08
-#define HCI_OGF_LOGO_TESTING		0x3e
-#define HCI_OGF_VENDOR_SPECIFIC		0x3f
 extern value_string_ext bthci_ogf_vals_ext;
+extern value_string_ext bthci_cmd_ocf_link_control_vals_ext;
+extern value_string_ext bthci_cmd_ocf_link_policy_vals_ext;
+extern value_string_ext bthci_cmd_ocf_host_controller_and_baseband_vals_ext;
+extern value_string_ext bthci_cmd_ocf_informational_vals_ext;
+extern value_string_ext bthci_cmd_ocf_status_vals_ext;
+extern value_string_ext bthci_cmd_ocf_testing_vals_ext;
+extern value_string_ext bthci_cmd_ocf_low_energy_vals_ext;
 
 extern value_string_ext bthci_cmd_status_vals_ext;
 extern value_string_ext bthci_cmd_service_class_type_vals_ext;
-extern value_string_ext bthci_cmd_major_dev_class_vals_ext;
 extern value_string_ext bthci_cmd_eir_data_type_vals_ext;
 extern value_string_ext bthci_cmd_auth_req_vals_ext;
 extern value_string_ext bthci_cmd_appearance_vals_ext;
 extern value_string_ext bthci_evt_comp_id_ext;
+
+extern value_string_ext bthci_cmd_cod_major_device_class_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_computer_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_phone_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_lan_net_load_factor_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_lan_net_type_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_audio_video_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_peripheral_class_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_peripheral_type_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_imaging_type_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_wearable_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_toy_vals_ext;
+extern value_string_ext bthci_cmd_cod_minor_device_class_health_vals_ext;
 
 extern const value_string bthci_cmd_io_capability_vals[];
 extern const value_string bthci_cmd_oob_data_present_vals[];
@@ -83,10 +105,10 @@ extern const value_string bthci_cmd_notification_types[];
 typedef struct _hci_data_t {
     guint32     interface_id;
     guint32     adapter_id;
-    emem_tree_t *chandle_to_bdaddr_table;
-    emem_tree_t *bdaddr_to_name_table;
-    emem_tree_t *localhost_bdaddr;
-    emem_tree_t *localhost_name;
+    wmem_tree_t *chandle_to_bdaddr_table;
+    wmem_tree_t *bdaddr_to_name_table;
+    wmem_tree_t *localhost_bdaddr;
+    wmem_tree_t *localhost_name;
 } hci_data_t;
 
 typedef struct _remote_bdaddr_t {

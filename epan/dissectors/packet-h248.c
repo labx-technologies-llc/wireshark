@@ -73,6 +73,8 @@ static int hf_h248_no_evt = -1;
 static int hf_h248_param = -1;
 
 static int hf_h248_serviceChangeReasonStr = -1;
+static int hf_h248_transactionId64 = -1;
+static int hf_h248_context_id64 = -1;
 
 /* h248v1 support */
 static int hf_h248_auditValueReplyV1 = -1;
@@ -396,7 +398,7 @@ static int hf_h248_NotifyCompletion_otherReason = -1;
 static int hf_h248_NotifyCompletion_onIteration = -1;
 
 /*--- End of included file: packet-h248-hf.c ---*/
-#line 73 "../../asn1/h248/packet-h248-template.c"
+#line 75 "../../asn1/h248/packet-h248-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_h248 = -1;
@@ -561,7 +563,11 @@ static gint ett_h248_EventParameterV1 = -1;
 static gint ett_h248_SigParameterV1 = -1;
 
 /*--- End of included file: packet-h248-ett.c ---*/
-#line 90 "../../asn1/h248/packet-h248-template.c"
+#line 92 "../../asn1/h248/packet-h248-template.c"
+
+static expert_field ei_h248_errored_command = EI_INIT;
+static expert_field ei_h248_transactionId64 = EI_INIT;
+static expert_field ei_h248_context_id64 = EI_INIT;
 
 static dissector_table_t subdissector_table;
 
@@ -1250,9 +1256,9 @@ extern void h248_param_PkgdName(proto_tree* tree, tvbuff_t* tvb, packet_info* pi
             pi = proto_tree_add_uint(package_tree, hf_248_pkg_param, tvb, offset-2, 2, name_minor);
 
             if (pkg->signal_names && ( strval = try_val_to_str(name_minor, pkg->signal_names) )) {
-                strval = ep_strdup_printf("%s (%d)",strval,name_minor);
+                strval = wmem_strdup_printf(wmem_packet_scope(), "%s (%d)",strval,name_minor);
             } else {
-                strval = ep_strdup_printf("Unknown (%d)",name_minor);
+                strval = wmem_strdup_printf(wmem_packet_scope(), "Unknown (%d)",name_minor);
             }
 
             proto_item_set_text(pi,"Signal ID: %s", strval);
@@ -1286,8 +1292,8 @@ static int dissect_h248_trx_id(gboolean implicit_tag, packet_info *pinfo, proto_
             offset++;
         }
         if (trx_id > 0xffffffff) {
-            proto_item* pi = proto_tree_add_text(tree, tvb, offset-len, len,"transactionId %" G_GINT64_MODIFIER "u", trx_id);
-            proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+            proto_item* pi = proto_tree_add_uint64(tree, hf_h248_transactionId64, tvb, offset-len, len, trx_id);
+            expert_add_info(pinfo, pi, &ei_h248_transactionId64);
 
             *trx_id_p = 0;
 
@@ -1325,9 +1331,8 @@ static int dissect_h248_ctx_id(gboolean implicit_tag, packet_info *pinfo, proto_
         }
 
         if (ctx_id > 0xffffffff) {
-            proto_item* pi = proto_tree_add_text(tree, tvb, offset-len, len,
-                                                 "contextId: %" G_GINT64_MODIFIER "u", ctx_id);
-            proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+            proto_item* pi = proto_tree_add_uint64(tree, hf_h248_context_id64, tvb, offset-len, len, ctx_id);
+            expert_add_info(pinfo, pi, &ei_h248_context_id64);
 
             *ctx_id_p = 0xfffffffd;
 
@@ -1384,7 +1389,7 @@ void h248_register_package(const h248_package_t* pkg, pkg_reg_action reg_action)
          */
         packages = g_tree_new(comparePkgID); /* init tree if no entries */
         while (base_package_name_vals[i].strptr != NULL) {
-            pkg_found = g_new0(h248_package_t, 1); /* create a h248 package structure */
+            pkg_found = wmem_new0(wmem_epan_scope(), h248_package_t); /* create a h248 package structure */
             pkg_found->id = base_package_name_vals[i].value;
             vst = (value_string *)wmem_alloc0(wmem_epan_scope(), sizeof(value_string)*2);
             vst[0].strptr = base_package_name_vals[i].strptr;
@@ -1434,7 +1439,7 @@ void h248_register_package(const h248_package_t* pkg, pkg_reg_action reg_action)
     pkg_default = is_pkg_default(pkg->id);
     if (((reg_action==REPLACE_PKG) || (reg_action==ADD_PKG)) && pkg_default) {
         /* add/replace in tree */
-        s_pkg = g_new0(s_h248_package_t,1);
+        s_pkg = wmem_new0(wmem_epan_scope(), s_h248_package_t);
         s_pkg->is_default = FALSE;
         s_pkg->pkg = (h248_package_t *)pkg;
         g_tree_replace(packages, GINT_TO_POINTER(pkg->id), (gpointer)s_pkg);
@@ -1443,7 +1448,7 @@ void h248_register_package(const h248_package_t* pkg, pkg_reg_action reg_action)
     if(pkg_default) reg_action = MERGE_PKG_HIGH; /* always make new package overide default */
     s_pkg = s_find_package_id(pkg->id);
     if (s_pkg == NULL) { /* no need to merge - package not in tree */
-        s_pkg = g_new0(s_h248_package_t,1);
+        s_pkg = wmem_new0(wmem_epan_scope(), s_h248_package_t);
         s_pkg->is_default = FALSE;
         s_pkg->pkg = (h248_package_t *)pkg;
         g_tree_insert(packages, GINT_TO_POINTER(pkg->id), (gpointer)s_pkg);
@@ -1507,9 +1512,9 @@ static int dissect_h248_PkgdName(gboolean implicit_tag, tvbuff_t *tvb, int offse
             const gchar* strval;
 
             if (pkg->param_names && ( strval = try_val_to_str(name_minor, pkg->param_names) )) {
-                strval = ep_strdup_printf("%s (%d)",strval,name_minor);
+                strval = wmem_strdup_printf(wmem_packet_scope(), "%s (%d)",strval,name_minor);
             } else {
-                strval = ep_strdup_printf("Unknown (%d)",name_minor);
+                strval = wmem_strdup_printf(wmem_packet_scope(), "Unknown (%d)",name_minor);
             }
 
             proto_item_set_text(pi,"Parameter: %s", strval);
@@ -1570,9 +1575,9 @@ static int dissect_h248_EventName(gboolean implicit_tag, tvbuff_t *tvb, int offs
             const gchar* strval;
 
             if (pkg->event_names && ( strval = try_val_to_str(name_minor, pkg->event_names) )) {
-                strval = ep_strdup_printf("%s (%d)",strval,name_minor);
+                strval = wmem_strdup_printf(wmem_packet_scope(), "%s (%d)",strval,name_minor);
             } else {
-                strval = ep_strdup_printf("Unknown (%d)",name_minor);
+                strval = wmem_strdup_printf(wmem_packet_scope(), "Unknown (%d)",name_minor);
             }
 
             proto_item_set_text(pi,"Event ID: %s", strval);
@@ -1635,9 +1640,9 @@ static int dissect_h248_SignalName(gboolean implicit_tag , tvbuff_t *tvb, int of
             const gchar* strval;
 
             if (pkg->signal_names && ( strval = try_val_to_str(name_minor, pkg->signal_names) )) {
-                strval = ep_strdup_printf("%s (%d)",strval,name_minor);
+                strval = wmem_strdup_printf(wmem_packet_scope(), "%s (%d)",strval,name_minor);
             } else {
-                strval = ep_strdup_printf("Unknown (%d)",name_minor);
+                strval = wmem_strdup_printf(wmem_packet_scope(), "Unknown (%d)",name_minor);
             }
 
             proto_item_set_text(pi,"Signal ID: %s", strval);
@@ -1728,9 +1733,9 @@ static int dissect_h248_SigParameterName(gboolean implicit_tag _U_, tvbuff_t *tv
     }
 
     if (curr_info.sig && curr_info.sig->param_names && ( strval = try_val_to_str(param_id, curr_info.sig->param_names) )) {
-        strval = ep_strdup_printf("%s (%d)",strval,param_id);
+        strval = wmem_strdup_printf(wmem_packet_scope(), "%s (%d)",strval,param_id);
     } else {
-        strval = ep_strdup_printf("Unknown (%d)",param_id);
+        strval = wmem_strdup_printf(wmem_packet_scope(), "Unknown (%d)",param_id);
     }
 
     proto_item_set_text(pi,"Parameter: %s", strval);
@@ -1805,9 +1810,9 @@ static int dissect_h248_EventParameterName(gboolean implicit_tag _U_, tvbuff_t *
     }
 
     if (curr_info.evt && curr_info.evt->param_names && ( strval = try_val_to_str(param_id, curr_info.evt->param_names) )) {
-        strval = ep_strdup_printf("%s (%d)",strval,param_id);
+        strval = wmem_strdup_printf(wmem_packet_scope(), "%s (%d)",strval,param_id);
     } else {
-        strval = ep_strdup_printf("Unknown (%d)",param_id);
+        strval = wmem_strdup_printf(wmem_packet_scope(), "Unknown (%d)",param_id);
     }
 
     proto_item_set_text(pi,"Parameter: %s", strval);
@@ -2080,7 +2085,7 @@ static int
 dissect_h248_T_errorCode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 302 "../../asn1/h248/h248.cnf"
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_h248_error_code, &error_code);
-    expert_add_info_format(actx->pinfo, actx->created_item, PI_RESPONSE_CODE, PI_WARN, "Errored Command");
+    expert_add_info(actx->pinfo, actx->created_item, &ei_h248_errored_command);
     
     if (curr_info.cmd) {
         gcp_cmd_set_error(curr_info.cmd,error_code);
@@ -2239,8 +2244,8 @@ dissect_h248_T_terminationId(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 		}
 	} else {
 		curr_info.term->len = 0;
-		curr_info.term->buffer = (guint8*)ep_strdup("");
-		curr_info.term->str = ep_strdup("?");
+		curr_info.term->buffer = (guint8*)wmem_strdup(wmem_packet_scope(), "");
+		curr_info.term->str = wmem_strdup(wmem_packet_scope(), "?");
 	}
 
 
@@ -2257,7 +2262,7 @@ static const ber_sequence_t TerminationID_sequence[] = {
 static int
 dissect_h248_TerminationID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 315 "../../asn1/h248/h248.cnf"
-    curr_info.term = ep_new0(gcp_term_t);
+    curr_info.term = wmem_new0(wmem_packet_scope(), gcp_term_t);
     wild_term = GCP_WILDCARD_NONE;
 
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
@@ -5224,7 +5229,7 @@ dissect_h248_Message(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
     col_add_str(actx->pinfo->cinfo, COL_INFO, gcp_msg_to_str(curr_info.msg,keep_persistent_data));
         
     if (keep_persistent_data)
-        gcp_analyze_msg(h248_tree, h248_tvb, curr_info.msg, &h248_arrel);
+        gcp_analyze_msg(h248_tree, actx->pinfo, h248_tvb, curr_info.msg, &h248_arrel, &ei_h248_errored_command);
 
   return offset;
 }
@@ -5365,7 +5370,7 @@ dissect_h248_ValueV1(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
 
 
 /*--- End of included file: packet-h248-fn.c ---*/
-#line 1408 "../../asn1/h248/packet-h248-template.c"
+#line 1413 "../../asn1/h248/packet-h248-template.c"
 
 static void dissect_h248_tpkt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     dissect_tpkt_encap(tvb, pinfo, tree, h248_desegment, h248_handle);
@@ -5520,6 +5525,14 @@ void proto_register_h248(void) {
           { "ServiceChangeReasonStr", "h248.serviceChangeReasonstr",
             FT_STRING, BASE_NONE, NULL, 0,
             "h248.IA5String", HFILL }},
+        { &hf_h248_context_id64,
+          { "contextId", "h248.contextId",
+            FT_UINT64, BASE_HEX, NULL, 0,
+            "Context ID", HFILL }},
+        { &hf_h248_transactionId64,
+          { "transactionId", "h248.transactionId",
+            FT_UINT64, BASE_DEC, NULL, 0,
+            NULL, HFILL }},
 
 /* h248v1 support */
         { &hf_h248_auditValueReplyV1,
@@ -6784,7 +6797,7 @@ void proto_register_h248(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-h248-hfarr.c ---*/
-#line 1570 "../../asn1/h248/packet-h248-template.c"
+#line 1583 "../../asn1/h248/packet-h248-template.c"
 
         GCP_HF_ARR_ELEMS("h248",h248_arrel)
 
@@ -6950,11 +6963,17 @@ void proto_register_h248(void) {
     &ett_h248_SigParameterV1,
 
 /*--- End of included file: packet-h248-ettarr.c ---*/
-#line 1588 "../../asn1/h248/packet-h248-template.c"
+#line 1601 "../../asn1/h248/packet-h248-template.c"
     };
 
-    module_t *h248_module;
+    static ei_register_info ei[] = {
+        { &ei_h248_errored_command, { "h248.errored_command", PI_RESPONSE_CODE, PI_WARN, "Errored Command", EXPFILL }},
+        { &ei_h248_transactionId64, { "h248.transactionId.error", PI_MALFORMED, PI_WARN, "Transaction ID invalid", EXPFILL }},
+        { &ei_h248_context_id64, { "h248.contextId.error", PI_MALFORMED, PI_WARN, "Context ID invalid", EXPFILL }},
+    };
 
+    expert_module_t* expert_h248;
+    module_t *h248_module;
 
     /* Register protocol */
     proto_h248 = proto_register_protocol(PNAME, PSNAME, PFNAME);
@@ -6964,6 +6983,8 @@ void proto_register_h248(void) {
     /* Register fields and subtrees */
     proto_register_field_array(proto_h248, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_h248 = expert_register_protocol(proto_h248);
+    expert_register_field_array(expert_h248, ei, array_length(ei));
     
     subdissector_table = register_dissector_table("h248.magic_num", "H248 Magic Num", FT_UINT32, BASE_HEX);
 

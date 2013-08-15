@@ -1,5 +1,5 @@
 /* idl2wrs.c
- * IDL to Wireshark dissector compiler
+ * DCE RPC IDL to Wireshark dissector compiler
  *
  * $Id$
  *
@@ -96,7 +96,7 @@ TODO
 static FILE *tfh, *eth_code, *eth_hdr, *eth_hf, *eth_hfarr, *eth_ett, *eth_ettarr, *eth_ft, *eth_handoff;
 static char *uuid=NULL;
 static char *version=NULL;
-static char *pointer_default=NULL;
+static const char *pointer_default=NULL;
 static char *ifname=NULL;
 static char hf_status[256];
 static int lineno,linepos;
@@ -120,7 +120,7 @@ static void FPRINTF(FILE *fh, const char *format, ...)
 
 typedef struct _pointer_item_t {
 	struct _pointer_item_t *next;
-	char *type;
+	const char *type;
 } pointer_item_t;
 
 #define BI_CASE			0x00000001
@@ -135,7 +135,7 @@ typedef struct _pointer_item_t {
 #define BI_SWITCH_TYPE		0x00000400
 typedef struct _bracket_item_t {
 	unsigned int flags;
-	char *case_name;
+	const char *case_name;
 	pointer_item_t *pointer_list;
 	int union_tag_size;
 } bracket_item_t;
@@ -214,7 +214,7 @@ register_dissector_param_value(char *name, char *value)
 	dpv->value=strdup(value);
 }
 
-static char *
+static const char *
 find_dissector_param_value(char *name)
 {
 	dissector_param_value_t *dpv;
@@ -248,8 +248,8 @@ prepend_pointer_list(pointer_item_t *ptrs, int num_pointers)
 	return ptrs;
 }
 
-static char *
-ptr_to_define(char *pointer_type)
+static const char *
+ptr_to_define(const char *pointer_type)
 {
 	if(!strcmp(pointer_type, "unique")){
 		return "NDR_POINTER_UNIQUE";
@@ -332,8 +332,8 @@ find_hf_field(char *name)
    from this function.
    for fields that are to be renamed  no code is generated
 */
-static char *
-register_hf_field(char *hf_name, char *title, char *filter_name, char *ft_type, char *base_type, char *valsstring, char *mask, char *blurb)
+static const char *
+register_hf_field(const char *hf_name, const char *title, const char *filter_name, const char *ft_type, const char *base_type, const char *valsstring, const char *mask, const char *blurb)
 {
 	hf_field_item_t *hfi;
 	hf_rename_item_t *hri;
@@ -409,7 +409,7 @@ prune_keywords(char *name)
 #endif
 
 static void
-rename_tokens(char *old_name, char *new_name)
+rename_tokens(const char *old_name, const char *new_name)
 {
 	token_item_t *ti;
 
@@ -421,7 +421,7 @@ rename_tokens(char *old_name, char *new_name)
 }
 
 static void
-prune_keyword_parameters(char *name)
+prune_keyword_parameters(const char *name)
 {
 	token_item_t *ti, *tmpti;
 
@@ -742,7 +742,7 @@ parsebrackets(token_item_t *ti, bracket_item_t **bracket){
 /* this function will register a new type learnt from the IDL file
 */
 static type_item_t *
-register_new_type(char *name, char *dissectorname, char *ft_type, char *base_type, char *mask, char *valsstring, int alignment){
+register_new_type(const char *name, const char *dissectorname, const char *ft_type, const char *base_type, const char *mask, const char *valsstring, int alignment){
 	type_item_t *new_type;
 
 FPRINTF(NULL,"XXX new type:%s dissector:%s Type:%s Base:%s Mask:%s Vals:%s alignment:%d\n", name, dissectorname, ft_type, base_type, mask, valsstring, alignment);
@@ -1447,7 +1447,7 @@ static void parsetypedefstruct(int pass)
 	char hf_index[256];
 	bracket_item_t *bi=NULL;
 	pointer_item_t *pi;
-	char *pointer_type;
+	const char *pointer_type;
 	char *field_name;
 	int fixed_array_size;
 	int is_array_of_pointers;
@@ -1655,7 +1655,7 @@ static void parsetypedefstruct(int pass)
 		/* pass 0  generate subdissectors */
 		if(pass==0){
 			char filter_name[256];
-			char *hf;
+			const char *hf;
 
 			sprintf(tmpstr, "%s_dissect_%s_%s", ifname, struct_name, field_name);
 			ptmpstr=strdup(tmpstr);
@@ -2121,8 +2121,8 @@ static void parsetypedefbitmap(int pass)
 /* a case tag might be a negative number, i.e. contain a '-' sign which
    is not valid inside a symbol name in c.
 */
-static char *
-case2str(char *str)
+static const char *
+case2str(const char *str)
 {
   char *newstr;
   if(str[0]!='-'){
@@ -2364,7 +2364,8 @@ static void parsetypedefunion(int pass)
 		/* pass 0  generate subdissectors */
 		if(pass==0){
 			char filter_name[256];
-			char *hf;
+			const char *hf;
+
 			sprintf(tmpstr, "%s_dissect_union_%s_%s_%s", ifname, union_name, case2str(bi->case_name), ti->str);
 			ptmpstr=strdup(tmpstr);
 
@@ -2503,7 +2504,7 @@ static void parsefunction(int pass)
 	token_item_t *ti;
 	bracket_item_t *bi=NULL;
 	pointer_item_t *pi;
-	char *pointer_type;
+	const char *pointer_type;
 
 	char tmpstr[256], *ptmpstr;
 	int level, num_pointers;
@@ -2604,11 +2605,10 @@ static void parsefunction(int pass)
 		/* pass 0  generate subdissectors */
 		if(pass==0){
 			char filter_name[256];
-			char *hf;
+			const char *hf;
 
 			sprintf(tmpstr, "%s_dissect_%s_%s", ifname, function_name, ti->str);
 			ptmpstr=strdup(tmpstr);
-
 
 			sprintf(filter_name, "%s.%s.%s", ifname, function_name, ti->str);
 			hf=register_hf_field(hf_index, ti->str, filter_name, type_item->ft_type, type_item->base_type, type_item->vals, type_item->mask, "");
@@ -2992,7 +2992,7 @@ static void usage(void)
 }
 
 static void
-mergefile(char *name, FILE *outfile)
+mergefile(const char *name, FILE *outfile)
 {
 	FILE *infile;
 

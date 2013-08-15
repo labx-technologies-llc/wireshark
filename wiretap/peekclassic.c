@@ -143,16 +143,19 @@ typedef struct {
 static gboolean peekclassic_read_v7(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean peekclassic_seek_read_v7(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length,
     int *err, gchar **err_info);
+static int peekclassic_read_packet_v7(wtap *wth, FILE_T fh,
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
 static gboolean peekclassic_read_v56(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean peekclassic_seek_read_v56(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length,
     int *err, gchar **err_info);
+static gboolean peekclassic_read_packet_v56(wtap *wth, FILE_T fh,
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
 
-int
-peekclassic_open(wtap *wth, int *err, gchar **err_info)
+int peekclassic_open(wtap *wth, int *err, gchar **err_info)
 {
 	peekclassic_header_t ep_hdr;
 	int bytes_read;
@@ -359,10 +362,57 @@ peekclassic_open(wtap *wth, int *err, gchar **err_info)
 	return 1;
 }
 
-static gboolean
-peekclassic_read_v7(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
+static gboolean peekclassic_read_v7(wtap *wth, int *err, gchar **err_info,
+    gint64 *data_offset)
+{
+	int sliceLength;
+
+	*data_offset = file_tell(wth->fh);
+
+	/* Read the packet. */
+	sliceLength = peekclassic_read_packet_v7(wth, wth->fh, &wth->phdr,
+	    wth->frame_buffer, err, err_info);
+	if (sliceLength < 0)
+		return FALSE;
+
+	/* Skip extra ignored data at the end of the packet. */
+	if ((guint32)sliceLength > wth->phdr.caplen) {
+		if (!file_skip(wth->fh, sliceLength - wth->phdr.caplen, err))
+			return FALSE;
+	}
+
+	/* Records are padded to an even length, so if the slice length
+	   is odd, read the padding byte. */
+	if (sliceLength & 0x01) {
+		if (!file_skip(wth->fh, 1, err))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+static gboolean peekclassic_seek_read_v7(wtap *wth, gint64 seek_off,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length _U_,
+    int *err, gchar **err_info)
+{
+	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
+		return FALSE;
+
+	/* Read the packet. */
+	if (peekclassic_read_packet_v7(wth, wth->random_fh, phdr, buf,
+	    err, err_info) == -1) {
+		if (*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static int peekclassic_read_packet_v7(wtap *wth, FILE_T fh,
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
 {
 	guint8 ep_pkt[PEEKCLASSIC_V7_PKT_SIZE];
+	int bytes_read;
 #if 0
 	guint16 protoNum;
 #endif
@@ -376,10 +426,13 @@ peekclassic_read_v7(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 	time_t tsecs;
 	guint32 tusecs;
 
-	*data_offset = file_tell(wth->fh);
-
-	wtap_file_read_expected_bytes(ep_pkt, sizeof(ep_pkt), wth->fh, err,
-	    err_info);
+	bytes_read = file_read(ep_pkt, sizeof(ep_pkt), fh);
+	if (bytes_read != (int) sizeof(ep_pkt)) {
+		*err = file_error(fh, err_info);
+		if (*err == 0 && bytes_read > 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return -1;
+	}
 
 	/* Extract the fields from the packet */
 #if 0
@@ -398,43 +451,21 @@ peekclassic_read_v7(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 		sliceLength = length;
 	}
 
-	wth->phdr.presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
-	
-	/* fill in packet header length values before slicelength may be
-	   adjusted */
-	wth->phdr.len    = length;
-	wth->phdr.caplen = sliceLength;
-
-	if (sliceLength % 2) /* packets are padded to an even length */
-		sliceLength++;
+	/* fill in packet header values */
+	phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+	tsecs = (time_t) (timestamp/1000000);
+	tusecs = (guint32) (timestamp - tsecs*1000000);
+	phdr->ts.secs  = tsecs - mac2unix;
+	phdr->ts.nsecs = tusecs * 1000;
+	phdr->len    = length;
+	phdr->caplen = sliceLength;
 
 	switch (wth->file_encap) {
 
 	case WTAP_ENCAP_IEEE_802_11_AIROPEEK:
-		wth->phdr.pseudo_header.ieee_802_11.fcs_len = 0;		/* no FCS */
-		wth->phdr.pseudo_header.ieee_802_11.decrypted = FALSE;
-		break;
+		phdr->pseudo_header.ieee_802_11.fcs_len = 0;		/* no FCS */
+		phdr->pseudo_header.ieee_802_11.decrypted = FALSE;
 
-	case WTAP_ENCAP_ETHERNET:
-		/* XXX - it appears that if the low-order bit of
-		   "status" is 0, there's an FCS in this frame,
-		   and if it's 1, there's 4 bytes of 0. */
-		wth->phdr.pseudo_header.eth.fcs_len = (status & 0x01) ? 0 : 4;
-		break;
-	}
-
-	/* read the frame data */
-	buffer_assure_space(wth->frame_buffer, sliceLength);
-	wtap_file_read_expected_bytes(buffer_start_ptr(wth->frame_buffer),
-	                              sliceLength, wth->fh, err, err_info);
-
-	/* fill in packet header values */
-	tsecs = (time_t) (timestamp/1000000);
-	tusecs = (guint32) (timestamp - tsecs*1000000);
-	wth->phdr.ts.secs  = tsecs - mac2unix;
-	wth->phdr.ts.nsecs = tusecs * 1000;
-
-	if (wth->file_encap == WTAP_ENCAP_IEEE_802_11_AIROPEEK) {
 		/*
 		 * The last 4 bytes appear to be random data - the length
 		 * might include the FCS - so we reduce the length by 4.
@@ -443,56 +474,66 @@ peekclassic_read_v7(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 		 * of junk at the end you get in Wireless Sniffer
 		 * captures.
 		 */
-		 wth->phdr.len -= 4;
-		 wth->phdr.caplen -= 4;
-	}
-
-	return TRUE;
-}
-
-static gboolean
-peekclassic_seek_read_v7(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
-    int *err, gchar **err_info)
-{
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
-	guint8 ep_pkt[PEEKCLASSIC_V7_PKT_SIZE];
-	guint8  status;
-
-	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
-		return FALSE;
-
-	/* Read the packet header. */
-	wtap_file_read_expected_bytes(ep_pkt, sizeof(ep_pkt), wth->random_fh,
-	    err, err_info);
-	status = ep_pkt[PEEKCLASSIC_V7_STATUS_OFFSET];
-
-	switch (wth->file_encap) {
-
-	case WTAP_ENCAP_IEEE_802_11_AIROPEEK:
-		pseudo_header->ieee_802_11.fcs_len = 0;		/* no FCS */
-		pseudo_header->ieee_802_11.decrypted = FALSE;
+		if (phdr->len < 4 || phdr->caplen < 4) {
+			*err = WTAP_ERR_BAD_FILE;
+			*err_info = g_strdup_printf("peekclassic: 802.11 packet has length < 4");
+			return -1;
+		}
+		phdr->len -= 4;
+		phdr->caplen -= 4;
 		break;
 
 	case WTAP_ENCAP_ETHERNET:
 		/* XXX - it appears that if the low-order bit of
 		   "status" is 0, there's an FCS in this frame,
 		   and if it's 1, there's 4 bytes of 0. */
-		pseudo_header->eth.fcs_len = (status & 0x01) ? 0 : 4;
+		phdr->pseudo_header.eth.fcs_len = (status & 0x01) ? 0 : 4;
 		break;
 	}
 
+	/* read the packet data */
+	if (!wtap_read_packet_bytes(fh, buf, phdr->caplen, err, err_info))
+		return -1;
+
+	return sliceLength;
+}
+
+static gboolean peekclassic_read_v56(wtap *wth, int *err, gchar **err_info,
+    gint64 *data_offset)
+{
+	*data_offset = file_tell(wth->fh);
+
+	/* read the packet */
+	if (!peekclassic_read_packet_v56(wth, wth->fh, &wth->phdr,
+	    wth->frame_buffer, err, err_info))
+		return FALSE;
+
 	/*
-	 * XXX - should "errno" be set in "wtap_file_read_expected_bytes()"?
+	 * XXX - is the captured packet data padded to a multiple
+	 * of 2 bytes?
 	 */
-	errno = WTAP_ERR_CANT_READ;
-	wtap_file_read_expected_bytes(pd, length, wth->random_fh, err,
-	    err_info);
 	return TRUE;
 }
 
-static gboolean
-peekclassic_read_v56(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
+static gboolean peekclassic_seek_read_v56(wtap *wth, gint64 seek_off,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length _U_,
+    int *err, gchar **err_info)
+{
+	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
+		return FALSE;
+
+	/* read the packet */
+	if (!peekclassic_read_packet_v56(wth, wth->random_fh, phdr, buf,
+	    err, err_info)) {
+		if (*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static gboolean peekclassic_read_packet_v56(wtap *wth, FILE_T fh,
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
 {
 	peekclassic_t *peekclassic = (peekclassic_t *)wth->priv;
 	guint8 ep_pkt[PEEKCLASSIC_V56_PKT_SIZE];
@@ -508,22 +549,12 @@ peekclassic_read_v56(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 	guint16 srcNum;
 #endif
 	guint16 protoNum;
+#if 0
 	char    protoStr[8];
+#endif
 	unsigned int i;
 
-	/*
-	 * XXX - in order to figure out whether this packet is an
-	 * Ethernet packet or not, we have to look at the packet
-	 * header, so we have to remember the address of the header,
-	 * not the address of the data, for random access.
-	 *
-	 * If we can determine that from the file header, rather than
-	 * the packet header, we can remember the offset of the data,
-	 * and not have the seek_read routine read the header.
-	 */
-	*data_offset = file_tell(wth->fh);
-
-	wtap_file_read_expected_bytes(ep_pkt, sizeof(ep_pkt), wth->fh, err,
+	wtap_file_read_expected_bytes(ep_pkt, sizeof(ep_pkt), fh, err,
 	    err_info);
 
 	/* Extract the fields from the packet */
@@ -539,8 +570,10 @@ peekclassic_read_v56(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 	srcNum = pntohs(&ep_pkt[PEEKCLASSIC_V56_SRCNUM_OFFSET]);
 #endif
 	protoNum = pntohs(&ep_pkt[PEEKCLASSIC_V56_PROTONUM_OFFSET]);
+#if 0
 	memcpy(protoStr, &ep_pkt[PEEKCLASSIC_V56_PROTOSTR_OFFSET],
 	    sizeof protoStr);
+#endif
 
 	/*
 	 * XXX - is the captured packet data padded to a multiple
@@ -552,74 +585,30 @@ peekclassic_read_v56(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 		sliceLength = length;
 	}
 
-	/* read the frame data */
-	buffer_assure_space(wth->frame_buffer, sliceLength);
-	wtap_file_read_expected_bytes(buffer_start_ptr(wth->frame_buffer),
-	                              sliceLength, wth->fh, err, err_info);
-
 	/* fill in packet header values */
-	wth->phdr.len        = length;
-	wth->phdr.caplen     = sliceLength;
+	phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
 	/* timestamp is in milliseconds since reference_time */
-	wth->phdr.ts.secs  = peekclassic->reference_time.tv_sec
+	phdr->ts.secs  = peekclassic->reference_time.tv_sec
 	    + (timestamp / 1000);
-	wth->phdr.ts.nsecs = 1000 * (timestamp % 1000) * 1000;
+	phdr->ts.nsecs = 1000 * (timestamp % 1000) * 1000;
+	phdr->len      = length;
+	phdr->caplen   = sliceLength;
 
-	wth->phdr.pkt_encap = WTAP_ENCAP_UNKNOWN;
+	phdr->pkt_encap = WTAP_ENCAP_UNKNOWN;
 	for (i=0; i<NUM_PEEKCLASSIC_ENCAPS; i++) {
 		if (peekclassic_encap[i].protoNum == protoNum) {
-			wth->phdr.pkt_encap = peekclassic_encap[i].encap;
+			phdr->pkt_encap = peekclassic_encap[i].encap;
 		}
 	}
 
-	switch (wth->phdr.pkt_encap) {
+	switch (phdr->pkt_encap) {
 
 	case WTAP_ENCAP_ETHERNET:
 		/* We assume there's no FCS in this frame. */
-		wth->phdr.pseudo_header.eth.fcs_len = 0;
-		break;
-	}
-	return TRUE;
-}
-
-static gboolean
-peekclassic_seek_read_v56(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
-    int *err, gchar **err_info)
-{
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
-	guint8 ep_pkt[PEEKCLASSIC_V56_PKT_SIZE];
-	int pkt_encap;
-	guint16 protoNum;
-	unsigned int i;
-
-	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
-		return FALSE;
-
-	wtap_file_read_expected_bytes(ep_pkt, sizeof(ep_pkt), wth->random_fh,
-	    err, err_info);
-
-	protoNum = pntohs(&ep_pkt[PEEKCLASSIC_V56_PROTONUM_OFFSET]);
-	pkt_encap = WTAP_ENCAP_UNKNOWN;
-	for (i=0; i<NUM_PEEKCLASSIC_ENCAPS; i++) {
-		if (peekclassic_encap[i].protoNum == protoNum) {
-			pkt_encap = peekclassic_encap[i].encap;
-		}
-	}
-
-	switch (pkt_encap) {
-
-	case WTAP_ENCAP_ETHERNET:
-		/* We assume there's no FCS in this frame. */
-		pseudo_header->eth.fcs_len = 0;
+		phdr->pseudo_header.eth.fcs_len = 0;
 		break;
 	}
 
-	/*
-	 * XXX - should "errno" be set in "wtap_file_read_expected_bytes()"?
-	 */
-	errno = WTAP_ERR_CANT_READ;
-	wtap_file_read_expected_bytes(pd, length, wth->random_fh, err,
-	    err_info);
-	return TRUE;
+	/* read the packet data */
+	return wtap_read_packet_bytes(fh, buf, sliceLength, err, err_info);
 }

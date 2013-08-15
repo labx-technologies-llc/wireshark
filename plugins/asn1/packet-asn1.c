@@ -69,16 +69,17 @@
 #include <glib.h>
 #include <glib/gprintf.h>
 
+#include <wsutil/report_err.h>
+#include <wsutil/file_util.h>
+
 #include <epan/packet.h>
 #include <epan/addr_resolv.h>
 #include <epan/prefs.h>
 #include <epan/filesystem.h>
-#include <epan/report_err.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/oids.h>
 #include <epan/emem.h>
 #include <plugins/asn1/asn1.h>
-#include <wsutil/file_util.h>
 
 #ifdef DISSECTOR_WITH_GUI
 #include <gtk/gtk.h>
@@ -2727,7 +2728,7 @@ define_module(GNode *p, GNode *q)
 	module->type = TBLTYPE_Module;
 
 	p = g_node_first_child(p);
-	
+
 	if (!p) {
 		return;
 	}
@@ -5065,7 +5066,7 @@ getPDUprops(PDUprops *out, guint offset, guint cls, guint tag, guint cons)
 				pos.type = gettype(pos.node); /* the resulting type */
 				info = getinfo(pos.node);
 				tmp = "unknown tag";
-				if ((info->tclass == BER_CLASS_UNI) && (info->tag < 31)) {
+				if (info && (info->tclass == BER_CLASS_UNI) && (info->tag < 31)) {
 					tmp = asn1_tag[info->tag];
 					pos.type = asn1_uni_type[info->tag]; /* get univsrsal type */
 				}

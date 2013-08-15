@@ -90,7 +90,6 @@ static int hf_pdcp_lte_fms = -1;
 static int hf_pdcp_lte_reserved4 = -1;
 static int hf_pdcp_lte_fms2 = -1;
 static int hf_pdcp_lte_bitmap = -1;
-static int hf_pdcp_lte_bitmap_not_received = -1;
 
 
 /* Sequence Analysis */
@@ -865,7 +864,7 @@ static gboolean dissect_pdcp_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
        - fixed header bytes
        - tag for data
        - at least one byte of PDCP PDU payload */
-    if ((size_t)tvb_length_remaining(tvb, offset) < (strlen(PDCP_LTE_START_STRING)+3+2)) {
+    if (tvb_length_remaining(tvb, offset) < (gint)(strlen(PDCP_LTE_START_STRING)+3+2)) {
         return FALSE;
     }
 
@@ -941,6 +940,14 @@ static gboolean dissect_pdcp_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
                 break;
             case PDCP_LTE_ROHC_PROFILE_TAG:
                 p_pdcp_lte_info->profile = tvb_get_ntohs(tvb, offset);
+                offset += 2;
+                break;
+            case PDCP_LTE_CHANNEL_ID_TAG:
+                p_pdcp_lte_info->channelId = tvb_get_ntohs(tvb, offset);
+                offset += 2;
+                break;
+            case PDCP_LTE_UEID_TAG:
+                p_pdcp_lte_info->ueid = tvb_get_ntohs(tvb, offset);
                 offset += 2;
                 break;
 
@@ -1060,6 +1067,11 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
             write_pdu_label_and_info(root_ti, pinfo, " sn=%-2u ", seqnum);
             offset++;
 
+            if (tvb_length_remaining(tvb, offset) == 0) {
+                /* Only PDCP header was captured, stop dissection here */
+                return;
+            }
+
             /* RRC data is all but last 4 bytes.
                Call lte-rrc dissector (according to direction and channel type) */
             if (global_pdcp_dissect_signalling_plane_as_rrc) {
@@ -1171,12 +1183,16 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
                 switch (control_pdu_type) {
                     case 0:    /* PDCP status report */
                         {
+                            guint8  bits;
                             guint16 fms;
                             guint16 modulo;
                             guint   not_received = 0;
-                            guint   sn;
+                            guint   sn, i, j, l;
+                            guint32 len, bit_offset;
                             proto_tree *bitmap_tree;
                             proto_item *bitmap_ti = NULL;
+                            gchar  *buff = NULL;
+                            #define BUFF_SIZE 49
 
                             if (p_pdcp_info->seqnum_length == PDCP_SN_LENGTH_12_BITS) {
                                 /* First-Missing-Sequence SN */
@@ -1217,19 +1233,22 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
                                                                 offset, -1, ENC_NA);
                                 bitmap_tree = proto_item_add_subtree(bitmap_ti, ett_pdcp_report_bitmap);
 
-
+                                 buff = (gchar *)ep_alloc(BUFF_SIZE);
+                                 len = tvb_length_remaining(tvb, offset);
+                                 bit_offset = offset<<3;
                                 /* For each byte... */
-                                for ( ; tvb_length_remaining(tvb, offset); offset++) {
-                                    guint bit_offset = 0;
-                                    /* .. look for error (0) in each bit */
-                                    for ( ; bit_offset < 8; bit_offset++) {
-                                        if ((tvb_get_guint8(tvb, offset) >> (7-bit_offset) & 0x1) == 0) {
-                                            proto_tree_add_boolean_bits_format_value(bitmap_tree, hf_pdcp_lte_bitmap_not_received, tvb, offset*8 + bit_offset,
-                                                                                     1, 0, " (SN=%u)", sn);
+                                for (i=0; i<len; i++) {
+                                    bits = tvb_get_bits8(tvb, bit_offset, 8);
+                                    for (l=0, j=0; l<8; l++) {
+                                        if ((bits << l) & 0x80) {
+                                            j += g_snprintf(&buff[j], BUFF_SIZE-j, "%5u,", (unsigned)(sn+(8*i)+l)%modulo);
+                                        } else {
+                                            j += g_snprintf(&buff[j], BUFF_SIZE-j, "     ,");
                                             not_received++;
                                         }
-                                        sn = (sn + 1) % modulo;
                                     }
+                                    proto_tree_add_text(bitmap_tree, tvb, bit_offset/8, 1, "%s", buff);
+                                    bit_offset += 8;
                                 }
                             }
 
@@ -1609,12 +1628,6 @@ void proto_register_pdcp(void)
             { "Bitmap",
               "pdcp-lte.bitmap", FT_NONE, BASE_NONE, NULL, 0x0,
               "Status report bitmap (0=error, 1=OK)", HFILL
-            }
-        },
-        { &hf_pdcp_lte_bitmap_not_received,
-            { "Not Received",
-              "pdcp-lte.bitmap.error", FT_BOOLEAN, BASE_NONE, NULL, 0x0,
-              "Status report PDU error", HFILL
             }
         },
 

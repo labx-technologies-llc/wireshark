@@ -831,6 +831,9 @@ static gint ett_camel_InvokeId = -1;
 /*--- End of included file: packet-camel-ett.c ---*/
 #line 137 "../../asn1/camel/packet-camel-template.c"
 
+static expert_field ei_camel_unknown_invokeData = EI_INIT;
+static expert_field ei_camel_unknown_returnResultData = EI_INIT;
+static expert_field ei_camel_unknown_returnErrorData = EI_INIT;
 
 /* Preference settings default */
 #define MAX_SSN 254
@@ -1150,7 +1153,7 @@ static const value_string camel_ectTreatmentIndicator_values[] = {
 #define noInvokeId                     NULL
 
 /*--- End of included file: packet-camel-val.h ---*/
-#line 273 "../../asn1/camel/packet-camel-template.c"
+#line 276 "../../asn1/camel/packet-camel-template.c"
 
 
 /*--- Included file: packet-camel-table.c ---*/
@@ -1240,7 +1243,7 @@ static const value_string camel_err_code_string_vals[] = {
 
 
 /*--- End of included file: packet-camel-table.c ---*/
-#line 275 "../../asn1/camel/packet-camel-template.c"
+#line 278 "../../asn1/camel/packet-camel-template.c"
 
 static char camel_number_to_char(int number)
 {
@@ -7003,14 +7006,13 @@ static void dissect_CAP_U_ABORT_REASON_PDU(tvbuff_t *tvb _U_, packet_info *pinfo
 
 
 /*--- End of included file: packet-camel-fn.c ---*/
-#line 322 "../../asn1/camel/packet-camel-template.c"
+#line 325 "../../asn1/camel/packet-camel-template.c"
 
 
 /*--- Included file: packet-camel-table2.c ---*/
 #line 1 "../../asn1/camel/packet-camel-table2.c"
 
 static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_ctx_t *actx) {
-  proto_item *cause;
 
   switch(opcode){
     case opcode_playAnnouncement:  /* playAnnouncement */
@@ -7161,9 +7163,8 @@ static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
       offset= dissect_ResetTimerSMSArg_PDU(tvb, actx->pinfo , tree , NULL);
       break;
     default:
-      cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown invokeData blob");
-      proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-      expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown invokeData %d",opcode);
+      proto_tree_add_expert_format(tree, actx->pinfo, &ei_camel_unknown_invokeData,
+                                   tvb, offset, -1, "Unknown invokeData %d", opcode);
       /* todo call the asn.1 dissector */
       break;
   }
@@ -7172,7 +7173,6 @@ static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
 
 
 static int dissect_returnResultData(proto_tree *tree, tvbuff_t *tvb, int offset,asn1_ctx_t *actx) {
-  proto_item *cause;
 
   switch(opcode){
     case opcode_promptAndCollectUserInformation:  /* promptAndCollectUserInformation */
@@ -7182,16 +7182,14 @@ static int dissect_returnResultData(proto_tree *tree, tvbuff_t *tvb, int offset,
 	  offset= dissect_InitiateCallAttemptRes_PDU(tvb, actx->pinfo , tree , NULL);
       break;
   default:
-    cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown returnResultData blob");
-    proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-    expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown returnResultData %d",opcode);
+    proto_tree_add_expert_format(tree, actx->pinfo, &ei_camel_unknown_returnResultData,
+	                             tvb, offset, -1, "Unknown returnResultData %d",opcode);
   }
   return offset;
 }
 
 
 static int dissect_returnErrorData(proto_tree *tree, tvbuff_t *tvb, int offset,asn1_ctx_t *actx) {
-  proto_item *cause;
 
   switch(errorCode) {
     case errcode_cancelFailed:  /* cancelFailed */
@@ -7207,16 +7205,15 @@ static int dissect_returnErrorData(proto_tree *tree, tvbuff_t *tvb, int offset,a
       dissect_PAR_taskRefused_PDU(tvb, actx->pinfo , tree , NULL);
       break;
   default:
-    cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown returnErrorData blob");
-    proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-    expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown returnErrorData %d",errorCode);
+    proto_tree_add_expert_format(tree, actx->pinfo, &ei_camel_unknown_returnErrorData,
+                                 tvb, offset, -1, "Unknown returnErrorData %d",errorCode);
   }
   return offset;
 }
 
 
 /*--- End of included file: packet-camel-table2.c ---*/
-#line 324 "../../asn1/camel/packet-camel-template.c"
+#line 327 "../../asn1/camel/packet-camel-template.c"
 
 
 static guint8 camel_pdu_type = 0;
@@ -7417,7 +7414,7 @@ void proto_reg_handoff_camel(void) {
 
 
 /*--- End of included file: packet-camel-dis-tab.c ---*/
-#line 517 "../../asn1/camel/packet-camel-template.c"
+#line 520 "../../asn1/camel/packet-camel-template.c"
   } else {
     range_foreach(ssn_range, range_delete_callback);
     g_free(ssn_range);
@@ -9531,7 +9528,7 @@ void proto_register_camel(void) {
         "InvokeId_present", HFILL }},
 
 /*--- End of included file: packet-camel-hfarr.c ---*/
-#line 690 "../../asn1/camel/packet-camel-template.c"
+#line 693 "../../asn1/camel/packet-camel-template.c"
   };
 
   /* List of subtrees */
@@ -9746,8 +9743,17 @@ void proto_register_camel(void) {
     &ett_camel_InvokeId,
 
 /*--- End of included file: packet-camel-ettarr.c ---*/
-#line 706 "../../asn1/camel/packet-camel-template.c"
+#line 709 "../../asn1/camel/packet-camel-template.c"
   };
+
+  static ei_register_info ei[] = {
+     { &ei_camel_unknown_invokeData, { "camel.unknown.invokeData", PI_MALFORMED, PI_WARN, "Unknown invokeData", EXPFILL }},
+     { &ei_camel_unknown_returnResultData, { "camel.unknown.returnResultData", PI_MALFORMED, PI_WARN, "Unknown returnResultData", EXPFILL }},
+     { &ei_camel_unknown_returnErrorData, { "camel.unknown.returnErrorData", PI_MALFORMED, PI_WARN, "Unknown returnResultData", EXPFILL }},
+  };
+
+  expert_module_t* expert_camel;
+
   /* Register protocol */
   proto_camel = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
@@ -9757,6 +9763,8 @@ void proto_register_camel(void) {
 
   proto_register_field_array(proto_camel, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_camel = expert_register_protocol(proto_camel);
+  expert_register_field_array(expert_camel, ei, array_length(ei));
 
   rose_ctx_init(&camel_rose_ctx);
 

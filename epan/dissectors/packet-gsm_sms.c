@@ -339,15 +339,15 @@ dis_field_addr(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, const gchar *
     guint8       oct;
     guint32      offset;
     guint32      numdigocts;
-    guint32      length;
+    guint32      length, addrlength;
     guint32      i, j;
     char         addrbuf[MAX_ADDR_SIZE+1];
     gchar        *addrstr;
 
     offset = *offset_p;
 
-    oct = tvb_get_guint8(tvb, offset);
-    numdigocts = (oct + 1) / 2;
+    addrlength = tvb_get_guint8(tvb, offset);
+    numdigocts = (addrlength + 1) / 2;
 
     length = tvb_length_remaining(tvb, offset);
 
@@ -371,7 +371,7 @@ dis_field_addr(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, const gchar *
     proto_tree_add_text(subtree,
         tvb, offset, 1,
         "Length: %d address digits",
-        oct);
+        addrlength);
 
     offset++;
     oct = tvb_get_guint8(tvb, offset);
@@ -433,7 +433,9 @@ dis_field_addr(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, const gchar *
     switch ((oct & 0x70) >> 4)
     {
     case 0x05: /* "Alphanumeric (coded according to 3GPP TS 23.038 GSM 7-bit default alphabet)" */
-        i = gsm_sms_char_7bit_unpack(0, numdigocts, MAX_ADDR_SIZE, tvb_get_ptr(tvb, offset, numdigocts), addrbuf);
+        addrlength = (addrlength << 2) / 7;
+        i = gsm_sms_char_7bit_unpack(0, numdigocts, ((addrlength > MAX_ADDR_SIZE) ? MAX_ADDR_SIZE : addrlength),
+                                     tvb_get_ptr(tvb, offset, numdigocts), addrbuf);
         addrbuf[i] = '\0';
         addrstr = gsm_sms_chars_to_utf8(addrbuf, i);
         break;
@@ -2574,6 +2576,63 @@ dis_field_ud_iei(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
     }
 }
 
+void
+dis_field_udh(tvbuff_t *tvb, proto_tree *tree, guint32 *offset, guint32 *length,
+              guint8 *udl, gboolean uncomp_7bits, guint8 *fill_bits)
+{
+    guint8 oct;
+    proto_item *udh_item;
+    proto_tree *udh_subtree = NULL;
+    static guint8 fill_bits_mask[7] = { 0x0, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f };
+
+    /* step over header */
+
+    oct = tvb_get_guint8(tvb, *offset);
+
+    udh_item =
+        proto_tree_add_text(tree, tvb,
+                            *offset, oct + 1,
+                            "User-Data Header");
+
+    udh_subtree = proto_item_add_subtree(udh_item, ett_udh);
+
+    proto_tree_add_text(udh_subtree,
+                        tvb, *offset, 1,
+                        "User Data Header Length (%u)",
+                        oct);
+
+    (*offset)++;
+    (*length)--;
+
+    dis_field_ud_iei(tvb, udh_subtree, *offset, oct);
+
+    *offset += oct;
+    *length -= oct;
+
+    if (uncomp_7bits)
+    {
+        /* step over fill bits ? */
+
+        *fill_bits = 6 - ((oct * 8) % 7);
+        *udl -= (((oct + 1)*8) + *fill_bits) / 7;
+        if (*fill_bits)
+        {
+            oct = tvb_get_guint8(tvb, *offset);
+
+            other_decode_bitfield_value(bigbuf, oct, fill_bits_mask[*fill_bits], 8);
+            proto_tree_add_text(udh_subtree,
+                                tvb, *offset, 1,
+                                "%s :  Fill bits",
+                                bigbuf);
+            /* Note: Could add an expert item here if ((oct & fill_bits_mask[*fill_bits]) != 0) */
+        }
+    }
+    else
+    {
+        *udl -= oct + 1;
+    }
+}
+
 /* 9.2.3.24 */
 #define SMS_MAX_MESSAGE_SIZE 160
 static char    messagebuf[SMS_MAX_MESSAGE_SIZE+1];
@@ -2581,15 +2640,11 @@ static void
 dis_field_ud(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 offset, guint32 length, gboolean udhi, guint8 udl,
     gboolean seven_bit, gboolean eight_bit, gboolean ucs2, gboolean compressed)
 {
-    static guint8     fill_bits_mask[7] =
-        { 0x0, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f };
     proto_item        *item;
-    proto_item        *udh_item;
     proto_tree        *subtree = NULL;
-    proto_tree        *udh_subtree = NULL;
     tvbuff_t          *sm_tvb = NULL;
-    fragment_data     *fd_sm = NULL;
-    guint8            oct, fill_bits;
+    fragment_head     *fd_sm = NULL;
+    guint8            fill_bits;
     guint32           out_len, total_sms_len, len_sms, length_ucs2, i;
     char              *ustr;
     proto_item        *ucs2_item;
@@ -2614,55 +2669,9 @@ dis_field_ud(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 offset
                             "TP-User-Data");
     subtree = proto_item_add_subtree(item, ett_ud);
 
-    oct = tvb_get_guint8(tvb, offset);
-
     if (udhi)
     {
-
-        /* step over header */
-
-        udh_item =
-            proto_tree_add_text(subtree, tvb,
-                                offset, oct + 1,
-                                "User-Data Header");
-
-        udh_subtree = proto_item_add_subtree(udh_item, ett_udh);
-
-        proto_tree_add_text(udh_subtree,
-                            tvb, offset, 1,
-                            "User Data Header Length (%u)",
-                            oct);
-
-        offset++;
-        length--;
-
-        dis_field_ud_iei(tvb, udh_subtree, offset, oct);
-
-        offset += oct;
-        length -= oct;
-
-        if (seven_bit && !compressed)
-        {
-            /* step over fill bits ? */
-
-            fill_bits = 6 - ((oct * 8) % 7);
-            udl -= (((oct + 1)*8) + fill_bits) / 7;
-            if (fill_bits)
-            {
-                oct = tvb_get_guint8(tvb, offset);
-
-                other_decode_bitfield_value(bigbuf, oct, fill_bits_mask[fill_bits], 8);
-                proto_tree_add_text(udh_subtree,
-                                    tvb, offset, 1,
-                                    "%s :  Fill bits",
-                                    bigbuf);
-                /* Note: Could add an expert item here if ((oct & fill_bits_mask[fill_bits]) != 0) */
-            }
-        }
-        else
-        {
-            udl -= oct + 1;
-        }
+        dis_field_udh(tvb, subtree, &offset, &length, &udl, (seven_bit && !compressed), &fill_bits);
     }
 
     if (g_frags > 1)

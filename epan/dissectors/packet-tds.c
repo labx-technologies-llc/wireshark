@@ -558,6 +558,7 @@ static reassembly_table tds_reassembly_table;
 static gboolean tds_defragment = TRUE;
 
 static dissector_handle_t tds_tcp_handle;
+
 static dissector_handle_t ntlmssp_handle;
 static dissector_handle_t gssapi_handle;
 static dissector_handle_t data_handle;
@@ -1865,7 +1866,9 @@ dissect_tds_type_info(tvbuff_t *tvb, guint *offset, packet_info *pinfo, proto_tr
 static void
 dissect_tds_type_varbyte(tvbuff_t *tvb, guint *offset, packet_info *pinfo, proto_tree *tree, int hf, guint8 data_type, gboolean plp)
 {
-    enum { GEN_NULL = 0x00U, CHARBIN_NULL = 0xFFFFU, CHARBIN_NULL32 = 0xFFFFFFFFUL };
+#define GEN_NULL        0x00U
+#define CHARBIN_NULL    0xFFFFU
+#define CHARBIN_NULL32  0xFFFFFFFFU
     guint32 length;
     char *string_value;
     proto_tree *sub_tree = NULL;
@@ -2232,7 +2235,7 @@ dissect_tds_resp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, tds_conv_i
                                          val_to_str_const(token, token_names, "Unknown Token Type"));
 
         if ((int) token_len_field_size < 0) {
-            expert_add_info_format(pinfo, token_item, PI_PROTOCOL, PI_WARN, 
+            expert_add_info_format(pinfo, token_item, PI_PROTOCOL, PI_WARN,
                                     "Bogus token length field size: %u", token_len_field_size);
             break;
         }
@@ -2319,7 +2322,7 @@ dissect_netlib_buffer(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint8 packet_number;
     gboolean save_fragmented;
     int len;
-    fragment_data *fd_head;
+    fragment_head *fd_head;
     tvbuff_t *next_tvb;
     conversation_t *conv;
     tds_conv_info_t *tds_info;
@@ -3170,7 +3173,7 @@ proto_register_tds(void)
     proto_register_subtree_array(ett, array_length(ett));
 
 /* Allow dissector to be found by name. */
-    register_dissector("tds", dissect_tds_tcp, proto_tds);
+    tds_tcp_handle = register_dissector("tds", dissect_tds_tcp, proto_tds);
 
     tds_module = prefs_register_protocol(proto_tds, NULL);
     prefs_register_bool_preference(tds_module, "desegment_buffers",
@@ -3205,8 +3208,6 @@ proto_register_tds(void)
 void
 proto_reg_handoff_tds(void)
 {
-    tds_tcp_handle = create_dissector_handle(dissect_tds_tcp, proto_tds);
-
     /* Initial TDS ports: MS SQL default ports */
     dissector_add_uint("tcp.port", 1433, tds_tcp_handle);
     dissector_add_uint("tcp.port", 2433, tds_tcp_handle);

@@ -599,7 +599,7 @@ static GHashTable *repeated_nack_report_hash = NULL;
 
 /********************************************************/
 /* Forward declarations & functions                     */
-static void dissect_rlc_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+static void dissect_rlc_lte_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean is_udp_framing);
 
 
 /* Write the given formatted text to:
@@ -956,8 +956,50 @@ static gpointer get_report_hash_key(guint16 SN, guint32 frameNumber,
     return p_key;
 }
 
+static void checkFIconsistency(sequence_analysis_report *p,
+                               rlc_lte_info *p_rlc_lte_info,
+                               gboolean  newSegmentStarted,
+                               proto_tree *seqnum_tree,
+                               packet_info *pinfo, tvbuff_t *tvb)
+{
+    proto_item *ti;
 
-
+    if (p->previousSegmentIncomplete) {
+        /* Previous segment was incomplete, so this PDU should continue it */
+        if (newSegmentStarted) {
+            ti = proto_tree_add_boolean(seqnum_tree, hf_rlc_lte_sequence_analysis_framing_info_correct,
+                                         tvb, 0, 0, FALSE);
+            expert_add_info_format(pinfo, ti, PI_SEQUENCE, PI_WARN,
+                                   "Last segment of previous PDU was not continued for UE %u (%s-%u)",
+                                   p_rlc_lte_info->ueid,
+                                   val_to_str_const(p_rlc_lte_info->channelType, rlc_channel_type_vals, "Unknown"),
+                                   p_rlc_lte_info->channelId);
+        }
+        else {
+           ti = proto_tree_add_boolean(seqnum_tree, hf_rlc_lte_sequence_analysis_framing_info_correct,
+                                       tvb, 0, 0, TRUE);
+           PROTO_ITEM_SET_HIDDEN(ti);
+        }
+    }
+    else {
+        /* Previous segment was complete, so this PDU should start a new one */
+        if (!newSegmentStarted) {
+            ti = proto_tree_add_boolean(seqnum_tree, hf_rlc_lte_sequence_analysis_framing_info_correct,
+                                        tvb, 0, 0, FALSE);
+            expert_add_info_format(pinfo, ti, PI_SEQUENCE, PI_WARN,
+                                   "Last segment of previous PDU was complete, but new segment was not started on UE %u (%s-%u)",
+                                   p_rlc_lte_info->ueid,
+                                   val_to_str_const(p_rlc_lte_info->channelType, rlc_channel_type_vals, "Unknown"),
+                                   p_rlc_lte_info->channelId);
+        }
+        else {
+           ti = proto_tree_add_boolean(seqnum_tree, hf_rlc_lte_sequence_analysis_framing_info_correct,
+                                       tvb, 0, 0, TRUE);
+           PROTO_ITEM_SET_HIDDEN(ti);
+        }
+    }
+    PROTO_ITEM_SET_GENERATED(ti);
+}
 
 /* Add to the tree values associated with sequence analysis for this frame */
 static void addChannelSequenceInfo(sequence_analysis_report *p,
@@ -1010,6 +1052,9 @@ static void addChannelSequenceInfo(sequence_analysis_report *p,
                         proto_tree_add_uint(seqnum_tree, hf_rlc_lte_sequence_analysis_next_frame,
                                             tvb, 0, 0, p->nextFrameNum);
                     }
+                    /* Correct sequence number, so check frame indication bits consistent */
+                    /* Deactivated for now as it gets confused by resegmentation */
+                    /* checkFIconsistency(p, p_rlc_lte_info, newSegmentStarted, seqnum_tree, pinfo, tvb); */
                     break;
 
                 case SN_MAC_Retx:
@@ -1251,46 +1296,7 @@ static void addChannelSequenceInfo(sequence_analysis_report *p,
             }
             else {
                 /* Correct sequence number, so check frame indication bits consistent */
-                if (p->previousSegmentIncomplete) {
-                    /* Previous segment was incomplete, so this PDU should continue it */
-                    if (newSegmentStarted) {
-                        ti = proto_tree_add_boolean(seqnum_tree, hf_rlc_lte_sequence_analysis_framing_info_correct,
-                                                     tvb, 0, 0, FALSE);
-                        if (!p->sequenceExpectedCorrect) {
-                            expert_add_info_format(pinfo, ti, PI_SEQUENCE, PI_WARN,
-                                                   "Last segment of previous PDU was not continued for UE %u (%s-%u)",
-                                                   p_rlc_lte_info->ueid,
-                                                   val_to_str_const(p_rlc_lte_info->channelType, rlc_channel_type_vals, "Unknown"),
-                                                   p_rlc_lte_info->channelId);
-                        }
-                    }
-                    else {
-                       ti = proto_tree_add_boolean(seqnum_tree, hf_rlc_lte_sequence_analysis_framing_info_correct,
-                                                   tvb, 0, 0, TRUE);
-                       PROTO_ITEM_SET_HIDDEN(ti);
-                    }
-                }
-                else {
-                    /* Previous segment was complete, so this PDU should start a new one */
-                    if (!newSegmentStarted) {
-                        ti = proto_tree_add_boolean(seqnum_tree, hf_rlc_lte_sequence_analysis_framing_info_correct,
-                                                    tvb, 0, 0, FALSE);
-                        if (!p->sequenceExpectedCorrect) {
-                            expert_add_info_format(pinfo, ti, PI_SEQUENCE, PI_WARN,
-                                                   "Last segment of previous PDU was complete, but new segment was not started on UE %u (%s-%u)",
-                                                   p_rlc_lte_info->ueid,
-                                                   val_to_str_const(p_rlc_lte_info->channelType, rlc_channel_type_vals, "Unknown"),
-                                                   p_rlc_lte_info->channelId);
-                        }
-                    }
-                    else {
-                       ti = proto_tree_add_boolean(seqnum_tree, hf_rlc_lte_sequence_analysis_framing_info_correct,
-                                                   tvb, 0, 0, TRUE);
-                       PROTO_ITEM_SET_HIDDEN(ti);
-                    }
-
-                }
-                PROTO_ITEM_SET_GENERATED(ti);
+                checkFIconsistency(p, p_rlc_lte_info, newSegmentStarted, seqnum_tree, pinfo, tvb);
 
                 /* Set OK here! */
                 ti = proto_tree_add_boolean(seqnum_tree, hf_rlc_lte_sequence_analysis_ok,
@@ -1397,6 +1403,13 @@ static sequence_analysis_state checkChannelSequenceInfo(packet_info *pinfo, tvbu
                 expectedSequenceNumber = sequenceNumber;
             }
 
+            if ((sequenceNumber == 0) &&
+                ((p_rlc_lte_info->channelType == CHANNEL_TYPE_MCCH) || (p_rlc_lte_info->channelType == CHANNEL_TYPE_MTCH))) {
+                /* With eMBMS, SN restarts to 0 at each MCH Scheduling Period so we cannot deduce easily whether
+                   there was a PDU loss or not without analysing the Frame Indicator; assume no loss when seeing 0 */
+                expectedSequenceNumber = 0;
+            }
+
             /* Set report for this frame */
             /* For UM, sequence number is always expectedSequence number */
             p_report_in_frame->sequenceExpectedCorrect = (sequenceNumber == expectedSequenceNumber);
@@ -1415,7 +1428,8 @@ static sequence_analysis_state checkChannelSequenceInfo(packet_info *pinfo, tvbu
 
                 /* Frames are not missing if we get an earlier sequence number again */
                 /* TODO: taking time into account would give better idea of whether missing or repeated... */
-                else if (((snLimit + sequenceNumber - expectedSequenceNumber) % snLimit) < 10) {
+                else if ((p_rlc_lte_info->channelType == CHANNEL_TYPE_MCCH) || (p_rlc_lte_info->channelType == CHANNEL_TYPE_MTCH) ||
+                         (((snLimit + sequenceNumber - expectedSequenceNumber) % snLimit) < 10)) {
                     reassembly_destroy(p_channel_status);
 
                     p_report_in_frame->state = SN_Missing;
@@ -1917,7 +1931,7 @@ static void dissect_rlc_lte_tm(tvbuff_t *tvb, packet_info *pinfo,
     raw_tm_ti = proto_tree_add_item(tree, hf_rlc_lte_tm_data, tvb, offset, -1, ENC_NA);
     if (!global_rlc_lte_call_rrc_for_ccch) {
         write_pdu_label_and_info(top_ti, NULL, pinfo,
-                                 "   [%u-bytes]", tvb_length_remaining(tvb, offset));
+                                 "                     [%u-bytes]", tvb_length_remaining(tvb, offset));
     }
 
     if (global_rlc_lte_call_rrc_for_ccch) {
@@ -1987,7 +2001,7 @@ static void dissect_rlc_lte_um(tvbuff_t *tvb, packet_info *pinfo,
     proto_item *um_ti;
     proto_tree *um_header_tree;
     proto_item *um_header_ti;
-    gboolean is_truncated;
+    gboolean is_truncated = FALSE;
     proto_item *truncated_ti;
     rlc_channel_reassembly_info *reassembly_info = NULL;
     sequence_analysis_state seq_anal_state = SN_OK;
@@ -2066,7 +2080,12 @@ static void dissect_rlc_lte_um(tvbuff_t *tvb, packet_info *pinfo,
     tap_info->sequenceNumber = (guint16)sn;
 
     /* Show SN in info column */
-    write_pdu_label_and_info(top_ti, um_header_ti, pinfo, "  SN=%-4u", (guint16)sn);
+    if ((p_rlc_lte_info->channelType == CHANNEL_TYPE_MCCH) || (p_rlc_lte_info->channelType == CHANNEL_TYPE_MTCH)) {
+        write_pdu_label_and_info(top_ti, um_header_ti, pinfo, "           sn=%-4u", (guint16)sn);
+    }
+    else {
+        write_pdu_label_and_info(top_ti, um_header_ti, pinfo, "            sn=%-4u", (guint16)sn);
+    }
 
     proto_item_set_len(um_header_ti, offset-start_offset);
 
@@ -2103,7 +2122,6 @@ static void dissect_rlc_lte_um(tvbuff_t *tvb, packet_info *pinfo,
             show_PDU_in_info(pinfo, top_ti, p_rlc_lte_info->pduLength - offset,
                              (s_number_of_extensions == 0) ? first_includes_start : TRUE,
                              last_includes_end);
-            return;
         }
         else {
             PROTO_ITEM_SET_HIDDEN(truncated_ti);
@@ -2143,6 +2161,9 @@ static void dissect_rlc_lte_um(tvbuff_t *tvb, packet_info *pinfo,
                                                   tap_info, um_header_tree);
     }
 
+    if (is_truncated) {
+        return;
+    }
 
     /*************************************/
     /* Data                              */
@@ -2371,7 +2392,7 @@ static void dissect_rlc_lte_am(tvbuff_t *tvb, packet_info *pinfo,
     proto_item *am_header_ti;
     gint   start_offset = offset;
     guint16    sn;
-    gboolean is_truncated;
+    gboolean is_truncated = FALSE;
     proto_item *truncated_ti;
     rlc_channel_reassembly_info *reassembly_info = NULL;
     sequence_analysis_state seq_anal_state = SN_OK;
@@ -2495,9 +2516,6 @@ static void dissect_rlc_lte_am(tvbuff_t *tvb, packet_info *pinfo,
             show_PDU_in_info(pinfo, top_ti, p_rlc_lte_info->pduLength - offset,
                              (s_number_of_extensions == 0) ? first_includes_start : TRUE,
                              last_includes_end);
-
-            /* Just return now */
-            return;
         }
         else {
             PROTO_ITEM_SET_HIDDEN(truncated_ti);
@@ -2533,6 +2551,9 @@ static void dissect_rlc_lte_am(tvbuff_t *tvb, packet_info *pinfo,
                                                   is_resegmented, tap_info, tree);
     }
 
+    if (is_truncated) {
+        return;
+    }
 
     /*************************************/
     /* Data                              */
@@ -2610,7 +2631,7 @@ static gboolean dissect_rlc_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
        - fixed header bytes
        - tag for data
        - at least one byte of RLC PDU payload */
-    if ((size_t)tvb_length_remaining(tvb, offset) < (strlen(RLC_LTE_START_STRING)+1+2)) {
+    if (tvb_length_remaining(tvb, offset) < (gint)(strlen(RLC_LTE_START_STRING)+1+2)) {
         return FALSE;
     }
 
@@ -2693,7 +2714,7 @@ static gboolean dissect_rlc_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
 
     /* Create tvb that starts at actual RLC PDU */
     rlc_tvb = tvb_new_subset_remaining(tvb, offset);
-    dissect_rlc_lte(rlc_tvb, pinfo, tree);
+    dissect_rlc_lte_common(rlc_tvb, pinfo, tree, TRUE);
     return TRUE;
 }
 
@@ -2704,6 +2725,11 @@ static gboolean dissect_rlc_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
 /*****************************/
 
 static void dissect_rlc_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+    dissect_rlc_lte_common(tvb, pinfo, tree, FALSE);
+}
+
+static void dissect_rlc_lte_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean is_udp_framing)
 {
     proto_tree             *rlc_lte_tree;
     proto_tree             *context_tree;
@@ -2734,6 +2760,11 @@ static void dissect_rlc_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                  "Can't dissect LTE RLC frame because no per-frame info was attached!");
         PROTO_ITEM_SET_GENERATED(ti);
         return;
+    }
+
+    /* Clear info column when using UDP framing */
+    if (is_udp_framing) {
+        col_clear(pinfo->cinfo, COL_INFO);
     }
 
     /*****************************************/
@@ -2770,7 +2801,8 @@ static void dissect_rlc_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     PROTO_ITEM_SET_GENERATED(ti);
 
     if ((p_rlc_lte_info->channelType == CHANNEL_TYPE_SRB) ||
-        (p_rlc_lte_info->channelType == CHANNEL_TYPE_DRB)) {
+        (p_rlc_lte_info->channelType == CHANNEL_TYPE_DRB) ||
+        (p_rlc_lte_info->channelType == CHANNEL_TYPE_MTCH)) {
         ti = proto_tree_add_uint(context_tree, hf_rlc_lte_context_channel_id,
                                  tvb, 0, 0, p_rlc_lte_info->channelId);
         PROTO_ITEM_SET_GENERATED(ti);
@@ -2810,8 +2842,8 @@ static void dissect_rlc_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         col_append_fstr(pinfo->cinfo, COL_INFO, "UEId=%-4u ", p_rlc_lte_info->ueid);
     }
     if (p_rlc_lte_info->channelId == 0) {
-        write_pdu_label_and_info_literal(top_ti, NULL, pinfo,
-                                         val_to_str_const(p_rlc_lte_info->channelType, rlc_channel_type_vals, "Unknown"));
+        write_pdu_label_and_info(top_ti, NULL, pinfo, "%s   ",
+                                 val_to_str_const(p_rlc_lte_info->channelType, rlc_channel_type_vals, "Unknown"));
     }
     else {
         write_pdu_label_and_info(top_ti, NULL, pinfo, "%s:%-2u",

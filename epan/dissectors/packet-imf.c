@@ -150,6 +150,8 @@ static int ett_imf_siolabel = -1;
 static int ett_imf_extension = -1;
 static int ett_imf_message_text = -1;
 
+static dissector_handle_t imf_handle;
+
 static expert_field ei_imf_unknown_param = EI_INIT;
 
 struct imf_field {
@@ -770,7 +772,7 @@ dissect_imf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         /* remove 2 bytes to take off the final CRLF to make things a little prettier */
         item = proto_tree_add_item(tree, hf_id, tvb, value_offset, end_offset - value_offset - 2, ENC_ASCII|ENC_NA);
       }
-      if(f_info->add_to_col_info && check_col(pinfo->cinfo, COL_INFO)) {
+      if(f_info->add_to_col_info) {
 
         col_append_fstr(pinfo->cinfo, COL_INFO, "%s: %s, ", f_info->name,
                         tvb_format_text(tvb, value_offset, end_offset - value_offset - 2));
@@ -893,7 +895,7 @@ header_fields_initialize_cb (void)
       hf[i].hfinfo.display = BASE_NONE;
       hf[i].hfinfo.strings = NULL;
       hf[i].hfinfo.blurb = g_strdup (header_fields[i].description);
-      hf[i].hfinfo.same_name_prev = NULL;
+      hf[i].hfinfo.same_name_prev_id = -1;
       hf[i].hfinfo.same_name_next = NULL;
 
       imffield = (struct imf_field *)g_malloc (sizeof (struct imf_field));
@@ -1244,7 +1246,7 @@ proto_register_imf(void)
   expert_register_field_array(expert_imf, ei, array_length(ei));
 
   /* Allow dissector to find be found by name. */
-  register_dissector(PFNAME, dissect_imf, proto_imf);
+  imf_handle = register_dissector(PFNAME, dissect_imf, proto_imf);
 
   imf_module = prefs_register_protocol(proto_imf, NULL);
   prefs_register_uat_preference(imf_module, "custom_header_fields", "Custom IMF headers",
@@ -1264,14 +1266,10 @@ proto_register_imf(void)
 void
 proto_reg_handoff_imf(void)
 {
-  dissector_handle_t imf_handle;
-
-  imf_handle = find_dissector(PFNAME);
-
   dissector_add_string("media_type",
                        "message/rfc822", imf_handle);
 
-  register_ber_oid_dissector("1.2.840.113549.1.7.1", dissect_imf, proto_imf, "id-data");
+  register_ber_oid_dissector_handle("1.2.840.113549.1.7.1", imf_handle, proto_imf, "id-data");
 
   /*
    * Get the content type and Internet media type table

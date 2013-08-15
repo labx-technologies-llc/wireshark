@@ -54,18 +54,12 @@ extern "C" {
  * virtual data.
  */
 
-/** The different types of tvbuff's */
-typedef enum {
-	TVBUFF_REAL_DATA,
-	TVBUFF_SUBSET,
-	TVBUFF_COMPOSITE
-} tvbuff_type;
-
 struct tvbuff;
 typedef struct tvbuff tvbuff_t;
 
-/**
- * tvbuffs: dissector use and management
+/** @defgroup tvbuff Testy, Virtual(-izable) Buffers
+ *
+ * Dissector use and management
  *
  *  Consider a collection of tvbs as being a chain or stack of tvbs.
  *
@@ -91,7 +85,10 @@ typedef struct tvbuff tvbuff_t;
  *    This (obviously) also applies to any tvbs chained to the tvb handed
  *    to the dissector.
  *  - Can create its own tvb chain (using tvb_new_real_data() which the
- *    dissector is free to manage as desired. */
+ *
+ *    dissector is free to manage as desired.
+ * @{
+ */
 
 /** TVBUFF_REAL_DATA contains a guint8* that points to real data.
  * The data is allocated and contiguous.
@@ -122,6 +119,12 @@ typedef void (*tvbuff_free_cb_t)(void*);
  */
 WS_DLL_PUBLIC tvbuff_t* tvb_new_octet_aligned(tvbuff_t *tvb, guint32 bit_offset, gint32 no_of_bits);
 
+WS_DLL_PUBLIC tvbuff_t *tvb_new_chain(tvbuff_t *parent, tvbuff_t *backing);
+
+WS_DLL_PUBLIC tvbuff_t *tvb_clone(tvbuff_t *tvb);
+
+WS_DLL_PUBLIC tvbuff_t *tvb_clone_offset_len(tvbuff_t *tvb, guint offset, guint len);
+
 /** Free a tvbuff_t and all tvbuffs chained from it
  * The tvbuff must be 'the 'head' (initial) tvb of a chain or
  * must not be in a chain.
@@ -134,7 +137,7 @@ WS_DLL_PUBLIC void tvb_free(tvbuff_t*);
  * must not be in a chain.
  * If specified, a callback to free the tvbuff data will be invoked
  * for each tvbuff free'd */
-void tvb_free_chain(tvbuff_t*);
+WS_DLL_PUBLIC void tvb_free_chain(tvbuff_t*);
 
 /** Set a callback function to call when a tvbuff is actually freed
  * One argument is passed to that callback --- a void* that points
@@ -697,6 +700,8 @@ WS_DLL_PUBLIC tvbuff_t* tvb_uncompress(tvbuff_t *tvb, const int offset,  int com
 extern tvbuff_t* tvb_child_uncompress(tvbuff_t *parent, tvbuff_t *tvb, const int offset, int comprlen);
 
 /************** END OF ACCESSORS ****************/
+
+/** @} */
 
 #ifdef __cplusplus
 }

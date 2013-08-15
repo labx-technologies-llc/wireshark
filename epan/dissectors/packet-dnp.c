@@ -1066,6 +1066,9 @@ static gint ett_dnp3_al_obj_quality = -1;
 static gint ett_dnp3_al_obj_point = -1;
 static gint ett_dnp3_al_obj_point_perms = -1;
 
+static expert_field ei_dnp_num_items_neg = EI_INIT;
+static expert_field ei_dnp_invalid_length = EI_INIT;
+
 /* Tables for reassembly of fragments. */
 static reassembly_table al_reassembly_table;
 static GHashTable *dl_conversation_table = NULL;
@@ -1629,7 +1632,7 @@ dnp3_al_process_object(tvbuff_t *tvb, packet_info *pinfo, int offset,
 
   if (num_items < 0) {
     proto_item_append_text(range_item, " (bogus)");
-    expert_add_info_format(pinfo, range_item, PI_MALFORMED, PI_ERROR, "Negative number of items");
+    expert_add_info(pinfo, range_item, &ei_dnp_num_items_neg);
     return tvb_length(tvb);
   }
 
@@ -1910,7 +1913,6 @@ dnp3_al_process_object(tvbuff_t *tvb, packet_info *pinfo, int offset,
                    al_ctlobj_count, al_ctlobj_on, al_ctlobj_off);
 
             /* Get "Control Status" Field */
-            al_ctlobj_stat = tvb_get_guint8(tvb, data_pos);
             proto_tree_add_item(point_tree, hf_dnp3_al_ctrlstatus, tvb, data_pos, 1, ENC_LITTLE_ENDIAN);
             data_pos += 1;
 
@@ -2531,7 +2533,7 @@ dnp3_al_process_object(tvbuff_t *tvb, packet_info *pinfo, int offset,
         al_ptaddr++;
       }
       if (start_offset > offset) {
-        expert_add_info_format(pinfo, point_item, PI_MALFORMED, PI_ERROR, "Invalid length");
+        expert_add_info(pinfo, point_item, &ei_dnp_invalid_length);
         offset = tvb_length(tvb); /* Finish decoding if unknown object is encountered... */
       }
     }
@@ -2837,7 +2839,6 @@ dissect_dnp3_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   /* Make sure source and dest are always in the info column */
   col_append_fstr(pinfo->cinfo, COL_INFO, "from %u to %u", dl_src, dl_dst);
-  col_set_fence(pinfo->cinfo, COL_INFO);
   col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "len=%u, %s", dl_len, func_code_str);
 
   /* create display subtree for the protocol */
@@ -3023,7 +3024,7 @@ dissect_dnp3_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       if (! (tr_fir && tr_fin))
       {
         guint                  conv_seq_number;
-        fragment_data         *frag_msg;
+        fragment_head         *frag_msg;
         conversation_t        *conversation;
         dnp3_conv_t           *conv_data_ptr;
         dl_conversation_key_t  dl_conversation_key;
@@ -3077,14 +3078,15 @@ dissect_dnp3_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             "Reassembled DNP 3.0 Application Layer message", frag_msg, &dnp3_frag_items,
             NULL, tr_tree);
 
-        if (next_tvb) { /* Reassembled */
-          /* We have the complete payload */
-          col_append_sep_str(pinfo->cinfo, COL_INFO, NULL, "Reassembled Application Layer");
+        if (next_tvb)  /* Reassembled */
+        {
+          /* We have the complete payload, zap the info column as the AL info takes precedence */
+          col_clear(pinfo->cinfo, COL_INFO);
         }
         else
         {
           /* We don't have the complete reassembled payload. */
-          col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "Transport Layer fragment %u ", tr_seq);
+          col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "TL fragment %u ", tr_seq);
         }
 
       }
@@ -3105,8 +3107,20 @@ dissect_dnp3_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       proto_tree_add_text(dnp3_tree, tvb, 11, -1, "CRC failed, %u chunks", i);
     }
 
+    /* Dissect any completed AL message */
     if (next_tvb)
+    {
+      /* As a complete AL message will have cleared the info column, 
+         make sure source and dest are always in the info column */
+      col_append_fstr(pinfo->cinfo, COL_INFO, "from %u to %u", dl_src, dl_dst);
+      col_set_fence(pinfo->cinfo, COL_INFO);
       dissect_dnp3_al(next_tvb, pinfo, dnp3_tree);
+    }
+    else
+    {
+      /* Lock any column info set by the DL and TL */
+      col_set_fence(pinfo->cinfo, COL_INFO);
+    }
   }
 }
 
@@ -4106,7 +4120,12 @@ proto_register_dnp3(void)
     &ett_dnp3_fragment,
     &ett_dnp3_fragments
   };
+  static ei_register_info ei[] = {
+     { &ei_dnp_num_items_neg, { "dnp3.num_items_neg", PI_MALFORMED, PI_ERROR, "Negative number of items", EXPFILL }},
+     { &ei_dnp_invalid_length, { "dnp3.invalid_length", PI_MALFORMED, PI_ERROR, "Invalid length", EXPFILL }},
+  };
   module_t *dnp3_module;
+  expert_module_t* expert_dnp3;
 
 /* Register protocol init routine */
   register_init_routine(&dnp3_init);
@@ -4121,6 +4140,8 @@ proto_register_dnp3(void)
 /* Required function calls to register the header fields and subtrees used */
   proto_register_field_array(proto_dnp3, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_dnp3 = expert_register_protocol(proto_dnp3);
+  expert_register_field_array(expert_dnp3, ei, array_length(ei));
 
   dnp3_module = prefs_register_protocol(proto_dnp3, NULL);
   prefs_register_bool_preference(dnp3_module, "heuristics",

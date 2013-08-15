@@ -29,7 +29,6 @@
 #include <glib.h>
 
 #include "color.h"
-#include "packet-range.h"
 
 #include <epan/prefs.h>
 
@@ -69,7 +68,6 @@ private:
 private slots:
     void on_prefsTree_currentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void on_advancedSearchLineEdit_textEdited(const QString &search_str);
-    void on_advancedTree_itemActivated(QTreeWidgetItem *item, int column);
     void lineEditPrefDestroyed();
     void enumPrefDestroyed();
     void uintPrefEditingFinished();
@@ -79,6 +77,7 @@ private slots:
     void rangePrefEditingFinished();
 
     void on_advancedTree_currentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
+    void on_advancedTree_itemActivated(QTreeWidgetItem *item, int column);
 
     void on_buttonBox_accepted();
     void on_buttonBox_helpRequested();

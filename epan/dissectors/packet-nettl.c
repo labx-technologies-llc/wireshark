@@ -180,6 +180,8 @@ static const value_string subsystem[] = {
 	{ 270, "IGSSN" },
 	{ 271, "ICXGBE" },
 	{ 275, "IEXGBE" },
+	{ 277, "IOCXGBE" },
+	{ 278, "IQXGBE" },
 	{ 513, "KL_VM" },
 	{ 514, "KL_PKM" },
 	{ 515, "KL_DLKM" },
@@ -279,11 +281,9 @@ dissect_nettl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             break;
          default:
             col_set_str(pinfo->cinfo, COL_PROTOCOL, "UNKNOWN");
-            if (check_col(pinfo->cinfo, COL_INFO))
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-		"Unsupported nettl subsytem: %d (%s)",
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unsupported nettl subsytem: %d (%s)",
                 pinfo->pseudo_header->nettl.subsys,
-		val_to_str_const(pinfo->pseudo_header->nettl.subsys, subsystem, "Unknown"));
+		        val_to_str_const(pinfo->pseudo_header->nettl.subsys, subsystem, "Unknown"));
             call_dissector(data_handle, tvb, pinfo, tree);
       }
 }

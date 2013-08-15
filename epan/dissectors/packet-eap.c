@@ -92,6 +92,13 @@ static int hf_eap_ms_chap_v2_failure_request = -1;
 
 static gint ett_eap = -1;
 
+static expert_field ei_eap_ms_chap_v2_length = EI_INIT;
+static expert_field ei_eap_mitm_attacks = EI_INIT;
+static expert_field ei_eap_md5_value_size_overflow = EI_INIT;
+static expert_field ei_eap_dictionary_attacks = EI_INIT;
+
+static dissector_handle_t eap_handle;
+
 static dissector_handle_t ssl_handle;
 
 const value_string eap_code_vals[] = {
@@ -444,7 +451,7 @@ dissect_eap_mschapv2(proto_tree *eap_tree, tvbuff_t *tvb, packet_info *pinfo, in
   item = proto_tree_add_item(eap_tree, hf_eap_ms_chap_v2_length, tvb, offset, 2, ENC_BIG_ENDIAN);
   ms_len = tvb_get_ntohs(tvb, offset);
   if (ms_len != size)
-    expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Invalid Length");
+    expert_add_info(pinfo, item, &ei_eap_ms_chap_v2_length);
   offset += 2;
   left   -= 2;
 
@@ -644,8 +651,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 
   eap_code = tvb_get_guint8(tvb, 0);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_str(pinfo->cinfo, COL_INFO,
+  col_add_str(pinfo->cinfo, COL_INFO,
                 val_to_str(eap_code, eap_code_vals, "Unknown code (0x%02X)"));
 
   /*
@@ -737,8 +743,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
   case EAP_RESPONSE:
     eap_type = tvb_get_guint8(tvb, 4);
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_append_fstr(pinfo->cinfo, COL_INFO, ", %s",
+    col_append_fstr(pinfo->cinfo, COL_INFO, ", %s",
                       val_to_str_ext(eap_type, &eap_type_vals_ext,
                                      "Unknown type (0x%02x)"));
     if (tree)
@@ -787,13 +792,12 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
         proto_item *item;
 
         /* Warn that this is an insecure EAP type. */
-        expert_add_info_format(pinfo, eap_type_item, PI_SECURITY, PI_WARN,
-                               "Vulnerable to MITM attacks. If possible, change EAP type.");
+        expert_add_info(pinfo, eap_type_item, &ei_eap_mitm_attacks);
 
         item = proto_tree_add_item(eap_tree, hf_eap_md5_value_size, tvb, offset, 1, ENC_BIG_ENDIAN);
         if (value_size > (size - 1))
         {
-          expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Overflow");
+          expert_add_info(pinfo, item, &ei_eap_md5_value_size_overflow);
           value_size = size - 1;
         }
 
@@ -995,7 +999,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
             otherwise we just call dissector.
           */
           if (needs_reassembly) {
-            fragment_data   *fd_head;
+            fragment_head   *fd_head;
 
             /*
              * Yes, this frame contains a fragment that requires
@@ -1014,9 +1018,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
             {
               proto_item *frag_tree_item;
 
-              next_tvb = tvb_new_child_real_data(tvb, fd_head->data,
-                                                 fd_head->len,
-                                                 fd_head->len);
+              next_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
               add_new_data_source(pinfo, next_tvb, "Reassembled EAP-TLS");
 
               show_fragment_seq_tree(fd_head, &eap_tls_frag_items,
@@ -1051,9 +1053,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
         guint8 count, namesize;
 
         /* Warn that this is an insecure EAP type. */
-        expert_add_info_format(pinfo, eap_type_item, PI_SECURITY, PI_WARN,
-                               "Vulnerable to dictionary attacks. If possible, change EAP type."
-                               " See http://www.cisco.com/warp/public/cc/pd/witc/ao350ap/prodlit/2331_pp.pdf");
+        expert_add_info(pinfo, eap_type_item, &ei_eap_dictionary_attacks);
 
         /* Version (byte) */
         if (tree) {
@@ -1516,27 +1516,36 @@ proto_register_eap(void)
     &ett_eap_exp_attr,
     &ett_eap_tls_flags
   };
+  static ei_register_info ei[] = {
+     { &ei_eap_ms_chap_v2_length, { "eap.ms_chap_v2.length.invalid", PI_PROTOCOL, PI_WARN, "Invalid Length", EXPFILL }},
+     { &ei_eap_mitm_attacks, { "eap.mitm_attacks", PI_SECURITY, PI_WARN, "Vulnerable to MITM attacks. If possible, change EAP type.", EXPFILL }},
+     { &ei_eap_md5_value_size_overflow, { "eap.md5.value_size.overflow", PI_PROTOCOL, PI_WARN, "Overflow", EXPFILL }},
+     { &ei_eap_dictionary_attacks, { "eap.dictionary_attacks", PI_SECURITY, PI_WARN, 
+                               "Vulnerable to dictionary attacks. If possible, change EAP type."
+                               " See http://www.cisco.com/warp/public/cc/pd/witc/ao350ap/prodlit/2331_pp.pdf", EXPFILL }},
+  };
+
+  expert_module_t* expert_eap;
 
   proto_eap = proto_register_protocol("Extensible Authentication Protocol",
                                       "EAP", "eap");
   proto_register_field_array(proto_eap, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_eap = expert_register_protocol(proto_eap);
+  expert_register_field_array(expert_eap, ei, array_length(ei));
 
-  new_register_dissector("eap", dissect_eap, proto_eap);
+  eap_handle = new_register_dissector("eap", dissect_eap, proto_eap);
   register_init_routine(eap_tls_defragment_init);
 }
 
 void
 proto_reg_handoff_eap(void)
 {
-  dissector_handle_t eap_handle;
-
   /*
    * Get a handle for the SSL/TLS dissector.
    */
   ssl_handle = find_dissector("ssl");
 
-  eap_handle = find_dissector("eap");
   dissector_add_uint("ppp.protocol", PPP_EAP, eap_handle);
 }
 /*

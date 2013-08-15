@@ -96,7 +96,7 @@
 #include <wsutil/crc32.h>
 #include <epan/crc32-tvb.h>
 #include <epan/tap.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/crypt/wep-wpadefs.h>
 #include <epan/expert.h>
 #include <epan/uat.h>
@@ -664,8 +664,9 @@ enum fixed_field {
 #define TAG_CISCO_UNKNOWN_96         150  /* Cisco Compatible eXtensions */
 #define TAG_SYMBOL_PROPRIETARY       173
 #define TAG_MCCAOP_ADVERTISSEMENT_OV 174
-#define TAG_VHT_CAPABILITY           191  /* IEEE Stc 802.11ac/D3.1 */
-#define TAG_VHT_OPERATION            192  /* IEEE Stc 802.11ac/D3.1 */
+#define TAG_VHT_CAPABILITY           191  /* IEEE Std 802.11ac/D3.1 */
+#define TAG_VHT_OPERATION            192  /* IEEE Std 802.11ac/D3.1 */
+#define TAG_VHT_TX_PWR_ENVELOPE      195  /* IEEE Std 802.11ac/D5.0 */
 #define TAG_VENDOR_SPECIFIC_IE       221
 
 static const value_string tag_num_vals[] = {
@@ -795,8 +796,9 @@ static const value_string tag_num_vals[] = {
   { TAG_CISCO_UNKNOWN_96,                     "Cisco Unknown 96" },
   { TAG_SYMBOL_PROPRIETARY,                   "Symbol Proprietary" },
   { TAG_MCCAOP_ADVERTISSEMENT_OV,             "MCCAOP Advertissement Overviw" },
-  { TAG_VHT_CAPABILITY,                       "VHT Capabilities (IEEE Stc 802.11ac/D3.1)" },
-  { TAG_VHT_OPERATION,                        "VHT Operation (IEEE Stc 802.11ac/D3.1)" },
+  { TAG_VHT_CAPABILITY,                       "VHT Capabilities (IEEE Std 802.11ac/D3.1)" },
+  { TAG_VHT_OPERATION,                        "VHT Operation (IEEE Std 802.11ac/D3.1)" },
+  { TAG_VHT_TX_PWR_ENVELOPE,                  "VHT Tx Power Envelope (IEEE Std 802.11ac/D5.0)" },
   { TAG_VENDOR_SPECIFIC_IE,                   "Vendor Specific" },
   { 0, NULL }
 };
@@ -1175,6 +1177,7 @@ static value_string_ext aruba_mgt_typevals_ext = VALUE_STRING_EXT_INIT(aruba_mgt
 #define SM_ACTION_ADDTS_RESPONSE    1
 #define SM_ACTION_DELTS             2
 #define SM_ACTION_QOS_SCHEDULE      3
+#define SM_ACTION_QOS_MAP_CONFIGURE 4
 
 #define SM_ACTION_DLS_REQUEST       0
 #define SM_ACTION_DLS_RESPONSE      1
@@ -1947,6 +1950,7 @@ static const value_string qos_action_codes[] = {
   {SM_ACTION_ADDTS_RESPONSE, "ADDTS Response"},
   {SM_ACTION_DELTS,          "DELTS"},
   {SM_ACTION_QOS_SCHEDULE,   "Schedule"},
+  {SM_ACTION_QOS_MAP_CONFIGURE, "QoS Map Configure"},
   {0, NULL}
 };
 
@@ -2200,6 +2204,10 @@ static const value_string vht_op_channel_width_flag[] = {
   {0x00, NULL}
 };
 
+static const value_string vht_tpe_pwr_units[] = {
+  {0x00, "EIRP"},
+  {0x00, NULL}
+};
 
 
 static const true_false_string ht_delayed_block_ack_flag = {
@@ -3561,8 +3569,16 @@ static int hf_ieee80211_vht_op_max_basic_mcs_for_5_ss = -1;
 static int hf_ieee80211_vht_op_max_basic_mcs_for_6_ss = -1;
 static int hf_ieee80211_vht_op_max_basic_mcs_for_7_ss = -1;
 static int hf_ieee80211_vht_op_max_basic_mcs_for_8_ss = -1;
-
 static int hf_ieee80211_vht_mcsset_tx_highest_long_gi = -1;
+
+static int hf_ieee80211_vht_tpe_pwr_info = -1;
+static int hf_ieee80211_vht_tpe_pwr_info_count = -1;
+static int hf_ieee80211_vht_tpe_pwr_info_unit = -1;
+static int hf_ieee80211_vht_tpe_pwr_info_reserved = -1;
+static int hf_ieee80211_vht_tpe_pwr_constr_20 = -1;
+static int hf_ieee80211_vht_tpe_pwr_constr_40 = -1;
+static int hf_ieee80211_vht_tpe_pwr_constr_80 = -1;
+static int hf_ieee80211_vht_tpe_pwr_constr_160 = -1;
 
 static int hf_ieee80211_tag_neighbor_report_bssid = -1;
 static int hf_ieee80211_tag_neighbor_report_bssid_info = -1;
@@ -3695,6 +3711,14 @@ static int hf_ieee80211_tag_interworking_asra = -1;
 static int hf_ieee80211_tag_interworking_esr = -1;
 static int hf_ieee80211_tag_interworking_uesa = -1;
 static int hf_ieee80211_tag_interworking_hessid = -1;
+
+/* IEEE Std 802.11-2012, 8.4.2.97 */
+static int hf_ieee80211_tag_qos_map_set_dscp_exc = -1;
+static int hf_ieee80211_tag_qos_map_set_dscp_exc_val = -1;
+static int hf_ieee80211_tag_qos_map_set_dscp_exc_up = -1;
+static int hf_ieee80211_tag_qos_map_set_range = -1;
+static int hf_ieee80211_tag_qos_map_set_low = -1;
+static int hf_ieee80211_tag_qos_map_set_high = -1;
 
 /* IEEE Std 802.11u-2011 7.3.2.93 */
 static int hf_ieee80211_tag_adv_proto_resp_len_limit = -1;
@@ -3839,6 +3863,13 @@ static int hf_ieee80211_aironet_ie_data = -1;
 static int hf_ieee80211_aironet_ie_qos_reserved = -1;
 static int hf_ieee80211_aironet_ie_qos_paramset = -1;
 static int hf_ieee80211_aironet_ie_qos_val = -1;
+
+static int hf_ieee80211_vs_nintendo_type = -1;
+static int hf_ieee80211_vs_nintendo_length = -1;
+static int hf_ieee80211_vs_nintendo_servicelist = -1;
+static int hf_ieee80211_vs_nintendo_service = -1;
+static int hf_ieee80211_vs_nintendo_consoleid = -1;
+static int hf_ieee80211_vs_nintendo_unknown = -1;
 
 static int hf_ieee80211_vs_aruba_subtype = -1;
 static int hf_ieee80211_vs_aruba_apname = -1;
@@ -4116,6 +4147,7 @@ static gint ett_vht_mcsset_tree = -1;
 static gint ett_vht_rx_mcsbit_tree = -1;
 static gint ett_vht_tx_mcsbit_tree = -1;
 static gint ett_vht_basic_mcsbit_tree = -1;
+static gint ett_vht_tpe_info_tree = -1;
 
 static gint ett_vht_op_tree = -1;
 
@@ -4196,6 +4228,14 @@ static gint ett_anqp_vendor_capab = -1;
 static gint ett_hs20_cc_proto_port_tuple = -1;
 
 static gint ett_ssid_list = -1;
+
+static gint ett_nintendo = -1;
+
+static gint ett_qos_map_set_exception = -1;
+static gint ett_qos_map_set_range = -1;
+
+static expert_field ei_ieee80211_bad_length = EI_INIT;
+static expert_field ei_ieee80211_inv_val = EI_INIT;
 
 static const fragment_items frag_items = {
   &ett_fragment,
@@ -5906,7 +5946,7 @@ dissect_gas_comeback_response(proto_tree *tree, tvbuff_t *tvb, packet_info *pinf
     if (anqp && (frag == 0) && !more)
       dissect_anqp(query, tvb, pinfo, offset, FALSE);
     else {
-      fragment_data *frag_msg;
+      fragment_head *frag_msg;
       gboolean save_fragmented;
       tvbuff_t *new_tvb;
 
@@ -6588,6 +6628,10 @@ add_ff_action_qos(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, int offse
     add_fixed_field(tree, tvb, pinfo, offset + 5, FIELD_REASON_CODE);
     return 7;
   case SM_ACTION_QOS_SCHEDULE:
+    add_fixed_field(tree, tvb, pinfo, offset,     FIELD_CATEGORY_CODE);
+    add_fixed_field(tree, tvb, pinfo, offset + 1, FIELD_QOS_ACTION_CODE);
+    return 2;
+  case SM_ACTION_QOS_MAP_CONFIGURE:
     add_fixed_field(tree, tvb, pinfo, offset,     FIELD_CATEGORY_CODE);
     add_fixed_field(tree, tvb, pinfo, offset + 1, FIELD_QOS_ACTION_CODE);
     return 2;
@@ -7466,9 +7510,8 @@ oui_base_custom(gchar *result, guint32 oui)
 static void
 rsn_gcs_base_custom(gchar *result, guint32 gcs)
 {
-  gchar *oui_result;
+  gchar oui_result[SHORT_STR];
 
-  oui_result = (gchar *)ep_alloc(SHORT_STR);
   oui_result[0] = '\0';
   oui_base_custom(oui_result, gcs >> 8);
   g_snprintf(result, ITEM_LABEL_LENGTH, "%s %s", oui_result,
@@ -7478,9 +7521,8 @@ rsn_gcs_base_custom(gchar *result, guint32 gcs)
 static void
 rsn_pcs_base_custom(gchar *result, guint32 pcs)
 {
-  gchar *oui_result;
+  gchar oui_result[SHORT_STR];
 
-  oui_result = (gchar *)ep_alloc(SHORT_STR);
   oui_result[0] = '\0';
   oui_base_custom(oui_result, pcs >> 8);
   g_snprintf(result, ITEM_LABEL_LENGTH, "%s %s", oui_result,
@@ -7490,9 +7532,8 @@ rsn_pcs_base_custom(gchar *result, guint32 pcs)
 static void
 rsn_akms_base_custom(gchar *result, guint32 akms)
 {
-  gchar *oui_result;
+  gchar oui_result[SHORT_STR];
 
-  oui_result = (gchar *)ep_alloc(SHORT_STR);
   oui_result[0] = '\0';
   oui_base_custom(oui_result, akms >> 8);
   g_snprintf(result, ITEM_LABEL_LENGTH, "%s %s", oui_result,
@@ -7504,7 +7545,7 @@ rsn_pcs_return(guint32 pcs)
 {
   gchar *result;
 
-  result = (gchar *)ep_alloc(SHORT_STR);
+  result = (gchar *)wmem_alloc(wmem_packet_scope(), SHORT_STR);
   result[0] = '\0';
   rsn_pcs_base_custom(result, pcs);
 
@@ -7516,7 +7557,7 @@ rsn_akms_return(guint32 akms)
 {
   gchar *result;
 
-  result = (gchar *)ep_alloc(SHORT_STR);
+  result = (gchar *)wmem_alloc(wmem_packet_scope(), SHORT_STR);
   result[0] = '\0';
   rsn_akms_base_custom(result, akms);
 
@@ -7526,9 +7567,8 @@ rsn_akms_return(guint32 akms)
 static void
 rsn_gmcs_base_custom(gchar *result, guint32 gmcs)
 {
-  gchar *oui_result;
+  gchar oui_result[SHORT_STR];
 
-  oui_result = (gchar *)ep_alloc(SHORT_STR);
   oui_result[0] = '\0';
   oui_base_custom(oui_result, gmcs >> 8);
   g_snprintf(result, ITEM_LABEL_LENGTH, "%s %s", oui_result,
@@ -7625,9 +7665,8 @@ static const true_false_string ieee802111_wfa_ie_wme_qos_info_sta_ac_tfs = {
 static void
 wpa_mcs_base_custom(gchar *result, guint32 mcs)
 {
-  gchar *oui_result;
+  gchar oui_result[SHORT_STR];
 
-  oui_result = (gchar *)ep_alloc(SHORT_STR);
   oui_result[0] = '\0';
   oui_base_custom(oui_result, mcs >> 8);
   g_snprintf(result, ITEM_LABEL_LENGTH, "%s %s", oui_result,
@@ -7637,9 +7676,8 @@ wpa_mcs_base_custom(gchar *result, guint32 mcs)
 static void
 wpa_ucs_base_custom(gchar *result, guint32 ucs)
 {
-  gchar *oui_result;
+  gchar oui_result[SHORT_STR];
 
-  oui_result = (gchar *)ep_alloc(SHORT_STR);
   oui_result[0] = '\0';
   oui_base_custom(oui_result, ucs >> 8);
   g_snprintf(result, ITEM_LABEL_LENGTH, "%s %s", oui_result,
@@ -7649,9 +7687,8 @@ wpa_ucs_base_custom(gchar *result, guint32 ucs)
 static void
 wpa_akms_base_custom(gchar *result, guint32 akms)
 {
-  gchar *oui_result;
+  gchar oui_result[SHORT_STR];
 
-  oui_result = (gchar *)ep_alloc(SHORT_STR);
   oui_result[0] = '\0';
   oui_base_custom(oui_result, akms >> 8);
   g_snprintf(result, ITEM_LABEL_LENGTH, "%s %s", oui_result,
@@ -7663,7 +7700,7 @@ wpa_ucs_return(guint32 ucs)
 {
   gchar *result;
 
-  result = (gchar *)ep_alloc(SHORT_STR);
+  result = (gchar *)wmem_alloc(wmem_packet_scope(), SHORT_STR);
   result[0] = '\0';
   wpa_ucs_base_custom(result, ucs);
 
@@ -7675,7 +7712,7 @@ wpa_akms_return(guint32 akms)
 {
   gchar *result;
 
-  result = (gchar *)ep_alloc(SHORT_STR);
+  result = (gchar *)wmem_alloc(wmem_packet_scope(), SHORT_STR);
   result[0] = '\0';
   wpa_akms_base_custom(result, akms);
 
@@ -8343,6 +8380,88 @@ dissect_vendor_ie_aruba(proto_item *item, proto_tree *ietree,
   }
 }
 
+enum vs_nintendo_type {
+  NINTENDO_SERVICES = 0x11,
+  NINTENDO_CONSOLEID = 0xF0
+};
+
+static const value_string ieee80211_vs_nintendo_type_vals[] = {
+  { NINTENDO_SERVICES,		"Services"},
+  { NINTENDO_CONSOLEID,		"ConsoleID"},
+  { 0,				NULL }
+};
+
+static proto_tree*
+dissect_vendor_ie_nintendo_tlv(const int hfindex, proto_tree *ietree,
+                          tvbuff_t *tvb, int offset, guint32 sublen)
+{
+  proto_item	*nintendo_item;
+  proto_tree	*nintendo_tree;
+
+  nintendo_item = proto_tree_add_item(ietree, hfindex, tvb, offset, sublen, ENC_NA);
+  nintendo_tree = proto_item_add_subtree(nintendo_item, ett_nintendo);
+
+  proto_tree_add_item(nintendo_tree, hf_ieee80211_vs_nintendo_type, tvb, offset, 1, ENC_NA);
+  proto_tree_add_item(nintendo_tree, hf_ieee80211_vs_nintendo_length, tvb, offset + 1,  1, ENC_NA);
+
+  return nintendo_tree;
+}
+
+static void
+dissect_vendor_ie_nintendo(proto_item *item _U_, proto_tree *ietree,
+                          tvbuff_t *tvb, int offset, guint32 tag_len)
+{
+  proto_tree	*nintendo_tree;
+
+  guint8	subtype;
+  guint8	sublength;
+  guint32	length = tag_len;
+
+  /* Skip OUI type for now - the code is for type 1 (StreetPass) only */
+  /* http://3dbrew.org/wiki/StreetPass */
+  offset += 1;
+  length -= 1;
+
+  while(length > 0 && length < 256) { /* otherwise we are < 0 but on unsigned */
+    subtype = tvb_get_guint8(tvb, offset);
+    sublength = tvb_get_guint8(tvb, offset + 1);
+
+    switch(subtype) {
+    case NINTENDO_SERVICES:
+      nintendo_tree = dissect_vendor_ie_nintendo_tlv(hf_ieee80211_vs_nintendo_servicelist, ietree, tvb, offset, sublength + 2);
+      offset += 2;
+      length -= 2;
+
+      while (sublength > 4) {
+
+        proto_tree_add_item(nintendo_tree, hf_ieee80211_vs_nintendo_service, tvb, offset, 5, ENC_NA);
+        offset += 5;
+        length -= 5;
+        sublength -= 5;
+      }
+      break;
+    case NINTENDO_CONSOLEID:
+      nintendo_tree = dissect_vendor_ie_nintendo_tlv(hf_ieee80211_vs_nintendo_consoleid, ietree, tvb, offset, sublength + 2);
+      offset += + 2;
+      length -= + 2;
+
+      proto_tree_add_item(nintendo_tree, hf_ieee80211_vs_nintendo_consoleid, tvb, offset, sublength, ENC_NA);
+      offset += sublength;
+      length -= sublength;
+      break;
+    default:
+      nintendo_tree = dissect_vendor_ie_nintendo_tlv(hf_ieee80211_vs_nintendo_unknown, ietree, tvb, offset, sublength + 2);
+      offset += + 2;
+      length -= + 2;
+
+      proto_tree_add_item(nintendo_tree, hf_ieee80211_vs_nintendo_unknown, tvb, offset, sublength, ENC_NA);
+      offset += sublength;
+      length -= sublength;
+      break;
+    }
+  }
+}
+
 /* 802.11e 7.3.2.33 QoS Capability element */
 static int
 dissect_qos_capability(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, int offset, int ftype)
@@ -8843,6 +8962,61 @@ dissect_vht_operation_ie(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, in
   return offset;
 }
 
+static int
+dissect_vht_tx_pwr_envelope(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset,
+    guint32 tag_len, proto_item *ti_len)
+{
+  proto_item *tx_pwr_item, *ti;
+  proto_tree *tx_pwr_info_tree;
+  guint8 opt_ie_cnt=0;
+  guint8 i;
+
+  if (tag_len < 2 && tag_len <= 5) {
+    expert_add_info_format(pinfo, ti_len, PI_MALFORMED, PI_ERROR,
+                           "VHT TX PWR Envelope IE length %u wrong, must be >= 2 and <= 5", tag_len);
+    return offset;
+  }
+
+  tx_pwr_item = proto_tree_add_item(tree, hf_ieee80211_vht_tpe_pwr_info, tvb, offset, 1, ENC_NA);
+  tx_pwr_info_tree =  proto_item_add_subtree(tx_pwr_item, ett_vht_tpe_info_tree);
+
+  ti = proto_tree_add_item(tx_pwr_info_tree, hf_ieee80211_vht_tpe_pwr_info_count, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(tx_pwr_info_tree, hf_ieee80211_vht_tpe_pwr_info_unit, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(tx_pwr_info_tree, hf_ieee80211_vht_tpe_pwr_info_reserved, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+
+  opt_ie_cnt = tvb_get_guint8(tvb, offset) & 0x07;
+
+  offset += 1;
+
+  /* Power Constraint info is mandatory only for 20MHz, others are optional*/
+  for (i = 0; i <= opt_ie_cnt; i++) {
+    switch(i) {
+    case 0:
+      proto_tree_add_item(tree, hf_ieee80211_vht_tpe_pwr_constr_20, tvb, offset, 1, ENC_NA);
+      offset += 1;
+      break;
+    case 1:
+      proto_tree_add_item(tree, hf_ieee80211_vht_tpe_pwr_constr_40, tvb, offset, 1, ENC_NA);
+      offset += 1;
+      break;
+    case 2:
+      proto_tree_add_item(tree, hf_ieee80211_vht_tpe_pwr_constr_80, tvb, offset, 1, ENC_NA);
+      offset += 1;
+      break;
+    case 3:
+      proto_tree_add_item(tree, hf_ieee80211_vht_tpe_pwr_constr_160, tvb, offset, 1, ENC_NA);
+      offset += 1;
+      break;
+    default:
+      expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR,
+             "Max Tx Pwr Count is Incorrect, should be 0-7");
+      offset += 1;
+      break;
+    }
+  }
+
+  return offset;
+}
 
 static void
 dissect_mobility_domain(proto_tree *tree, tvbuff_t *tvb, int offset,
@@ -10522,6 +10696,92 @@ dissect_interworking(packet_info *pinfo, proto_tree *tree, proto_item *item,
 }
 
 static guint
+dissect_qos_map_set(packet_info *pinfo, proto_tree *tree, proto_item *item,
+                    tvbuff_t *tvb, int offset)
+{
+  guint8 len, left;
+  guint8 val, val2;
+  int i;
+  proto_item *dscp_item;
+  proto_tree *dscp_tree;
+
+  offset++;
+  len = tvb_get_guint8(tvb, offset);
+  offset++;
+
+  if (tvb_reported_length_remaining(tvb, offset) < len || len < 16 || len & 1) {
+    expert_add_info_format_text(pinfo, item, &ei_ieee80211_bad_length,
+                                "Truncated QoS Map Set element");
+    return 2 + len;
+  }
+
+  left = len - 16;
+  while (left >= 2) {
+    dscp_item = proto_tree_add_item(tree, hf_ieee80211_tag_qos_map_set_dscp_exc,
+                                    tvb, offset, 2, ENC_NA);
+    dscp_tree = proto_item_add_subtree(dscp_item, ett_qos_map_set_exception);
+
+    item = proto_tree_add_item(dscp_tree,
+                               hf_ieee80211_tag_qos_map_set_dscp_exc_val,
+                               tvb, offset, 1, ENC_NA);
+    val = tvb_get_guint8(tvb, offset);
+    if (val > 63 && val != 255) {
+      expert_add_info_format_text(pinfo, item, &ei_ieee80211_inv_val,
+                                  "Invalid DSCP Value");
+    }
+    offset++;
+
+    item = proto_tree_add_item(dscp_tree,
+                               hf_ieee80211_tag_qos_map_set_dscp_exc_up,
+                               tvb, offset, 1, ENC_NA);
+    val2 = tvb_get_guint8(tvb, offset);
+    if (val2 > 7) {
+      expert_add_info_format_text(pinfo, item, &ei_ieee80211_inv_val,
+                                  "Invalid User Priority");
+    }
+    offset++;
+
+    proto_item_append_text(dscp_item, " (0x%02x: UP %u)", val, val2);
+
+    left -= 2;
+  }
+
+  for (i = 0; i < 8; i++) {
+    dscp_item = proto_tree_add_item(tree, hf_ieee80211_tag_qos_map_set_range,
+                                    tvb, offset, 2, ENC_NA);
+    dscp_tree = proto_item_add_subtree(dscp_item, ett_qos_map_set_exception);
+
+    item = proto_tree_add_item(dscp_tree, hf_ieee80211_tag_qos_map_set_low,
+                               tvb, offset, 1, ENC_NA);
+    val = tvb_get_guint8(tvb, offset);
+    if (val > 63 && val != 255) {
+      expert_add_info_format_text(pinfo, item, &ei_ieee80211_inv_val,
+                                  "Invalid DSCP Value");
+    }
+    offset++;
+
+    item = proto_tree_add_item(dscp_tree, hf_ieee80211_tag_qos_map_set_high,
+                               tvb, offset, 1, ENC_NA);
+    val2 = tvb_get_guint8(tvb, offset);
+    if ((val2 > 63 && val2 != 255) || val2 < val ||
+        (val == 255 && val2 != 255) || (val != 255 && val2 == 255)) {
+      expert_add_info_format_text(pinfo, item, &ei_ieee80211_inv_val,
+                                  "Invalid DSCP Value");
+    }
+    offset++;
+
+    if (val == 255 && val2 == 255) {
+      proto_item_append_text(dscp_item, " (UP %u not in use)", i + 1);
+    } else {
+      proto_item_append_text(dscp_item, " (0x%02x-0x%02x: UP %u)",
+                             val, val2, i + 1);
+    }
+  }
+
+  return 2 + len;
+}
+
+static guint
 dissect_roaming_consortium(packet_info *pinfo, proto_tree *tree,
                            proto_item *item, tvbuff_t *tvb, int offset)
 {
@@ -10620,11 +10880,11 @@ ieee80211_tag_ssid(packet_info *pinfo, proto_tree *tree,
     proto_tree_add_item(tree, hf_ieee80211_tag_ssid, tvb, offset + 2, tag_len,
                         ENC_ASCII|ENC_NA);
   } else {
-    emem_strbuf_t *ssid_sb = ep_strbuf_new(ssid);
-    ep_strbuf_append(ssid_sb, " [truncated]");
+    wmem_strbuf_t *ssid_sb = wmem_strbuf_new(wmem_packet_scope(), ssid);
+    wmem_strbuf_append(ssid_sb, " [truncated]");
     proto_tree_add_string_format_value(tree, hf_ieee80211_tag_ssid, tvb, offset + 2, tag_len,
-                        ssid, "%s", ssid_sb->str);
-    ssid = ssid_sb->str;
+                        ssid, "%s", wmem_strbuf_get_str(ssid_sb));
+    ssid = (gchar*)wmem_strbuf_get_str(ssid_sb);
   }
 
   if (tag_len > 0) {
@@ -12082,6 +12342,10 @@ add_tagged_field(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int offset
       dissect_vht_operation_ie(tvb, pinfo, tree, offset+2, tag_len, ti_len);
       break;
 
+    case TAG_VHT_TX_PWR_ENVELOPE:
+      dissect_vht_tx_pwr_envelope(tvb, pinfo, tree, offset+2, tag_len, ti_len);
+      break;
+
     case TAG_VENDOR_SPECIFIC_IE: /* 7.3.2.26 Vendor Specific information element (221) */
       if (tag_len < 3)
       {
@@ -12130,6 +12394,9 @@ add_tagged_field(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int offset
           break;
         case OUI_ARUBA:
           dissect_vendor_ie_aruba(ti, tree, tvb, offset, tag_vs_len);
+          break;
+        case OUI_NINTENDO:
+          dissect_vendor_ie_nintendo(ti, tree, tvb, offset, tag_vs_len);
           break;
         default:
           proto_tree_add_item(tree, hf_ieee80211_tag_vendor_data, tvb, offset, tag_vs_len, ENC_NA);
@@ -12454,6 +12721,9 @@ add_tagged_field(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int offset
       dissect_advertisement_protocol(pinfo, tree, tvb, offset, NULL);
       break;
     }
+    case TAG_QOS_MAP_SET:
+      dissect_qos_map_set(pinfo, tree, ti, tvb, offset);
+      break;
     case TAG_ROAMING_CONSORTIUM:
       dissect_roaming_consortium(pinfo, tree, ti, tvb, offset);
       break;
@@ -13876,7 +14146,7 @@ dissect_ieee80211_common (tvbuff_t *tvb, packet_info *pinfo,
           } else {
             /* first time or new seq*/
             if (!result) {
-              result = se_new(retransmit_key);
+              result = wmem_new(wmem_file_scope(), retransmit_key);
               *result = key;
               g_hash_table_insert(fc_analyse_retransmit_table, result, result);
             }
@@ -14222,7 +14492,7 @@ dissect_ieee80211_common (tvbuff_t *tvb, packet_info *pinfo,
    */
   save_fragmented = pinfo->fragmented;
   if (wlan_defragment && (more_frags || (frag_number != 0))) {
-    fragment_data *fd_head;
+    fragment_head *fd_head;
 
     /*
      * If we've already seen this frame, look it up in the
@@ -17223,7 +17493,7 @@ proto_register_ieee80211 (void)
       NULL, HFILL }},
 
     {&hf_ieee80211_mcsset_tx_max_spatial_streams,
-     {"Tx Maximum Number of Spatial Streams Supported", "wlan_mgt.ht.mcsset.txmaxss",
+     {"Max Tximum Number of Spatial Streams Supported", "wlan_mgt.ht.mcsset.txmaxss",
       FT_UINT16, BASE_HEX, VALS(mcsset_tx_max_spatial_streams_flags) , 0x000c,
       NULL, HFILL }},
 
@@ -17620,6 +17890,46 @@ proto_register_ieee80211 (void)
     {&hf_ieee80211_vht_op_max_basic_mcs_for_8_ss,
      {"Basic 8 SS", "wlan_mgt.vht.op.basicmcsmap.ss8",
       FT_UINT16, BASE_HEX, VALS(vht_supported_mcs_flag), 0xc000,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tpe_pwr_info,
+     {"Tx Pwr Info", "wlan_mgt.vht.tpe.pwr_info",
+      FT_UINT8, BASE_HEX, NULL, 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tpe_pwr_info_count,
+     {"Max Tx Pwr Count", "wlan_mgt.vht.tpe.pwr_info.count",
+      FT_UINT8, BASE_DEC, NULL , 0x07,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tpe_pwr_info_unit,
+     {"Max Tx Pwr Unit Interpretation", "wlan_mgt.vht.tpe.pwr_info.unit",
+      FT_UINT8, BASE_DEC, VALS(vht_tpe_pwr_units) , 0x38,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tpe_pwr_info_reserved,
+     {"Reserved", "wlan_mgt.vht.tpe.pwr_info.reserved",
+      FT_UINT8, BASE_DEC, NULL , 0xC0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tpe_pwr_constr_20,
+     {"Local Max Tx Pwr Constraint 20MHz", "wlan_mgt.vht.tpe.pwr_constr_20",
+      FT_UINT8, BASE_DEC, NULL , 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tpe_pwr_constr_40,
+     {"Local Max Tx Pwr Constraint 40MHz", "wlan_mgt.vht.tpe.pwr_constr_40",
+      FT_UINT8, BASE_DEC, NULL , 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tpe_pwr_constr_80,
+     {"Local Max Tx Pwr Constraint 80MHz", "wlan_mgt.vht.tpe.pwr_constr_80",
+      FT_UINT8, BASE_DEC, NULL , 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vht_tpe_pwr_constr_160,
+     {"Local Max Tx Pwr Constraint 160MHz/80+80 MHz", "wlan_mgt.vht.tpe.pwr_constr_160",
+      FT_UINT8, BASE_DEC, NULL , 0,
       NULL, HFILL }},
 
     {&hf_ieee80211_txbf_csi_num_bf_ant,
@@ -19032,7 +19342,7 @@ proto_register_ieee80211 (void)
       NULL, HFILL }},
 
     {&hf_ieee80211_tag_neighbor_report_bssid_info_high_throughput,
-     {"High Throughput", "wlan_mgt.nreport.bssid.info.hthoughput",
+     {"High Throughput Control (+HTC)", "wlan_mgt.nreport.bssid.info.hthoughput",
       FT_UINT16, BASE_HEX, NULL, 0x0800,
       NULL, HFILL }},
 
@@ -19588,6 +19898,37 @@ proto_register_ieee80211 (void)
 
     {&hf_ieee80211_aironet_ie_qos_val,
      {"Aironet IE QoS valueset", "wlan_mgt.aironet.qos.val",
+      FT_BYTES, BASE_NONE, NULL, 0,
+      NULL, HFILL }},
+
+    /* Vendor Specific : Nintendo */
+    {&hf_ieee80211_vs_nintendo_type,
+     {"Type", "wlan_mgt.vs.nintendo.type",
+      FT_UINT8, BASE_DEC, VALS(ieee80211_vs_nintendo_type_vals), 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vs_nintendo_length,
+     {"Length", "wlan_mgt.vs.nintendo.length",
+      FT_UINT8, BASE_DEC, NULL, 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vs_nintendo_servicelist,
+     {"Servicelist", "wlan_mgt.vs.nintendo.servicelist",
+      FT_BYTES, BASE_NONE, NULL, 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vs_nintendo_service,
+     {"Service", "wlan_mgt.vs.nintendo.service",
+      FT_BYTES, BASE_NONE, NULL, 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vs_nintendo_consoleid,
+     {"Console ID", "wlan_mgt.vs.nintendo.consoleid",
+      FT_BYTES, BASE_NONE, NULL, 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_vs_nintendo_unknown,
+     {"Unknown", "wlan_mgt.vs.nintendo.unknown",
       FT_BYTES, BASE_NONE, NULL, 0,
       NULL, HFILL }},
 
@@ -20355,6 +20696,35 @@ proto_register_ieee80211 (void)
       FT_ETHER, BASE_NONE, NULL, 0,
       "Homogeneous ESS identifier", HFILL }},
 
+    /* QoS Map Set element */
+    {&hf_ieee80211_tag_qos_map_set_dscp_exc,
+     {"DSCP Exception", "wlan_mgt.qos_map_set.dscp_exception",
+      FT_NONE, BASE_NONE, NULL, 0, NULL, HFILL }},
+
+    {&hf_ieee80211_tag_qos_map_set_dscp_exc_val,
+     {"DSCP Value", "wlan_mgt.qos_map_set.dscp_value",
+      FT_UINT8, BASE_DEC, NULL, 0,
+      "DSCP Exception - DSCP Value", HFILL }},
+
+    {&hf_ieee80211_tag_qos_map_set_dscp_exc_up,
+     {"User Priority", "wlan_mgt.qos_map_set.up",
+      FT_UINT8, BASE_DEC, NULL, 0,
+      "DSCP Exception - User Priority", HFILL }},
+
+    {&hf_ieee80211_tag_qos_map_set_range,
+     {"DSCP Range description", "wlan_mgt.qos_map_set.range",
+      FT_NONE, BASE_NONE, NULL, 0, NULL, HFILL }},
+
+    {&hf_ieee80211_tag_qos_map_set_low,
+     {"DSCP Low Value", "wlan_mgt.qos_map_set.dscp_low_value",
+      FT_UINT8, BASE_DEC, NULL, 0,
+      "DSCP Range description - DSCP Low Value", HFILL }},
+
+    {&hf_ieee80211_tag_qos_map_set_high,
+     {"DSCP High Value", "wlan_mgt.qos_map_set.dscp_high_value",
+      FT_UINT8, BASE_DEC, NULL, 0,
+      "DSCP Range description - DSCP High Value", HFILL }},
+
     /* Advertisement Protocol */
     {&hf_ieee80211_tag_adv_proto_resp_len_limit,
      {"Query Response Length Limit", "wlan_mgt.adv_proto.resp_len_limit",
@@ -20582,6 +20952,7 @@ proto_register_ieee80211 (void)
     &ett_vht_tx_mcsbit_tree,
     &ett_vht_basic_mcsbit_tree,
     &ett_vht_op_tree,
+    &ett_vht_tpe_info_tree,
     &ett_ht_info_delimiter1_tree,
     &ett_ht_info_delimiter2_tree,
     &ett_ht_info_delimiter3_tree,
@@ -20645,8 +21016,23 @@ proto_register_ieee80211 (void)
     &ett_tag_ric_data_desc_ie,
     &ett_anqp_vendor_capab,
     &ett_hs20_cc_proto_port_tuple,
-    &ett_ssid_list
+    &ett_ssid_list,
+    &ett_nintendo,
+    &ett_qos_map_set_exception,
+    &ett_qos_map_set_range
   };
+
+  static ei_register_info ei[] = {
+    { &ei_ieee80211_bad_length,
+      { "ieee80211.bad_length", PI_MALFORMED, PI_ERROR,
+        "Wrong length indicated", EXPFILL }},
+    { &ei_ieee80211_inv_val,
+      { "ieee80211.invalid_value", PI_MALFORMED, PI_WARN,
+        "Invalid value", EXPFILL }},
+  };
+
+  expert_module_t *expert_ieee80211;
+
   module_t *wlan_module;
 
   memset (&wlan_stats, 0, sizeof wlan_stats);
@@ -20664,6 +21050,9 @@ proto_register_ieee80211 (void)
   proto_register_field_array (proto_wlan_mgt, ff, array_length (ff));
 
   proto_register_subtree_array (tree_array, array_length (tree_array));
+
+  expert_ieee80211 = expert_register_protocol(proto_wlan);
+  expert_register_field_array(expert_ieee80211, ei, array_length(ei));
 
   register_dissector("wlan",         dissect_ieee80211,         proto_wlan);
   register_dissector("wlan_fixed",   dissect_ieee80211_fixed,   proto_wlan);

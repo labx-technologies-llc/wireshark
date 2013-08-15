@@ -38,19 +38,21 @@
 
 #include "config.h"
 
-#include <epan/tvbuff.h>
+#include <glib.h>
+
 #include <wsutil/crc32.h>
+#include <wsutil/rc4.h>
+#include <wsutil/sha1.h>
+#include <wsutil/md5.h>
+#include <wsutil/pint.h>
+
+#include <epan/tvbuff.h>
 #include <epan/strutil.h>
 #include <epan/emem.h>
-#include <epan/pint.h>
-#include <epan/crypt/rc4.h>
 #include <epan/crypt/airpdcap_rijndael.h>
 
 #include "airpdcap_system.h"
 #include "airpdcap_int.h"
-
-#include "sha1.h"
-#include "md5.h"
 
 #include "airpdcap_debug.h"
 
@@ -126,7 +128,7 @@ extern "C" {
 /**
  * It is a step of the PBKDF2 (specifically the PKCS #5 v2.0) defined in
  * the RFC 2898 to derive a key (used as PMK in WPA)
- * @param password [IN] pointer to a password (sequence of between 8 and
+ * @param ppbytes [IN] pointer to a password (sequence of between 8 and
  * 63 ASCII encoded characters)
  * @param ssid [IN] pointer to the SSID string encoded in max 32 ASCII
  * encoded characters
@@ -149,7 +151,7 @@ static INT AirPDcapRsnaPwd2PskStep(
  * It calculates the passphrase-to-PSK mapping reccomanded for use with
  * RSNAs. This implementation uses the PBKDF2 method defined in the RFC
  * 2898.
- * @param password [IN] pointer to a password (sequence of between 8 and
+ * @param passphrase [IN] pointer to a password (sequence of between 8 and
  * 63 ASCII encoded characters)
  * @param ssid [IN] pointer to the SSID string encoded in max 32 ASCII
  * encoded characters

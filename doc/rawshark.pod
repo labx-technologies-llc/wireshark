@@ -1,12 +1,12 @@
 
 =head1 NAME
 
-rawshark - Dump and analyze raw libpcap data
+rawshark - Dump and analyze raw pcap data
 
 =head1 SYNOPSIS
 
 B<rawshark>
-S<[ B<-d> E<lt>encap:dltE<gt>|E<lt>proto:protonameE<gt> ]>
+S<[ B<-d> E<lt>encap:linktypeE<gt>|E<lt>proto:protonameE<gt> ]>
 S<[ B<-F> E<lt>field to displayE<gt> ]>
 S<[ B<-h> ]>
 S<[ B<-l> ]>
@@ -36,7 +36,7 @@ useful. The other flags listed above follow the same conventions as
 B<Wireshark> and B<TShark>.
 
 B<Rawshark> expects input records with the following format by default. This
-matches the format of the packet header and packet data in a libpcap-formatted
+matches the format of the packet header and packet data in a pcap-formatted
 file on disk.
 
     struct rawshark_rec_s {
@@ -49,13 +49,13 @@ file on disk.
 
 If B<-p> is supplied B<rawshark> expects the following format.  This
 matches the I<struct pcap_pkthdr> structure and packet data used in
-libpcap.  This structure's format is platform-dependent; the size of the
-I<tv_sec> field in the I<struct timeval> structure could be 32 bits or
-64 bits.  For B<rawshark> to work, the layout of the structure in the
-input must match the layout of the structure in B<rawshark>.  Note that
-this format will probably be the same as the previous format if
-B<rawshark> is a 32-bit program, but will not necessarily be the same if
-B<rawshark> is a 64-bit program.
+libpcap/WinPcap.  This structure's format is platform-dependent; the
+size of the I<tv_sec> field in the I<struct timeval> structure could be
+32 bits or 64 bits.  For B<rawshark> to work, the layout of the
+structure in the input must match the layout of the structure in
+B<rawshark>.  Note that this format will probably be the same as the
+previous format if B<rawshark> is a 32-bit program, but will not
+necessarily be the same if B<rawshark> is a 64-bit program.
 
     struct rawshark_rec_s {
         struct timeval ts;    /* Time stamp */
@@ -104,13 +104,15 @@ fields might be displayed.
 Specify how the packet data should be dissected. The encapsulation is of the
 form I<type>B<:>I<value>, where I<type> is one of:
 
-B<encap>:I<name> Packet data should be dissected using the libpcap data link
-type (DLT) I<name>, e.g. B<encap:EN10MB> for Ethernet. Names are converted
-using pcap_datalink_name_to_val().
+B<encap>:I<name> Packet data should be dissected using the
+libpcap/WinPcap data link type (DLT) I<name>, e.g. B<encap:EN10MB> for
+Ethernet.  Names are converted using pcap_datalink_name_to_val().
+A complete list of DLTs can be found at
+L<http://www.tcpdump.org/linktypes.html>.
 
-B<encap>:I<number> Packet data should be dissected using the libpcap DLT
-I<number>, e.g. B<encap:105> for raw IEEE 802.11. A complete list of DLTs
-can be found in pcap-bpf.h in the libpcap sources.
+B<encap>:I<number> Packet data should be dissected using the
+libpcap/WinPcap LINKTYPE_ I<number>, e.g. B<encap:105> for raw IEEE
+802.11 or B<encap:101> for raw IP.
 
 B<proto>:I<protocol> Packet data should be passed to the specified Wireshark
 protocol dissector, e.g. B<proto:http> for HTTP data.
@@ -206,15 +208,11 @@ byte pcap file header.
 Use the specified format string to print each field. The following formats
 are supported:
 
-=over 4
-
 B<%D> Field name or description, e.g. "Type" for dns.qry.type
 
 B<%N> Base 10 numeric value of the field.
 
 B<%S> String value of the field.
-
-=back
 
 For something similar to Wireshark's standard display ("Type: A (1)") you
 could use B<%D: %S (%N)>.
@@ -316,7 +314,7 @@ whitespace. The same directory as for the personal preferences file is
 used.
 
 Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems and WinPCAP on Windows.  As such the Wireshark personal F<hosts> file
+systems and WinPcap on Windows.  As such the Wireshark personal F<hosts> file
 will not be consulted for capture filter name resolution.
 
 =item Name Resolution (ethers)
@@ -343,7 +341,7 @@ The personal F<ethers> file is looked for in the same directory as the personal
 preferences file.
 
 Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems and WinPCAP on Windows.  As such the Wireshark personal F<ethers> file
+systems and WinPcap on Windows.  As such the Wireshark personal F<ethers> file
 will not be consulted for capture filter name resolution.
 
 =item Name Resolution (manuf)
@@ -483,6 +481,18 @@ you are not running it in a debugger, it will, on some OSes, assuming
 your environment is configured correctly, generate a core dump file.
 This can be useful to developers attempting to troubleshoot a problem
 with a protocol dissector.
+
+=item WIRESHARK_ABORT_ON_TOO_MANY_ITEMS
+
+If this environment variable is set, B<Rawshark> will call abort(3)
+if a dissector tries to add too many items to a tree (generally this
+is an indication of the dissector not breaking out of a loop soon enough).
+abort(3) will cause the program to exit abnormally; if you are running
+B<Rawshark> in a debugger, it should halt in the debugger and allow
+inspection of the process, and, if you are not running it in a debugger,
+it will, on some OSes, assuming your environment is configured correctly,
+generate a core dump file.  This can be useful to developers attempting to
+troubleshoot a problem with a protocol dissector.
 
 =item WIRESHARK_EP_VERIFY_POINTERS
 

@@ -128,6 +128,9 @@ static gint ett_aal1 = -1;
 static gint ett_aal3_4 = -1;
 static gint ett_oamaal = -1;
 
+static dissector_handle_t atm_handle;
+static dissector_handle_t atm_untruncated_handle;
+
 static dissector_handle_t eth_withoutfcs_handle;
 static dissector_handle_t tr_handle;
 static dissector_handle_t fr_handle;
@@ -1093,7 +1096,7 @@ dissect_reassembled_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
             calc_crc = update_crc(0xFFFFFFFF, tvb_get_ptr(tvb, 0, length),
                                   length);
             ti = proto_tree_add_uint(atm_tree, hf_atm_aal5_crc, tvb, length - 4, 4, crc);
-            proto_item_append_text(ti, (calc_crc == 0xC704DD7B) ? "correct" : "incorrect");
+            proto_item_append_text(ti, (calc_crc == 0xC704DD7B) ? " (correct)" : " (incorrect)");
           }
           next_tvb = tvb_new_subset(tvb, 0, aal5_length, aal5_length);
         }
@@ -1737,7 +1740,7 @@ dissect_atm_cell(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
     proto_tree_add_item(aal_tree, hf_atm_aal3_4_length_indicator, tvb, offset, 2, ENC_BIG_ENDIAN);
     ti = proto_tree_add_item(aal_tree, hf_atm_aal3_4_crc, tvb, offset, 2, ENC_BIG_ENDIAN);
-    proto_item_append_text(ti, " (%s)", (crc10 == 0) ? "correct" : "incorrect");
+    proto_item_append_text(ti, " (%s)", (crc10 == 0) ? " (correct)" : " (incorrect)");
     break;
 
   case AAL_OAMCELL:
@@ -1783,7 +1786,7 @@ dissect_atm_cell(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     offset += 45;
 
     ti = proto_tree_add_item(aal_tree, hf_atm_aal_oamcell_crc, tvb, offset, 2, ENC_BIG_ENDIAN);
-    proto_item_append_text(ti, " (%s)", (crc10 == 0) ? "correct" : "incorrect");
+    proto_item_append_text(ti, " (%s)", (crc10 == 0) ? " (correct)" : " (incorrect)");
     break;
 
   default:
@@ -2148,8 +2151,8 @@ proto_register_atm(void)
                                            "ATM LANE", "lane");
 
   register_dissector("lane", dissect_lane, proto_atm_lane);
-  register_dissector("atm_untruncated", dissect_atm_untruncated, proto_atm);
-  register_dissector("atm_truncated", dissect_atm, proto_atm);
+  atm_handle = register_dissector("atm_truncated", dissect_atm, proto_atm);
+  atm_untruncated_handle = register_dissector("atm_untruncated", dissect_atm_untruncated, proto_atm);
   register_dissector("atm_oam_cell", dissect_atm_oam_cell, proto_oamaal);
 
   atm_module = prefs_register_protocol ( proto_atm, NULL );
@@ -2166,8 +2169,6 @@ proto_register_atm(void)
 void
 proto_reg_handoff_atm(void)
 {
-  dissector_handle_t atm_handle, atm_untruncated_handle;
-
   /*
    * Get handles for the Ethernet, Token Ring, Frame Relay, LLC,
    * SSCOP, LANE, and ILMI dissectors.
@@ -2186,11 +2187,8 @@ proto_reg_handoff_atm(void)
   fp_handle             = find_dissector("fp");
   gprs_ns_handle        = find_dissector("gprs_ns");
 
-  atm_handle = create_dissector_handle(dissect_atm, proto_atm);
   dissector_add_uint("wtap_encap", WTAP_ENCAP_ATM_PDUS, atm_handle);
 
-  atm_untruncated_handle = create_dissector_handle(dissect_atm_untruncated,
-                                                   proto_atm);
   dissector_add_uint("wtap_encap", WTAP_ENCAP_ATM_PDUS_UNTRUNCATED,
                 atm_untruncated_handle);
 }

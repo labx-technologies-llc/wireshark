@@ -46,7 +46,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
@@ -165,8 +165,8 @@ static int hf_acse_P_context_result_list_item = -1;  /* P_context_result_list_it
 static int hf_acse_pcontext_result = -1;          /* Result */
 static int hf_acse_concrete_syntax_name = -1;     /* Concrete_syntax_name */
 static int hf_acse_provider_reason = -1;          /* T_provider_reason */
-static int hf_acse_acse_service_user = -1;        /* T_acse_service_user */
-static int hf_acse_acse_service_provider = -1;    /* T_acse_service_provider */
+static int hf_acse_service_user = -1;             /* T_service_user */
+static int hf_acse_service_provider = -1;         /* T_service_provider */
 static int hf_acse_Association_data_item = -1;    /* EXTERNALt */
 static int hf_acse_simply_encoded_data = -1;      /* Simply_encoded_data */
 static int hf_acse_fully_encoded_data = -1;       /* PDV_list */
@@ -235,6 +235,8 @@ static gint ett_acse_Authentication_value = -1;
 /*--- End of included file: packet-acse-ett.c ---*/
 #line 76 "../../asn1/acse/packet-acse-template.c"
 
+static expert_field ei_acse_dissector_not_available = EI_INIT;
+
 static struct SESSION_DATA_STRUCTURE* session = NULL;
 
 static const char *object_identifier_id;
@@ -284,9 +286,9 @@ static void
 register_ctx_id_and_oid(packet_info *pinfo _U_, guint32 idx, char *oid)
 {
 	acse_ctx_oid_t *aco, *tmpaco;
-	aco=se_alloc(sizeof(acse_ctx_oid_t));
+	aco=wmem_new(wmem_file_scope(), acse_ctx_oid_t);
 	aco->ctx_id=idx;
-	aco->oid=se_strdup(oid);
+	aco->oid=wmem_strdup(wmem_file_scope(), oid);
 
 	/* if this ctx already exists, remove the old one first */
 	tmpaco=(acse_ctx_oid_t *)g_hash_table_lookup(acse_ctx_oid_table, aco);
@@ -333,7 +335,7 @@ dissect_acse_T_indirect_reference(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
   /* look up the indirect reference */
   if((oid = find_oid_by_pres_ctx_id(actx->pinfo, indir_ref)) != NULL) {
-    object_identifier_id = ep_strdup(oid);
+    object_identifier_id = wmem_strdup(wmem_packet_scope(), oid);
   }
 
   if(session)
@@ -1015,7 +1017,7 @@ dissect_acse_Associate_result(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 }
 
 
-static const value_string acse_T_acse_service_user_vals[] = {
+static const value_string acse_T_service_user_vals[] = {
   {   0, "null" },
   {   1, "no-reason-given" },
   {   2, "application-context-name-not-supported" },
@@ -1036,7 +1038,7 @@ static const value_string acse_T_acse_service_user_vals[] = {
 
 
 static int
-dissect_acse_T_acse_service_user(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_acse_T_service_user(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_ber_constrained_integer(implicit_tag, actx, tree, tvb, offset,
                                                             0U, 14U, hf_index, NULL);
 
@@ -1044,7 +1046,7 @@ dissect_acse_T_acse_service_user(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 }
 
 
-static const value_string acse_T_acse_service_provider_vals[] = {
+static const value_string acse_T_service_provider_vals[] = {
   {   0, "null" },
   {   1, "no-reason-given" },
   {   2, "no-common-acse-version" },
@@ -1053,7 +1055,7 @@ static const value_string acse_T_acse_service_provider_vals[] = {
 
 
 static int
-dissect_acse_T_acse_service_provider(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_acse_T_service_provider(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_ber_constrained_integer(implicit_tag, actx, tree, tvb, offset,
                                                             0U, 2U, hf_index, NULL);
 
@@ -1062,14 +1064,14 @@ dissect_acse_T_acse_service_provider(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 
 
 static const value_string acse_Associate_source_diagnostic_vals[] = {
-  {   1, "acse-service-user" },
-  {   2, "acse-service-provider" },
+  {   1, "service-user" },
+  {   2, "service-provider" },
   { 0, NULL }
 };
 
 static const ber_choice_t Associate_source_diagnostic_choice[] = {
-  {   1, &hf_acse_acse_service_user, BER_CLASS_CON, 1, 0, dissect_acse_T_acse_service_user },
-  {   2, &hf_acse_acse_service_provider, BER_CLASS_CON, 2, 0, dissect_acse_T_acse_service_provider },
+  {   1, &hf_acse_service_user   , BER_CLASS_CON, 1, 0, dissect_acse_T_service_user },
+  {   2, &hf_acse_service_provider, BER_CLASS_CON, 2, 0, dissect_acse_T_service_provider },
   { 0, NULL, 0, 0, 0, NULL }
 };
 
@@ -1321,8 +1323,8 @@ dissect_acse_RLRE_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 
 static const value_string acse_ABRT_source_vals[] = {
-  {   0, "acse-service-user" },
-  {   1, "acse-service-provider" },
+  {   0, "service-user" },
+  {   1, "service-provider" },
   { 0, NULL }
 };
 
@@ -1688,7 +1690,7 @@ dissect_acse_AE_title(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 
 
 /*--- End of included file: packet-acse-fn.c ---*/
-#line 152 "../../asn1/acse/packet-acse-template.c"
+#line 154 "../../asn1/acse/packet-acse-template.c"
 
 
 /*
@@ -1724,7 +1726,7 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		if(session->spdu_type == 0 ) {
 			if(parent_tree){
 				REPORT_DISSECTOR_BUG(
-					ep_strdup_printf("Wrong spdu type %x from session dissector.",session->spdu_type));
+					wmem_strdup_printf(wmem_packet_scope(), "Wrong spdu type %x from session dissector.",session->spdu_type));
 				return  ;
 			}
 		}
@@ -1754,8 +1756,8 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			}
 			call_ber_oid_callback(oid, tvb, offset, pinfo, parent_tree);
 		} else {
-			proto_item *ti = proto_tree_add_text(parent_tree, tvb, offset, -1, "dissector is not available");
-			expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "Dissector is not available");
+			proto_tree_add_expert(parent_tree, pinfo, &ei_acse_dissector_not_available,
+                                    tvb, offset, -1);
 		}
 		top_tree = NULL;
 		return;
@@ -2153,13 +2155,13 @@ void proto_register_acse(void) {
       { "provider-reason", "acse.provider_reason",
         FT_INT32, BASE_DEC, VALS(acse_T_provider_reason_vals), 0,
         NULL, HFILL }},
-    { &hf_acse_acse_service_user,
-      { "acse-service-user", "acse.acse_service_user",
-        FT_UINT32, BASE_DEC, VALS(acse_T_acse_service_user_vals), 0,
+    { &hf_acse_service_user,
+      { "service-user", "acse.service_user",
+        FT_UINT32, BASE_DEC, VALS(acse_T_service_user_vals), 0,
         NULL, HFILL }},
-    { &hf_acse_acse_service_provider,
-      { "acse-service-provider", "acse.acse_service_provider",
-        FT_UINT32, BASE_DEC, VALS(acse_T_acse_service_provider_vals), 0,
+    { &hf_acse_service_provider,
+      { "service-provider", "acse.service_provider",
+        FT_UINT32, BASE_DEC, VALS(acse_T_service_provider_vals), 0,
         NULL, HFILL }},
     { &hf_acse_Association_data_item,
       { "Association-data", "acse.EXTERNALt_element",
@@ -2239,7 +2241,7 @@ void proto_register_acse(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-acse-hfarr.c ---*/
-#line 270 "../../asn1/acse/packet-acse-template.c"
+#line 272 "../../asn1/acse/packet-acse-template.c"
   };
 
   /* List of subtrees */
@@ -2285,8 +2287,14 @@ void proto_register_acse(void) {
     &ett_acse_Authentication_value,
 
 /*--- End of included file: packet-acse-ettarr.c ---*/
-#line 276 "../../asn1/acse/packet-acse-template.c"
+#line 278 "../../asn1/acse/packet-acse-template.c"
   };
+
+  static ei_register_info ei[] = {
+     { &ei_acse_dissector_not_available, { "acse.dissector_not_available", PI_UNDECODED, PI_WARN, "Dissector is not available", EXPFILL }},
+  };
+
+  expert_module_t* expert_acse;
 
   /* Register protocol */
   proto_acse = proto_register_protocol(PNAME, PSNAME, PFNAME);
@@ -2299,7 +2307,8 @@ void proto_register_acse(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_acse, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-
+  expert_acse = expert_register_protocol(proto_acse);
+  expert_register_field_array(expert_acse, ei, array_length(ei));
 }
 
 

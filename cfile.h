@@ -27,7 +27,7 @@
 
 #include <epan/dfilter/dfilter.h>
 #include <epan/frame_data.h>
-#include "frame_data_sequence.h"
+#include <epan/frame_data_sequence.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,6 +68,7 @@ typedef enum {
 #define NODES_PER_LEVEL		(1<<LOG2_NODES_PER_LEVEL)
 
 typedef struct _capture_file {
+  epan_t      *epan;
   file_state   state;           /* Current state of capture file */
   gchar       *filename;        /* Name of capture file */
   gchar       *source;          /* Temp file source, e.g. "Pipe from elsewhere" */
@@ -108,7 +109,7 @@ typedef struct _capture_file {
   gboolean     search_in_progress; /* TRUE if user just clicked OK in the Find dialog or hit <control>N/B */
   /* packet data */
   struct wtap_pkthdr phdr;                /* Packet header */
-  guint8       pd[WTAP_MAX_PACKET_SIZE];  /* Packet data */
+  Buffer       buf;             /* Packet data */
   /* frames */
   frame_data_sequence *frames;  /* Sequence of frames, if we're keeping that information */
   guint32      first_displayed; /* Frame number of first frame displayed */
@@ -123,9 +124,18 @@ typedef struct _capture_file {
   GTree       *edited_frames;   /* BST with modified frames */
 #endif
   gpointer     window;		/* Top-level window associated with file */
+  GTree       *frames_user_comments;   /* BST with user comments for frames (key = frame_data) */
+  gulong       computed_elapsed;
+
+  guint32      cum_bytes;
+  const frame_data *ref;
+  frame_data  *prev_dis;
+  frame_data  *prev_cap;
 } capture_file;
 
 extern void cap_file_init(capture_file *cf);
+
+extern const char *cap_file_get_interface_name(void *data, guint32 interface_id);
 
 #ifdef __cplusplus
 }

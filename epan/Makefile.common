@@ -23,12 +23,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
-LIBWIRESHARK_SRC = 		\
+LIBWIRESHARK_SRC =		\
 	addr_and_mask.c		\
 	addr_resolv.c		\
 	address_to_str.c	\
 	adler32.c		\
 	afn.c			\
+	app_mem_usage.c		\
 	asn1.c			\
 	atalk-utils.c		\
 	base64.c		\
@@ -43,39 +44,41 @@ LIBWIRESHARK_SRC = 		\
 	crc16-tvb.c		\
 	crc32-tvb.c		\
 	crc8-tvb.c		\
+	disabled_protos.c	\
 	dissector_filters.c	\
 	emem.c			\
 	epan.c			\
 	ex-opt.c		\
 	except.c		\
 	expert.c		\
-	exported_pdu.c	\
+	exported_pdu.c		\
 	filesystem.c		\
 	filter_expressions.c	\
 	follow.c		\
 	frame_data.c		\
+	frame_data_sequence.c	\
 	frequency-utils.c	\
-	funnel.c    		\
+	funnel.c		\
 	gcp.c			\
 	geoip_db.c		\
 	golay.c			\
-	guid-utils.c    	\
+	guid-utils.c		\
 	h225-persistentdata.c	\
 	in_cksum.c		\
 	ipproto.c		\
 	ipv4.c			\
 	next_tvb.c		\
-	nstime.c		\
 	oids.c			\
 	osi-utils.c		\
+	packet-range.c		\
 	packet.c		\
 	plugins.c		\
 	prefs.c			\
+	print.c			\
 	proto.c			\
 	range.c			\
 	reassemble.c		\
 	reedsolomon.c		\
-	report_err.c		\
 	req_resp_hdrs.c		\
 	show_exception.c	\
 	sigcomp_state_hdlr.c	\
@@ -90,20 +93,25 @@ LIBWIRESHARK_SRC = 		\
 	tap.c			\
 	tcap-persistentdata.c	\
 	timestamp.c		\
+	timestats.c		\
 	tfs.c			\
 	to_str.c		\
 	tvbparse.c		\
+	tvbuff_composite.c	\
+	tvbuff_real.c		\
+	tvbuff_subset.c		\
 	tvbuff.c		\
 	uat.c			\
 	value_string.c		\
 	xdlc.c
 
 #
-# We distribute Lemon with Wireshark, so we don't distribute the files
-# it produces.
+# We distribute Lemon and rdps.py with Wireshark, so we don't distribute the
+# files they produce.
 #
 NODIST_LIBWIRESHARK_GENERATED_C_FILES = \
-	dtd_grammar.c
+	dtd_grammar.c		\
+	ps.c
 
 NODIST_LIBWIRESHARK_GENERATED_HEADER_FILES = \
 	dtd_grammar.h
@@ -117,9 +125,9 @@ NODIST_LIBWIRESHARK_GENERATED_HEADER_FILES = \
 #
 LIBWIRESHARK_GENERATED_C_FILES = \
 	diam_dict.c		\
-	dtd_parse.c 		\
-	dtd_preparse.c 		\
-	radius_dict.c 		\
+	dtd_parse.c		\
+	dtd_preparse.c		\
+	radius_dict.c		\
 	uat_load.c
 
 LIBWIRESHARK_GENERATED_HEADER_FILES = \
@@ -129,26 +137,27 @@ LIBWIRESHARK_GENERATED_HEADER_FILES = \
 	radius_dict_lex.h	\
 	uat_load_lex.h
 
-LIBWIRESHARK_GENERATED_SRC = 	\
+LIBWIRESHARK_GENERATED_SRC =	\
 	$(LIBWIRESHARK_GENERATED_C_FILES) \
 	$(NODIST_LIBWIRESHARK_GENERATED_C_FILES)
 
-LIBWIRESHARK_ALL_SRC = \
-	$(LIBWIRESHARK_SRC) 	\
+LIBWIRESHARK_ALL_SRC =		\
+	$(LIBWIRESHARK_SRC)	\
 	$(LIBWIRESHARK_GENERATED_SRC)
 
-LIBWIRESHARK_INCLUDES = 	\
+LIBWIRESHARK_INCLUDES =		\
 	addr_and_mask.h		\
 	addr_resolv.h		\
 	address.h		\
 	adler32.h		\
 	afn.h			\
 	aftypes.h		\
+	app_mem_usage.h		\
 	arcnet_pids.h		\
 	arptypes.h		\
-	ax25_pids.h		\
 	asn1.h			\
 	atalk-utils.h		\
+	ax25_pids.h		\
 	base64.h		\
 	bitswap.h		\
 	bridged_pids.h		\
@@ -166,11 +175,13 @@ LIBWIRESHARK_INCLUDES = 	\
 	crc32-tvb.h		\
 	crc8-tvb.h		\
 	diam_dict.h		\
+	disabled_protos.h	\
 	dissector_filters.h	\
 	dtd.h			\
-	dtd_parse.h 		\
+	dtd_parse.h		\
 	eap.h			\
 	emem.h			\
+	epan-int.h		\
 	epan.h			\
 	epan_dissect.h		\
 	etypes.h		\
@@ -178,11 +189,12 @@ LIBWIRESHARK_INCLUDES = 	\
 	except.h		\
 	exceptions.h		\
 	expert.h		\
-	exported_pdu.h	\
+	exported_pdu.h		\
 	filter_expressions.h	\
 	filesystem.h		\
 	follow.h		\
 	frame_data.h		\
+	frame_data_sequence.h	\
 	frequency-utils.h	\
 	funnel.h		\
 	garrayfix.h		\
@@ -203,24 +215,24 @@ LIBWIRESHARK_INCLUDES = 	\
 	llcsaps.h		\
 	next_tvb.h		\
 	nlpid.h			\
-	nstime.h		\
 	oids.h			\
 	osi-utils.h		\
 	oui.h			\
+	packet-range.h		\
 	packet.h		\
 	packet_info.h		\
 	params.h		\
-	pint.h			\
 	plugins.h		\
 	ppptypes.h		\
+	print.h			\
 	prefs.h			\
 	prefs-int.h		\
 	proto.h			\
+	ps.h			\
 	ptvcursor.h		\
 	range.h			\
 	reassemble.h		\
 	reedsolomon.h		\
-	report_err.h		\
 	req_resp_hdrs.h		\
 	rtp_pt.h		\
 	sctpppids.h		\
@@ -238,7 +250,8 @@ LIBWIRESHARK_INCLUDES = 	\
 	tap.h			\
 	tap-voip.h		\
 	tcap-persistentdata.h	\
-	timestamp.h    		\
+	timestamp.h		\
+	timestats.h		\
 	tfs.h			\
 	time_fmt.h		\
 	to_str.h		\

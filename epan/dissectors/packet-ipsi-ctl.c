@@ -111,8 +111,7 @@ static void dissect_ipsictl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
     if (remaining_length>=2)
     {
-      field1 = tvb_get_ntohs(tvb, loffset); loffset+=2;
-      remaining_length-=2;
+      field1 = tvb_get_ntohs(tvb, loffset); 
       llength-=2;
     }
 
@@ -163,7 +162,7 @@ static void dissect_ipsictl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       if (tree) {
         proto_tree_add_item(pdu_tree, hf_ipsictl_data, tvb, loffset, llength, ENC_NA);
       }
-      loffset+=llength; remaining_length-=llength;
+      loffset+=llength;
     }
 
     offset=loffset;
@@ -181,15 +180,13 @@ static void dissect_ipsictl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   if (haspdus)
   {
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-      if (last_sequence==-1)
-      {
-        col_add_fstr(pinfo->cinfo, COL_INFO, "PDUS=%d, Seq=0x%04x",
-          pdu,first_sequence);
-      }else{
-        col_add_fstr(pinfo->cinfo, COL_INFO, "PDUS=%d, Seq=0x%04x-0x%04x",
-          pdu,first_sequence,last_sequence);
-      }
+    if (last_sequence==-1)
+    {
+      col_add_fstr(pinfo->cinfo, COL_INFO, "PDUS=%d, Seq=0x%04x",
+        pdu,first_sequence);
+    }else{
+      col_add_fstr(pinfo->cinfo, COL_INFO, "PDUS=%d, Seq=0x%04x-0x%04x",
+        pdu,first_sequence,last_sequence);
     }
   }else{
     col_set_str(pinfo->cinfo, COL_INFO, "Initialization");

@@ -89,10 +89,10 @@ struct radcomrec_hdr {
 static gboolean radcom_read(wtap *wth, int *err, gchar **err_info,
 	gint64 *data_offset);
 static gboolean radcom_seek_read(wtap *wth, gint64 seek_off,
-	struct wtap_pkthdr *pkhdr, guint8 *pd, int length,
+	struct wtap_pkthdr *phdr, Buffer *buf, int length,
 	int *err, gchar **err_info);
-static int radcom_read_rec_header(FILE_T fh, struct radcomrec_hdr *hdr,
-	int *err, gchar **err_info);
+static gboolean radcom_read_rec(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+	Buffer *buf, int *err, gchar **err_info);
 static gboolean radcom_read_rec_data(FILE_T fh, guint8 *pd, int length,
 	int *err, gchar **err_info);
 
@@ -258,89 +258,17 @@ read_error:
 static gboolean radcom_read(wtap *wth, int *err, gchar **err_info,
 			    gint64 *data_offset)
 {
-	int	ret;
-	struct radcomrec_hdr hdr;
-	guint16 data_length, real_length, length;
-	guint32 sec;
 	int	bytes_read;
-	struct tm tm;
-	guint8	phdr[8];
 	char	fcs[2];
 
-	/* Read record header. */
 	*data_offset = file_tell(wth->fh);
-	ret = radcom_read_rec_header(wth->fh, &hdr, err, err_info);
-	if (ret <= 0) {
+
+	/* Read record header. */
+	if (!radcom_read_rec(wth, wth->fh, &wth->phdr, wth->frame_buffer,
+	    err, err_info)) {
 		/* Read error or EOF */
 		return FALSE;
 	}
-	data_length = pletohs(&hdr.data_length);
-	if (data_length == 0) {
-		/*
-		 * The last record appears to have 0 in its "data_length"
-		 * field, but non-zero values in other fields, so we
-		 * check for that and treat it as an EOF indication.
-		 */
-		*err = 0;
-		return FALSE;
-	}
-	length = pletohs(&hdr.length);
-	real_length = pletohs(&hdr.real_length);
-
-	if (wth->file_encap == WTAP_ENCAP_LAPB) {
-		length -= 2; /* FCS */
-		real_length -= 2;
-	}
-
-	wth->phdr.presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
-
-	wth->phdr.len = real_length;
-	wth->phdr.caplen = length;
-
-	tm.tm_year = pletohs(&hdr.date.year)-1900;
-	tm.tm_mon = (hdr.date.month&0x0f)-1;
-	tm.tm_mday = hdr.date.day;
-	sec = pletohl(&hdr.date.sec);
-	tm.tm_hour = sec/3600;
-	tm.tm_min = (sec%3600)/60;
-	tm.tm_sec = sec%60;
-	tm.tm_isdst = -1;
-	wth->phdr.ts.secs = mktime(&tm);
-	wth->phdr.ts.nsecs = pletohl(&hdr.date.usec) * 1000;
-
-	switch (wth->file_encap) {
-
-	case WTAP_ENCAP_ETHERNET:
-		/* XXX - is there an FCS? */
-		wth->phdr.pseudo_header.eth.fcs_len = -1;
-		break;
-
-	case WTAP_ENCAP_LAPB:
-		wth->phdr.pseudo_header.x25.flags = (hdr.dce & 0x1) ?
-		    0x00 : FROM_DCE;
-		break;
-
-	case WTAP_ENCAP_ATM_RFC1483:
-		/*
-		 * XXX - is this stuff a pseudo-header?
-		 * The direction appears to be in the "hdr.dce" field.
-		 */
-		if (!radcom_read_rec_data(wth->fh, phdr, sizeof phdr, err,
-		    err_info))
-			return FALSE;	/* Read error */
-		length -= 8;
-		wth->phdr.len -= 8;
-		wth->phdr.caplen -= 8;
-		break;
-	}
-
-	/*
-	 * Read the packet data.
-	 */
-	buffer_assure_space(wth->frame_buffer, length);
-	if (!radcom_read_rec_data(wth->fh,
-	    buffer_start_ptr(wth->frame_buffer), length, err, err_info))
-		return FALSE;	/* Read error */
 
 	if (wth->file_encap == WTAP_ENCAP_LAPB) {
 		/* Read the FCS.
@@ -362,37 +290,83 @@ static gboolean radcom_read(wtap *wth, int *err, gchar **err_info,
 
 static gboolean
 radcom_seek_read(wtap *wth, gint64 seek_off,
-		 struct wtap_pkthdr *pkhdr, guint8 *pd, int length,
+		 struct wtap_pkthdr *phdr, Buffer *buf, int length _U_,
 		 int *err, gchar **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &pkhdr->pseudo_header;
-	int	ret;
-	struct radcomrec_hdr hdr;
-	guint8	phdr[8];
-
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
 
-	/* Read record header. */
-	ret = radcom_read_rec_header(wth->random_fh, &hdr, err, err_info);
-	if (ret <= 0) {
+	/* Read record. */
+	if (!radcom_read_rec(wth, wth->random_fh, phdr, buf, err,
+	    err_info)) {
 		/* Read error or EOF */
-		if (ret == 0) {
+		if (*err == 0) {
 			/* EOF means "short read" in random-access mode */
 			*err = WTAP_ERR_SHORT_READ;
 		}
 		return FALSE;
 	}
+	return TRUE;
+}
+
+static gboolean
+radcom_read_rec(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr, Buffer *buf,
+		int *err, gchar **err_info)
+{
+	struct radcomrec_hdr hdr;
+	int	bytes_read;
+	guint16 data_length, real_length, length;
+	guint32 sec;
+	struct tm tm;
+	guint8	atmhdr[8];
+
+	errno = WTAP_ERR_CANT_READ;
+	bytes_read = file_read(&hdr, sizeof hdr, fh);
+	if (bytes_read != sizeof hdr) {
+		*err = file_error(fh, err_info);
+		if (*err == 0 && bytes_read != 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return FALSE;
+	}
+
+	data_length = pletohs(&hdr.data_length);
+	if (data_length == 0) {
+		/*
+		 * The last record appears to have 0 in its "data_length"
+		 * field, but non-zero values in other fields, so we
+		 * check for that and treat it as an EOF indication.
+		 */
+		*err = 0;
+		return FALSE;
+	}
+	length = pletohs(&hdr.length);
+	real_length = pletohs(&hdr.real_length);
+
+	phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+
+	tm.tm_year = pletohs(&hdr.date.year)-1900;
+	tm.tm_mon = (hdr.date.month&0x0f)-1;
+	tm.tm_mday = hdr.date.day;
+	sec = pletohl(&hdr.date.sec);
+	tm.tm_hour = sec/3600;
+	tm.tm_min = (sec%3600)/60;
+	tm.tm_sec = sec%60;
+	tm.tm_isdst = -1;
+	phdr->ts.secs = mktime(&tm);
+	phdr->ts.nsecs = pletohl(&hdr.date.usec) * 1000;
 
 	switch (wth->file_encap) {
 
 	case WTAP_ENCAP_ETHERNET:
 		/* XXX - is there an FCS? */
-		pseudo_header->eth.fcs_len = -1;
+		phdr->pseudo_header.eth.fcs_len = -1;
 		break;
 
 	case WTAP_ENCAP_LAPB:
-		pseudo_header->x25.flags = (hdr.dce & 0x1) ? 0x00 : FROM_DCE;
+		phdr->pseudo_header.x25.flags = (hdr.dce & 0x1) ?
+		    0x00 : FROM_DCE;
+		length -= 2; /* FCS */
+		real_length -= 2;
 		break;
 
 	case WTAP_ENCAP_ATM_RFC1483:
@@ -400,37 +374,24 @@ radcom_seek_read(wtap *wth, gint64 seek_off,
 		 * XXX - is this stuff a pseudo-header?
 		 * The direction appears to be in the "hdr.dce" field.
 		 */
-		if (!radcom_read_rec_data(wth->random_fh, phdr, sizeof phdr,
-		    err, err_info))
+		if (!radcom_read_rec_data(wth->fh, atmhdr, sizeof atmhdr, err,
+		    err_info))
 			return FALSE;	/* Read error */
+		length -= 8;
+		real_length -= 8;
 		break;
 	}
+
+	phdr->len = real_length;
+	phdr->caplen = length;
 
 	/*
 	 * Read the packet data.
 	 */
-	return radcom_read_rec_data(wth->random_fh, pd, length, err, err_info);
-}
+	if (!wtap_read_packet_bytes(fh, buf, length, err, err_info))
+		return FALSE;	/* Read error */
 
-static int
-radcom_read_rec_header(FILE_T fh, struct radcomrec_hdr *hdr, int *err,
-		       gchar **err_info)
-{
-	int	bytes_read;
-
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(hdr, sizeof *hdr, fh);
-	if (bytes_read != sizeof *hdr) {
-		*err = file_error(fh, err_info);
-		if (*err != 0)
-			return -1;
-		if (bytes_read != 0) {
-			*err = WTAP_ERR_SHORT_READ;
-			return -1;
-		}
-		return 0;
-	}
-	return 1;
+	return TRUE;
 }
 
 static gboolean

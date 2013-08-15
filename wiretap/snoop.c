@@ -89,15 +89,15 @@ struct shomiti_trailer {
 static gboolean snoop_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean snoop_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length,
     int *err, gchar **err_info);
+static int snoop_read_packet(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+    Buffer *buf, int *err, gchar **err_info);
 static gboolean snoop_read_atm_pseudoheader(FILE_T fh,
     union wtap_pseudo_header *pseudo_header, int *err, gchar **err_info);
 static gboolean snoop_read_shomiti_wireless_pseudoheader(FILE_T fh,
     union wtap_pseudo_header *pseudo_header, int *err, gchar **err_info,
     int *header_size);
-static gboolean snoop_read_rec_data(FILE_T fh, guint8 *pd, int length,
-    int *err, gchar **err_info);
 static gboolean snoop_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
     const guint8 *pd, int *err);
 
@@ -453,166 +453,28 @@ typedef struct {
 static gboolean snoop_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset)
 {
-	guint32 rec_size;
-	guint32	packet_size;
-	guint32 orig_size;
+	int	padbytes;
 	int	bytes_read;
-	struct snooprec_hdr hdr;
 	char	padbuf[4];
-	guint	padbytes;
 	int	bytes_to_read;
-	int header_size;
-
-	/* Read record header. */
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(&hdr, sizeof hdr, wth->fh);
-	if (bytes_read != sizeof hdr) {
-		*err = file_error(wth->fh, err_info);
-		if (*err == 0 && bytes_read != 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
-
-	rec_size = g_ntohl(hdr.rec_len);
-	orig_size = g_ntohl(hdr.orig_len);
-	packet_size = g_ntohl(hdr.incl_len);
-	if (orig_size > WTAP_MAX_PACKET_SIZE) {
-		/*
-		 * Probably a corrupt capture file; don't blow up trying
-		 * to allocate space for an immensely-large packet.
-		 */
-		*err = WTAP_ERR_BAD_FILE;
-		*err_info = g_strdup_printf("snoop: File has %u-byte original length, bigger than maximum of %u",
-		    orig_size, WTAP_MAX_PACKET_SIZE);
-		return FALSE;
-	}
-	if (packet_size > WTAP_MAX_PACKET_SIZE) {
-		/*
-		 * Probably a corrupt capture file; don't blow up trying
-		 * to allocate space for an immensely-large packet.
-		 */
-		*err = WTAP_ERR_BAD_FILE;
-		*err_info = g_strdup_printf("snoop: File has %u-byte packet, bigger than maximum of %u",
-		    packet_size, WTAP_MAX_PACKET_SIZE);
-		return FALSE;
-	}
-	if (packet_size > rec_size) {
-		/*
-		 * Probably a corrupt capture file.
-		 */
-		*err = WTAP_ERR_BAD_FILE;
-		*err_info = g_strdup_printf("snoop: File has %u-byte packet, bigger than record size %u",
-		    packet_size, rec_size);
-		return FALSE;
-	}
 
 	*data_offset = file_tell(wth->fh);
 
-	/*
-	 * If this is an ATM packet, the first four bytes are the
-	 * direction of the packet (transmit/receive), the VPI, and
-	 * the VCI; read them and generate the pseudo-header from
-	 * them.
-	 */
-	switch (wth->file_encap) {
-
-	case WTAP_ENCAP_ATM_PDUS:
-		if (packet_size < sizeof (struct snoop_atm_hdr)) {
-			/*
-			 * Uh-oh, the packet isn't big enough to even
-			 * have a pseudo-header.
-			 */
-			*err = WTAP_ERR_BAD_FILE;
-			*err_info = g_strdup_printf("snoop: atmsnoop file has a %u-byte packet, too small to have even an ATM pseudo-header",
-			    packet_size);
-			return FALSE;
-		}
-		if (!snoop_read_atm_pseudoheader(wth->fh, &wth->phdr.pseudo_header,
-		    err, err_info))
-			return FALSE;	/* Read error */
-
-		/*
-		 * Don't count the pseudo-header as part of the packet.
-		 */
-		rec_size -= (guint32)sizeof (struct snoop_atm_hdr);
-		orig_size -= (guint32)sizeof (struct snoop_atm_hdr);
-		packet_size -= (guint32)sizeof (struct snoop_atm_hdr);
-		break;
-
-	case WTAP_ENCAP_ETHERNET:
-		/*
-		 * If this is a snoop file, we assume there's no FCS in
-		 * this frame; if this is a Shomit file, we assume there
-		 * is.  (XXX - or should we treat it a "maybe"?)
-		 */
-		if (wth->file_type == WTAP_FILE_SHOMITI)
-			wth->phdr.pseudo_header.eth.fcs_len = 4;
-		else
-			wth->phdr.pseudo_header.eth.fcs_len = 0;
-		break;
-
-	case WTAP_ENCAP_IEEE_802_11_WITH_RADIO:
-		if (packet_size < sizeof (shomiti_wireless_header)) {
-			/*
-			 * Uh-oh, the packet isn't big enough to even
-			 * have a pseudo-header.
-			 */
-			*err = WTAP_ERR_BAD_FILE;
-			*err_info = g_strdup_printf("snoop: Shomiti wireless file has a %u-byte packet, too small to have even a wireless pseudo-header",
-			    packet_size);
-			return FALSE;
-		}
-		if (!snoop_read_shomiti_wireless_pseudoheader(wth->fh,
-		    &wth->phdr.pseudo_header, err, err_info, &header_size))
-			return FALSE;	/* Read error */
-
-		/*
-		 * Don't count the pseudo-header as part of the packet.
-		 */
-		rec_size -= header_size;
-		orig_size -= header_size;
-		packet_size -= header_size;
-		break;
-	}
-
-	buffer_assure_space(wth->frame_buffer, packet_size);
-	if (!snoop_read_rec_data(wth->fh, buffer_start_ptr(wth->frame_buffer),
-	    packet_size, err, err_info))
-		return FALSE;	/* Read error */
-
-	wth->phdr.presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
-	wth->phdr.ts.secs = g_ntohl(hdr.ts_sec);
-	wth->phdr.ts.nsecs = g_ntohl(hdr.ts_usec) * 1000;
-	wth->phdr.caplen = packet_size;
-	wth->phdr.len = orig_size;
-
-	/*
-	 * If this is ATM LANE traffic, try to guess what type of LANE
-	 * traffic it is based on the packet contents.
-	 */
-	if (wth->file_encap == WTAP_ENCAP_ATM_PDUS &&
-	    wth->phdr.pseudo_header.atm.type == TRAF_LANE) {
-		atm_guess_lane_type(buffer_start_ptr(wth->frame_buffer),
-		    wth->phdr.caplen, &wth->phdr.pseudo_header);
-	}
+	padbytes = snoop_read_packet(wth, wth->fh, &wth->phdr,
+	    wth->frame_buffer, err, err_info);
+	if (padbytes == -1)
+		return FALSE;
 
 	/*
 	 * Skip over the padding (don't "fseek()", as the standard
 	 * I/O library on some platforms discards buffered data if
 	 * you do that, which means it does a lot more reads).
+	 *
+	 * XXX - is that still true?
+	 *
 	 * There's probably not much padding (it's probably padded only
 	 * to a 4-byte boundary), so we probably need only do one read.
 	 */
-	if (rec_size < (sizeof hdr + packet_size)) {
-		/*
-		 * What, *negative* padding?  Bogus.
-		 */
-		*err = WTAP_ERR_BAD_FILE;
-		*err_info = g_strdup_printf("snoop: File has %u-byte record with packet size of %u",
-		    rec_size, packet_size);
-		return FALSE;
-	}
-	padbytes = rec_size - ((guint)sizeof hdr + packet_size);
 	while (padbytes != 0) {
 		bytes_to_read = padbytes;
 		if ((unsigned)bytes_to_read > sizeof padbuf)
@@ -633,21 +495,103 @@ static gboolean snoop_read(wtap *wth, int *err, gchar **err_info,
 
 static gboolean
 snoop_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length _U_,
     int *err, gchar **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
+
+	if (snoop_read_packet(wth, wth->random_fh, phdr, buf, err, err_info) == -1) {
+		if (*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static int
+snoop_read_packet(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+    Buffer *buf, int *err, gchar **err_info)
+{
+	struct snooprec_hdr hdr;
+	int	bytes_read;
+	guint32 rec_size;
+	guint32	packet_size;
+	guint32 orig_size;
+	int header_size;
+
+	/* Read record header. */
+	errno = WTAP_ERR_CANT_READ;
+	bytes_read = file_read(&hdr, sizeof hdr, fh);
+	if (bytes_read != sizeof hdr) {
+		*err = file_error(fh, err_info);
+		if (*err == 0 && bytes_read != 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return -1;
+	}
+
+	rec_size = g_ntohl(hdr.rec_len);
+	orig_size = g_ntohl(hdr.orig_len);
+	packet_size = g_ntohl(hdr.incl_len);
+	if (orig_size > WTAP_MAX_PACKET_SIZE) {
+		/*
+		 * Probably a corrupt capture file; don't blow up trying
+		 * to allocate space for an immensely-large packet.
+		 */
+		*err = WTAP_ERR_BAD_FILE;
+		*err_info = g_strdup_printf("snoop: File has %u-byte original length, bigger than maximum of %u",
+		    orig_size, WTAP_MAX_PACKET_SIZE);
+		return -1;
+	}
+	if (packet_size > WTAP_MAX_PACKET_SIZE) {
+		/*
+		 * Probably a corrupt capture file; don't blow up trying
+		 * to allocate space for an immensely-large packet.
+		 */
+		*err = WTAP_ERR_BAD_FILE;
+		*err_info = g_strdup_printf("snoop: File has %u-byte packet, bigger than maximum of %u",
+		    packet_size, WTAP_MAX_PACKET_SIZE);
+		return -1;
+	}
+	if (packet_size > rec_size) {
+		/*
+		 * Probably a corrupt capture file.
+		 */
+		*err = WTAP_ERR_BAD_FILE;
+		*err_info = g_strdup_printf("snoop: File has %u-byte packet, bigger than record size %u",
+		    packet_size, rec_size);
+		return -1;
+	}
 
 	switch (wth->file_encap) {
 
 	case WTAP_ENCAP_ATM_PDUS:
-		if (!snoop_read_atm_pseudoheader(wth->random_fh, pseudo_header,
-		    err, err_info)) {
-			/* Read error */
-			return FALSE;
+		/*
+		 * This is an ATM packet, so the first four bytes are
+		 * the direction of the packet (transmit/receive), the
+		 * VPI, and the VCI; read them and generate the
+		 * pseudo-header from them.
+		 */
+		if (packet_size < sizeof (struct snoop_atm_hdr)) {
+			/*
+			 * Uh-oh, the packet isn't big enough to even
+			 * have a pseudo-header.
+			 */
+			*err = WTAP_ERR_BAD_FILE;
+			*err_info = g_strdup_printf("snoop: atmsnoop file has a %u-byte packet, too small to have even an ATM pseudo-header",
+			    packet_size);
+			return -1;
 		}
+		if (!snoop_read_atm_pseudoheader(fh, &phdr->pseudo_header,
+		    err, err_info))
+			return -1;	/* Read error */
+
+		/*
+		 * Don't count the pseudo-header as part of the packet.
+		 */
+		rec_size -= (guint32)sizeof (struct snoop_atm_hdr);
+		orig_size -= (guint32)sizeof (struct snoop_atm_hdr);
+		packet_size -= (guint32)sizeof (struct snoop_atm_hdr);
 		break;
 
 	case WTAP_ENCAP_ETHERNET:
@@ -657,34 +601,68 @@ snoop_seek_read(wtap *wth, gint64 seek_off,
 		 * is.  (XXX - or should we treat it a "maybe"?)
 		 */
 		if (wth->file_type == WTAP_FILE_SHOMITI)
-			pseudo_header->eth.fcs_len = 4;
+			phdr->pseudo_header.eth.fcs_len = 4;
 		else
-			pseudo_header->eth.fcs_len = 0;
+			phdr->pseudo_header.eth.fcs_len = 0;
 		break;
 
 	case WTAP_ENCAP_IEEE_802_11_WITH_RADIO:
-		if (!snoop_read_shomiti_wireless_pseudoheader(wth->random_fh,
-		    pseudo_header, err, err_info, NULL)) {
-			/* Read error */
-			return FALSE;
+		if (packet_size < sizeof (shomiti_wireless_header)) {
+			/*
+			 * Uh-oh, the packet isn't big enough to even
+			 * have a pseudo-header.
+			 */
+			*err = WTAP_ERR_BAD_FILE;
+			*err_info = g_strdup_printf("snoop: Shomiti wireless file has a %u-byte packet, too small to have even a wireless pseudo-header",
+			    packet_size);
+			return -1;
 		}
+		if (!snoop_read_shomiti_wireless_pseudoheader(fh,
+		    &phdr->pseudo_header, err, err_info, &header_size))
+			return -1;	/* Read error */
+
+		/*
+		 * Don't count the pseudo-header as part of the packet.
+		 */
+		rec_size -= header_size;
+		orig_size -= header_size;
+		packet_size -= header_size;
 		break;
+	}
+
+	phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+	phdr->ts.secs = g_ntohl(hdr.ts_sec);
+	phdr->ts.nsecs = g_ntohl(hdr.ts_usec) * 1000;
+	phdr->caplen = packet_size;
+	phdr->len = orig_size;
+
+	if (rec_size < (sizeof hdr + packet_size)) {
+		/*
+		 * What, *negative* padding?  Bogus.
+		 */
+		*err = WTAP_ERR_BAD_FILE;
+		*err_info = g_strdup_printf("snoop: File has %u-byte record with packet size of %u",
+		    rec_size, packet_size);
+		return -1;
 	}
 
 	/*
 	 * Read the packet data.
 	 */
-	if (!snoop_read_rec_data(wth->random_fh, pd, length, err, err_info))
-		return FALSE;	/* failed */
+	if (!wtap_read_packet_bytes(fh, buf, packet_size, err, err_info))
+		return -1;	/* failed */
 
 	/*
 	 * If this is ATM LANE traffic, try to guess what type of LANE
 	 * traffic it is based on the packet contents.
 	 */
 	if (wth->file_encap == WTAP_ENCAP_ATM_PDUS &&
-	    pseudo_header->atm.type == TRAF_LANE)
-		atm_guess_lane_type(pd, length, pseudo_header);
-	return TRUE;
+	    phdr->pseudo_header.atm.type == TRAF_LANE) {
+		atm_guess_lane_type(buffer_start_ptr(buf), packet_size,
+		    &phdr->pseudo_header);
+	}
+
+	return rec_size - ((guint)sizeof hdr + packet_size);
 }
 
 static gboolean
@@ -829,27 +807,8 @@ snoop_read_shomiti_wireless_pseudoheader(FILE_T fh,
 	pseudo_header->ieee_802_11.signal_level = whdr.signal;
 
 	/* add back the header and don't forget the pad as well */
-	if(header_size != NULL)
-	    *header_size = rsize + 8 + 4;
+	*header_size = rsize + 8 + 4;
 
-    return TRUE;
-}
-
-static gboolean
-snoop_read_rec_data(FILE_T fh, guint8 *pd, int length, int *err,
-    gchar **err_info)
-{
-	int	bytes_read;
-
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(pd, length, fh);
-
-	if (bytes_read != length) {
-		*err = file_error(fh, err_info);
-		if (*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
 	return TRUE;
 }
 
@@ -918,7 +877,7 @@ static gboolean snoop_dump(wtap_dumper *wdh,
 	struct snooprec_hdr rec_hdr;
 	int reclen;
 	guint padlen;
-	static char zeroes[4];
+	static const char zeroes[4] = {0};
 	struct snoop_atm_hdr atm_hdr;
 	int atm_hdrsize;
 

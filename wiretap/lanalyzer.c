@@ -275,7 +275,7 @@ typedef struct {
 static gboolean lanalyzer_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean lanalyzer_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length,
     int *err, gchar **err_info);
 static gboolean lanalyzer_dump_close(wtap_dumper *wdh, int *err);
 
@@ -442,8 +442,8 @@ int lanalyzer_open(wtap *wth, int *err, gchar **err_info)
 
 #define DESCRIPTOR_LEN	32
 
-static gboolean lanalyzer_read_trace_record_header(wtap *wth, FILE_T fh,
-    struct wtap_pkthdr *phdr, int *err, gchar **err_info)
+static gboolean lanalyzer_read_trace_record(wtap *wth, FILE_T fh,
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
 {
 	int		bytes_read;
 	char		LE_record_type[2];
@@ -558,63 +558,35 @@ static gboolean lanalyzer_read_trace_record_header(wtap *wth, FILE_T fh,
 		break;
 	}
 
-	return TRUE;
+	/* Read the packet data */
+	return wtap_read_packet_bytes(fh, buf, packet_size, err, err_info);
 }
 
 /* Read the next packet */
 static gboolean lanalyzer_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset)
 {
-	int		bytes_read;
-
 	*data_offset = file_tell(wth->fh);
 
-	/* Read the record header and packet descriptor */
-	if (!lanalyzer_read_trace_record_header(wth, wth->fh,
-	    &wth->phdr, err, err_info))
-		return FALSE;
-
-	/* Read the packet data */
-	buffer_assure_space(wth->frame_buffer, wth->phdr.caplen);
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(buffer_start_ptr(wth->frame_buffer),
-		wth->phdr.caplen, wth->fh);
-
-	if (bytes_read != (int)wth->phdr.caplen) {
-		*err = file_error(wth->fh, err_info);
-		if (*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
-
-	return TRUE;
+	/* Read the record  */
+	return lanalyzer_read_trace_record(wth, wth->fh, &wth->phdr,
+	    wth->frame_buffer, err, err_info);
 }
 
 static gboolean lanalyzer_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length, int *err,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length _U_, int *err,
     gchar **err_info)
 {
-	int bytes_read;
-
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
 
-	/* Read the record header and packet descriptor */
-	if (!lanalyzer_read_trace_record_header(wth, wth->random_fh, phdr,
-	    err, err_info))
-		return FALSE;
-
-	/*
-	 * Read the packet data.
-	 */
-	bytes_read = file_read(pd, length, wth->random_fh);
-	if (bytes_read != length) {
-		*err = file_error(wth->random_fh, err_info);
+	/* Read the record  */
+	if (!lanalyzer_read_trace_record(wth, wth->random_fh, phdr, buf,
+	    err, err_info)) {
 		if (*err == 0)
 			*err = WTAP_ERR_SHORT_READ;
 		return FALSE;
 	}
-
 	return TRUE;
 }
 
@@ -668,7 +640,7 @@ static void my_timersub(const struct timeval *a,
                         const struct timeval *b,
                               struct timeval *c)
 {
-      gint32 usec = a->tv_usec;
+      gint32 usec = (gint32)a->tv_usec;
 
       c->tv_sec = a->tv_sec - b->tv_sec;
       if (b->tv_usec > usec) {

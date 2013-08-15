@@ -31,6 +31,7 @@
 #include <epan/packet.h>
 #include <epan/addr_resolv.h>
 #include <epan/strutil.h>
+#include <epan/expert.h>
 
 #include <wiretap/tnef.h>
 
@@ -164,6 +165,11 @@ static int ett_tnef_counted_items = -1;
 static int ett_tnef_attribute_date = -1;
 static int ett_tnef_attribute_address = -1;
 
+static expert_field ei_tnef_expect_single_item = EI_INIT;
+static expert_field ei_tnef_incorrect_signature = EI_INIT;
+
+static dissector_handle_t tnef_handle;
+
 static const value_string tnef_Lvl_vals[] = {
    {   1, "LVL-MESSAGE" },
    {   2, "LVL-ATTACHMENT" },
@@ -239,7 +245,7 @@ static const value_string tnef_Attribute_vals[] = {
 	{ 0, NULL }
 };
 
-static gint dissect_counted_values(tvbuff_t *tvb, gint offset, int hf_id,  packet_info *pinfo _U_, proto_tree *tree, gboolean single, gboolean unicode, guint encoding)
+static gint dissect_counted_values(tvbuff_t *tvb, gint offset, int hf_id,  packet_info *pinfo, proto_tree *tree, gboolean single, gboolean unicode, guint encoding)
 {
 	 proto_item *item;
 	 guint32 length, count, i;
@@ -249,10 +255,8 @@ static gint dissect_counted_values(tvbuff_t *tvb, gint offset, int hf_id,  packe
 
 	 if(count > 1) {
 		 if(single) {
-			 item = proto_tree_add_text(tree, tvb, offset, 4,
+			 item = proto_tree_add_expert_format(tree, pinfo, &ei_tnef_expect_single_item, tvb, offset, 4,
 						    "Expecting a single item but found %d", count);
-			 proto_item_set_expert_flags(item, PI_MALFORMED, PI_ERROR);
-
 			 tree = proto_item_add_subtree(item, ett_tnef_counted_items);
 		 }
 	 }
@@ -522,10 +526,8 @@ static void dissect_tnef(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   /* check the signature */
   if(signature != TNEF_SIGNATURE) {
 
-    proto_item_append_text(item, " [Incorrect, should be 0x%x. No further dissection possible. Check any Content-Transfer-Encoding has been removed.]", TNEF_SIGNATURE);
-
-    proto_item_set_expert_flags(item, PI_MALFORMED, PI_WARN);
-
+    expert_add_info_format_text(pinfo, item, &ei_tnef_incorrect_signature, 
+               " [Incorrect, should be 0x%x. No further dissection possible. Check any Content-Transfer-Encoding has been removed.]", TNEF_SIGNATURE);
     return;
 
   } else {
@@ -814,13 +816,22 @@ proto_register_tnef(void)
     &ett_tnef_attribute_address,
   };
 
+  static ei_register_info ei[] = {
+     { &ei_tnef_expect_single_item, { "tnef.expect_single_item", PI_MALFORMED, PI_ERROR, "Expected single item", EXPFILL }},
+     { &ei_tnef_incorrect_signature, { "tnef.signature.incorrect", PI_MALFORMED, PI_WARN, "Incorrect signature", EXPFILL }},
+  };
+
+  expert_module_t* expert_tnef;
+
   proto_tnef = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
   proto_register_field_array(proto_tnef, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_tnef = expert_register_protocol(proto_tnef);
+  expert_register_field_array(expert_tnef, ei, array_length(ei));
 
   /* Allow dissector to find be found by name. */
-  register_dissector(PFNAME, dissect_tnef, proto_tnef);
+  tnef_handle = register_dissector(PFNAME, dissect_tnef, proto_tnef);
 
 }
 
@@ -828,15 +839,14 @@ proto_register_tnef(void)
 void
 proto_reg_handoff_tnef(void)
 {
-  dissector_handle_t tnef_handle, tnef_file_handle;
+  dissector_handle_t tnef_file_handle;
 
-  tnef_handle = find_dissector(PFNAME);
   tnef_file_handle = create_dissector_handle(dissect_tnef_file, proto_tnef);
 
   dissector_add_string("media_type", "application/ms-tnef", tnef_handle);
 
   /* X.400 file transfer bodypart */
-  register_ber_oid_dissector("1.2.840.113556.3.10.1", dissect_tnef, proto_tnef, "id-et-tnef");
+  register_ber_oid_dissector_handle("1.2.840.113556.3.10.1", tnef_handle, proto_tnef, "id-et-tnef");
 
   dissector_add_uint("wtap_encap", WTAP_ENCAP_TNEF, tnef_file_handle);
 }

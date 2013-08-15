@@ -220,18 +220,6 @@ dissect_fcfzs_zoneset(tvbuff_t *tvb, proto_tree *tree, int offset)
     }
 }
 
-static const true_false_string tfs_fc_fcfzs_gzc_flags_hard_zones = {
-    "Hard Zones Supported",
-    "Hard zones NOT supported"
-};
-static const true_false_string tfs_fc_fcfzs_gzc_flags_soft_zones = {
-    "Soft Zones Supported",
-    "Soft zones NOT supported"
-};
-static const true_false_string tfs_fc_fcfzs_gzc_flags_zoneset_db = {
-    "Zone Set Database is Available",
-    "Zone set database is NOT available"
-};
 
 static void
 dissect_fcfzs_gzc(tvbuff_t *tvb, int offset, proto_tree *parent_tree, gboolean isreq)
@@ -263,20 +251,11 @@ dissect_fcfzs_gzc(tvbuff_t *tvb, int offset, proto_tree *parent_tree, gboolean i
         if (flags & 0x01) {
             proto_item_append_text(item, "  ZoneSet Database Available");
         }
-        flags &= (~( 0x01 ));
+        /*flags &= (~( 0x01 ));*/
 
         proto_tree_add_item(tree, hf_fcfzs_gzc_vendor, tvb, offset+4, 4, ENC_BIG_ENDIAN);
     }
 }
-
-static const true_false_string tfs_fc_fcfzs_soft_zone_set_enforced = {
-    "Soft Zone Set is ENFORCED",
-    "Soft zone set is NOT enforced"
-};
-static const true_false_string tfs_fc_fcfzs_hard_zone_set_enforced = {
-    "Hard Zone Set is ENFORCED",
-    "Hard zone set is NOT enforced"
-};
 
 static void
 dissect_fcfzs_gest(tvbuff_t *tvb, proto_tree *parent_tree, gboolean isreq)
@@ -304,7 +283,7 @@ dissect_fcfzs_gest(tvbuff_t *tvb, proto_tree *parent_tree, gboolean isreq)
         if (flags & 0x40) {
             proto_item_append_text(item, "  Hard Zone Set Enforced");
         }
-        flags &= (~( 0x40 ));
+        /*flags &= (~( 0x40 ));*/
 
 
         proto_tree_add_item(parent_tree, hf_fcfzs_gest_vendor, tvb, offset+4, 4, ENC_BIG_ENDIAN);
@@ -665,10 +644,9 @@ dissect_fcfzs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
             g_hash_table_insert(fcfzs_req_hash, req_key, cdata);
         }
-        if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_add_str(pinfo->cinfo, COL_INFO, val_to_str(opcode, fc_fzs_opcode_val,
+
+        col_add_str(pinfo->cinfo, COL_INFO, val_to_str(opcode, fc_fzs_opcode_val,
                                                            "0x%x"));
-        }
     }
     else {
         /* Opcode is ACC or RJT */
@@ -677,12 +655,10 @@ dissect_fcfzs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                          pinfo->rxid, NO_PORT2);
         isreq = FALSE;
         if (!conversation) {
-            if (tree && (opcode == FCCT_MSG_ACC)) {
-                if (check_col(pinfo->cinfo, COL_INFO)) {
-                    col_add_str(pinfo->cinfo, COL_INFO,
+            if (opcode == FCCT_MSG_ACC) {
+                col_add_str(pinfo->cinfo, COL_INFO,
                                 val_to_str(opcode, fc_fzs_opcode_val,
                                            "0x%x"));
-                }
                 /* No record of what this accept is for. Can't decode */
                 proto_tree_add_text(fcfzs_tree, tvb, 0, tvb_length(tvb),
                                     "No record of Exchg. Unable to decode MSG_ACC");
@@ -701,26 +677,22 @@ dissect_fcfzs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     failed_opcode = cdata->opcode;
             }
 
-            if (check_col(pinfo->cinfo, COL_INFO)) {
-                if (opcode != FCCT_MSG_RJT) {
-                    col_add_fstr(pinfo->cinfo, COL_INFO, "MSG_ACC (%s)",
-                                 val_to_str(opcode,
-                                            fc_fzs_opcode_val, "0x%x"));
-                }
-                else {
-                    col_add_fstr(pinfo->cinfo, COL_INFO, "MSG_RJT (%s)",
-                                 val_to_str(failed_opcode,
-                                            fc_fzs_opcode_val, "0x%x"));
-                }
+            if (opcode != FCCT_MSG_RJT) {
+                col_add_fstr(pinfo->cinfo, COL_INFO, "MSG_ACC (%s)",
+                                val_to_str(opcode,
+                                        fc_fzs_opcode_val, "0x%x"));
+            }
+            else {
+                col_add_fstr(pinfo->cinfo, COL_INFO, "MSG_RJT (%s)",
+                                val_to_str(failed_opcode,
+                                        fc_fzs_opcode_val, "0x%x"));
             }
 
-            if (tree) {
-                if ((cdata == NULL) && (opcode != FCCT_MSG_RJT)) {
-                    /* No record of what this accept is for. Can't decode */
-                    proto_tree_add_text(fcfzs_tree, tvb, 0, tvb_length(tvb),
-                                        "No record of Exchg. Unable to decode MSG_ACC/RJT");
-                    return;
-                }
+            if ((cdata == NULL) && (opcode != FCCT_MSG_RJT)) {
+                /* No record of what this accept is for. Can't decode */
+                proto_tree_add_text(fcfzs_tree, tvb, 0, tvb_length(tvb),
+                                    "No record of Exchg. Unable to decode MSG_ACC/RJT");
+                return;
             }
         }
     }
@@ -899,17 +871,17 @@ proto_register_fcfzs(void)
 
         { &hf_fcfzs_gzc_flags_hard_zones,
           {"Hard Zones", "fcfzs.gzc.flags.hard_zones",
-           FT_BOOLEAN, 8, TFS(&tfs_fc_fcfzs_gzc_flags_hard_zones), 0x80,
+           FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x80,
            NULL, HFILL}},
 
         { &hf_fcfzs_gzc_flags_soft_zones,
           {"Soft Zones", "fcfzs.gzc.flags.soft_zones",
-           FT_BOOLEAN, 8, TFS(&tfs_fc_fcfzs_gzc_flags_soft_zones), 0x40,
+           FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x40,
            NULL, HFILL}},
 
         { &hf_fcfzs_gzc_flags_zoneset_db,
           {"ZoneSet Database", "fcfzs.gzc.flags.zoneset_db",
-           FT_BOOLEAN, 8, TFS(&tfs_fc_fcfzs_gzc_flags_zoneset_db), 0x01,
+           FT_BOOLEAN, 8, TFS(&tfs_available_not_available), 0x01,
            NULL, HFILL}},
 
         { &hf_fcfzs_zone_state,
@@ -919,12 +891,12 @@ proto_register_fcfzs(void)
 
         { &hf_fcfzs_soft_zone_set_enforced,
           {"Soft Zone Set", "fcfzs.soft_zone_set.enforced",
-           FT_BOOLEAN, 8, TFS(&tfs_fc_fcfzs_soft_zone_set_enforced), 0x80,
+           FT_BOOLEAN, 8, TFS(&tfs_enforced_not_enforced), 0x80,
            NULL, HFILL}},
 
         { &hf_fcfzs_hard_zone_set_enforced,
           {"Hard Zone Set", "fcfzs.hard_zone_set.enforced",
-           FT_BOOLEAN, 8, TFS(&tfs_fc_fcfzs_hard_zone_set_enforced), 0x40,
+           FT_BOOLEAN, 8, TFS(&tfs_enforced_not_enforced), 0x40,
            NULL, HFILL}},
 
     };

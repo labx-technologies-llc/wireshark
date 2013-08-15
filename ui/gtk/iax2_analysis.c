@@ -51,9 +51,13 @@
 
 #include <gtk/gtk.h>
 
+#include <wsutil/file_util.h>
+#include <wsutil/g711.h>
+#include <wsutil/tempfile.h>
+#include <wsutil/pint.h>
+
 #include <epan/epan_dissect.h>
 #include <epan/filesystem.h>
-#include <epan/pint.h>
 #include <epan/tap.h>
 #include <epan/tap-voip.h>
 #include <epan/dissectors/packet-iax2.h>
@@ -62,18 +66,14 @@
 #include <epan/stat_cmd_args.h>
 #include <epan/strutil.h>
 
-#include "ui/util.h"
-#include "../g711.h"
 #include "../stat_menu.h"
-#include "../tempfile.h"
 
+#include "ui/util.h"
 #include "ui/alert_box.h"
 #include "ui/last_open_dir.h"
 #include "ui/progress_dlg.h"
 #include "ui/simple_dialog.h"
 #include "ui/utf8_entities.h"
-
-#include <wsutil/file_util.h>
 
 #include "ui/gtk/gtkglobals.h"
 #include "ui/gtk/dlg_utils.h"
@@ -85,9 +85,10 @@
 #include "ui/gtk/iax2_analysis.h"
 #include "ui/gtk/rtp_stream.h"
 #include "ui/gtk/rtp_stream_dlg.h"
-
 #include "ui/gtk/old-gtk-compat.h"
 #include "ui/gtk/gui_utils.h"
+
+#include "frame_tvbuff.h"
 
 enum
 {
@@ -384,7 +385,7 @@ iax2_packet_add_graph(dialog_graph_graph_t *dgg, tap_iax2_stat_t *statinfo, pack
 	if (dgg->ud->dlg.dialog_graph.start_time == -1) { /* it is the first */
 		dgg->ud->dlg.dialog_graph.start_time = statinfo->start_time;
 	}
-	rtp_time = nstime_to_msec(&pinfo->fd->rel_ts) - dgg->ud->dlg.dialog_graph.start_time;
+	rtp_time = nstime_to_msec(&pinfo->rel_ts) - dgg->ud->dlg.dialog_graph.start_time;
 	if (rtp_time < 0) {
 		return FALSE;
 	}
@@ -520,7 +521,7 @@ int iax2_packet_analyse(tap_iax2_stat_t *statinfo,
 	}
 
 	/* store the current time and calculate the current jitter */
-	current_time = nstime_to_sec(&pinfo->fd->rel_ts);
+	current_time = nstime_to_sec(&pinfo->rel_ts);
 	current_diff = fabs (current_time - statinfo->time - (((double)iax2info->timestamp - (double)statinfo->timestamp)/1000));
 	current_jitter = statinfo->jitter + ( current_diff - statinfo->jitter)/16;
 	statinfo->delta = current_time - (statinfo->time);
@@ -3711,9 +3712,10 @@ void iax2_analysis_cb(GtkAction *action _U_, gpointer user_data _U_)
 	/* dissect the current frame */
 	if (!cf_read_frame(cf, fdata))
 		return;	/* error reading the frame */
-	epan_dissect_init(&edt, TRUE, FALSE);
+	epan_dissect_init(&edt, cf->epan, TRUE, FALSE);
 	epan_dissect_prime_dfilter(&edt, sfcode);
-	epan_dissect_run(&edt, &cf->phdr, cf->pd, fdata, NULL);
+	epan_dissect_run(&edt, &cf->phdr, frame_tvbuff_new_buffer(fdata, &cf->buf),
+	    fdata, NULL);
 
 	/* if it is not an iax2 frame, show an error dialog */
 	frame_matched = dfilter_apply_edt(sfcode, &edt);

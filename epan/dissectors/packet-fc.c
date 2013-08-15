@@ -140,8 +140,10 @@ static gint ett_fc_vft = -1;
 
 static expert_field ei_fccrc = EI_INIT;
 
+static dissector_handle_t fc_handle, fcsof_handle;
 static dissector_table_t fcftype_dissector_table;
-static dissector_handle_t data_handle, fc_handle;
+
+static dissector_handle_t data_handle;
 
 static int fc_tap = -1;
 
@@ -692,7 +694,7 @@ dissect_fc_helper (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean
     int vft_offset = -1;
     gboolean is_lastframe_inseq, is_1frame_inseq/*, is_valid_frame*/;
     gboolean is_exchg_resp = 0;
-    fragment_data *fcfrag_head;
+    fragment_head *fcfrag_head;
     guint32 frag_id;
     guint32 frag_size;
     guint8 df_ctl, seq_id;
@@ -852,16 +854,14 @@ dissect_fc_helper (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean
 
     ftype = fc_get_ftype (fchdr.r_ctl, fchdr.type);
 
-    if (check_col (pinfo->cinfo, COL_INFO)) {
-         col_add_str (pinfo->cinfo, COL_INFO, val_to_str (ftype, fc_ftype_vals,
-                                                          "Unknown Type (0x%x)"));
+    col_add_str (pinfo->cinfo, COL_INFO, val_to_str (ftype, fc_ftype_vals,
+                                                        "Unknown Type (0x%x)"));
 
-        if (ftype == FC_FTYPE_LINKCTL)
-            col_append_fstr (pinfo->cinfo, COL_INFO, ", %s",
-                             val_to_str ((fchdr.r_ctl & 0x0F),
-                                          fc_lctl_proto_val,
-                                          "LCTL 0x%x"));
-    }
+    if (ftype == FC_FTYPE_LINKCTL)
+        col_append_fstr (pinfo->cinfo, COL_INFO, ", %s",
+                            val_to_str ((fchdr.r_ctl & 0x0F),
+                                        fc_lctl_proto_val,
+                                        "LCTL 0x%x"));
 
     if (vft_offset >= 0) {
         dissect_fc_vft(fc_tree, tvb, vft_offset);
@@ -1173,9 +1173,7 @@ dissect_fc_helper (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean
                                          !is_lastframe_inseq);
 
              if (fcfrag_head) {
-                  next_tvb = tvb_new_child_real_data(tvb, fcfrag_head->data,
-                                                fcfrag_head->datalen,
-                                                fcfrag_head->datalen);
+                  next_tvb = tvb_new_chain(tvb, fcfrag_head->tvb_data);
 
                   /* Add the defragmented data to the data source list. */
                   add_new_data_source(pinfo, next_tvb, "Reassembled FC");
@@ -1532,7 +1530,7 @@ proto_register_fc(void)
 
     /* Register the protocol name and description */
     proto_fc = proto_register_protocol ("Fibre Channel", "FC", "fc");
-    register_dissector ("fc", dissect_fc, proto_fc);
+    fc_handle = register_dissector ("fc", dissect_fc, proto_fc);
     register_dissector ("fc_ifcp", dissect_fc_ifcp, proto_fc);
     fc_tap = register_tap("fc");
 
@@ -1572,7 +1570,7 @@ proto_register_fc(void)
     proto_register_field_array(proto_fcsof, sof_hf, array_length(sof_hf));
     proto_register_subtree_array(sof_ett, array_length(sof_ett));
 
-    register_dissector("fcsof", dissect_fcsof, proto_fcsof);
+    fcsof_handle = register_dissector("fcsof", dissect_fcsof, proto_fcsof);
 }
 
 
@@ -1583,12 +1581,8 @@ proto_register_fc(void)
 void
 proto_reg_handoff_fc (void)
 {
-    dissector_handle_t fcsof_handle;
-
-    fc_handle = find_dissector("fc");
     dissector_add_uint("wtap_encap", WTAP_ENCAP_FIBRE_CHANNEL_FC2, fc_handle);
 
-    fcsof_handle = find_dissector("fcsof");
     dissector_add_uint("wtap_encap", WTAP_ENCAP_FIBRE_CHANNEL_FC2_WITH_FRAME_DELIMS, fcsof_handle);
 
     data_handle = find_dissector("data");

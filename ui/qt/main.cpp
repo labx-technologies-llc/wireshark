@@ -41,6 +41,10 @@
 #endif /* HAVE_LIBPORTAUDIO */
 
 #include <wsutil/crash_info.h>
+#include <wsutil/u3.h>
+#include <wsutil/file_util.h>
+
+#include <wiretap/merge.h>
 
 #include <epan/epan.h>
 #include <epan/filesystem.h>
@@ -63,24 +67,21 @@
 #include <epan/stat_cmd_args.h>
 #include <epan/uat.h>
 #include <epan/column.h>
+#include <epan/disabled_protos.h>
+#include <epan/print.h>
 
 /* general (not Qt specific) */
 #include "file.h"
 #include "summary.h"
-#include "disabled_protos.h"
 #include "color.h"
 #include "color_filters.h"
-#include "print.h"
 #include "register.h"
 #include "ringbuffer.h"
 #include "ui/util.h"
 #include "clopts_common.h"
 #include "cmdarg_err.h"
 #include "version_info.h"
-#include "merge.h"
 #include "log.h"
-#include "u3.h"
-#include <wsutil/file_util.h>
 
 #include "ui/alert_box.h"
 #include "ui/capture_globals.h"
@@ -687,7 +688,7 @@ int main(int argc, char *argv[])
             break;
         case 'D':        /* Print a list of capture devices and exit */
 #ifdef HAVE_LIBPCAP
-            if_list = capture_interface_list(&err, &err_str);
+            if_list = capture_interface_list(&err, &err_str, main_window_update);
             if (if_list == NULL) {
                 switch (err) {
                 case CANT_GET_INTERFACE_LIST:
@@ -862,7 +863,7 @@ int main(int argc, char *argv[])
 /////////
 
 #ifdef HAVE_LIBPCAP
-    fill_in_local_interfaces();
+    fill_in_local_interfaces(main_window_update);
 //  if (start_capture && list_link_layer_types) {
 //    /* Specifying *both* is bogus. */
 //    cmdarg_err("You can't specify both -L and a live capture.");

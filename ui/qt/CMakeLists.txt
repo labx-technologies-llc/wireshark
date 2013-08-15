@@ -28,14 +28,18 @@ set(QTSHARK_H_SRC
 	byte_view_tab.h
 	byte_view_text.h
 	capture_file_dialog.h
+	capture_filter_combo.h
+	capture_filter_edit.h
+	capture_filter_syntax_worker.h
 	capture_info_dialog.h
 	capture_interface_dialog.h
+	capture_preferences_frame.h
 	color_dialog.h
 	color_utils.h
-	capture_preferences_frame.h
 	column_preferences_frame.h
 	display_filter_combo.h
 	display_filter_edit.h
+	elided_label.h
 	export_dissection_dialog.h
 	export_object_dialog.h
 	file_set_dialog.h
@@ -61,24 +65,30 @@ set(QTSHARK_H_SRC
 	progress_bar.h
 	proto_tree.h
 	recent_file_status.h
-	simple_dialog_qt.h
 	search_frame.h
+	simple_dialog_qt.h
 	splash_overlay.h
+	summary_dialog.h
 	syntax_line_edit.h
 	time_shift_dialog.h
+	uat_dialog.h
 	wireshark_application.h
 
 	# No Q_OBJECT:
 	# packet_list_record.h
 	# qt_ui_utils.h
+	# related_packet_delegate.h
 	# sparkline_delegate.h
 )
 
-set(QTSHARK_CPP_SRC
+set(CLEAN_FILES
 	accordion_frame.cpp
 	byte_view_tab.cpp
 	byte_view_text.cpp
 	capture_file_dialog.cpp
+	capture_filter_combo.cpp
+	capture_filter_edit.cpp
+	capture_filter_syntax_worker.cpp
 	capture_info_dialog.cpp
 	capture_interface_dialog.cpp
 	color_dialog.cpp
@@ -87,6 +97,7 @@ set(QTSHARK_CPP_SRC
 	column_preferences_frame.cpp
 	display_filter_combo.cpp
 	display_filter_edit.cpp
+	elided_label.cpp
 	export_dissection_dialog.cpp
 	export_object_dialog.cpp
 	file_set_dialog.cpp
@@ -107,7 +118,6 @@ set(QTSHARK_CPP_SRC
 	packet_format_group_box.cpp
 	packet_list.cpp
 	packet_list_model.cpp
-	packet_list_record.cpp
 	packet_range_group_box.cpp
 	preferences_dialog.cpp
 	print_dialog.cpp
@@ -116,17 +126,20 @@ set(QTSHARK_CPP_SRC
 	proto_tree.cpp
 	qt_ui_utils.cpp
 	recent_file_status.cpp
+	related_packet_delegate.cpp
 	simple_dialog_qt.cpp
 	sparkline_delegate.cpp
+	summary_dialog.cpp
 	search_frame.cpp
 	splash_overlay.cpp
 	syntax_line_edit.cpp
 	time_shift_dialog.cpp
+	uat_dialog.cpp
 	wireshark_application.cpp
 )
 
-set(QTSHARK_SRC
-	${QTSHARK_CPP_SRC}
+set(DIRTY_FILES
+	packet_list_record.cpp
 )
 
 set(QTSHARK_UI
@@ -148,9 +161,11 @@ set(QTSHARK_UI
 	preferences_dialog.ui
 	print_dialog.ui
 	profile_dialog.ui
+	summary_dialog.ui
 	search_frame.ui
 	splash_overlay.ui
 	time_shift_dialog.ui
+	uat_dialog.ui
 )
 
 set(QTSHARK_QRC
@@ -194,8 +209,9 @@ else()
 	# set_target_properties(${some-source-files} PROPERTIES AUTOMOC TRUE)
 endif()
 
-set(CLEAN_FILES
-	${QTSHARK_SRC}
+set(QTSHARK_SRC
+	${CLEAN_FILES}
+	${DIRTY_FILES}
 )
 
 if (WERROR)

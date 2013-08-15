@@ -61,14 +61,24 @@
 #include <shlobj.h>
 #include <wsutil/unicode-utils.h>
 #else /* _WIN32 */
-#ifdef DLADDR_FINDS_EXECUTABLE_PATH
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+#ifdef __linux__
+#include <sys/utsname.h>
+#endif
+#ifdef __FreeBSD__
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
+#ifdef HAVE_DLADDR
 #include <dlfcn.h>
-#endif /* DLADDR_FINDS_EXECUTABLE_PATH */
+#endif
 #include <pwd.h>
 #endif /* _WIN32 */
 
 #include "filesystem.h"
-#include "report_err.h"
+#include <wsutil/report_err.h>
 #include <wsutil/privileges.h>
 #include <wsutil/file_util.h>
 
@@ -243,11 +253,228 @@ test_for_fifo(const char *path)
  */
 static char *progfile_dir;
 
+#ifdef __APPLE__
+/*
+ * Directory of the application bundle in which we're contained,
+ * if we're contained in an application bundle.  Otherwise, NULL.
+ *
+ * Note: Table 2-5 "Subdirectories of the Contents directory" of
+ *
+ *    https://developer.apple.com/library/mac/documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html#//apple_ref/doc/uid/10000123i-CH101-SW1
+ *
+ * says that the "Frameworks" directory
+ *
+ *    Contains any private shared libraries and frameworks used by the
+ *    executable.  The frameworks in this directory are revision-locked
+ *    to the application and cannot be superseded by any other, even
+ *    newer, versions that may be available to the operating system.  In
+ *    other words, the frameworks included in this directory take precedence
+ *    over any other similarly named frameworks found in other parts of
+ *    the operating system.  For information on how to add private
+ *    frameworks to your application bundle, see Framework Programming Guide.
+ *
+ * so if we were to ship with any frameworks (e.g. Qt) we should
+ * perhaps put them in a Frameworks directory rather than under
+ * Resources.
+ *
+ * It also says that the "PlugIns" directory
+ *
+ *    Contains loadable bundles that extend the basic features of your
+ *    application. You use this directory to include code modules that
+ *    must be loaded into your applicationbs process space in order to
+ *    be used. You would not use this directory to store standalone
+ *    executables.
+ *
+ * Our plugins are just raw .so/.dylib files; I don't know whether by
+ * "bundles" they mean application bundles (i.e., directory hierarchies)
+ * or just "bundles" in the Mach-O sense (which are an image type that
+ * can be loaded with dlopen() but not linked as libraries; our plugins
+ * are, I think, built as dylibs and can be loaded either way).
+ *
+ * And it says that the "SharedSupport" directory
+ *
+ *    Contains additional non-critical resources that do not impact the
+ *    ability of the application to run. You might use this directory to
+ *    include things like document templates, clip art, and tutorials
+ *    that your application expects to be present but that do not affect
+ *    the ability of your application to run.
+ *
+ * I don't think I'd put the files that currently go under Resources/share
+ * into that category; they're not, for example, sample Lua scripts that
+ * don't actually get run by Wireshark, they're configuration/data files
+ * for Wireshark whose absence might not prevent Wireshark from running
+ * but that would affect how it behaves when run.
+ */
+static char *appbundle_dir;
+#endif
+ 
 /*
  * TRUE if we're running from the build directory and we aren't running
  * with special privileges.
  */
 static gboolean running_in_build_directory_flag = FALSE;
+
+#ifndef _WIN32
+/*
+ * Get the pathname of the executable using various platform-
+ * dependent mechanisms for various UN*Xes.
+ *
+ * These calls all should return something independent of the argv[0]
+ * passed to the program, so it shouldn't be fooled by an argv[0]
+ * that doesn't match the executable path.
+ *
+ * Sadly, not all UN*Xes necessarily have dladdr(), and those that
+ * do don't necessarily have dladdr(main) return information about
+ * the executable image, and those that do aren't necessarily running
+ * on a platform wherein the executable image can get its own path
+ * from the kernel (either by a call or by it being handed to it along
+ * with argv[] and the environment), and those that can don't
+ * necessarily use that to supply the path you get from dladdr(main),
+ * so we try this first and, if that fails, use dladdr(main) if
+ * available.
+ *
+ * In particular, some dynamic linkers supply a dladdr() such that
+ * dladdr(main) just returns something derived from argv[0], so
+ * just using dladdr(main) is the wrong thing to do if there's
+ * another mechanism that can get you a more reliable version of
+ * the executable path.
+ *
+ * However, at least in newer versions of DragonFly BSD, the dynamic
+ * linker *does* get it from the aux vector passed to the program
+ * by the kernel,  readlink /proc/curproc/file - which came first?
+ *
+ * On OpenBSD, dladdr(main) returns a value derived from argv[0],
+ * and there doesn't appear to be any way to get the executable path
+ * from the kernel, so we're out of luck there.
+ *
+ * So, on platforms where some versions have a version of dladdr()
+ * that gives an argv[0]-based path and that also have a mechanism
+ * to get a more reliable version of the path, we try that.  On
+ * other platforms, we return NULL.  If our caller gets back a NULL
+ * from us, it falls back on dladdr(main) if dladdr() is available,
+ * and if that fails or is unavailable, it falls back on processing
+ * argv[0] itself.
+ *
+ * This is not guaranteed to return an absolute path; if it doesn't,
+ * our caller must prepend the current directory if it's a path.
+ *
+ * This is not guaranteed to return the "real path"; it might return
+ * something with symbolic links in the path.  Our caller must
+ * use realpath() if they want the real thing, but that's also true of
+ * something obtained by looking at argv[0].
+ */
+const char *
+get_executable_path(void)
+{
+#if defined(__APPLE__)
+    char *executable_path;
+    uint32_t path_buf_size;
+
+    path_buf_size = PATH_MAX;
+    executable_path = (char *)g_malloc(path_buf_size);
+    if (_NSGetExecutablePath(executable_path, &path_buf_size) == -1) {
+        executable_path = (char *)g_realloc(executable_path, path_buf_size);
+        if (_NSGetExecutablePath(executable_path, &path_buf_size) == -1)
+            return NULL;
+    }
+    return executable_path;
+#elif defined(__linux__)
+    /*
+     * In older versions of GNU libc's dynamic linker, as used on Linux,
+     * dladdr(main) supplies a path based on argv[0], so we use
+     * /proc/self/exe instead; there are Linux distributions with
+     * kernels that support /proc/self/exe and those older versions
+     * of the dynamic linker, and this will get a better answer on
+     * those versions.
+     *
+     * It only works on Linux 2.2 or later, so we just give up on
+     * earlier versions.
+     *
+     * XXX - are there OS versions that support "exe" but not "self"?
+     */
+    struct utsname name;
+    static char executable_path[PATH_MAX];
+
+    if (uname(&name) == -1)
+        return NULL;
+    if (strncmp(name.release, "1.", 2) == 0)
+        return NULL; /* Linux 1.x */
+    if (strcmp(name.release, "2.0") == 0 ||
+        strncmp(name.release, "2.0.", 4) == 0 ||
+        strcmp(name.release, "2.1") == 0 ||
+        strncmp(name.release, "2.1.", 4) == 0)
+        return NULL; /* Linux 2.0.x or 2.1.x */
+    if (readlink("/proc/self/exe", executable_path, sizeof executable_path) == -1)
+        return NULL;
+    return executable_path;
+#elif defined(__FreeBSD__) && defined(KERN_PROC_PATHNAME)
+    /*
+     * In older versions of FreeBSD's dynamic linker, dladdr(main)
+     * supplies a path based on argv[0], so we use the KERN_PROC_PATHNAME
+     * sysctl instead; there are, I think, versions of FreeBSD
+     * that support the sysctl that have and those older versions
+     * of the dynamic linker, and this will get a better answer on
+     * those versions.
+     */
+    int mib[4];
+    char executable_path*;
+    size_t path_buf_size;
+
+    mib[0] = CTL_KERN;
+    mib[1] = KERN_PROC;
+    mib[2] = KERN_PROC_PATHNAME;
+    mib[3] = -1;
+    path_buf_size = PATH_MAX;
+    executable_path = (char *)g_malloc(path_buf_size);
+    if (sysctl(mib, 4, executable_path, &path_buf_size, NULL, 0) == -1) {
+        if (errno != ENOMEM)
+            return NULL;
+        executable_path = (char *)g_realloc(executable_path, path_buf_size);
+        if (sysctl(mib, 4, executable_path, &path_buf_size, NULL, 0) == -1)
+            return NULL;
+    }
+    return executable_path;
+#elif defined(__NetBSD__)
+    /*
+     * In all versions of NetBSD's dynamic linker as of 2013-08-12,
+     * dladdr(main) supplies a path based on argv[0], so we use
+     * /proc/curproc/exe instead.
+     *
+     * XXX - are there OS versions that support "exe" but not "curproc"
+     * or "self"?  Are there any that support "self" but not "curproc"?
+     */
+    static char executable_path[PATH_MAX];
+
+    if (readlink("/proc/curproc/exe", executable_path, sizeof executable_path) == -1)
+        return NULL;
+    return executable_path;
+#elif defined(__DragonFly__)
+    /*
+     * In older versions of DragonFly BSD's dynamic linker, dladdr(main)
+     * supplies a path based on argv[0], so we use /proc/curproc/file
+     * instead; it appears to be supported by all versions of DragonFly
+     * BSD.
+     */
+    static char executable_path[PATH_MAX];
+
+    if (readlink("/proc/curproc/file", executable_path, sizeof executable_path) == -1)
+        return NULL;
+    return executable_path;
+#elif (defined(sun) || defined(__sun)) && defined(HAVE_GETEXECNAME)
+    /*
+     * It appears that getexecname() dates back to at least Solaris 8,
+     * but /proc/{pid}/path is first documented in the Solaris 10 documentation,
+     * so we use getexecname() if available, rather than /proc/self/path/a.out
+     * (which isn't documented, but appears to be a symlink to the
+     * executable image file).
+     */
+    return getexecname();
+#else
+    /* Fill in your favorite UN*X's code here, if there is something */
+    return NULL;
+#endif
+}
+#endif /* _WIN32 */
 
 /*
  * Get the pathname of the directory from which the executable came,
@@ -260,7 +487,7 @@ init_progfile_dir(const char *arg0
     _U_
 #endif
 , int (*main_addr)(int, char **)
-#if defined(_WIN32) || !defined(DLADDR_FINDS_EXECUTABLE_PATH)
+#if defined(_WIN32) || !defined(HAVE_DLADDR)
     _U_
 #endif
 )
@@ -326,9 +553,10 @@ init_progfile_dir(const char *arg0
             msg, error);
     }
 #else
-#ifdef DLADDR_FINDS_EXECUTABLE_PATH
+#ifdef HAVE_DLADDR
     Dl_info info;
 #endif
+    const char *execname;
     char *prog_pathname;
     char *curdir;
     long path_max;
@@ -352,19 +580,29 @@ init_progfile_dir(const char *arg0
         && !started_with_special_privs())
         running_in_build_directory_flag = TRUE;
 
-#ifdef DLADDR_FINDS_EXECUTABLE_PATH
-    /*
-     * Try to use dladdr() to find the pathname of the executable.
-     * dladdr() is not guaranteed to give you anything better than
-     * argv[0] (i.e., it might not contain a / at all, much less
-     * being an absolute path), and doesn't appear to do so on
-     * Linux, but on other platforms it could give you an absolute
-     * path and obviate the need for us to determine the absolute
-     * path.
-     */
-    if (dladdr((void *)main_addr, &info))
-        arg0 = info.dli_fname;
+    execname = get_executable_path();
+#ifdef HAVE_DLADDR
+    if (execname == NULL) {
+        /*
+         * Try to use dladdr() to find the pathname of the executable.
+         * dladdr() is not guaranteed to give you anything better than
+         * argv[0] (i.e., it might not contain a / at all, much less
+         * being an absolute path), and doesn't appear to do so on
+         * Linux, but on other platforms it could give you an absolute
+         * path and obviate the need for us to determine the absolute
+         * path.
+         */
+        if (dladdr((void *)main_addr, &info))
+            execname = info.dli_fname;
+    }
 #endif
+    if (execname == NULL) {
+        /*
+         * OK, guess based on argv[0].
+         */
+        execname = arg0;
+    }
+
     /*
      * Try to figure out the directory in which the currently running
      * program resides, given something purporting to be the executable
@@ -375,12 +613,12 @@ init_progfile_dir(const char *arg0
      * line and was searched for in $PATH.  It's not guaranteed to be
      * any of those, however, so there are no guarantees....
      */
-    if (arg0[0] == '/') {
+    if (execname[0] == '/') {
         /*
          * It's an absolute path.
          */
-        prog_pathname = g_strdup(arg0);
-    } else if (strchr(arg0, '/') != NULL) {
+        prog_pathname = g_strdup(execname);
+    } else if (strchr(execname, '/') != NULL) {
         /*
          * It's a relative path, with a directory in it.
          * Get the current directory, and combine it
@@ -405,7 +643,7 @@ init_progfile_dir(const char *arg0
             return g_strdup_printf("getcwd failed: %s\n",
                 g_strerror(errno));
         }
-        path = g_strdup_printf("%s/%s", curdir, arg0);
+        path = g_strdup_printf("%s/%s", curdir, execname);
         g_free(curdir);
         prog_pathname = path;
     } else {
@@ -424,11 +662,11 @@ init_progfile_dir(const char *arg0
                     path_end = path_start + strlen(path_start);
                 path_component_len = path_end - path_start;
                 path = (char *)g_malloc(path_component_len + 1
-                    + strlen(arg0) + 1);
+                    + strlen(execname) + 1);
                 memcpy(path, path_start, path_component_len);
                 path[path_component_len] = '\0';
                 strncat(path, "/", 2);
-                strncat(path, arg0, strlen(arg0) + 1);
+                strncat(path, execname, strlen(execname) + 1);
                 if (access(path, X_OK) == 0) {
                     /*
                      * Found it!
@@ -457,7 +695,7 @@ init_progfile_dir(const char *arg0
                  * Program not found in path.
                  */
                 return g_strdup_printf("\"%s\" not found in \"%s\"",
-                    arg0, pathstr);
+                    execname, pathstr);
             }
         } else {
             /*
@@ -510,6 +748,52 @@ init_progfile_dir(const char *arg0
                 if (!started_with_special_privs())
                     running_in_build_directory_flag = TRUE;
             }
+#ifdef __APPLE__
+            else {
+                if (!started_with_special_privs()) {
+                    /*
+                     * Scan up the path looking for a component
+                     * named "Contents".  If we find it, we assume
+                     * we're in a bundle, and that the top-level
+                     * directory of the bundle is the one containing
+                     * "Contents".
+                     *
+                     * Not all executables are in the Contents/MacOS
+                     * directory, so we can't just check for those
+                     * in the path and strip them off.
+                     *
+                     * XXX - should we assume that it's either
+                     * Contents/MacOS or Resources/bin?
+                     */
+                    char *component_end, *p;
+
+                    component_end = strchr(prog_pathname, '\0');
+                    p = component_end;
+                    for (;;) {
+                        while (p >= prog_pathname && *p != '/')
+                            p--;
+                        if (p == prog_pathname) {
+                            /*
+                             * We're looking at the first component of
+                             * the pathname now, so we're definitely
+                             * not in a bundle, even if we're in
+                             * "/Contents".
+                             */
+                            break;
+                        }
+                        if (strncmp(p, "/Contents", component_end - p) == 0) {
+                            /* Found it. */
+                            appbundle_dir = (char *)g_malloc(p - prog_pathname + 1);
+                            memcpy(appbundle_dir, prog_pathname, p - prog_pathname);
+                            appbundle_dir[p - prog_pathname] = '\0';
+                            break;
+                        }
+                        component_end = p;
+                        p--;
+                    }
+                }
+            }
+#endif
         }
 
         /*
@@ -641,6 +925,10 @@ get_datafile_dir(void)
      * directory and started without special privileges, and also
      * check whether we were able to determine the directory in
      * which the program was found.
+     *
+     * (running_in_build_directory_flag is never set to TRUE
+     * if we're started with special privileges, so we need
+     * only check it; we don't need to call started_with_special_privs().)
      */
     if (running_in_build_directory_flag && progfile_dir != NULL) {
         /*
@@ -664,7 +952,23 @@ get_datafile_dir(void)
              * XXX - We might be able to dispense with the priv check
              */
             datafile_dir = g_strdup(getenv("WIRESHARK_DATA_DIR"));
-        } else {
+        }
+#ifdef __APPLE__
+        /*
+         * If we're running from an app bundle and weren't started
+         * with special privileges, use the Contents/Resources/share/wireshark
+         * subdirectory of the app bundle.
+         *
+         * (appbundle_dir is not set to a non-null value if we're
+         * started with special privileges, so we need only check
+         * it; we don't need to call started_with_special_privs().)
+         */
+        else if (appbundle_dir != NULL) {
+            datafile_dir = g_strdup_printf("%s/Contents/Resources/share/wireshark",
+                                           appbundle_dir);
+        }
+#endif
+        else {
             datafile_dir = DATAFILE_DIR;
         }
     }
@@ -746,7 +1050,23 @@ init_wspython_dir(void)
              * and we aren't running with special privileges.
              */
             wspython_dir = g_strdup(getenv("WIRESHARK_PYTHON_DIR"));
-        } else {
+        }
+#ifdef __APPLE__
+        /*
+         * If we're running from an app bundle and weren't started
+         * with special privileges, use the Contents/Resources/lib/wireshark/python
+         * subdirectory of the app bundle.
+         *
+         * (appbundle_dir is not set to a non-null value if we're
+         * started with special privileges, so we need only check
+         * it; we don't need to call started_with_special_privs().)
+         */
+        else if (appbundle_dir != NULL) {
+            wspython_dir = g_strdup_printf("%s/Contents/Resources/lib/wireshark/python",
+                                           appbundle_dir);
+        }
+#endif
+        else {
             wspython_dir = PYTHON_DIR;
         }
     }
@@ -842,7 +1162,23 @@ init_plugin_dir(void)
              * and we aren't running with special privileges.
              */
             plugin_dir = g_strdup(getenv("WIRESHARK_PLUGIN_DIR"));
-        } else {
+        }
+#ifdef __APPLE__
+        /*
+         * If we're running from an app bundle and weren't started
+         * with special privileges, use the Contents/Resources/lib/wireshark/plugins
+         * subdirectory of the app bundle.
+         *
+         * (appbundle_dir is not set to a non-null value if we're
+         * started with special privileges, so we need only check
+         * it; we don't need to call started_with_special_privs().)
+         */
+        else if (appbundle_dir != NULL) {
+            plugin_dir = g_strdup_printf("%s/Contents/Resources/lib/wireshark/plugins",
+                                         appbundle_dir);
+        }
+#endif
+        else {
             plugin_dir = PLUGIN_DIR;
         }
     }
@@ -1619,6 +1955,49 @@ file_open_error_message(int err, gboolean for_writing)
 
     case EINVAL:
         errmsg = "The file \"%s\" could not be created because an invalid filename was specified.";
+        break;
+
+    case ENOMEM:
+        /*
+         * The problem probably has nothing to do with how much RAM the
+         * user has on their machine, so don't confuse them by saying
+         * "memory".  The problem is probably either virtual address
+         * space or swap space.
+         */
+#if GLIB_SIZEOF_VOID_P == 4
+        /*
+         * ILP32; we probably ran out of virtual address space.
+         */
+#define ENOMEM_REASON "it can't be handled by a 32-bit application"
+#else
+        /*
+         * LP64 or LLP64; we probably ran out of swap space.
+         */
+#if defined(_WIN32)
+        /*
+         * You need to make the pagefile bigger.
+         */
+#define ENOMEM_REASON "the pagefile is too small"
+#elif defined(__APPLE__)
+        /*
+         * dynamic_pager couldn't, or wouldn't, create more swap files.
+         */
+#define ENOMEM_REASON "your system ran out of swap file space"
+#else
+        /*
+         * Either you have a fixed swap partition or a fixed swap file,
+         * and it needs to be made bigger.
+         *
+         * This is UN*X, but it's not OS X, so we assume the user is
+         * *somewhat* nerdy.
+         */
+#define ENOMEM_REASON "your system is out of swap space"
+#endif
+#endif /* GLIB_SIZEOF_VOID_P == 4 */
+        if (for_writing)
+            errmsg = "The file \"%s\" could not be created because " ENOMEM_REASON ".";
+        else
+            errmsg = "The file \"%s\" could not be opened because " ENOMEM_REASON ".";
         break;
 
     default:

@@ -46,7 +46,6 @@
 #include <epan/epan_dissect.h>
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
-#include "epan/nstime.h"
 #include "epan/ftypes/ftypes.h"
 #include "epan/to_str.h"
 #include "epan/dissectors/packet-diameter.h"
@@ -214,7 +213,7 @@ diameteravp_draw(void* pds)
 
 
 static void
-diameteravp_init(const char *optarg, void* userdata _U_)
+diameteravp_init(const char *opt_arg, void* userdata _U_)
 {
 	diameteravp_t *ds;
 	gchar* field=NULL;
@@ -236,7 +235,7 @@ diameteravp_init(const char *optarg, void* userdata _U_)
 	filter=g_string_new("diameter");
 
 	/* Split command line options. */
-	tokens = g_strsplit(optarg,",", 1024);
+	tokens = g_strsplit(opt_arg,",", 1024);
 	opt_count=0;
 	while (tokens[opt_count])
 		opt_count++;

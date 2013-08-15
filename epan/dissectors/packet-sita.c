@@ -109,12 +109,14 @@ dissect_sita(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_tree  *sita_errors1_tree  = NULL;
     proto_tree  *sita_errors2_tree  = NULL;
     proto_tree  *sita_signals_tree  = NULL;
-    const gchar *rx_errors1_str[]   = {"Framing",       "Parity",   "Collision",    "Long-frame",   "Short-frame",  "",         "",     ""              };
-    const gchar *rx_errors2_str[]   = {"Non-Aligned",   "Abort",    "CD-lost",      "DPLL",         "Overrun",      "Length",   "CRC",  "Break"         };
-    /*const gchar   *tx_errors1_str[]   = {"",              "",         "",             "",             "",             "",         "",     ""              }; */
-    const gchar *tx_errors2_str[]   = {"Underrun",      "CTS-lost", "UART",         "ReTx-limit",   "",             "",         "",     ""              };
-    const gchar *signals_str[]      = {"DSR",           "DTR",      "CTS",          "RTS",          "DCD",          "",         "",     ""              };
-    const gchar *flags_str[]        = {"",              "",         "",             "",             "",             "",         "",     "No-buffers"    };
+    static const gchar *rx_errors1_str[]   = {"Framing",       "Parity",   "Collision",    "Long-frame",   "Short-frame",  "",         "",     ""              };
+    static const gchar *rx_errors2_str[]   = {"Non-Aligned",   "Abort",    "CD-lost",      "DPLL",         "Overrun",      "Length",   "CRC",  "Break"         };
+#if 0
+    static const gchar   *tx_errors1_str[]   = {"",              "",         "",             "",             "",             "",         "",     ""              };
+#endif
+    static const gchar *tx_errors2_str[]   = {"Underrun",      "CTS-lost", "UART",         "ReTx-limit",   "",             "",         "",     ""              };
+    static const gchar *signals_str[]      = {"DSR",           "DTR",      "CTS",          "RTS",          "DCD",          "",         "",     ""              };
+    static const gchar *flags_str[]        = {"",              "",         "",             "",             "",             "",         "",     "No-buffers"    };
 
     col_clear(pinfo->cinfo, COL_PROTOCOL);      /* erase the protocol */
     col_clear(pinfo->cinfo, COL_INFO);          /* and info columns so that the next decoder can fill them in */
@@ -125,16 +127,13 @@ dissect_sita(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     errors2 = pinfo->pseudo_header->sita.sita_errors2;
     proto   = pinfo->pseudo_header->sita.sita_proto;
 
-    if (check_col(pinfo->cinfo, COL_DEF_SRC)) {
-        if ((flags & SITA_FRAME_DIR) == SITA_FRAME_DIR_TXED) {
-            col_set_str(pinfo->cinfo, COL_DEF_SRC, IOP);  /* set the source (direction) column accordingly */
-        } else {
-            col_set_str(pinfo->cinfo, COL_DEF_SRC, REMOTE);
-        }
+    if ((flags & SITA_FRAME_DIR) == SITA_FRAME_DIR_TXED) {
+        col_set_str(pinfo->cinfo, COL_DEF_SRC, IOP);  /* set the source (direction) column accordingly */
+    } else {
+        col_set_str(pinfo->cinfo, COL_DEF_SRC, REMOTE);
     }
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_set_str(pinfo->cinfo, COL_INFO, "");
+    col_set_str(pinfo->cinfo, COL_INFO, "");
 
     if (tree) {
         ti = proto_tree_add_protocol_format(tree, proto_sita, tvb, 0, 0, "Link Layer");
@@ -195,10 +194,10 @@ dissect_sita(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* try to find and run an applicable dissector */
     if (!dissector_try_uint(sita_dissector_table, pinfo->pseudo_header->sita.sita_proto, tvb, pinfo, tree)) {
-        if (check_col(pinfo->cinfo, COL_PROTOCOL))              /* if one can't be found... tell them we don't */
-            col_set_str(pinfo->cinfo, COL_PROTOCOL, "UNKNOWN"); /* know how to decode this protocol */
-        if (check_col(pinfo->cinfo, COL_INFO))                  /* and give them the details then */
-            col_add_fstr(pinfo->cinfo, COL_INFO, "IOP protocol number: %u", pinfo->pseudo_header->sita.sita_proto);
+        /* if one can't be found... tell them we don't know how to decode this protocol
+           and give them the details then */
+        col_set_str(pinfo->cinfo, COL_PROTOCOL, "UNKNOWN");
+        col_add_fstr(pinfo->cinfo, COL_INFO, "IOP protocol number: %u", pinfo->pseudo_header->sita.sita_proto);
         call_dissector(data_handle, tvb, pinfo, tree);          /* call the generic (hex display) decoder instead */
     }
 }

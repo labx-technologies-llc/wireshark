@@ -65,7 +65,6 @@ MACRO(pod2manhtml _sourcefile _manext)
 		DEPENDS
 			${_sourcefile}.pod
 			${CMAKE_SOURCE_DIR}/docbook/ws.css
-			
 	)
 ENDMACRO(pod2manhtml)
 

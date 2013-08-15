@@ -55,6 +55,8 @@
 
 #include "ui/gtk/old-gtk-compat.h"
 
+#include "frame_tvbuff.h"
+
 #define TCP_SYN(flags)      ( flags & TH_SYN )
 #define TCP_ACK(flags)      ( flags & TH_ACK )
 #define TCP_FIN(flags)      ( flags & TH_FIN )
@@ -649,15 +651,15 @@ void tcp_graph_cb(GtkAction *action, gpointer user_data _U_)
     guint           graph_type;
 
     name = gtk_action_get_name(action);
-    if (strcmp(name, "/StatisticsMenu/TCPStreamGraphMenu/Time-Sequence-Graph-Stevens") == 0) {
+    if (strcmp(name, "/Statistics/TCPStreamGraphMenu/Time-Sequence-Graph-Stevens") == 0) {
         graph_type = GRAPH_TSEQ_STEVENS;
-    } else if (strcmp(name, "/StatisticsMenu/TCPStreamGraphMenu/Time-Sequence-Graph-tcptrace") == 0) {
+    } else if (strcmp(name, "/Statistics/TCPStreamGraphMenu/Time-Sequence-Graph-tcptrace") == 0) {
         graph_type = GRAPH_TSEQ_TCPTRACE;
-    } else if (strcmp(name, "/StatisticsMenu/TCPStreamGraphMenu/Throughput-Graph") == 0) {
+    } else if (strcmp(name, "/Statistics/TCPStreamGraphMenu/Throughput-Graph") == 0) {
         graph_type = GRAPH_THROUGHPUT;
-    } else if (strcmp(name, "/StatisticsMenu/TCPStreamGraphMenu/RTT-Graph") == 0) {
+    } else if (strcmp(name, "/Statistics/TCPStreamGraphMenu/RTT-Graph") == 0) {
         graph_type = GRAPH_RTT;
-    } else if (strcmp(name, "/StatisticsMenu/TCPStreamGraphMenu/Window-Scaling-Graph") == 0) {
+    } else if (strcmp(name, "/Statistics/TCPStreamGraphMenu/Window-Scaling-Graph") == 0) {
         graph_type = GRAPH_WSCALE;
     } else {
         return;
@@ -1830,8 +1832,8 @@ tapall_tcpip_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, cons
         struct segment *segment = (struct segment *)g_malloc(sizeof(struct segment));
         segment->next      = NULL;
         segment->num       = pinfo->fd->num;
-        segment->rel_secs  = (guint32)pinfo->fd->rel_ts.secs;
-        segment->rel_usecs = pinfo->fd->rel_ts.nsecs/1000;
+        segment->rel_secs  = (guint32)pinfo->rel_ts.secs;
+        segment->rel_usecs = pinfo->rel_ts.nsecs/1000;
         segment->abs_secs  = (guint32)pinfo->fd->abs_ts.secs;
         segment->abs_usecs = pinfo->fd->abs_ts.nsecs/1000;
         segment->th_seq    = tcphdr->th_seq;
@@ -1962,6 +1964,7 @@ static struct tcpheader *select_tcpip_session(capture_file *cf, struct segment *
     epan_dissect_t  edt;
     dfilter_t      *sfcode;
     GString        *error_string;
+    nstime_t        rel_ts;
     th_t th = {0, {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL}};
 
     fdata = cf->current_frame;
@@ -1985,9 +1988,10 @@ static struct tcpheader *select_tcpip_session(capture_file *cf, struct segment *
         exit(1);
     }
 
-    epan_dissect_init(&edt, TRUE, FALSE);
+    epan_dissect_init(&edt, cf->epan, TRUE, FALSE);
     epan_dissect_prime_dfilter(&edt, sfcode);
-    epan_dissect_run_with_taps(&edt, &cf->phdr, cf->pd, fdata, NULL);
+    epan_dissect_run_with_taps(&edt, &cf->phdr, frame_tvbuff_new_buffer(fdata, &cf->buf), fdata, NULL);
+    rel_ts = edt.pi.rel_ts;
     epan_dissect_cleanup(&edt);
     remove_tap_listener(&th);
 
@@ -2013,8 +2017,8 @@ static struct tcpheader *select_tcpip_session(capture_file *cf, struct segment *
 
     /* For now, still always choose the first/only one */
     hdrs->num   = fdata->num;
-    hdrs->rel_secs  = (guint32) fdata->rel_ts.secs;
-    hdrs->rel_usecs = fdata->rel_ts.nsecs/1000;
+    hdrs->rel_secs  = (guint32) rel_ts.secs;
+    hdrs->rel_usecs = rel_ts.nsecs/1000;
     hdrs->abs_secs  = (guint32) fdata->abs_ts.secs;
     hdrs->abs_usecs = fdata->abs_ts.nsecs/1000;
     hdrs->th_seq    = th.tcphdrs[0]->th_seq;

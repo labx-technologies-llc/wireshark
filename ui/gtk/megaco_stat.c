@@ -38,7 +38,7 @@
 #include "epan/gcp.h"
 #include <epan/prefs-int.h>
 
-#include "../timestats.h"
+#include "epan/timestats.h"
 #include "ui/simple_dialog.h"
 #include "../file.h"
 #include "../stat_menu.h"
@@ -49,7 +49,7 @@
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/main.h"
 
-#include "tap-megaco-common.h"
+#include "ui/tap-megaco-common.h"
 
 #include "ui/gtk/old-gtk-compat.h"
 

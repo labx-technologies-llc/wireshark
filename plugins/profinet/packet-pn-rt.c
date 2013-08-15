@@ -94,6 +94,8 @@ static int ett_pn_rt_sf = -1;
 static int ett_pn_rt_frag = -1;
 static int ett_pn_rt_frag_status = -1;
 
+static expert_field ei_pn_rt_sf_crc16 = EI_INIT;
+
 /*
  * Here are the global variables associated with
  * the various user definable characteristics of the dissection
@@ -170,7 +172,13 @@ IsDFP_Frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* the sub tvb will NOT contain the frame_id here! */
     u16FrameID = GPOINTER_TO_UINT(pinfo->private_data);
 
-    /* try to bild a temporaray buffer for generating this CRC */
+    /* try to build a temporaray buffer for generating this CRC */
+    if (!pinfo->src.data || !pinfo->dst.data ||
+            pinfo->dst.type != AT_ETHER || pinfo->src.type != AT_ETHER) {
+        /* if we don't have src/dst mac addresses then we assume it's not
+         * to avoid various crashes */
+        return FALSE;
+    }
     memcpy(&virtualFramebuffer[0], pinfo->dst.data, 6);
     memcpy(&virtualFramebuffer[6], pinfo->src.data, 6);
     virtualFramebuffer[12] = 0x88;
@@ -302,7 +310,7 @@ dissect_CSF_SDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
                 crc = crc16_plain_tvb_offset_seed(tvb, u32SubStart, offset-u32SubStart, 0);
                 if (crc != u16SFCRC16) {
                     proto_item_append_text(item, " [Preliminary check: incorrect, should be: %u]", crc);
-                    expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR, "Bad checksum");
+                    expert_add_info(pinfo, item, &ei_pn_rt_sf_crc16);
                 } else {
                     proto_item_append_text(item, " [Preliminary check: Correct]");
                 }
@@ -406,6 +414,7 @@ dissect_FRAG_PDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
             uFragNumber,
             val_to_str( (u8FragStatus & 0x80) >> 7, pn_rt_frag_status_more_follows, "Unknown"));
 
+        /* Is this a string or a bunch of bytes? Should it be FT_BYTES? */
         proto_tree_add_string_format(sub_tree, hf_pn_rt_frag_data, tvb, offset, tvb_length(tvb) - offset, "data",
             "Fragment Length: %d bytes", tvb_length(tvb) - offset);
         col_append_fstr(pinfo->cinfo, COL_INFO, " Fragment Length: %d bytes", tvb_length(tvb) - offset);
@@ -420,7 +429,7 @@ dissect_FRAG_PDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
         {
             guint32 u32FragID;
             guint32 u32ReasembleID /*= 0xfedc ??*/;
-            fragment_data *pdu_frag;
+            fragment_head *pdu_frag;
 
             u32FragID = (u16FrameID & 0xf);
             if (uFragNumber == 0)
@@ -437,22 +446,20 @@ dissect_FRAG_PDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
                                         (tvb_length(tvb) - offset)/*u8FragDataLength*8*/, bMoreFollows, 0);
 
             if (pdu_frag && !bMoreFollows) /* PDU is complete! and last fragment */
-            {   /* store this frag as the completed frag in hash table */
+            {   /* store this fragment as the completed fragment in hash table */
                 g_hash_table_insert(reasembled_frag_table, GUINT_TO_POINTER(pinfo->fd->num), pdu_frag);
                 start_frag_OR_ID[u32FragID] = 0; /* reset the starting frame counter */
             }
             if (!bMoreFollows) /* last fragment */
             {
-                pdu_frag = (fragment_data *)g_hash_table_lookup(reasembled_frag_table, GUINT_TO_POINTER(pinfo->fd->num));
-                if (pdu_frag)    /* found a matching frag dissect it */
+                pdu_frag = (fragment_head *)g_hash_table_lookup(reasembled_frag_table, GUINT_TO_POINTER(pinfo->fd->num));
+                if (pdu_frag)    /* found a matching fragment; dissect it */
                 {
                     guint16   type;
-                    guint16   pdu_length;
                     tvbuff_t *pdu_tvb;
 
-                    pdu_length = pdu_frag->len;
-                    /* create the new tvb for defraged frame */
-                    pdu_tvb = tvb_new_child_real_data(tvb, pdu_frag->data, pdu_length, pdu_length);
+                    /* create the new tvb for defragmented frame */
+                    pdu_tvb = tvb_new_chain(tvb, pdu_frag->tvb_data);
                     /* add the defragmented data to the data source list */
                     add_new_data_source(pinfo, pdu_tvb, "Reassembled Profinet Frame");
                     /* PDU is complete: look for the Ethertype and give it to the appropriate dissection routine */
@@ -947,6 +954,7 @@ proto_register_pn_rt(void)
             FT_UINT8, BASE_DEC, NULL, 0x3F,
             NULL, HFILL }},
 
+        /* Is this a string or a bunch of bytes? Should it be FT_BYTES? */
         { &hf_pn_rt_frag_data,
           { "FragData", "pn_rt.frag_data",
             FT_STRING, BASE_NONE, NULL, 0x00,
@@ -960,13 +968,21 @@ proto_register_pn_rt(void)
         &ett_pn_rt_frag,
         &ett_pn_rt_frag_status
     };
+
+    static ei_register_info ei[] = {
+        { &ei_pn_rt_sf_crc16, { "pn_rt.sf.crc16_bad", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+    };
+
     module_t *pn_rt_module;
+    expert_module_t* expert_pn_rt;
 
     proto_pn_rt = proto_register_protocol("PROFINET Real-Time Protocol",
                                           "PN-RT", "pn_rt");
 
     proto_register_field_array(proto_pn_rt, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_pn_rt = expert_register_protocol(proto_pn_rt);
+    expert_register_field_array(expert_pn_rt, ei, array_length(ei));
 
     /* Register our configuration options */
 

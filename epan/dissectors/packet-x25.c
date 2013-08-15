@@ -911,7 +911,7 @@ dump_facilities(proto_tree *tree, int *offset, tvbuff_t *tvb, packet_info *pinfo
 					char *tmpbuf;
 
 					if (byte1 < 1) {
-						expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Bogus length");
+						expert_add_info(pinfo, ti, &ei_x25_facility_length);
 						return;
 					}
 					byte2 = tvb_get_guint8(tvb, *offset+2) & 0x3F;
@@ -1295,7 +1295,7 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     gint payload_len;
     guint32 frag_key;
     void *saved_private_data;
-    fragment_data *fd_head;
+    fragment_head *fd_head;
 
 
     guint8 spi;
@@ -1959,9 +1959,7 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		        proto_item *frag_tree_item;
 
 		        /* This is the last packet */
-			next_tvb = tvb_new_child_real_data(tvb, fd_head->data,
-						     fd_head->len,
-						     fd_head->len);
+			next_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
 			add_new_data_source(pinfo, next_tvb, "Reassembled X.25");
                         if (x25_tree) {
                            show_fragment_seq_tree(fd_head,

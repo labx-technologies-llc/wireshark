@@ -24,11 +24,17 @@
 #ifndef __PACKET_TCP_H__
 #define __PACKET_TCP_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #include "ws_symbol_export.h"
 
 #ifndef __CONVERSATION_H__
 #include <epan/conversation.h>
 #endif
+
+#include <epan/wmem/wmem.h>
 
 /* TCP flags */
 #define TH_FIN  0x0001
@@ -110,7 +116,7 @@ tcp_dissect_pdus(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 dissector_t dissect_pdu);
 
 extern struct tcp_multisegment_pdu *
-pdu_store_sequencenumber_of_next_pdu(packet_info *pinfo, guint32 seq, guint32 nxtpdu, emem_tree_t *multisegment_pdus);
+pdu_store_sequencenumber_of_next_pdu(packet_info *pinfo, guint32 seq, guint32 nxtpdu, wmem_tree_t *multisegment_pdus);
 
 typedef struct _tcp_unacked_t {
 	struct _tcp_unacked_t *next;
@@ -185,7 +191,7 @@ typedef struct _tcp_flow_t {
 	/* This tree is indexed by sequence number and keeps track of all
 	 * all pdus spanning multiple segments for this flow.
 	 */
-	emem_tree_t *multisegment_pdus;
+	wmem_tree_t *multisegment_pdus;
 
 	/* Process info, currently discovered via IPFIX */
 	guint32 process_uid;    /* UID of local process */
@@ -227,7 +233,7 @@ struct tcp_analysis {
 	/* This structure contains a tree containing all the various ta's
 	 * keyed by frame number.
 	 */
-	emem_tree_t	*acked_table;
+	wmem_tree_t	*acked_table;
 
 	/* Remember the timestamp of the first frame seen in this tcp
 	 * conversation to be able to calculate a relative time compared
@@ -286,5 +292,9 @@ extern gboolean decode_tcp_ports(tvbuff_t *, int, packet_info *, proto_tree *, i
  * @param command Ephemeral string containing the full or partial process name
  */
 extern void add_tcp_process_info(guint32 frame_num, address *local_addr, address *remote_addr, guint16 local_port, guint16 remote_port, guint32 uid, guint32 pid, gchar *username, gchar *command);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

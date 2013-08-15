@@ -787,7 +787,21 @@
 #define ZBEE_PROTOABBREV_APS                "zbee_aps"
 #define ZBEE_PROTOABBREV_APF                "zbee_apf"
 #define ZBEE_PROTOABBREV_ZCL                "zbee_zcl"
-#define ZBEE_PROTOABBREV_ZCL_ONOFF          "zbee_zcl_onoff"
+#define ZBEE_PROTOABBREV_ZCL_APPLCTRL       "zbee_zcl_general.applctrl"
+#define ZBEE_PROTOABBREV_ZCL_BASIC          "zbee_zcl_general.basic"
+#define ZBEE_PROTOABBREV_ZCL_IDENTIFY       "zbee_zcl_general.identify"
+#define ZBEE_PROTOABBREV_ZCL_APPLEVTALT     "zbee_zcl_ha.applevtalt"
+#define ZBEE_PROTOABBREV_ZCL_APPLIDT        "zbee_zcl_ha.applident"
+#define ZBEE_PROTOABBREV_ZCL_APPLSTATS      "zbee_zcl_ha.applstats"
+#define ZBEE_PROTOABBREV_ZCL_METIDT         "zbee_zcl_ha.metidt"
+#define ZBEE_PROTOABBREV_ZCL_ONOFF          "zbee_zcl_general.onoff"
+#define ZBEE_PROTOABBREV_ZCL_PART           "zbee_zcl_general.part"
+#define ZBEE_PROTOABBREV_ZCL_PWRPROF        "zbee_zcl_general.pwrprof"
+#define ZBEE_PROTOABBREV_ZCL_ILLUMMEAS      "zbee_zcl_meas_sensing.illummeas"
+#define ZBEE_PROTOABBREV_ZCL_PRESSMEAS      "zbee_zcl_meas_sensing.pressmeas"
+#define ZBEE_PROTOABBREV_ZCL_RELHUMMEAS     "zbee_zcl_meas_sensing.relhummeas"
+#define ZBEE_PROTOABBREV_ZCL_TEMPMEAS       "zbee_zcl_meas_sensing.tempmeas"
+#define ZBEE_PROTOABBREV_ZCL_MSG            "zbee_zcl_se.msg"
 
 /* Helper Functions */
 extern guint zbee_get_bit_field(guint input, guint mask);

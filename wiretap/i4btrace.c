@@ -38,12 +38,10 @@ typedef struct {
 static gboolean i4btrace_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean i4btrace_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length,
     int *err, gchar **err_info);
-static int i4b_process_rec_header(wtap *wth, FILE_T fh,
-    struct wtap_pkthdr *phdr, int *err, gchar **err_info);
-static gboolean i4b_read_rec_data(FILE_T fh, guint8 *pd, int length, int *err,
-    gchar **err_info);
+static int i4b_read_rec(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+    Buffer *buf, int *err, gchar **err_info);
 
 /*
  * Test some fields in the header to see if they make sense.
@@ -118,57 +116,32 @@ int i4btrace_open(wtap *wth, int *err, gchar **err_info)
 static gboolean i4btrace_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset)
 {
-	int	ret;
-	void *bufp;
-
 	*data_offset = file_tell(wth->fh);
 
-	/* Read and process the record header. */
-	ret = i4b_process_rec_header(wth, wth->fh, &wth->phdr, err, err_info);
-	if (ret <= 0) {
-		/* Read error or EOF */
-		return FALSE;
-	}
-
-	/*
-	 * Read the packet data.
-	 */
-	buffer_assure_space(wth->frame_buffer, wth->phdr.caplen);
-	bufp = buffer_start_ptr(wth->frame_buffer);
-	if (!i4b_read_rec_data(wth->fh, (guint8 *)bufp, wth->phdr.caplen, err, err_info))
-		return FALSE;	/* Read error */
-
-	return TRUE;
+	return i4b_read_rec(wth, wth->fh, &wth->phdr, wth->frame_buffer,
+	    err, err_info);
 }
 
 static gboolean
 i4btrace_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr,
-    guint8 *pd, int length, int *err, gchar **err_info)
+    Buffer *buf, int length _U_, int *err, gchar **err_info)
 {
-	int	ret;
-
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
 
-	/* Read and process the record header. */
-	ret = i4b_process_rec_header(wth, wth->random_fh, phdr, err, err_info);
-	if (ret <= 0) {
+	if (!i4b_read_rec(wth, wth->random_fh, phdr, buf, err, err_info)) {
 		/* Read error or EOF */
-		if (ret == 0) {
+		if (*err == 0) {
 			/* EOF means "short read" in random-access mode */
 			*err = WTAP_ERR_SHORT_READ;
 		}
 		return FALSE;
 	}
-
-	/*
-	 * Read the packet data.
-	 */
-	return i4b_read_rec_data(wth->random_fh, pd, length, err, err_info);
+	return TRUE;
 }
 
 static int
-i4b_process_rec_header(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+i4b_read_rec(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr, Buffer *buf,
     int *err, gchar **err_info)
 {
 	i4btrace_t *i4btrace = (i4btrace_t *)wth->priv;
@@ -180,13 +153,11 @@ i4b_process_rec_header(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
 	bytes_read = file_read(&hdr, sizeof hdr, fh);
 	if (bytes_read != sizeof hdr) {
 		*err = file_error(fh, err_info);
-		if (*err != 0)
-			return -1;
-		if (bytes_read != 0) {
+		if (*err == 0 && bytes_read != 0) {
+			/* Read something, but not enough */
 			*err = WTAP_ERR_SHORT_READ;
-			return -1;
 		}
-		return 0;
+		return FALSE;
 	}
 
 	if (i4btrace->byte_swapped) {
@@ -267,22 +238,8 @@ i4b_process_rec_header(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
 
 	phdr->pseudo_header.isdn.uton = (hdr.dir == FROM_TE);
 
-	return 1;
-}
-
-static gboolean
-i4b_read_rec_data(FILE_T fh, guint8 *pd, int length, int *err, gchar **err_info)
-{
-	int	bytes_read;
-
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(pd, length, fh);
-
-	if (bytes_read != length) {
-		*err = file_error(fh, err_info);
-		if (*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
-	return TRUE;
+	/*
+	 * Read the packet data.
+	 */
+	return wtap_read_packet_bytes(fh, buf, length, err, err_info);
 }

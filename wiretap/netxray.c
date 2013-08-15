@@ -322,14 +322,12 @@ typedef struct {
 static gboolean netxray_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean netxray_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length,
     int *err, gchar **err_info);
 static int netxray_read_rec_header(wtap *wth, FILE_T fh,
     union netxrayrec_hdr *hdr, int *err, gchar **err_info);
-static guint netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
-    union wtap_pseudo_header *pseudo_header, union netxrayrec_hdr *hdr);
-static gboolean netxray_read_rec_data(FILE_T fh, guint8 *data_ptr,
-    guint32 packet_size, int *err, gchar **err_info);
+static void netxray_set_phdr(wtap *wth, Buffer *buf, int len,
+    struct wtap_pkthdr *phdr, union netxrayrec_hdr *hdr);
 static gboolean netxray_dump_1_1(wtap_dumper *wdh,
     const struct wtap_pkthdr *phdr,
     const guint8 *pd, int *err);
@@ -915,9 +913,6 @@ static gboolean netxray_read(wtap *wth, int *err, gchar **err_info,
 	guint32	packet_size;
 	union netxrayrec_hdr hdr;
 	int	hdr_size;
-	double	t;
-	guint8  *pd;
-	guint	padding;
 
 reread:
 	/*
@@ -991,60 +986,23 @@ reread:
 		packet_size = pletohs(&hdr.old_hdr.len);
 	else
 		packet_size = pletohs(&hdr.hdr_1_x.incl_len);
-	buffer_assure_space(wth->frame_buffer, packet_size);
-	pd = buffer_start_ptr(wth->frame_buffer);
-	if (!netxray_read_rec_data(wth->fh, pd, packet_size, err, err_info))
+	if (!wtap_read_packet_bytes(wth->fh, wth->frame_buffer, packet_size,
+	    err, err_info))
 		return FALSE;
 
 	/*
-	 * Set the pseudo-header.
+	 * Fill in the struct wtap_pkthdr.
 	 */
-	padding = netxray_set_pseudo_header(wth, pd, packet_size,
-	    &wth->phdr.pseudo_header, &hdr);
-
-	if (netxray->version_major == 0) {
-		wth->phdr.presence_flags = WTAP_HAS_TS;
-		t = (double)pletohl(&hdr.old_hdr.timelo)
-		    + (double)pletohl(&hdr.old_hdr.timehi)*4294967296.0;
-		t /= netxray->ticks_per_sec;
-		t -= netxray->start_timestamp;
-		wth->phdr.ts.secs = netxray->start_time + (long)t;
-		wth->phdr.ts.nsecs = (int)((t-(double)(unsigned long)(t))
-			*1.0e9);
-		/*
-		 * We subtract the padding from the packet size, so our caller
-		 * doesn't see it.
-		 */
-		wth->phdr.caplen = packet_size - padding;
-		wth->phdr.len = wth->phdr.caplen;
-	} else {
-		wth->phdr.presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
-		t = (double)pletohl(&hdr.hdr_1_x.timelo)
-		    + (double)pletohl(&hdr.hdr_1_x.timehi)*4294967296.0;
-		t /= netxray->ticks_per_sec;
-		t -= netxray->start_timestamp;
-		wth->phdr.ts.secs = netxray->start_time + (time_t)t;
-		wth->phdr.ts.nsecs = (int)((t-(double)(unsigned long)(t))
-			*1.0e9);
-		/*
-		 * We subtract the padding from the packet size, so our caller
-		 * doesn't see it.
-		 */
-		wth->phdr.caplen = packet_size - padding;
-		wth->phdr.len = pletohs(&hdr.hdr_1_x.orig_len) - padding;
-	}
-
+	netxray_set_phdr(wth, wth->frame_buffer, packet_size, &wth->phdr, &hdr);
 	return TRUE;
 }
 
 static gboolean
 netxray_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
+    struct wtap_pkthdr *phdr, Buffer *buf, int length,
     int *err, gchar **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	union netxrayrec_hdr hdr;
-	gboolean ret;
 
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
@@ -1065,14 +1023,13 @@ netxray_seek_read(wtap *wth, gint64 seek_off,
 	/*
 	 * Read the packet data.
 	 */
-	ret = netxray_read_rec_data(wth->random_fh, pd, length, err, err_info);
-	if (!ret)
+	if (!wtap_read_packet_bytes(wth->random_fh, buf, length, err, err_info))
 		return FALSE;
 
 	/*
-	 * Set the pseudo-header.
+	 * Fill in the struct wtap_pkthdr.
 	 */
-	netxray_set_pseudo_header(wth, pd, length, pseudo_header, &hdr);
+	netxray_set_phdr(wth, buf, length, phdr, &hdr);
 	return TRUE;
 }
 
@@ -1119,12 +1076,15 @@ netxray_read_rec_header(wtap *wth, FILE_T fh, union netxrayrec_hdr *hdr,
 	return hdr_size;
 }
 
-static guint
-netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
-    union wtap_pseudo_header *pseudo_header, union netxrayrec_hdr *hdr)
+static void
+netxray_set_phdr(wtap *wth, Buffer *buf, int len,
+    struct wtap_pkthdr *phdr, union netxrayrec_hdr *hdr)
 {
 	netxray_t *netxray = (netxray_t *)wth->priv;
+	double	t;
+	guint32	packet_size;
 	guint padding = 0;
+	const guint8 *pd;
 
 	/*
 	 * If this is Ethernet, 802.11, ISDN, X.25, or ATM, set the
@@ -1147,7 +1107,7 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 			 *
 			 * For now, we just say "no FCS".
 			 */
-			pseudo_header->eth.fcs_len = 0;
+			phdr->pseudo_header.eth.fcs_len = 0;
 			break;
 		}
 		break;
@@ -1178,7 +1138,7 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 					/*
 					 * FCS.
 					 */
-					pseudo_header->eth.fcs_len = 4;
+					phdr->pseudo_header.eth.fcs_len = 4;
 				} else {
 					/*
 					 * Junk.
@@ -1186,7 +1146,7 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 					padding = 4;
 				}
 			} else
-				pseudo_header->eth.fcs_len = 0;
+				phdr->pseudo_header.eth.fcs_len = 0;
 			break;
 
 		case WTAP_ENCAP_IEEE_802_11_WITH_RADIO:
@@ -1219,7 +1179,7 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 					/*
 					 * FCS.
 					 */
-					pseudo_header->ieee_802_11.fcs_len = 4;
+					phdr->pseudo_header.ieee_802_11.fcs_len = 4;
 				} else {
 					/*
 					 * Junk.
@@ -1227,15 +1187,15 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 					padding = 4;
 				}
 			} else
-				pseudo_header->ieee_802_11.fcs_len = 0;
+				phdr->pseudo_header.ieee_802_11.fcs_len = 0;
 
-			pseudo_header->ieee_802_11.decrypted = FALSE;
+			phdr->pseudo_header.ieee_802_11.decrypted = FALSE;
 
-			pseudo_header->ieee_802_11.channel =
+			phdr->pseudo_header.ieee_802_11.channel =
 			    hdr->hdr_2_x.xxx[12];
-			pseudo_header->ieee_802_11.data_rate =
+			phdr->pseudo_header.ieee_802_11.data_rate =
 			    hdr->hdr_2_x.xxx[13];
-			pseudo_header->ieee_802_11.signal_level =
+			phdr->pseudo_header.ieee_802_11.signal_level =
 			    hdr->hdr_2_x.xxx[14];
 			/*
 			 * According to Ken Mann, at least in the captures
@@ -1249,17 +1209,17 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 			/*
 			 * ISDN.
 			 *
-			 * The bottommost bit of byte 12 of "hdr.hdr_2_x.xxx"
+			 * The bottommost bit of byte 12 of "hdr->hdr_2_x.xxx"
 			 * is the direction flag.
 			 *
-			 * The bottom 5 bits of byte 13 of "hdr.hdr_2_x.xxx"
+			 * The bottom 5 bits of byte 13 of "hdr->hdr_2_x.xxx"
 			 * are the channel number, but some mapping is
 			 * required for PRI.  (Is it really just the time
 			 * slot?)
 			 */
-			pseudo_header->isdn.uton =
+			phdr->pseudo_header.isdn.uton =
 			    (hdr->hdr_2_x.xxx[12] & 0x01);
-			pseudo_header->isdn.channel =
+			phdr->pseudo_header.isdn.channel =
 			    hdr->hdr_2_x.xxx[13] & 0x1F;
 			switch (netxray->isdn_type) {
 
@@ -1271,10 +1231,10 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 				 * numbers 17 through 31 are B16 through
 				 * B31.
 				 */
-				if (pseudo_header->isdn.channel == 16)
-					pseudo_header->isdn.channel = 0;
-				else if (pseudo_header->isdn.channel > 16)
-					pseudo_header->isdn.channel -= 1;
+				if (phdr->pseudo_header.isdn.channel == 16)
+					phdr->pseudo_header.isdn.channel = 0;
+				else if (phdr->pseudo_header.isdn.channel > 16)
+					phdr->pseudo_header.isdn.channel -= 1;
 				break;
 
 			case 2:
@@ -1283,10 +1243,10 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 				 * are the D channel; channel numbers 1
 				 * through 23 are B1 through B23.
 				 */
-				if (pseudo_header->isdn.channel == 24)
-					pseudo_header->isdn.channel = 0;
-				else if (pseudo_header->isdn.channel > 24)
-					pseudo_header->isdn.channel -= 1;
+				if (phdr->pseudo_header.isdn.channel == 24)
+					phdr->pseudo_header.isdn.channel = 0;
+				else if (phdr->pseudo_header.isdn.channel > 24)
+					phdr->pseudo_header.isdn.channel -= 1;
 				break;
 			}
 
@@ -1318,11 +1278,11 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 			/*
 			 * LAPB/X.25 and Frame Relay.
 			 *
-			 * The bottommost bit of byte 12 of "hdr.hdr_2_x.xxx"
+			 * The bottommost bit of byte 12 of "hdr->hdr_2_x.xxx"
 			 * is the direction flag.  (Probably true for other
 			 * HDLC encapsulations as well.)
 			 */
-			pseudo_header->x25.flags =
+			phdr->pseudo_header.x25.flags =
 			    (hdr->hdr_2_x.xxx[12] & 0x01) ? 0x00 : FROM_DCE;
 
 			/*
@@ -1351,22 +1311,23 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 		case WTAP_ENCAP_PPP_WITH_PHDR:
 		case WTAP_ENCAP_SDLC:
 		case WTAP_ENCAP_CHDLC_WITH_PHDR:
-			pseudo_header->p2p.sent =
+			phdr->pseudo_header.p2p.sent =
 			    (hdr->hdr_2_x.xxx[12] & 0x01) ? TRUE : FALSE;
 			break;
 
 		case WTAP_ENCAP_ATM_PDUS_UNTRUNCATED:
-			pseudo_header->atm.flags = 0;
+			pd = buffer_start_ptr(buf);
+			phdr->pseudo_header.atm.flags = 0;
 			/*
 			 * XXX - is 0x08 an "OAM cell" flag?
 			 */
 			if (hdr->hdr_2_x.xxx[9] & 0x04)
-				pseudo_header->atm.flags |= ATM_RAW_CELL;
-			pseudo_header->atm.vpi = hdr->hdr_2_x.xxx[11];
-			pseudo_header->atm.vci = pletohs(&hdr->hdr_2_x.xxx[12]);
-			pseudo_header->atm.channel =
+				phdr->pseudo_header.atm.flags |= ATM_RAW_CELL;
+			phdr->pseudo_header.atm.vpi = hdr->hdr_2_x.xxx[11];
+			phdr->pseudo_header.atm.vci = pletohs(&hdr->hdr_2_x.xxx[12]);
+			phdr->pseudo_header.atm.channel =
 			    (hdr->hdr_2_x.xxx[15] & 0x10)? 1 : 0;
-			pseudo_header->atm.cells = 0;
+			phdr->pseudo_header.atm.cells = 0;
 
 			switch (hdr->hdr_2_x.xxx[0] & 0xF0) {
 
@@ -1375,28 +1336,28 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 				 * Infer the AAL, traffic type, and subtype.
 				 */
 				atm_guess_traffic_type(pd, len,
-				    pseudo_header);
+				    &phdr->pseudo_header);
 				break;
 
 			case 0x50:	/* AAL5 (including signalling) */
-				pseudo_header->atm.aal = AAL_5;
+				phdr->pseudo_header.atm.aal = AAL_5;
 				switch (hdr->hdr_2_x.xxx[0] & 0x0F) {
 
 				case 0x09:
 				case 0x0a:	/* Signalling traffic */
-					pseudo_header->atm.aal = AAL_SIGNALLING;
-					pseudo_header->atm.type = TRAF_UNKNOWN;
-					pseudo_header->atm.subtype = TRAF_ST_UNKNOWN;
+					phdr->pseudo_header.atm.aal = AAL_SIGNALLING;
+					phdr->pseudo_header.atm.type = TRAF_UNKNOWN;
+					phdr->pseudo_header.atm.subtype = TRAF_ST_UNKNOWN;
 					break;
 
 				case 0x0b:	/* ILMI */
-					pseudo_header->atm.type = TRAF_ILMI;
-					pseudo_header->atm.subtype = TRAF_ST_UNKNOWN;
+					phdr->pseudo_header.atm.type = TRAF_ILMI;
+					phdr->pseudo_header.atm.subtype = TRAF_ST_UNKNOWN;
 					break;
 
 				case 0x0c:	/* LANE LE Control */
-					pseudo_header->atm.type = TRAF_LANE;
-					pseudo_header->atm.subtype = TRAF_ST_LANE_LE_CTRL;
+					phdr->pseudo_header.atm.type = TRAF_LANE;
+					phdr->pseudo_header.atm.subtype = TRAF_ST_LANE_LE_CTRL;
 					break;
 
 				case 0x0d:
@@ -1405,22 +1366,22 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 					 * but I've seen an LE Control frame
 					 * with 0x0d.
 					 */
-					pseudo_header->atm.type = TRAF_LANE;
+					phdr->pseudo_header.atm.type = TRAF_LANE;
 					atm_guess_lane_type(pd, len,
-					    pseudo_header);
+					    &phdr->pseudo_header);
 					break;
 
 				case 0x0f:	/* LLC multiplexed */
-					pseudo_header->atm.type = TRAF_LLCMX;	/* XXX */
-					pseudo_header->atm.subtype = TRAF_ST_UNKNOWN;	/* XXX */
+					phdr->pseudo_header.atm.type = TRAF_LLCMX;	/* XXX */
+					phdr->pseudo_header.atm.subtype = TRAF_ST_UNKNOWN;	/* XXX */
 					break;
 
 				default:
 					/*
 					 * XXX - discover the other types.
 					 */
-					pseudo_header->atm.type = TRAF_UNKNOWN;
-					pseudo_header->atm.subtype = TRAF_ST_UNKNOWN;
+					phdr->pseudo_header.atm.type = TRAF_UNKNOWN;
+					phdr->pseudo_header.atm.subtype = TRAF_ST_UNKNOWN;
 					break;
 				}
 				break;
@@ -1432,34 +1393,49 @@ netxray_set_pseudo_header(wtap *wth, const guint8 *pd, int len,
 				 *
 				 * XXX - discover what those types are.
 				 */
-				pseudo_header->atm.aal = AAL_UNKNOWN;
-				pseudo_header->atm.type = TRAF_UNKNOWN;
-				pseudo_header->atm.subtype = TRAF_ST_UNKNOWN;
+				phdr->pseudo_header.atm.aal = AAL_UNKNOWN;
+				phdr->pseudo_header.atm.type = TRAF_UNKNOWN;
+				phdr->pseudo_header.atm.subtype = TRAF_ST_UNKNOWN;
 				break;
 			}
 			break;
 		}
 		break;
 	}
-	return padding;
-}
 
-static gboolean
-netxray_read_rec_data(FILE_T fh, guint8 *data_ptr, guint32 packet_size,
-    int *err, gchar **err_info)
-{
-	int	bytes_read;
-
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(data_ptr, packet_size, fh);
-
-	if (bytes_read <= 0 || (guint32)bytes_read != packet_size) {
-		*err = file_error(fh, err_info);
-		if (*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
+	if (netxray->version_major == 0) {
+		phdr->presence_flags = WTAP_HAS_TS;
+		t = (double)pletohl(&hdr->old_hdr.timelo)
+		    + (double)pletohl(&hdr->old_hdr.timehi)*4294967296.0;
+		t /= netxray->ticks_per_sec;
+		t -= netxray->start_timestamp;
+		phdr->ts.secs = netxray->start_time + (long)t;
+		phdr->ts.nsecs = (int)((t-(double)(unsigned long)(t))
+			*1.0e9);
+		/*
+		 * We subtract the padding from the packet size, so our caller
+		 * doesn't see it.
+		 */
+		packet_size = pletohs(&hdr->old_hdr.len);
+		phdr->caplen = packet_size - padding;
+		phdr->len = phdr->caplen;
+	} else {
+		phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+		t = (double)pletohl(&hdr->hdr_1_x.timelo)
+		    + (double)pletohl(&hdr->hdr_1_x.timehi)*4294967296.0;
+		t /= netxray->ticks_per_sec;
+		t -= netxray->start_timestamp;
+		phdr->ts.secs = netxray->start_time + (time_t)t;
+		phdr->ts.nsecs = (int)((t-(double)(unsigned long)(t))
+			*1.0e9);
+		/*
+		 * We subtract the padding from the packet size, so our caller
+		 * doesn't see it.
+		 */
+		packet_size = pletohs(&hdr->hdr_1_x.incl_len);
+		phdr->caplen = packet_size - padding;
+		phdr->len = pletohs(&hdr->hdr_1_x.orig_len) - padding;
 	}
-	return TRUE;
 }
 
 typedef struct {

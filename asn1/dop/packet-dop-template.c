@@ -31,6 +31,7 @@
 #include <epan/oids.h>
 #include <epan/asn1.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-acse.h"
@@ -69,6 +70,8 @@ static gint ett_dop = -1;
 static gint ett_dop_unknown = -1;
 #include "packet-dop-ett.c"
 
+static expert_field ei_dop_unknown_binding_parameter = EI_INIT;
+
 /* Dissector table */
 static dissector_table_t dop_dissector_table;
 
@@ -87,7 +90,7 @@ call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet
 {
   char* binding_param;
 
-  binding_param = ep_strdup_printf("%s.%s", base_string, binding_type ? binding_type : "");
+  binding_param = wmem_strdup_printf(wmem_packet_scope(), "%s.%s", base_string, binding_type ? binding_type : "");
 
   col_append_fstr(pinfo->cinfo, COL_INFO, " %s", col_info);
 
@@ -102,7 +105,7 @@ call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet
         next_tree = proto_item_add_subtree(item, ett_dop_unknown);
      }
      offset = dissect_unknown_ber(pinfo, tvb, offset, next_tree);
-     expert_add_info_format(pinfo, item, PI_UNDECODED, PI_WARN, "Unknown binding-parameter");
+     expert_add_info(pinfo, item, &ei_dop_unknown_binding_parameter);
    }
 
    return offset;
@@ -245,6 +248,11 @@ void proto_register_dop(void) {
 #include "packet-dop-ettarr.c"
   };
 
+  static ei_register_info ei[] = {
+     { &ei_dop_unknown_binding_parameter, { "dop.unknown_binding_parameter", PI_UNDECODED, PI_WARN, "Unknown binding-parameter", EXPFILL }},
+  };
+
+  expert_module_t* expert_dop;
   module_t *dop_module;
 
   /* Register protocol */
@@ -257,6 +265,8 @@ void proto_register_dop(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_dop, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_dop = expert_register_protocol(proto_dop);
+  expert_register_field_array(expert_dop, ei, array_length(ei));
 
   /* Register our configuration options for DOP, particularly our port */
 

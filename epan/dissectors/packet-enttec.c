@@ -181,12 +181,12 @@ dissect_enttec_ack(tvbuff_t *tvb _U_, guint offset, proto_tree *tree _U_)
 static gint
 dissect_enttec_dmx_data(tvbuff_t *tvb, guint offset, proto_tree *tree)
 {
-	const char* chan_format[] = {
+	static const char* chan_format[] = {
 		"%2u ",
 		"%02x ",
 		"%3u "
 	};
-	const char* string_format[] = {
+	static const char* string_format[] = {
 		"%03x: %s",
 		"%3u: %s"
 	};
@@ -353,10 +353,8 @@ dissect_enttec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 	head = tvb_get_ntohl(tvb, offset);
 
 	/* Clear out stuff in the info column */
-	if (check_col(pinfo->cinfo,COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
 				val_to_str(head, enttec_head_vals, "Unknown (0x%08x)"));
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_enttec, tvb, offset, -1, ENC_NA);

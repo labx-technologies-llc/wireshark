@@ -101,7 +101,7 @@ AuditReplyV1/auditResult	audit_result
     col_add_str(actx->pinfo->cinfo, COL_INFO, gcp_msg_to_str(curr_info.msg,keep_persistent_data));
         
     if (keep_persistent_data)
-        gcp_analyze_msg(h248_tree, h248_tvb, curr_info.msg, &h248_arrel);
+        gcp_analyze_msg(h248_tree, actx->pinfo, h248_tvb, curr_info.msg, &h248_arrel, &ei_h248_errored_command);
 #.END
 
 #.FN_BODY Message/version VAL_PTR = &h248_version 
@@ -300,7 +300,7 @@ AuditReplyV1/auditResult	audit_result
 
 #.FN_BODY ErrorDescriptor/errorCode
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_h248_error_code, &error_code);
-    expert_add_info_format(actx->pinfo, actx->created_item, PI_RESPONSE_CODE, PI_WARN, "Errored Command");
+    expert_add_info(actx->pinfo, actx->created_item, &ei_h248_errored_command);
     
     if (curr_info.cmd) {
         gcp_cmd_set_error(curr_info.cmd,error_code);
@@ -312,7 +312,7 @@ AuditReplyV1/auditResult	audit_result
 #.END
 
 #.FN_HDR TerminationID
-    curr_info.term = ep_new0(gcp_term_t);
+    curr_info.term = wmem_new0(wmem_packet_scope(), gcp_term_t);
     wild_term = GCP_WILDCARD_NONE;
 #.END
 
@@ -352,8 +352,8 @@ AuditReplyV1/auditResult	audit_result
 		}
 	} else {
 		curr_info.term->len = 0;
-		curr_info.term->buffer = (guint8*)ep_strdup("");
-		curr_info.term->str = ep_strdup("?");
+		curr_info.term->buffer = (guint8*)wmem_strdup(wmem_packet_scope(), "");
+		curr_info.term->str = wmem_strdup(wmem_packet_scope(), "?");
 	}
 #.END
 

@@ -21,6 +21,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Ref 3GPP TS 25.446
  */
 
 #include "config.h"
@@ -28,6 +30,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <wsutil/crc6.h>
 
 #define TYPE_0_LEN 17
 #define TYPE_1_LEN 11
@@ -65,7 +68,7 @@ static const value_string sync_type_vals[] = {
 static int
 dissect_sync(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    proto_item *ti;
+    proto_item *ti, *item;
     proto_tree *sync_tree;
     guint8      type, spare;
     guint16     packet_nr, packet_len1, packet_len2;
@@ -131,11 +134,12 @@ dissect_sync(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
         /* Octet 2 - Time Stamp */
         timestamp = tvb_get_ntohs(tvb, offset) * 10;
-        proto_tree_add_string_format(sync_tree, hf_sync_timestamp, tvb, offset, 2, "", "Timestamp: %u ms", timestamp);
+        item = proto_tree_add_uint(sync_tree, hf_sync_timestamp, tvb, offset, 2, timestamp);
+        proto_item_append_text(item, " ms");
         offset += 2;
 
         /* Octet 4 - Packet Number */
-        proto_tree_add_string_format(sync_tree, hf_sync_packet_nr, tvb, offset, 2, "", "Packet Number: %u", packet_nr+1);
+        proto_tree_add_uint(sync_tree, hf_sync_packet_nr, tvb, offset, 2, packet_nr+1);
         offset += 2;
 
         /* Octet 6 - Elapsed Octet Counter */
@@ -155,8 +159,10 @@ dissect_sync(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
             case 1:
                 /* SYNC PDU Type 1 */
                 /* XXX - Calculate the CRC and check against this value? */
-                proto_tree_add_item(sync_tree, hf_sync_header_crc, tvb, offset, 1, ENC_BIG_ENDIAN);
+                item = proto_tree_add_item(sync_tree, hf_sync_header_crc, tvb, offset, 1, ENC_BIG_ENDIAN);
                 proto_tree_add_item(sync_tree, hf_sync_payload_crc, tvb, offset, 2, ENC_BIG_ENDIAN);
+                proto_item_append_text(item, " [Calculated CRC 0x%x]",
+                                        crc6_compute(tvb_get_ptr(tvb, 0, offset),offset));
                 offset += 2;
 
                 /* XXX - The payload may not always be present? */
@@ -232,12 +238,12 @@ proto_register_sync(void)
         },
         { &hf_sync_timestamp,
             { "Timestamp", "sync.timestamp",
-            FT_STRING, BASE_NONE, NULL, 0x0,
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             "Relative time value for the starting time of a synchronisation sequence within the synchronisation period.", HFILL }
         },
         { &hf_sync_packet_nr,
             { "Packet Number", "sync.packet_nr",
-            FT_STRING, BASE_NONE, NULL, 0x0,
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             "Number of elapsed SYNC PDUs cumulatively within the synchronisation sequence.", HFILL }
         },
         { &hf_sync_elapsed_octet_ctr,
@@ -281,13 +287,12 @@ proto_register_sync(void)
     proto_register_field_array(proto_sync, hf_sync, array_length(hf_sync));
     proto_register_subtree_array(ett_sync_array, array_length(ett_sync_array));
 
-    new_register_dissector("sync", dissect_sync, proto_sync);
+    sync_handle = new_register_dissector("sync", dissect_sync, proto_sync);
 }
 
 void
 proto_reg_handoff_sync(void)
 {
-    sync_handle = new_create_dissector_handle(dissect_sync, proto_sync);
     ip_handle   = find_dissector("ip");
 
     dissector_add_handle("udp.port", sync_handle);

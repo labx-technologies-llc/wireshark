@@ -110,6 +110,11 @@ static gint ett_mpa_rep = -1;
 static gint ett_mpa_fpdu = -1;
 static gint ett_mpa_marker = -1;
 
+static expert_field ei_mpa_res_field_not_set0 = EI_INIT;
+static expert_field ei_mpa_rev_field_not_set1 = EI_INIT;
+static expert_field ei_mpa_reject_bit_responder = EI_INIT;
+static expert_field ei_mpa_bad_length = EI_INIT;
+
 /* handles of our subdissectors */
 static dissector_handle_t ddp_rdmap_handle = NULL;
 
@@ -359,12 +364,10 @@ is_mpa_req(tvbuff_t *tvb, packet_info *pinfo)
 
 		/* update expert info */
 		if (mcrres & MPA_RESERVED_FLAG)
-			expert_add_info_format(pinfo, NULL, PI_REQUEST_CODE, PI_WARN,
-					"Res field is NOT set to zero as required by RFC 5044");
+			expert_add_info(pinfo, NULL, &ei_mpa_res_field_not_set0);
 
 		if (state->revision != 1)
-			expert_add_info_format(pinfo, NULL, PI_REQUEST_CODE, PI_WARN,
-					"Rev field is NOT set to one as required by RFC 5044");
+			expert_add_info(pinfo, NULL, &ei_mpa_rev_field_not_set1);
 	}
 	return TRUE;
 }
@@ -406,8 +409,7 @@ is_mpa_rep(tvbuff_t *tvb, packet_info *pinfo)
 		if (!(mcrres & MPA_REJECT_FLAG))
 			state->full_operation = TRUE;
 		else
-			expert_add_info_format(pinfo, NULL, PI_RESPONSE_CODE, PI_NOTE,
-				"Reject bit set by Responder");
+			expert_add_info(pinfo, NULL, &ei_mpa_reject_bit_responder);
 	}
 	return TRUE;
 }
@@ -451,12 +453,10 @@ mpa_packetlist(packet_info *pinfo, gint message_type)
 {
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "MPA");
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 				"%d > %d %s", pinfo->srcport, pinfo->destport,
 				val_to_str(message_type, mpa_messages,
 						"Unknown %d"));
-	}
 }
 
 /* dissects MPA REQUEST or MPA REPLY */
@@ -469,8 +469,6 @@ dissect_mpa_req_rep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 	proto_item *mpa_item = NULL;
 	proto_item *mpa_header_item = NULL;
-
-	proto_item* bad_pd_length_pi = NULL;
 
 	guint16 pd_length;
 	guint32 offset = 0;
@@ -518,10 +516,8 @@ dissect_mpa_req_rep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		/* check whether the Private Data Length conforms to RFC 5044 */
 		pd_length = tvb_get_ntohs(tvb, offset);
 		if (pd_length > MPA_MAX_PD_LENGTH) {
-			bad_pd_length_pi = proto_tree_add_text(tree, tvb, offset, 2,
+			proto_tree_add_expert_format(tree, pinfo, &ei_mpa_bad_length, tvb, offset, 2,
 				"[PD length field indicates more 512 bytes of Private Data]");
-			proto_item_set_expert_flags(bad_pd_length_pi,
-				PI_MALFORMED, PI_ERROR);
 			return FALSE;
 		}
 
@@ -682,8 +678,6 @@ dissect_mpa_fpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	proto_tree *mpa_tree = NULL;
 	proto_tree *mpa_header_tree = NULL;
 
-	proto_item* bad_ulpdu_length_pi = NULL;
-
 	guint8 pad_length;
 	guint16 ulpdu_length, exp_ulpdu_length;
 	guint32 offset, total_length;
@@ -724,11 +718,9 @@ dissect_mpa_fpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 */
 		exp_ulpdu_length = expected_ulpdu_length(state, tcpinfo, endpoint);
 		if (!exp_ulpdu_length || exp_ulpdu_length != ulpdu_length) {
-			bad_ulpdu_length_pi = proto_tree_add_text(tree, tvb, offset,
+			proto_tree_add_expert_format(tree, pinfo, &ei_mpa_bad_length, tvb, offset,
 				MPA_ULPDU_LENGTH_LEN,
 				"[ULPDU length field does not contain the expected length]");
-			proto_item_set_expert_flags(bad_ulpdu_length_pi,
-				PI_MALFORMED, PI_ERROR);
 			return 0;
 		}
 
@@ -960,6 +952,15 @@ void proto_register_mpa(void)
 			&ett_mpa_marker
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_mpa_res_field_not_set0, { "iwarp_mpa.res.not_set0", PI_REQUEST_CODE, PI_WARN, "Res field is NOT set to zero as required by RFC 5044", EXPFILL }},
+		{ &ei_mpa_rev_field_not_set1, { "iwarp_mpa.rev.not_set1", PI_REQUEST_CODE, PI_WARN, "Rev field is NOT set to one as required by RFC 5044", EXPFILL }},
+		{ &ei_mpa_reject_bit_responder, { "iwarp_mpa.reject_bit_responder", PI_RESPONSE_CODE, PI_NOTE, "Reject bit set by Responder", EXPFILL }},
+		{ &ei_mpa_bad_length, { "iwarp_mpa.bad_length", PI_MALFORMED, PI_ERROR, "Bad length", EXPFILL }},
+	};
+
+	expert_module_t* expert_iwarp_mpa;
+
 	/* register the protocol name and description */
 	proto_iwarp_mpa = proto_register_protocol(
 		"iWARP Marker Protocol data unit Aligned framing",
@@ -968,7 +969,8 @@ void proto_register_mpa(void)
 	/* required function calls to register the header fields and subtrees */
 	proto_register_field_array(proto_iwarp_mpa, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
-
+	expert_iwarp_mpa = expert_register_protocol(proto_iwarp_mpa);
+	expert_register_field_array(expert_iwarp_mpa, ei, array_length(ei));
 }
 
 void

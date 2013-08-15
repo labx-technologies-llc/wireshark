@@ -51,6 +51,8 @@ static int hf_isis_max_area_adr     = -1;
 
 static gint ett_isis                = -1;
 
+static dissector_handle_t isis_handle;
+
 static const value_string isis_vals[] = {
   { ISIS_TYPE_L1_HELLO,  "L1 HELLO"},
   { ISIS_TYPE_L2_HELLO,  "L2 HELLO"},
@@ -124,21 +126,17 @@ dissect_isis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	isis_version = tvb_get_guint8(tvb, 2);
 	if (isis_version != ISIS_REQUIRED_VERSION){
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_fstr(pinfo->cinfo, COL_INFO,
+		col_add_fstr(pinfo->cinfo, COL_INFO,
 				"Unknown ISIS version (%u vs %u)",
 				isis_version, ISIS_REQUIRED_VERSION );
-		}
 		isis_dissect_unknown(tvb, tree, 0,
 			"Unknown ISIS version (%d vs %d)",
 			isis_version, ISIS_REQUIRED_VERSION);
 		return;
 	}
 
-	if (tree) {
-		ti = proto_tree_add_item(tree, proto_isis, tvb, 0, -1, ENC_NA);
-		isis_tree = proto_item_add_subtree(ti, ett_isis);
-	}
+	ti = proto_tree_add_item(tree, proto_isis, tvb, 0, -1, ENC_NA);
+	isis_tree = proto_item_add_subtree(ti, ett_isis);
 
 	if (tree) {
 		proto_tree_add_item(isis_tree, hf_isis_irpd, tvb, offset, 1,
@@ -168,19 +166,17 @@ dissect_isis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	isis_type_reserved = tvb_get_guint8(tvb, offset);
 	isis_type = isis_type_reserved & ISIS_TYPE_MASK;
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 			val_to_str ( isis_type, isis_vals, "Unknown (0x%x)" ) );
-	}
-	if (tree) {
-		proto_tree_add_uint_format(isis_tree, hf_isis_type, tvb,
+
+	proto_tree_add_uint_format(isis_tree, hf_isis_type, tvb,
 			offset, 1, isis_type,
 			"PDU Type           : %s (R:%s%s%s)",
 			val_to_str(isis_type, isis_vals, "Unknown (0x%x)"),
 			(isis_type_reserved & ISIS_R8_MASK) ? "1" : "0",
 			(isis_type_reserved & ISIS_R7_MASK) ? "1" : "0",
 			(isis_type_reserved & ISIS_R6_MASK) ? "1" : "0");
-	}
+
 	offset += 1;
 
 	if (tree) {
@@ -304,7 +300,7 @@ proto_register_isis(void) {
     proto_register_field_array(proto_isis, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
 
-	register_dissector("isis", dissect_isis, proto_isis);
+    isis_handle = register_dissector("isis", dissect_isis, proto_isis);
 
     /*
      * Call registration routines for other source files in the ISIS
@@ -319,9 +315,6 @@ proto_register_isis(void) {
 void
 proto_reg_handoff_isis(void)
 {
-    dissector_handle_t isis_handle;
-
-    isis_handle = create_dissector_handle(dissect_isis, proto_isis);
     dissector_add_uint("osinl", NLPID_ISO10589_ISIS, isis_handle);
     dissector_add_uint("ethertype", ETHERTYPE_L2ISIS, isis_handle);
 }

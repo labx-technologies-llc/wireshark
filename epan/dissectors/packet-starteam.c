@@ -490,14 +490,13 @@ dissect_starteam(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "StarTeam");
 
-  if(check_col(pinfo->cinfo, COL_INFO)){
-    /* This is a trick to know whether this is the first PDU in this packet or not */
-    if(iPreviousFrameNumber != (gint) pinfo->fd->num){
-      col_clear(pinfo->cinfo, COL_INFO);
-    } else {
-      col_append_str(pinfo->cinfo, COL_INFO, " | ");
-    }
+  /* This is a trick to know whether this is the first PDU in this packet or not */
+  if(iPreviousFrameNumber != (gint) pinfo->fd->num){
+    col_clear(pinfo->cinfo, COL_INFO);
+  } else {
+    col_append_str(pinfo->cinfo, COL_INFO, " | ");
   }
+
   iPreviousFrameNumber = pinfo->fd->num;
   if(tvb_length(tvb) >= 16){
     guint32 iCommand = 0;
@@ -505,19 +504,16 @@ dissect_starteam(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if(tvb_get_ntohl(tvb, offset + 0) == STARTEAM_MAGIC){
       /* This packet is a response */
       bRequest = FALSE;
-      if(check_col(pinfo->cinfo, COL_INFO)){
-        col_append_fstr(pinfo->cinfo, COL_INFO, "Reply: %d bytes", tvb_length(tvb));
-      }
+      col_append_fstr(pinfo->cinfo, COL_INFO, "Reply: %d bytes", tvb_length(tvb));
+
     } else if(tvb_length_remaining(tvb, offset) >= 28 && tvb_get_ntohl(tvb, offset + 20) == STARTEAM_MAGIC){
       /* This packet is a request */
       bRequest = TRUE;
       if(tvb_length_remaining(tvb, offset) >= 66){
         iCommand = tvb_get_letohl(tvb, offset + 62);
       }
-      if(check_col(pinfo->cinfo, COL_INFO)){
-        col_append_str(pinfo->cinfo, COL_INFO,
+      col_append_str(pinfo->cinfo, COL_INFO,
                        val_to_str_ext(iCommand, &starteam_opcode_vals_ext, "Unknown (0x%02x)"));
-      }
     }
 
     if(tree){

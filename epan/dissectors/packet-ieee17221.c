@@ -3542,7 +3542,7 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
          proto_tree_add_item(aem_tree, hf_aem_control_domain, tvb,
                SIGNAL_SELECTOR_OFFSET_CONTROL_DOMAIN, 2, ENC_BIG_ENDIAN);
 
-         /*
+#if 0
          proto_tree_add_item(aem_tree, hf_aem_control_location_type, tvb,
                AEM_OFFSET_CONTROL_LOCATION_TYPE_SIGS, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_control_location_id, tvb,
@@ -3570,7 +3570,7 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
          proto_tree_add_item(aem_tree, hf_aem_control_latency, tvb,
                SIGNAL_SELECTOR_OFFSET_CONTROL_LATENCY, 4, ENC_BIG_ENDIAN);
 
-         // set up sources subtree
+         /* set up sources subtree */
          mr_item = proto_tree_add_item(aem_tree, hf_aem_sources, tvb,
                0, 0, ENC_NA);
          mr_subtree = proto_item_add_subtree(mr_item, ett_aem_sources);
@@ -3586,7 +3586,7 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
                  mr_offset, 2, ENC_BIG_ENDIAN);
            mr_offset += 2;
          }
-         */
+#endif
          break;
       case AEM_DESCRIPTOR_MIXER:
          proto_tree_add_item(aem_tree, hf_aem_object_name, tvb,
@@ -3602,7 +3602,6 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
                MIXER_OFFSET_CONTROL_DOMAIN, 2, ENC_BIG_ENDIAN);
 
 #if 0
-         /*
          proto_tree_add_item(aem_tree, hf_aem_control_location_type, tvb,
                AEM_OFFSET_CONTROL_LOCATION_TYPE_MXR, 2, ENC_BIG_ENDIAN);
          proto_tree_add_item(aem_tree, hf_aem_control_location_id, tvb,
@@ -3626,7 +3625,7 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
          proto_tree_add_item(aem_tree, hf_aem_control_latency, tvb,
                MIXER_OFFSET_CONTROL_LATENCY, 4, ENC_BIG_ENDIAN);
 
-         // set up subtree for sources
+         /* set up subtree for sources */
          mr_item = proto_tree_add_item(aem_tree, hf_aem_sources, tvb,
                0, 0, ENC_NA);
          mr_subtree = proto_item_add_subtree(mr_item, ett_aem_sources);
@@ -3643,13 +3642,12 @@ dissect_17221_aem(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
            mr_offset += 2;
          }
 
-         // end sources subtree
+         /* end sources subtree */
 
          ctrl_val_type = tvb_get_ntohs(tvb, AEM_OFFSET_CONTROL_VALUE_TYPE_MXR);
          num_ctrl_vals = 1;
          dissect_17221_ctrl_val(tvb, aem_tree, num_ctrl_vals, ctrl_val_type,
                MIXER_OFFSET_SOURCES + (tvb_get_ntohs(tvb, AEM_OFFSET_NUMBER_OF_SOURCES_MXR) * 4));
-         */
 #endif
          break;
       case AEM_DESCRIPTOR_MATRIX:
@@ -4197,9 +4195,9 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
                   AECP_OFFSET_COUNTERS_DESCRIPTOR_INDEX, 2, ENC_BIG_ENDIAN);
             if (mess_type == AECP_AEM_RESPONSE_MESSAGE) {
 
-               flags_ti = proto_tree_add_item(aecp_tree, hf_aecp_flags_32, tvb,
+               /*flags_ti = */ proto_tree_add_item(aecp_tree, hf_aecp_flags_32, tvb,
                      AECP_OFFSET_COUNTERS_VALID, 4, ENC_BIG_ENDIAN);
-               flags_tree = proto_item_add_subtree(flags_ti, ett_acmp_flags);
+               /*flags_tree = proto_item_add_subtree(flags_ti, ett_acmp_flags);*/
 
                /* begin counters_valid flags field */
                switch (tvb_get_ntohs(tvb, AECP_OFFSET_COUNTERS_DESCRIPTOR_TYPE)) {
@@ -4539,7 +4537,7 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
             /* the command type is not one of the valid spec values */
             break;
       }
-   } // AECP AEM Command
+   } /* AECP AEM Command */
    else if ((mess_type == AECP_ADDRESS_ACCESS_COMMAND_MESSAGE) || (mess_type == AECP_ADDRESS_ACCESS_RESPONSE_MESSAGE))
    {
       proto_tree_add_item(aecp_tree, hf_aecp_aa_count, tvb,
@@ -5328,7 +5326,7 @@ proto_register_17221(void)
          {"Flags", "ieee17221.avbinfo_flags",
             FT_UINT8, BASE_HEX, NULL, 0x00, NULL, HFILL }
       },
-      
+
       { &hf_aecp_as_capable_flag,
          { "AS Capable Flag", "ieee17221.as_capable_flag",
             FT_BOOLEAN, 8, NULL, AECP_AS_CAPABLE_FLAG_MASK, NULL, HFILL }
@@ -5343,7 +5341,7 @@ proto_register_17221(void)
          { "SRP Enabled Flag", "ieee17221.srp_enabled_flag",
             FT_BOOLEAN, 8, NULL, AECP_SRP_ENABLED_FLAG_MASK, NULL, HFILL }
       },
- 
+
       { &hf_aecp_avb_info_msrp_mappings_count,
          {"MSRP Mappings Count", "ieee17221.msrp_mappings",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
@@ -5366,7 +5364,7 @@ proto_register_17221(void)
          {"MSRP VLAN ID", "ieee17221.msrp_vlan_id",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
- 
+
       { &hf_aecp_map_index,
          {"Map Index", "ieee17221.map_index",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
@@ -5448,7 +5446,7 @@ proto_register_17221(void)
          {"Count", "ieee17221.as_path_count",
             FT_UINT16, BASE_DEC, NULL, 0x00, NULL, HFILL }
       },
-      
+
       { &hf_aecp_as_path_sequences,
          {"Path Sequence", "ieee17221.as_path_sequences",
             FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL }
@@ -5458,7 +5456,7 @@ proto_register_17221(void)
          { "ClockId", "ieee17221.get_as_info_clock_id",
             FT_UINT64, BASE_HEX, NULL, 0x00, NULL, HFILL }
       },
- 
+
       /* AUTH_ADD_KEY */
       { &hf_aecp_keychain_id,
          {"Keychain ID", "ieee17221.keychain_id",

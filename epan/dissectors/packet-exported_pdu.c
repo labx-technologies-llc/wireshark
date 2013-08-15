@@ -30,10 +30,12 @@
 #include <epan/packet.h>
 #include <epan/tap.h>
 #include <epan/exported_pdu.h>
+#include <epan/wmem/wmem.h>
+
+#include "packet-mtp3.h"
+#include "packet-dvbci.h"
 
 void proto_reg_handoff_exported_pdu(void);
-
-static gint exported_pdu_tap = -1;
 
 static int proto_exported_pdu = -1;
 static int hf_exported_pdu_tag = -1;
@@ -43,9 +45,14 @@ static int hf_exported_pdu_ipv4_src = -1;
 static int hf_exported_pdu_ipv4_dst = -1;
 static int hf_exported_pdu_ipv6_src = -1;
 static int hf_exported_pdu_ipv6_dst = -1;
+static int hf_exported_pdu_port_type = -1;
 static int hf_exported_pdu_src_port = -1;
 static int hf_exported_pdu_dst_port = -1;
+static int hf_exported_pdu_sctp_ppid = -1;
+static int hf_exported_pdu_ss7_opc = -1;
+static int hf_exported_pdu_ss7_dpc = -1;
 static int hf_exported_pdu_orig_fno = -1;
+static int hf_exported_pdu_dvbci_evt = -1;
 
 
 /* Initialize the subtree pointers */
@@ -66,6 +73,7 @@ static const value_string exported_pdu_tag_vals[] = {
    { EXP_PDU_TAG_IPV6_SRC,         "IPv6 Source Address" },
    { EXP_PDU_TAG_IPV6_DST,         "IPv6 Destination Address" },
 
+   { EXP_PDU_TAG_PORT_TYPE,        "Port Type" },
    { EXP_PDU_TAG_SRC_PORT,         "Source Port" },
    { EXP_PDU_TAG_DST_PORT,         "Destination Port" },
 
@@ -75,6 +83,8 @@ static const value_string exported_pdu_tag_vals[] = {
    { EXP_PDU_TAG_SS7_DPC,          "SS7 DPC" },
 
    { EXP_PDU_TAG_ORIG_FNO,         "Original Frame number" },
+
+   { EXP_PDU_TAG_DVBCI_EVT,        "DVB-CI event" },
 
    { 0,        NULL   }
 };
@@ -87,12 +97,15 @@ dissect_exported_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_tree *exported_pdu_tree, *tag_tree;
     tvbuff_t * payload_tvb = NULL;
     int offset = 0;
+    guint number_of_ppids = 0;
     guint16 tag;
     int tag_len;
     int next_proto_type = -1;
     char *proto_name = NULL;
     const guchar *src_addr, *dst_addr;
     dissector_handle_t proto_handle;
+    mtp3_addr_pc_t *mtp3_addr;
+    guint8 dvb_ci_dir;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "Exported PDU");
 
@@ -129,26 +142,59 @@ dissect_exported_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 break;
             case EXP_PDU_TAG_IPV6_SRC:
                 proto_tree_add_item(tag_tree, hf_exported_pdu_ipv6_src, tvb, offset, 16, ENC_NA);
-                src_addr = tvb_get_ptr(tvb, offset, 4);
+                src_addr = tvb_get_ptr(tvb, offset, 16);
                 SET_ADDRESS(&pinfo->net_src, AT_IPv6, 16, src_addr);
                 SET_ADDRESS(&pinfo->src, AT_IPv6, 16, src_addr);
                 break;
             case EXP_PDU_TAG_IPV6_DST:
                 proto_tree_add_item(tag_tree, hf_exported_pdu_ipv6_dst, tvb, offset, 16, ENC_NA);
-                dst_addr = tvb_get_ptr(tvb, offset, 4);
+                dst_addr = tvb_get_ptr(tvb, offset, 16);
                 SET_ADDRESS(&pinfo->net_dst, AT_IPv6, 16, dst_addr);
                 SET_ADDRESS(&pinfo->dst, AT_IPv6, 16, dst_addr);
                 break;
+            case EXP_PDU_TAG_PORT_TYPE:
+                pinfo->ptype = (port_type)tvb_get_ntohl(tvb, offset);
+                proto_tree_add_uint_format_value(tag_tree, hf_exported_pdu_port_type, tvb, offset, 4, pinfo->ptype,
+                                                 "%s (%u)", port_type_to_str(pinfo->ptype), pinfo->ptype);
+                break;
             case EXP_PDU_TAG_SRC_PORT:
                 proto_tree_add_item(tag_tree, hf_exported_pdu_src_port, tvb, offset, 4, ENC_BIG_ENDIAN);
-                pinfo->srcport = tvb_get_ntohl(tvb,offset);
+                pinfo->srcport = tvb_get_ntohl(tvb, offset);
                 break;
             case EXP_PDU_TAG_DST_PORT:
                 proto_tree_add_item(tag_tree, hf_exported_pdu_dst_port, tvb, offset, 4, ENC_BIG_ENDIAN);
-                pinfo->destport = tvb_get_ntohl(tvb,offset);
+                pinfo->destport = tvb_get_ntohl(tvb, offset);
                 break;
-			case EXP_PDU_TAG_ORIG_FNO:
+            case EXP_PDU_TAG_SCTP_PPID:
+                proto_tree_add_item(tag_tree, hf_exported_pdu_sctp_ppid, tvb, offset, 4, ENC_BIG_ENDIAN);
+                if (number_of_ppids < MAX_NUMBER_OF_PPIDS) {
+                    pinfo->ppids[number_of_ppids++] = tvb_get_ntohl(tvb, offset);
+                }
+                break;
+            case EXP_PDU_TAG_SS7_OPC:
+                proto_tree_add_item(tag_tree, hf_exported_pdu_ss7_opc, tvb, offset, 4, ENC_BIG_ENDIAN);
+                mtp3_addr = (mtp3_addr_pc_t *)wmem_alloc0(pinfo->pool, sizeof(mtp3_addr_pc_t));
+                mtp3_addr->pc = tvb_get_ntohl(tvb, offset);
+                mtp3_addr->type = (Standard_Type)tvb_get_ntohs(tvb, offset+4);
+                mtp3_addr->ni = tvb_get_guint8(tvb, offset+6);
+                SET_ADDRESS(&pinfo->src, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr);
+                break;
+            case EXP_PDU_TAG_SS7_DPC:
+                proto_tree_add_item(tag_tree, hf_exported_pdu_ss7_dpc, tvb, offset, 4, ENC_BIG_ENDIAN);
+                mtp3_addr = (mtp3_addr_pc_t *)wmem_alloc0(pinfo->pool, sizeof(mtp3_addr_pc_t));
+                mtp3_addr->pc = tvb_get_ntohl(tvb, offset);
+                mtp3_addr->type = (Standard_Type)tvb_get_ntohs(tvb, offset+4);
+                mtp3_addr->ni = tvb_get_guint8(tvb, offset+6);
+                SET_ADDRESS(&pinfo->dst, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr);
+                break;
+            case EXP_PDU_TAG_ORIG_FNO:
                 proto_tree_add_item(tag_tree, hf_exported_pdu_orig_fno, tvb, offset, 4, ENC_BIG_ENDIAN);
+                break;
+            case EXP_PDU_TAG_DVBCI_EVT:
+                dvb_ci_dir = tvb_get_guint8(tvb, offset);
+                proto_tree_add_item(tag_tree, hf_exported_pdu_dvbci_evt,
+                        tvb, offset, 1, ENC_BIG_ENDIAN);
+                dvbci_set_addrs(dvb_ci_dir, pinfo);
                 break;
             default:
                 break;
@@ -199,7 +245,7 @@ proto_register_exported_pdu(void)
               NULL, HFILL }
         },
         { &hf_exported_pdu_prot_name,
-            { "Protocol name", "exported_pdu.prot_name",
+            { "Protocol Name", "exported_pdu.prot_name",
                FT_STRING, BASE_NONE, NULL, 0,
               NULL, HFILL }
         },
@@ -223,21 +269,46 @@ proto_register_exported_pdu(void)
                FT_IPv6, BASE_NONE, NULL, 0,
               NULL, HFILL }
         },
+        { &hf_exported_pdu_port_type,
+            { "Port Type", "exported_pdu.port_type",
+               FT_UINT32, BASE_DEC, NULL, 0,
+              NULL, HFILL }
+        },
         { &hf_exported_pdu_src_port,
             { "Src Port", "exported_pdu.src_port",
-               FT_UINT16, BASE_DEC, NULL, 0,
+               FT_UINT32, BASE_DEC, NULL, 0,
               NULL, HFILL }
         },
         { &hf_exported_pdu_dst_port,
             { "Dst Port", "exported_pdu.dst_port",
-               FT_UINT16, BASE_DEC, NULL, 0,
+               FT_UINT32, BASE_DEC, NULL, 0,
+              NULL, HFILL }
+        },
+        { &hf_exported_pdu_sctp_ppid,
+            { "SCTP PPID", "exported_pdu.sctp_ppid",
+               FT_UINT32, BASE_DEC, NULL, 0,
+              NULL, HFILL }
+        },
+        { &hf_exported_pdu_ss7_opc,
+            { "SS7 OPC", "exported_pdu.ss7_opc",
+               FT_UINT32, BASE_DEC, NULL, 0,
+              NULL, HFILL }
+        },
+        { &hf_exported_pdu_ss7_dpc,
+            { "SS7 DPC", "exported_pdu.ss7_dpc",
+               FT_UINT32, BASE_DEC, NULL, 0,
               NULL, HFILL }
         },
         { &hf_exported_pdu_orig_fno,
             { "Original Frame Number", "exported_pdu.orig_fno",
-               FT_INT32, BASE_DEC, NULL, 0,
+               FT_UINT32, BASE_DEC, NULL, 0,
               NULL, HFILL }
         },
+        { &hf_exported_pdu_dvbci_evt,
+            { "DVB-CI event", "exported_pdu.dvb-ci.event",
+               FT_UINT8, BASE_HEX, VALS(dvbci_event), 0,
+              NULL, HFILL }
+        }
     };
 
     /* Setup protocol subtree array */
@@ -274,23 +345,22 @@ proto_register_exported_pdu(void)
      * The tap is registered here but it is to be used by dissectors that
      * want to export their PDU:s, see packet-sip.c
      */
-    exported_pdu_tap = register_tap(EXPORT_PDU_TAP_NAME_LAYER_7);
-
+    register_tap(EXPORT_PDU_TAP_NAME_LAYER_3);
+    register_tap(EXPORT_PDU_TAP_NAME_LAYER_7);
+    register_tap(EXPORT_PDU_TAP_NAME_DVB_CI);
 }
 
 void
 proto_reg_handoff_exported_pdu(void)
 {
-#if 0
     static gboolean initialized = FALSE;
     static dissector_handle_t exported_pdu_handle;
 
     if (!initialized) {
         exported_pdu_handle = find_dissector("exported_pdu");
+        dissector_add_uint("wtap_encap", WTAP_ENCAP_WIRESHARK_UPPER_PDU, exported_pdu_handle);
         initialized = TRUE;
-
     }
-#endif
 }
 
 

@@ -100,7 +100,7 @@ typedef enum {
 static gboolean pppdump_read(wtap *wth, int *err, gchar **err_info,
 	gint64 *data_offset);
 static gboolean pppdump_seek_read(wtap *wth, gint64 seek_off,
-	struct wtap_pkthdr *phdr, guint8 *pd, int len,
+	struct wtap_pkthdr *phdr, Buffer *buf, int len,
 	int *err, gchar **err_info);
 
 /*
@@ -317,6 +317,18 @@ pppdump_open(wtap *wth, int *err, gchar **err_info)
 	return 1;
 }
 
+/* Set part of the struct wtap_pkthdr. */
+static void
+pppdump_set_phdr(struct wtap_pkthdr *phdr, int num_bytes,
+    direction_enum direction)
+{
+	phdr->len = num_bytes;
+	phdr->caplen = num_bytes;
+	phdr->pkt_encap	= WTAP_ENCAP_PPP_WITH_PHDR;
+
+	phdr->pseudo_header.p2p.sent = (direction == DIRECTION_SENT ? TRUE : FALSE);
+}
+
 /* Find the next packet and parse it; called from wtap_read(). */
 static gboolean
 pppdump_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
@@ -326,9 +338,6 @@ pppdump_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 	guint8		*buf;
 	pppdump_t	*state;
 	pkt_id		*pid;
-
-	buffer_assure_space(wth->frame_buffer, PPPD_BUF_SIZE);
-	buf = buffer_start_ptr(wth->frame_buffer);
 
 	state = (pppdump_t *)wth->priv;
 
@@ -343,6 +352,9 @@ pppdump_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 		pid->offset = 0;
 	} else
 		pid = NULL;	/* sequential only */
+
+	buffer_assure_space(wth->frame_buffer, PPPD_BUF_SIZE);
+	buf = buffer_start_ptr(wth->frame_buffer);
 
 	if (!collate(state, wth->fh, err, err_info, buf, &num_bytes, &direction,
 	    pid, 0)) {
@@ -361,13 +373,9 @@ pppdump_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 	state->pkt_cnt++;
 
 	wth->phdr.presence_flags = WTAP_HAS_TS;
-	wth->phdr.len		= num_bytes;
-	wth->phdr.caplen	= num_bytes;
 	wth->phdr.ts.secs	= state->timestamp;
 	wth->phdr.ts.nsecs	= state->tenths * 100000000;
-	wth->phdr.pkt_encap	= WTAP_ENCAP_PPP_WITH_PHDR;
-
-	wth->phdr.pseudo_header.p2p.sent = (direction == DIRECTION_SENT ? TRUE : FALSE);
+	pppdump_set_phdr(&wth->phdr, num_bytes, direction);
 
 	return TRUE;
 }
@@ -714,13 +722,13 @@ static gboolean
 pppdump_seek_read(wtap *wth,
 		 gint64 seek_off,
 		 struct wtap_pkthdr *phdr,
-		 guint8 *pd,
+		 Buffer *buf,
 		 int len,
 		 int *err,
 		 gchar **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	int		num_bytes;
+	guint8		*pd;
 	direction_enum	direction;
 	pppdump_t	*state;
 	pkt_id		*pid;
@@ -740,6 +748,9 @@ pppdump_seek_read(wtap *wth,
 
 	init_state(state->seek_state);
 	state->seek_state->offset = pid->offset;
+
+	buffer_assure_space(buf, PPPD_BUF_SIZE);
+	pd = buffer_start_ptr(buf);
 
 	/*
 	 * We'll start reading at the first record containing data from
@@ -767,7 +778,7 @@ pppdump_seek_read(wtap *wth,
 		return FALSE;
 	}
 
-	pseudo_header->p2p.sent = (pid->dir == DIRECTION_SENT ? TRUE : FALSE);
+	pppdump_set_phdr(phdr, num_bytes, pid->dir);
 
 	return TRUE;
 }

@@ -29,6 +29,15 @@
 #include "tvbuff.h"
 #include "address.h"
 
+/** @file
+ * Dissected packet data and metadata.
+ */
+
+/** @defgroup packetinfo Packet Data and Metadata
+ *
+ * @{
+ */
+
 /* Also defined in wiretap/wtap.h */
 #define P2P_DIR_UNKNOWN	-1
 #define P2P_DIR_SENT	0
@@ -216,9 +225,14 @@ typedef struct _packet_info {
   GSList *frame_end_routines;
 
   struct _wmem_allocator_t *pool;      /**< Memory pool scoped to the pinfo struct */
+  struct epan_session *epan;
+  nstime_t     rel_ts;       /**< Relative timestamp (yes, it can be negative) */
+  const gchar  *pkt_comment; /**< NULL if not available */
 } packet_info;
 
 /**< For old code that hasn't yet been changed. */
 #define match_port	match_uint
+
+/** @} */
 
 #endif /* __PACKET_INFO_H__ */

@@ -57,6 +57,7 @@ NONGENERATED_C_FILES = \
 	k12.c			\
 	lanalyzer.c		\
 	libpcap.c		\
+	merge.c			\
 	mpeg.c			\
 	mp2t.c			\
 	netmon.c		\
@@ -74,6 +75,7 @@ NONGENERATED_C_FILES = \
 	pppdump.c		\
 	radcom.c		\
 	snoop.c			\
+	stanag4607.c		\
 	tnef.c			\
 	toshiba.c		\
 	visual.c		\
@@ -112,6 +114,8 @@ NONGENERATED_HEADER_FILES = \
 	k12.h			\
 	lanalyzer.h		\
 	libpcap.h		\
+	merge.h			\
+	mpeg.h			\
 	mpeg.h			\
 	mp2t.h			\
 	netmon.h		\
@@ -130,6 +134,7 @@ NONGENERATED_HEADER_FILES = \
 	pppdump.h		\
 	radcom.h		\
 	snoop.h			\
+	stanag4607.h		\
 	tnef.h			\
 	toshiba.h		\
 	visual.h		\

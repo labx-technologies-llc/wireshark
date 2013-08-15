@@ -1818,9 +1818,6 @@ static const value_string names_err_code_fms_init[] = {
     { 0,    NULL }
 };
 
-static const true_false_string tfs_do_not_clear_clear = { "Do not clear", "Clear" };
-static const true_false_string tfs_confirmed_unconfirmed = { "Confirmed", "Unconfirmed" };
-
 static const char *
 val_to_str_err_code(guint8 errclass, guint8 code)
 {
@@ -2457,7 +2454,7 @@ dissect_ff_msg_sm_id_rsp_h1_node_addr(tvbuff_t *tvb,
 
     proto_tree_add_item(sub_tree,
         hf_ff_sm_id_rsp_h1_node_addr_ver_num_ver_num, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset += 1;
+    /*offset += 1;*/
 
     return;
 }
@@ -2517,7 +2514,7 @@ dissect_ff_msg_sm_id_rsp_h1_live_list(tvbuff_t *tvb,
 
     proto_tree_add_item(sub_tree,
         hf_ff_sm_id_rsp_h1_live_list_ver_num, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset += 1;
+    /*offset += 1;*/
 
     return;
 }
@@ -3430,7 +3427,7 @@ dissect_ff_msg_sm_dev_annunc_req_h1_node_addr(tvbuff_t *tvb,
     proto_tree_add_item(sub_tree,
         hf_ff_sm_dev_annunc_req_h1_node_addr_ver_num_ver_num,
         tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset += 1;
+    /*offset += 1;*/
 
     return;
 }
@@ -3490,7 +3487,7 @@ dissect_ff_msg_sm_dev_annunc_req_h1_live_list(tvbuff_t *tvb,
 
     proto_tree_add_item(sub_tree,
         hf_ff_sm_dev_annunc_req_h1_live_list_ver_num, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset += 1;
+    /*offset += 1;*/
 
     return;
 }
@@ -11660,8 +11657,7 @@ dissect_ff_msg_body(tvbuff_t *tvb, gint offset, guint32 length,
             break;
 
         default:
-            if (check_col(pinfo->cinfo, COL_INFO)) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
+            col_add_fstr(pinfo->cinfo, COL_INFO,
                 "Unknown Service (Protocol Id: %u, Confirmed Msg Type: %u) "
                 "(%s Service Id = %u)",
                 (ProtocolAndType & PROTOCOL_MASK) >> 2,
@@ -11669,7 +11665,6 @@ dissect_ff_msg_body(tvbuff_t *tvb, gint offset, guint32 length,
                 (Service & SERVICE_CONFIRMED_FLAG_MASK)?
                     "Confirmed": "Unconfirmed",
                 Service & SERVICE_SERVICE_ID_MASK);
-            }
 
             if (length) {
                 proto_tree_add_text(tree, tvb, offset, length,

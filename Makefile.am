@@ -35,32 +35,34 @@ AM_CLEAN_CFLAGS = -Werror
 endif
 
 bin_PROGRAMS = \
-	@wireshark_bin@	\
-	@tshark_bin@	\
-	@text2pcap_bin@	\
-	@mergecap_bin@	\
-	@capinfos_bin@	\
-	@editcap_bin@	\
-	@randpkt_bin@	\
-	@dftest_bin@	\
-	@dumpcap_bin@	\
+	@wireshark_bin@		\
+	@tshark_bin@		\
+	@text2pcap_bin@		\
+	@mergecap_bin@		\
+	@capinfos_bin@		\
+	@editcap_bin@		\
+	@randpkt_bin@		\
+	@dftest_bin@		\
+	@dumpcap_bin@		\
 	@reordercap_bin@	\
-	@rawshark_bin@
+	@rawshark_bin@		\
+	@echld_test_bin@
 
-EXTRA_PROGRAMS = wireshark tshark capinfos editcap mergecap dftest \
-	randpkt text2pcap dumpcap reordercap rawshark wireshark_cxx
+EXTRA_PROGRAMS = wireshark wireshark-qt tshark capinfos editcap mergecap \
+	dftest randpkt text2pcap dumpcap reordercap rawshark wireshark_cxx \
+	echld_test
 
 #
 # Wireshark configuration files are put in $(pkgdatadir).
 #
-pkgdata_DATA = COPYING manuf services cfilters colorfilters dfilters \
+dist_pkgdata_DATA = COPYING manuf services cfilters colorfilters dfilters \
 	smi_modules ipmap.html pdml2html.xsl
 
 #
 # Install global profiles in the "profiles" subdirectory
 #
 profilesdir = $(pkgdatadir)
-nobase_profiles_DATA = \
+nobase_dist_profiles_DATA = \
 	profiles/Bluetooth/colorfilters \
 	profiles/Classic/colorfilters
 
@@ -69,10 +71,11 @@ nobase_profiles_DATA = \
 # of that directory.
 #
 diameterdir = $(pkgdatadir)/diameter
-diameter_DATA = \
+dist_diameter_DATA = \
 	diameter/chargecontrol.xml \
 	diameter/ChinaTelecom.xml \
 	diameter/Cisco.xml \
+	diameter/Custom.xml \
 	diameter/dictionary.dtd \
 	diameter/dictionary.xml \
 	diameter/eap.xml \
@@ -88,19 +91,20 @@ diameter_DATA = \
 	diameter/TGPPGmb.xml \
 	diameter/TGPPRx.xml \
 	diameter/TGPPS9.xml \
-	diameter/TGPPSh.xml	\
+	diameter/TGPPSh.xml \
 	diameter/Vodafone.xml \
 	diameter/AlcatelLucent.xml \
 	diameter/Nokia.xml \
 	diameter/NokiaSiemensNetworks.xml \
-	diameter/SKT.xml
+	diameter/SKT.xml \
+	diameter/VerizonWireless.xml
 
 #
 # Install the DTDs directory files in the "dtds" subdirectory
 # of that directory
 #
 dtdsdir = $(pkgdatadir)/dtds
-dtds_DATA = \
+dist_dtds_DATA = \
 	dtds/dc.dtd \
 	dtds/itunes.dtd \
 	dtds/mscml.dtd \
@@ -119,8 +123,8 @@ dtds_DATA = \
 # of that directory.
 #
 radiusdir = $(pkgdatadir)/radius
--include radius/Custom.make
-radius_DATA = $(_CUSTOM_radius_dict_) \
+include radius/Custom.make
+dist_radius_DATA = $(_CUSTOM_radius_dict_) \
 	radius/README.radius_dictionary  \
 	radius/custom.includes  \
 	radius/dictionary  \
@@ -272,7 +276,7 @@ radius_DATA = $(_CUSTOM_radius_dict_) \
 # of that directory
 #
 tpncpdir = $(pkgdatadir)/tpncp
-tpncp_DATA = \
+dist_tpncp_DATA = \
 	tpncp/tpncp.dat
 
 #
@@ -280,7 +284,7 @@ tpncp_DATA = \
 # of that directory
 #
 wimaxasncpdir = $(pkgdatadir)/wimaxasncp
-wimaxasncp_DATA = \
+dist_wimaxasncp_DATA = \
 	wimaxasncp/dictionary.xml \
 	wimaxasncp/dictionary.dtd
 
@@ -306,7 +310,6 @@ plugin_ldadd = $(_CUSTOM_plugin_ldadd_) \
 
 WTAP_PLUGIN_SOURCES = \
        epan/plugins.c \
-       epan/report_err.c \
        epan/filesystem.c
 
 else		# HAVE_PLUGINS
@@ -319,9 +322,19 @@ endif		# HAVE_PLUGINS
 include Makefile.common
 
 if ENABLE_STATIC
+if HAVE_GTK
 wireshark_LDFLAGS = -Wl,-static -all-static
+endif
+if HAVE_Qt
+wireshark_qt_LDFLAGS = -Wl,-static -all-static
+endif
 else
+if HAVE_GTK
 wireshark_LDFLAGS = -export-dynamic
+endif
+if HAVE_Qt
+wireshark_qt_LDFLAGS = -export-dynamic
+endif
 endif
 
 # Libraries and plugin flags with which to link wireshark.
@@ -346,14 +359,7 @@ endif
 # although it's also possible that -lgmodule is in GTK_LIBS but not
 # GLIB_LIBS (that's the case on my machine right now, for example).
 #
-if HAVE_Qt
-wireshark_ui_ldadd = ui/qt/libqtui.a
-else
-wireshark_ui_ldadd = ui/gtk/libgtkui.a
-endif
-
-wireshark_LDADD = \
-	$(wireshark_ui_ldadd)		\
+wireshark_ldadd = \
 	ui/libui.a			\
 	ui/libui_dirty.a		\
 	codecs/libcodec.a		\
@@ -374,12 +380,29 @@ wireshark_LDADD = \
 	@LIBGNUTLS_LIBS@		\
 	@LIBSMI_LDFLAGS@		\
 	@PORTAUDIO_LIBS@		\
-	@GTK_LIBS@			\
-	@Qt_LIBS@			\
 	@GLIB_LIBS@			\
 	-lm
 
+if HAVE_Qt
+wireshark_qt_SOURCES = $(WIRESHARK_COMMON_SRC)
+wireshark_qt_INCLUDES = $(WIRESHARK_COMMON_INCLUDES)
+wireshark_qt_CFLAGS = $(AM_CLEAN_CFLAGS) $(py_dissectors_dir)
+wireshark_qt_LDADD =  ui/qt/libqtui.a $(wireshark_ldadd) @Qt_LIBS@
+#
+# XXX - this makes wireshark_qt_LDFLAGS not work; we should figure out
+# another way to get wireshark-qt linked as a C++ program, perhaps by
+# having a top-level wireshark-qt.cpp file that contains main() and
+# hthat calls the UI code from ui/qt.
+#
+wireshark_qt_LINK = $(CXXLINK)
+endif
+
+if HAVE_GTK
+wireshark_SOURCES = $(WIRESHARK_COMMON_SRC)
+wireshark_INCLUDES = $(WIRESHARK_COMMON_INCLUDES)
 wireshark_CFLAGS = $(AM_CLEAN_CFLAGS) $(py_dissectors_dir)
+wireshark_LDADD = ui/gtk/libgtkui.a $(wireshark_ldadd) @GTK_LIBS@
+endif
 
 # Ideally we could trigger automatic c++ linking here with
 #   nodist_EXTRA_wireshark_SOURCES = dummy.cpp
@@ -388,12 +411,6 @@ wireshark_CFLAGS = $(AM_CLEAN_CFLAGS) $(py_dissectors_dir)
 # all times.
 nodist_EXTRA_wireshark_cxx_SOURCES = dummy.cpp
 wireshark_cxx_SOURCES =
-
-if HAVE_WIRESHARK_CXX
-wireshark_LINK = $(CXXLINK)
-else
-wireshark_LINK = $(LINK)
-endif
 
 if ENABLE_STATIC
 tshark_LDFLAGS = -Wl,-static -all-static
@@ -526,6 +543,24 @@ dftest_LDADD = \
 	@LIBSMI_LDFLAGS@
 dftest_CFLAGS = $(AM_CLEAN_CFLAGS) $(py_dissectors_dir)
 
+echld_test_LDADD = \
+	epan/libwireshark.la \
+	echld/libechld.la \
+	wsutil/libwsutil.la \
+	@GLIB_LIBS@ -lm			\
+	@PCAP_LIBS@			\
+	@SOCKET_LIBS@			\
+	@NSL_LIBS@			\
+	@C_ARES_LIBS@			\
+	@ADNS_LIBS@
+
+echld_test_DEPENDENCIES = \
+	echld/libechld.la \
+	epan/libwireshark.la
+
+echld_test_CFLAGS = $(AM_CLEAN_CFLAGS)
+
+
 # Libraries with which to link dumpcap.
 dumpcap_LDADD = \
 	wsutil/libwsutil.la		\
@@ -569,11 +604,8 @@ SUFFIXES = .sh
 	rm -f $@ $@.tmp
 	$(editsh) $< > $@.tmp && chmod +x $@.tmp && mv $@.tmp $@
 
-ps.c: print.ps $(srcdir)/tools/rdps.py
-	$(PYTHON) $(srcdir)/tools/rdps.py $(srcdir)/print.ps ps.c
-
 services:
-	$(PERL) $(srcdir)/tools/make-services.pl
+	$(PYTHON) $(srcdir)/tools/make-services.py
 
 CLEANFILES =		\
 	*~		\
@@ -629,7 +661,6 @@ EXTRA_DIST = \
 	aclocal-fallback/glib-2.0.m4 \
 	aclocal-fallback/gtk-2.0.m4 \
 	aclocal-fallback/gtk-3.0.m4 \
-	aclocal-fallback/qt.m4 \
 	aclocal-flags		\
 	adns_dll.dep		\
 	adns_dll.rc		\
@@ -652,7 +683,6 @@ EXTRA_DIST = \
 	debian/dirs		\
 	debian/headers-check.c	\
 	debian/patches/00list	\
-	debian/patches/03_preferences.dpatch \
 	debian/postinst		\
 	debian/pycompat		\
 	debian/pyversions	\
@@ -679,6 +709,7 @@ EXTRA_DIST = \
 	doxygen.cfg.in		\
 	dumpcap.c	\
 	editcap.c		\
+	epan/print.ps		\
 	fix/FIX.xml		\
 	fix/FIX40.xml		\
 	fix/FIX41.xml		\
@@ -897,22 +928,16 @@ EXTRA_DIST = \
 	image/wssplash.png	\
 	ipmap.html		\
 	macosx-setup.sh		\
+        macosx-support-lib-patches/glib-gconvert.c.patch \
 	macosx-support-lib-patches/glib-pkgconfig.patch \
 	macosx-support-lib-patches/gnutls-pkgconfig.patch \
 	macosx-support-lib-patches/portaudio-pa_mac_core.h.patch \
+	macosx-support-lib-patches/portaudio-pa_mac_core.c.patch \
 	make-version.pl		\
 	manuf			\
 	manuf.tmpl		\
 	mergecap.c		\
 	pdml2html.xsl		\
-	print.ps		\
-	$(diameter_DATA)	\
-	$(dtds_DATA)		\
-	$(nobase_profiles_DATA)	\
-	$(radius_DATA)		\
-	$(tpncp_DATA)		\
-	$(ui_DATA)		\
-	$(wimaxasncp_DATA)	\
 	reordercap.c		\
 	smi_modules		\
 	text2pcap-scanner.l	\
@@ -997,12 +1022,12 @@ endif
 endif
 
 
-DIST_SUBDIRS = asn1 codecs doc epan ui ui/cli ui/gtk ui/qt help packaging plugins tools wiretap wsutil docbook
+DIST_SUBDIRS = asn1 codecs doc epan echld ui ui/cli ui/gtk ui/qt help packaging plugins tools wiretap wsutil docbook
 
 if HAVE_PLUGINS
-SUBDIRS = tools wsutil wiretap epan plugins packaging help ui @wireshark_SUBDIRS@ ui/cli . doc
+SUBDIRS = tools wsutil wiretap epan @echld_dir@ plugins packaging help ui @wireshark_SUBDIRS@ ui/cli . doc
 else
-SUBDIRS = tools wsutil wiretap epan packaging help ui @wireshark_SUBDIRS@ ui/cli . doc
+SUBDIRS = tools wsutil wiretap epan @echld_dir@ packaging help ui @wireshark_SUBDIRS@ ui/cli . doc
 endif
 
 help/faq.txt: $(srcdir)/help/faq.py
@@ -1108,7 +1133,7 @@ osx-app: $(PROGRAMS) $(SCRIPTS) $(MANS) $(DATA) packaging/macosx/Info.plist
 		rm -rf $(stagedir) ; \
 		$(MAKE) DESTDIR=$(stagedir) install; \
 		cd $(srcdir)/packaging/macosx ;  \
-		./osx-app.sh -bp ../staging/$(PACKAGE).inst$(bindir) ; \
+		./osx-app.sh @OSX_APP_FLAGS@ -bp ../staging/$(PACKAGE).inst$(bindir) ; \
 	else \
 		echo "Error: OS X packaging tools not found." ; \
 		echo "Package build abandoned." ; \
@@ -1172,3 +1197,4 @@ if HAVE_DOXYGEN
 	rm -f wsar_html.zip
 	zip -rq wsar_html.zip wsar_html
 endif
+

@@ -41,6 +41,7 @@
 
 #include <glib.h>
 
+#include "app_mem_usage.h"
 #include "proto.h"
 #include "emem.h"
 #include "wmem/wmem.h"
@@ -295,6 +296,26 @@ emem_init_chunk(emem_pool_t *mem)
 		mem->memory_alloc = emem_alloc_glib;
 }
 
+static gsize
+emem_memory_usage(const emem_pool_t *pool)
+{
+	gsize total_used = 0;
+	emem_chunk_t *chunk;
+
+	for (chunk = pool->used_list; chunk; chunk = chunk->next)
+		total_used += (chunk->amount_free_init - chunk->amount_free);
+
+	for (chunk = pool->free_list; chunk; chunk = chunk->next)
+		total_used += (chunk->amount_free_init - chunk->amount_free);
+
+	return total_used;
+}
+
+static gsize
+ep_memory_usage(void)
+{
+	return emem_memory_usage(&ep_packet_mem);
+}
 
 /* Initialize the packet-lifetime memory allocation pool.
  * This function should be called only once when Wireshark or TShark starts
@@ -303,6 +324,8 @@ emem_init_chunk(emem_pool_t *mem)
 static void
 ep_init_chunk(void)
 {
+	static const ws_mem_usage_t ep_stats = { "EP", ep_memory_usage, NULL };
+
 	ep_packet_mem.free_list=NULL;
 	ep_packet_mem.used_list=NULL;
 	ep_packet_mem.trees=NULL;	/* not used by this allocator */
@@ -316,6 +339,14 @@ ep_init_chunk(void)
 #endif
 
 	emem_init_chunk(&ep_packet_mem);
+
+	memory_usage_component_register(&ep_stats);
+}
+
+static gsize
+se_memory_usage(void)
+{
+	return emem_memory_usage(&se_packet_mem);
 }
 
 /* Initialize the capture-lifetime memory allocation pool.
@@ -325,6 +356,8 @@ ep_init_chunk(void)
 static void
 se_init_chunk(void)
 {
+	static const ws_mem_usage_t se_stats = { "SE", se_memory_usage, NULL };
+
 	se_packet_mem.free_list = NULL;
 	se_packet_mem.used_list = NULL;
 	se_packet_mem.trees = NULL;
@@ -334,6 +367,8 @@ se_init_chunk(void)
 	se_packet_mem.debug_verify_pointers = (getenv("WIRESHARK_SE_VERIFY_POINTERS") != NULL);
 
 	emem_init_chunk(&se_packet_mem);
+
+	memory_usage_component_register(&se_stats);
 }
 
 /*  Initialize all the allocators here.
@@ -843,12 +878,12 @@ static void *
 emem_alloc(size_t size, emem_pool_t *mem)
 {
 	void *buf;
-	
+
 #if 0
 	/* For testing wmem, effectively redirects most emem memory to wmem.
-	 * You will also have to comment out several assertions in
-	 * wmem_packet_scope() and wmem_file_scope() since they are much
-	 * stricter about when they are permitted to be called. */
+	 * You will also have to comment out several assertions in wmem_core.c,
+	 * specifically anything g_assert(allocator->in_scope), since it is much
+	 * stricter about when it is permitted to be called. */
 	if (mem == &ep_packet_mem) {
 		return wmem_alloc(wmem_packet_scope(), size);
 	}
@@ -2088,7 +2123,7 @@ emem_print_subtree(emem_tree_t* emem_tree, guint32 level)
 		printf("    ");
 	}
 
-	printf("EMEM tree:%p type:%s name:%s root:%p\n",emem_tree,(emem_tree->type==1)?"RedBlack":"unknown",emem_tree->name,(void *)(emem_tree->tree));
+	printf("EMEM tree:%p type:%s name:%s root:%p\n",(void *)emem_tree,(emem_tree->type==1)?"RedBlack":"unknown",emem_tree->name,(void *)(emem_tree->tree));
 	if(emem_tree->tree)
 		emem_tree_print_nodes("Root-", emem_tree->tree, level);
 }

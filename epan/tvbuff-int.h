@@ -26,27 +26,20 @@
 #ifndef __TVBUFF_INT_H__
 #define __TVBUFF_INT_H__
 
-typedef struct {
-	/** The backing tvbuff_t */
-	struct tvbuff	*tvb;
+struct tvbuff;
 
-	/** The offset of 'tvb' to which I'm privy */
-	guint		offset;
-	/** The length of 'tvb' to which I'm privy */
-	guint		length;
+struct tvb_ops {
+	gsize tvb_size;
+	void (*tvb_free)(struct tvbuff *tvb);
+	guint (*tvb_offset)(const struct tvbuff *tvb, guint counter);
+	const guint8 *(*tvb_get_ptr)(struct tvbuff *tvb, guint abs_offset, guint abs_length);
+	void *(*tvb_memcpy)(struct tvbuff *tvb, void *target, guint offset, guint length);
 
-} tvb_backing_t;
+	gint (*tvb_find_guint8)(tvbuff_t *tvb, guint abs_offset, guint limit, guint8 needle);
+	gint (*tvb_pbrk_guint8)(tvbuff_t *tvb, guint abs_offset, guint limit, const guint8 *needles, guchar *found_needle);
 
-typedef struct {
-	GSList		*tvbs;
-
-	/* Used for quick testing to see if this
-	 * is the tvbuff that a COMPOSITE is
-	 * interested in. */
-	guint		*start_offsets;
-	guint		*end_offsets;
-
-} tvb_comp_t;
+	tvbuff_t *(*tvb_clone)(tvbuff_t *tvb, guint abs_offset, guint abs_length);
+};
 
 /*
  * Tvbuff flags.
@@ -59,17 +52,10 @@ struct tvbuff {
 	tvbuff_t                *previous;
 
 	/* Record-keeping */
-	tvbuff_type		type;
+	const struct tvb_ops   *ops;
 	gboolean		initialized;
 	guint			flags;
 	struct tvbuff		*ds_tvb;  /**< data source top-level tvbuff */
-
-	/** TVBUFF_SUBSET and TVBUFF_COMPOSITE keep track
-	 * of the other tvbuff's they use */
-	union {
-		tvb_backing_t	subset;
-		tvb_comp_t	composite;
-	} tvbuffs;
 
 	/** We're either a TVBUFF_REAL_DATA or a
 	 * TVBUFF_SUBSET that has a backing buffer that
@@ -87,9 +73,15 @@ struct tvbuff {
 
 	/* Offset from beginning of first TVBUFF_REAL. */
 	gint			raw_offset;
-
-	/** Func to call when actually freed */
-	tvbuff_free_cb_t	free_cb;
 };
 
+WS_DLL_PUBLIC tvbuff_t *tvb_new(const struct tvb_ops *ops);
+
+tvbuff_t *tvb_new_proxy(tvbuff_t *backing);
+
+void tvb_add_to_chain(tvbuff_t *parent, tvbuff_t *child);
+
+guint tvb_offset_from_real_beginning_counter(const tvbuff_t *tvb, const guint counter);
+
+void tvb_check_offset_length(const tvbuff_t *tvb, const gint offset, gint const length_val, guint *offset_ptr, guint *length_ptr);
 #endif

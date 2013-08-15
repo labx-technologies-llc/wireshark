@@ -90,7 +90,7 @@ typedef enum {
 	FDP_TYPE_VERSION = 5,
 	FDP_TYPE_MODEL = 6,
 	FDP_TYPE_VLANMAP = 0x0101,
-	FDP_TYPE_TAG = 0x0102,
+	FDP_TYPE_TAG = 0x0102
 } fdp_type_t;
 
 static const value_string fdp_type_vals[] = {
@@ -306,8 +306,7 @@ dissect_fdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				break;
 			}
 			type_string = val_to_str(tlv_type, fdp_type_vals, "[%u]");
-			if (check_col(pinfo->cinfo, COL_INFO))
-				col_append_fstr(pinfo->cinfo, COL_INFO, " %s", type_string);
+			col_append_fstr(pinfo->cinfo, COL_INFO, " %s", type_string);
 
 			switch (tlv_type) {
 			case FDP_TYPE_NAME:

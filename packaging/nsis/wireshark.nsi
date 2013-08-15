@@ -174,7 +174,7 @@ Function Associate
 !insertmacro PushFileExtensions
 
 	Pop $EXTENSION
-	
+
 	${DoUntil} $EXTENSION == ${FILE_EXTENSION_MARKER}
 		ReadRegStr $R0 HKCR $EXTENSION ""
 		StrCmp $R0 "" Associate.doRegister
@@ -248,14 +248,8 @@ prep_uninstaller:
   StrCpy $1 "$TEMP\${PROGRAM_NAME}_uninstaller.exe"
   StrCpy $2 1
   System::Call 'kernel32::CopyFile(t r0, t r1, b r2) 1'
-  IfSilent silent_uninstall
-  ExecWait "$TMP_UNINSTALLER _?=$OLD_INSTDIR"
-  Goto cleanup
-
-silent_uninstall:
   ExecWait "$TMP_UNINSTALLER /S _?=$OLD_INSTDIR"
 
-cleanup:
   Delete "$TMP_UNINSTALLER"
 
 done:
@@ -426,6 +420,7 @@ File "..\..\diameter\AlcatelLucent.xml"
 File "..\..\diameter\chargecontrol.xml"
 File "..\..\diameter\ChinaTelecom.xml"
 File "..\..\diameter\Cisco.xml"
+File "..\..\diameter\Custom.xml"
 File "..\..\diameter\dictionary.dtd"
 File "..\..\diameter\dictionary.xml"
 File "..\..\diameter\eap.xml"
@@ -445,6 +440,7 @@ File "..\..\diameter\TGPPGmb.xml"
 File "..\..\diameter\TGPPRx.xml"
 File "..\..\diameter\TGPPS9.xml"
 File "..\..\diameter\TGPPSh.xml"
+File "..\..\diameter\VerizonWireless.xml"
 File "..\..\diameter\Vodafone.xml"
 SetOutPath $INSTDIR
 
@@ -717,11 +713,10 @@ WriteRegStr HKCR ${WIRESHARK_ASSOC} "" "Wireshark capture file"
 WriteRegStr HKCR "${WIRESHARK_ASSOC}\Shell\open\command" "" '"$INSTDIR\${PROGRAM_NAME}.exe" "%1"'
 WriteRegStr HKCR "${WIRESHARK_ASSOC}\DefaultIcon" "" '"$INSTDIR\${PROGRAM_NAME}.exe",1'
 
-
+; We refresh the icon cache down in -Finally.
 Call Associate
 ; if somethings added here, add it also to the uninstall section and the AdditionalTask page
 
-!insertmacro UpdateIcons
 SecRequired_skip_FileExtensions:
 
 ; if running as a silent installer, don't try to install winpcap
@@ -841,7 +836,7 @@ SectionEnd
 !ifdef QT_DIR
 Section "QtShark (Experimental)" SecQtshark
 ;-------------------------------------------
-; by default, QtShark is not installed  
+; by default, QtShark is not installed
 SetOutPath $INSTDIR
 File "${QT_DIR}\qtshark.exe"
 File "${QT_DIR}\QtCore4.dll"
@@ -967,6 +962,8 @@ SectionEnd
 !endif
 
 Section "-Finally"
+
+!insertmacro UpdateIcons
 
 ; Compute and write the installation directory size
 ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2

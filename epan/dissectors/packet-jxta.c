@@ -857,10 +857,8 @@ static int dissect_jxta_welcome(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
                 proto_tree_add_item(jxta_welcome_tree, hf_jxta_welcome_peerid, tvb, token_offset, (gint) strlen(*current_token), ENC_ASCII|ENC_NA);
             }
 
-            if (check_col(pinfo->cinfo, COL_INFO)) {
-                col_append_str(pinfo->cinfo, COL_INFO, (initiator ? " -> " : " <- ") );
-                col_append_str(pinfo->cinfo, COL_INFO, *current_token);
-            }
+            col_append_str(pinfo->cinfo, COL_INFO, (initiator ? " -> " : " <- ") );
+            col_append_str(pinfo->cinfo, COL_INFO, *current_token);
 
             if (NULL != found_addr) {
                 found_addr->type = AT_URI;
@@ -1289,15 +1287,13 @@ static int dissect_jxta_message(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "JXTA");
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        if( complete_messages > 1 ) {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "%d Messages, %s -> %s", complete_messages, src_addr->str, dst_addr->str);
-        } else {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "Message, %s -> %s", src_addr->str, dst_addr->str);
-        }
-
-        col_set_writable(pinfo->cinfo, FALSE);
+    if( complete_messages > 1 ) {
+        col_add_fstr(pinfo->cinfo, COL_INFO, "%d Messages, %s -> %s", complete_messages, src_addr->str, dst_addr->str);
+    } else {
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Message, %s -> %s", src_addr->str, dst_addr->str);
     }
+
+    col_set_writable(pinfo->cinfo, FALSE);
 
     while( tree && (complete_messages > 0) ) {
         proto_item *jxta_msg_tree_item = NULL;
@@ -1669,7 +1665,7 @@ static int dissect_jxta_message_element_1(tvbuff_t * tvb, packet_info * pinfo, p
 *   @param  pinfo Packet Info.
 *   @param  tree The protocol tree.
 *   @param  names_count The number of elements in the names table.
-*   @param  names The table of names.
+*   @param  names_table The table of names.
 *   @return Number of bytes from the tvbuff_t which were processed, 0 (zero) if
 *           the packet was not recognized as a JXTA packet and negative if the
 *           dissector needs more bytes in order to process a PDU.

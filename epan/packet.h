@@ -28,7 +28,7 @@
 #include "wiretap/wtap.h"
 #include "proto.h"
 #include "tvbuff.h"
-#include "pint.h"
+#include "wsutil/pint.h"
 #include "to_str.h"
 #include "value_string.h"
 #include "column_info.h"
@@ -42,6 +42,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+/** @defgroup packet General Packet Dissection
+ *
+ * @{
+ */
 
 #define hi_nibble(b) (((b) & 0xf0) >> 4)
 #define lo_nibble(b) ((b) & 0x0f)
@@ -79,6 +84,7 @@ typedef struct _packet_counts {
 #define PACKET_COUNTS_SIZE sizeof(packet_counts) / sizeof (gint)
 
 extern void packet_init(void);
+extern void packet_cache_proto_handles(void);
 extern void packet_cleanup(void);
 
 /* Handle for dissectors you call directly or register with "dissector_add_uint()".
@@ -299,9 +305,9 @@ WS_DLL_PUBLIC void heur_dissector_delete(const char *name, heur_dissector_t diss
 extern void heur_dissector_set_enabled(const char *name, heur_dissector_t dissector, const int proto, const gboolean enabled);
 
 /* Register a dissector. */
-WS_DLL_PUBLIC void register_dissector(const char *name, dissector_t dissector,
+WS_DLL_PUBLIC dissector_handle_t register_dissector(const char *name, dissector_t dissector,
     const int proto);
-WS_DLL_PUBLIC void new_register_dissector(const char *name, new_dissector_t dissector,
+WS_DLL_PUBLIC dissector_handle_t new_register_dissector(const char *name, new_dissector_t dissector,
     const int proto);
 
 /* Get the long name of the protocol for a dissector handle. */
@@ -315,6 +321,9 @@ WS_DLL_PUBLIC int dissector_handle_get_protocol_index(const dissector_handle_t h
 
 /* Find a dissector by name. */
 WS_DLL_PUBLIC dissector_handle_t find_dissector(const char *name);
+
+/* Get a dissector name from handle. */
+WS_DLL_PUBLIC const char *dissector_handle_get_dissector_name(const dissector_handle_t handle);
 
 /* Create an anonymous handle for a dissector. */
 WS_DLL_PUBLIC dissector_handle_t create_dissector_handle(dissector_t dissector,
@@ -374,10 +383,10 @@ WS_DLL_PUBLIC void set_actual_length(tvbuff_t *tvb, const guint specified_len);
 WS_DLL_PUBLIC void register_init_routine(void (*func)(void));
 
 /* Initialize all data structures used for dissection. */
-WS_DLL_PUBLIC void init_dissection(void);
+void init_dissection(void);
 
 /* Free data structures allocated for dissection. */
-WS_DLL_PUBLIC void cleanup_dissection(void);
+void cleanup_dissection(void);
 
 /* Allow protocols to register a "cleanup" routine to be
  * run after the initial sequential run through the packets.
@@ -434,7 +443,7 @@ WS_DLL_PUBLIC void mark_frame_as_depended_upon(packet_info *pinfo, guint32 frame
  * Dissectors should never modify the packet data.
  */
 extern void dissect_packet(epan_dissect_t *edt,
-    struct wtap_pkthdr *phdr, const guchar *pd,
+    struct wtap_pkthdr *phdr, tvbuff_t *tvb,
     frame_data *fd, column_info *cinfo);
 
 /* These functions are in packet-ethertype.c */
@@ -462,6 +471,8 @@ WS_DLL_PUBLIC void dissector_dump_heur_decodes(void);
 WS_DLL_PUBLIC void register_postdissector(dissector_handle_t);
 extern gboolean have_postdissector(void);
 extern void call_all_postdissectors(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+
+/** @} */
 
 #ifdef __cplusplus
 }

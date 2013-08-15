@@ -25,6 +25,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
+cache()
+
 isEqual(QT_MAJOR_VERSION, 4) {
   QT += core gui
 } else {
@@ -92,6 +94,13 @@ unix {
     !macx {
         eval(PKGCONFIG += zlib) {
             PKGCONFIG += zlib
+        }
+    }
+
+    macx {
+        packagesExist(Qt5MacExtras) {
+            message( "Found Qt5MacExtras" )
+            QT += macextras
         }
     }
 }
@@ -165,24 +174,13 @@ SOURCES_WS_C = \
     ../../cfutils.c \
     ../../clopts_common.c \
     ../../color_filters.c \
-    ../../disabled_protos.c       \
     ../../file.c  \
     ../../fileset.c       \
     ../../filters.c       \
-    ../../frame_data_sequence.c   \
-    ../../g711.c \
-    ../../merge.c \
-    ../../packet-range.c  \
-    ../../print.c \
+    ../../frame_tvbuff.c   \
     ../../proto_hier_stats.c      \
-    ../../ps.c    \
     ../../summary.c       \
     ../../sync_pipe_write.c       \
-    ../../tap-megaco-common.c     \
-    ../../tap-rtp-common.c    \
-    ../../tempfile.c      \
-    ../../timestats.c     \
-    ../../u3.c \
     ../../version_info.c
 
 unix:SOURCES_WS_C += ../../capture-pcap-util-unix.c
@@ -217,7 +215,9 @@ FORMS += \
     profile_dialog.ui \
     search_frame.ui \
     splash_overlay.ui \
+    summary_dialog.ui \
     time_shift_dialog.ui \
+    uat_dialog.ui
 
 
 win32 { ## These should be in config.pri ??
@@ -245,6 +245,7 @@ HEADERS += $$HEADERS_WS_C \
     accordion_frame.h \
     capture_preferences_frame.h \
     column_preferences_frame.h \
+    elided_label.h \
     export_dissection_dialog.h \
     export_object_dialog.h \
     filter_expressions_preferences_frame.h \
@@ -259,7 +260,10 @@ HEADERS += $$HEADERS_WS_C \
     profile_dialog.h \
     search_frame.h \
     splash_overlay.h \
+    summary_dialog.h \
     tango_colors.h \
+    uat_dialog.h \
+    elided_label.h
 
 
 win32 {
@@ -293,9 +297,15 @@ unix {
         message( "Assuming CMake library path" )
         LIBS += -L../../lib -Wl,-rpath ../../lib
     }
+
+    LIBS += -lwireshark -lwiretap -lwsutil -lui \
+    -lpcap
+
+    exists(../libui_dirty.a) {
+        LIBS += -lui_dirty
+    }
 }
-unix:LIBS += -lwireshark -lwiretap -lwsutil -lui \
-    -lpcap -lui_dirty
+
 macx:LIBS += -Wl,-macosx_version_min,10.6 -liconv -lz
 
 # XXX Copy this only if we're linking with Lua.
@@ -304,8 +314,13 @@ EXTRA_BINFILES = \
 
 # http://stackoverflow.com/questions/3984104/qmake-how-to-copy-a-file-to-the-output
 unix: {
-    EXTRA_BINFILES += \
-        ../../dumpcap
+    exists(../../.libs/dumpcap) {
+        EXTRA_BINFILES += \
+            ../../.libs/dumpcap
+    } else:exists(../../dumpcap) {
+        EXTRA_BINFILES += \
+            ../../dumpcap
+    }
 
     exists(../../epan/.libs/libw*) {
         EXTRA_BINFILES += \
@@ -313,19 +328,21 @@ unix: {
             ../../wiretap/.libs/libwiretap.* \
             ../../wsutil/.libs/libwsutil.*
     } else:exists(../../lib/libw*) {
-        EXTRA_BINFILES += ../../lib/lib{wireshark,wiretap,wsutil}.*
+        EXTRA_BINFILES += ../../lib/libwireshark.* \
+                        ../../lib/libwiretap.* \
+                        ../../lib/libwsutil.*
     }
 
 }
 unix:!macx {
     for(FILE,EXTRA_BINFILES){
-        QMAKE_POST_LINK += $$quote(cp $${FILE} .$$escape_expand(\\n\\t))
+        QMAKE_POST_LINK += $$quote(cp $${FILE} $${DESTDIR}$$escape_expand(\\n\\t))
     }
 }
 # qmake 2.01a / Qt 4.7.0 doesn't set DESTDIR on OS X.
 macx {
     for(FILE,EXTRA_BINFILES){
-        QMAKE_POST_LINK += $$quote(cp $${FILE} $${DESTDIR}/$${TARGET}.app/Contents/MacOS$$escape_expand(\\n\\t))
+        QMAKE_POST_LINK += $$quote(cp -R $${FILE} $${DESTDIR}/$${TARGET}.app/Contents/MacOS$$escape_expand(\\n\\t))
     }
 }
 
@@ -434,6 +451,9 @@ HEADERS += \
     byte_view_tab.h \
     byte_view_text.h \
     capture_file_dialog.h \
+    capture_filter_combo.h \
+    capture_filter_edit.h \
+    capture_filter_syntax_worker.h \
     capture_info_dialog.h \
     capture_interface_dialog.h \
     color_dialog.h \
@@ -456,6 +476,7 @@ HEADERS += \
     qt_ui_utils.h \
     qt_ui_utils.h \
     recent_file_status.h \
+    related_packet_delegate.h \
     simple_dialog_qt.h \
     sparkline_delegate.h \
     syntax_line_edit.h \
@@ -468,6 +489,9 @@ SOURCES += \
     byte_view_tab.cpp \
     byte_view_text.cpp \
     capture_file_dialog.cpp \
+    capture_filter_combo.cpp \
+    capture_filter_edit.cpp \
+    capture_filter_syntax_worker.cpp \
     capture_info_dialog.cpp \
     capture_interface_dialog.cpp \
     capture_preferences_frame.cpp \
@@ -476,6 +500,7 @@ SOURCES += \
     column_preferences_frame.cpp \
     display_filter_combo.cpp \
     display_filter_edit.cpp \
+    elided_label.cpp \
     export_dissection_dialog.cpp \
     export_object_dialog.cpp \
     file_set_dialog.cpp \
@@ -505,10 +530,13 @@ SOURCES += \
     proto_tree.cpp \
     qt_ui_utils.cpp \
     recent_file_status.cpp \
+    related_packet_delegate.cpp \
     search_frame.cpp \
     simple_dialog_qt.cpp \
     sparkline_delegate.cpp \
     splash_overlay.cpp \
+    summary_dialog.cpp \
     syntax_line_edit.cpp \
     time_shift_dialog.cpp \
-    wireshark_application.cpp \
+    uat_dialog.cpp \
+    wireshark_application.cpp

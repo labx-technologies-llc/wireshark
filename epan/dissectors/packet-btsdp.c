@@ -304,11 +304,15 @@ static gint ett_btsdp_supported_features_mdep_role        = -1;
 static gint ett_btsdp_supported_features_mdep_description = -1;
 static gint ett_btsdp_protocol                            = -1;
 
+static expert_field ei_btsdp_continuation_state_none = EI_INIT;
+static expert_field ei_btsdp_continuation_state_large = EI_INIT;
+static expert_field ei_data_element_value_large = EI_INIT;
+
 static gint btsdp_tap = -1;
 
-static emem_tree_t *tid_requests        = NULL;
-static emem_tree_t *continuation_states = NULL;
-static emem_tree_t *service_infos       = NULL;
+static wmem_tree_t *tid_requests        = NULL;
+static wmem_tree_t *continuation_states = NULL;
+static wmem_tree_t *service_infos       = NULL;
 
 
 static sdp_package_t sdp_package;
@@ -344,9 +348,13 @@ typedef struct _continuation_state_data_t {
 #define PDU_TYPE_SERVICE_ATTRIBUTE         0x01
 #define PDU_TYPE_SERVICE_SEARCH_ATTRIBUTE  0x02
 
+#define DID_VENDOR_ID_SOURCE_BLUETOOTH_SIG  1
+#define DID_VENDOR_ID_SOURCE_USB_FORUM      2
+
 #define MAX_SDP_LEN 1024
 
 extern value_string_ext ext_usb_vendors_vals;
+extern value_string_ext ext_usb_products_vals;
 
 static const value_string vs_pduid[] = {
     { 0x01,   "Error Response" },
@@ -832,6 +840,9 @@ static const value_string vs_service_classes[] = {
     { 0x1134,   "Message Access Profile" },
     { 0x1135,   "Global Navigation Satellite System" },
     { 0x1136,   "Global Navigation Satellite System Server" },
+    { 0x1137,   "3D Display" },
+    { 0x1138,   "3D Glasses" },
+    { 0x1139,   "3D Synchronization Profile" },
     { 0x1200,   "PnP Information" },
     { 0x1201,   "Generic Networking" },
     { 0x1202,   "Generic File Transfer" },
@@ -900,7 +911,7 @@ void proto_reg_handoff_btsdp(void);
 static void
 save_channel(packet_info *pinfo, guint32 protocol, guint32 channel, gint protocol_order, service_info_t *parent_service_info)
 {
-    emem_tree_key_t  key[10];
+    wmem_tree_key_t  key[10];
     guint32          k_interface_id;
     guint32          k_adapter_id;
     guint32          k_sdp_psm;
@@ -961,7 +972,7 @@ save_channel(packet_info *pinfo, guint32 protocol, guint32 channel, gint protoco
     key[9].length = 0;
     key[9].key = NULL;
 
-    se_tree_insert32_array(service_infos, key, service_info);
+    wmem_tree_insert32_array(service_infos, key, service_info);
 }
 
 static gint
@@ -1003,7 +1014,13 @@ get_type_length(tvbuff_t *tvb, gint offset, gint *length)
         break;
     }
 
-    *length = size;
+    if (size < 0) {
+        *length = 0; /* Add expert info? */
+    }
+    else {
+        *length = size;
+    }
+
     return offset;
 }
 
@@ -1050,11 +1067,9 @@ dissect_continuation_state(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
 
     length = tvb_length_remaining(tvb, offset);
     if (length == 0)  {
-        cont_item = proto_tree_add_text(tree, tvb, offset, -1, "[Malformed packet] - no Continuation State");
-        expert_add_info_format(pinfo, cont_item, PI_MALFORMED, PI_WARN, "There is no Continuation State");
+        proto_tree_add_expert(tree, pinfo, &ei_btsdp_continuation_state_none, tvb, offset, -1);
     } else if (length > 17) {
-        cont_item = proto_tree_add_text(tree, tvb, offset, -1, "[Malformed packet] - Continuation State data is longer then 16");
-        expert_add_info_format(pinfo, cont_item, PI_MALFORMED, PI_WARN, "Continuation State data is longer then 16");
+        proto_tree_add_expert(tree, pinfo, &ei_btsdp_continuation_state_large, tvb, offset, -1);
     } else if (length == 1 && tvb_get_guint8(tvb, offset) == 0x00) {
         proto_tree_add_text(tree, tvb, offset, -1, "Continuation State: no (0x00)");
     } else {
@@ -1099,7 +1114,7 @@ reassemble_continuation_state(tvbuff_t *tvb, packet_info *pinfo,
     btl2cap_data_t    *l2cap_data;
     tid_request_t     *tid_request;
     continuation_state_data_t *continuation_state_data;
-    emem_tree_key_t    key[12];
+    wmem_tree_key_t    key[12];
     guint32            k_interface_id;
     guint32            k_adapter_id;
     guint32            k_chandle;
@@ -1174,9 +1189,9 @@ reassemble_continuation_state(tvbuff_t *tvb, packet_info *pinfo,
                 tid_request->continuation_state        = NULL;
                 tid_request->continuation_state_length = 0;
 
-                se_tree_insert32_array(tid_requests, key, tid_request);
+                wmem_tree_insert32_array(tid_requests, key, tid_request);
             } else {
-                tid_request = (tid_request_t *) se_tree_lookup32_array_le(tid_requests, key);
+                tid_request = (tid_request_t *) wmem_tree_lookup32_array_le(tid_requests, key);
                 if (tid_request && tid_request->interface_id == interface_id &&
                         tid_request->adapter_id == adapter_id &&
                         tid_request->chandle == chandle &&
@@ -1226,7 +1241,7 @@ reassemble_continuation_state(tvbuff_t *tvb, packet_info *pinfo,
                         key[11].length = 0;
                         key[11].key    = NULL;
 
-                        continuation_state_data = (continuation_state_data_t *) se_tree_lookup32_array_le(continuation_states, key);
+                        continuation_state_data = (continuation_state_data_t *) wmem_tree_lookup32_array_le(continuation_states, key);
                         if (continuation_state_data && continuation_state_data->interface_id == interface_id &&
                                 continuation_state_data->adapter_id == adapter_id &&
                                 continuation_state_data->chandle == chandle &&
@@ -1276,7 +1291,7 @@ reassemble_continuation_state(tvbuff_t *tvb, packet_info *pinfo,
 
         /* full reassemble */
         if (!is_request) {
-            tid_request = (tid_request_t *) se_tree_lookup32_array_le(tid_requests, key);
+            tid_request = (tid_request_t *) wmem_tree_lookup32_array_le(tid_requests, key);
             if (tid_request && tid_request->interface_id == interface_id &&
                     tid_request->adapter_id == adapter_id &&
                     tid_request->chandle == chandle &&
@@ -1321,9 +1336,9 @@ reassemble_continuation_state(tvbuff_t *tvb, packet_info *pinfo,
                 tid_request->continuation_state        = continuation_state;
                 tid_request->continuation_state_length = continuation_state_length;
 
-                se_tree_insert32_array(tid_requests, key, tid_request);
+                wmem_tree_insert32_array(tid_requests, key, tid_request);
             } else {
-                tid_request = (tid_request_t *) se_tree_lookup32_array_le(tid_requests, key);
+                tid_request = (tid_request_t *) wmem_tree_lookup32_array_le(tid_requests, key);
                 if (tid_request && tid_request->interface_id == interface_id &&
                         tid_request->adapter_id == adapter_id &&
                         tid_request->chandle == chandle &&
@@ -1375,7 +1390,7 @@ reassemble_continuation_state(tvbuff_t *tvb, packet_info *pinfo,
                         key[11].length = 0;
                         key[11].key    = NULL;
 
-                        continuation_state_data = (continuation_state_data_t *) se_tree_lookup32_array_le(continuation_states, key);
+                        continuation_state_data = (continuation_state_data_t *) wmem_tree_lookup32_array_le(continuation_states, key);
                         if (continuation_state_data && continuation_state_data->interface_id == interface_id &&
                                 continuation_state_data->adapter_id == adapter_id &&
                                 continuation_state_data->chandle == chandle &&
@@ -1454,7 +1469,7 @@ reassemble_continuation_state(tvbuff_t *tvb, packet_info *pinfo,
                     continuation_state_data->data = tid_request->data;
                     continuation_state_data->data_length = tid_request->data_length;
 
-                    se_tree_insert32_array(continuation_states, key, continuation_state_data);
+                    wmem_tree_insert32_array(continuation_states, key, continuation_state_data);
                 }
             }
 
@@ -1483,7 +1498,7 @@ reassemble_continuation_state(tvbuff_t *tvb, packet_info *pinfo,
 
         /* partial reassemble */
         if (!is_request) {
-            tid_request = (tid_request_t *) se_tree_lookup32_array_le(tid_requests, key);
+            tid_request = (tid_request_t *) wmem_tree_lookup32_array_le(tid_requests, key);
             if (tid_request && tid_request->interface_id == interface_id &&
                     tid_request->adapter_id == adapter_id &&
                     tid_request->chandle == chandle &&
@@ -1546,7 +1561,7 @@ dissect_data_element(proto_tree *tree, proto_tree **next_tree,
 
     pitem = proto_tree_add_item(ptree, hf_data_element_value, tvb, offset,  0, ENC_NA);
     if (length > tvb_length_remaining(tvb, offset)) {
-        expert_add_info_format(pinfo, pitem, PI_MALFORMED, PI_WARN, "Data size exceeds the length of payload");
+        expert_add_info(pinfo, pitem, &ei_data_element_value_large);
         length = 0;
     }
     proto_item_set_len(pitem, length);
@@ -1764,7 +1779,8 @@ dissect_protocol_descriptor_list(proto_tree *next_tree, tvbuff_t *tvb,
 
 static gint
 dissect_sdp_type(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb,
-        gint offset, gint attribute, guint16 service_uuid, gint service_data,
+        gint offset, gint attribute, guint16 service_uuid,
+        gint service_did_vendor_id, gint service_did_vendor_id_source,
         service_info_t  *service_info, gchar **attr_val)
 {
     proto_tree    *feature_tree;
@@ -1829,10 +1845,10 @@ dissect_sdp_type(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb,
                     break;
                 case 0x201:
                     vendor_id = tvb_get_ntohs(tvb, offset);
-                    if (service_data == 1) {
+                    if (service_did_vendor_id_source == DID_VENDOR_ID_SOURCE_BLUETOOTH_SIG) {
                         proto_tree_add_item(next_tree, hf_did_vendor_id_bluetooth_sig, tvb, offset, 2, ENC_BIG_ENDIAN);
                         str_val = val_to_str_ext_const(vendor_id, &bthci_evt_comp_id_ext, "Unknown");
-                    } else if (service_data == 2) {
+                    } else if (service_did_vendor_id_source == DID_VENDOR_ID_SOURCE_USB_FORUM) {
                         proto_tree_add_item(next_tree, hf_did_vendor_id_usb_forum, tvb, offset, 2, ENC_BIG_ENDIAN);
                         str_val = val_to_str_ext_const(vendor_id, &ext_usb_vendors_vals, "Unknown");
                     } else {
@@ -1844,7 +1860,13 @@ dissect_sdp_type(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb,
                 case 0x202:
                     proto_tree_add_item(next_tree, hf_did_product_id, tvb, offset, 2, ENC_BIG_ENDIAN);
                     product_id = tvb_get_ntohs(tvb, offset);
-                    g_snprintf(str, MAX_SDP_LEN, "0x%04x", product_id);
+
+                    if (service_did_vendor_id_source == DID_VENDOR_ID_SOURCE_USB_FORUM) {
+                        str_val = val_to_str_ext_const(service_did_vendor_id << 16 | product_id, &ext_usb_products_vals, "Unknown");
+                        g_snprintf(str, MAX_SDP_LEN, "%s (0x%04x)", str_val, product_id);
+                    } else {
+                        g_snprintf(str, MAX_SDP_LEN, "0x%04x", product_id);
+                    }
                     break;
                 case 0x203:
                     proto_tree_add_item(next_tree, hf_did_version, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -3136,7 +3158,7 @@ dissect_sdp_type(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb,
                 first = 0;
             }
 
-            size = dissect_sdp_type(st, pinfo, tvb, offset, attribute, service_uuid, service_data, service_info, &substr);
+            size = dissect_sdp_type(st, pinfo, tvb, offset, attribute, service_uuid, service_did_vendor_id, service_did_vendor_id_source, service_info, &substr);
             if (size < 1) {
                 break;
             }
@@ -3192,6 +3214,37 @@ findDidVendorIdSource(tvbuff_t *tvb, gint service_offset,
     return result;
 }
 
+static gint
+findDidVendorId(tvbuff_t *tvb, gint service_offset,
+        gint number_of_attributes)
+{
+    gint result = 0;
+    gint search_length;
+    gint search_offset;
+    gint i_number_of_attributes;
+    guint16 attribute;
+
+    search_offset = service_offset;
+    i_number_of_attributes = 0;
+
+    while (i_number_of_attributes < number_of_attributes) {
+        search_offset = get_type_length(tvb, search_offset, &search_length);
+        attribute = tvb_get_ntohs(tvb, search_offset);
+
+        search_offset += search_length;
+        search_offset = get_type_length(tvb, search_offset, &search_length);
+
+        if (attribute == 0x201) {
+            result = get_uint_by_size(tvb, search_offset, 1);
+        }
+
+        search_offset += search_length;
+        i_number_of_attributes += 1;
+    }
+
+    return result;
+}
+
 
 static gint
 dissect_sdp_service_attribute(proto_tree *tree, tvbuff_t *tvb, gint offset,
@@ -3209,7 +3262,8 @@ dissect_sdp_service_attribute(proto_tree *tree, tvbuff_t *tvb, gint offset,
     const gchar         *attribute_name;
     gchar               *attribute_value;
     guint16              id;
-    gint                 service_data = 0;
+    gint                 service_did_vendor_id = 0;
+    gint                 service_did_vendor_id_source = 0;
     gint                 hfx_attribute_id = hf_service_attribute_id_generic;
     const value_string  *name_vals = NULL;
     const guint8        *profile_speficic = "";
@@ -3224,7 +3278,8 @@ dissect_sdp_service_attribute(proto_tree *tree, tvbuff_t *tvb, gint offset,
             hfx_attribute_id = hf_service_attribute_id_did;
             profile_speficic = "(DID) ";
 
-            service_data = findDidVendorIdSource(tvb, service_offset, number_of_attributes);
+            service_did_vendor_id_source = findDidVendorIdSource(tvb, service_offset, number_of_attributes);
+            service_did_vendor_id = findDidVendorId(tvb, service_offset, number_of_attributes);
             break;
         case BTSDP_HID_SERVICE_UUID:
             name_vals = vs_hid_attribute_id;
@@ -3399,7 +3454,7 @@ dissect_sdp_service_attribute(proto_tree *tree, tvbuff_t *tvb, gint offset,
     attribute_value_tree = proto_item_add_subtree(attribute_value_item, ett_btsdp_attribute_value);
 
     dissect_sdp_type(attribute_value_tree, pinfo, tvb, offset, id, service_uuid,
-            service_data, service_info, &attribute_value);
+            service_did_vendor_id, service_did_vendor_id_source, service_info, &attribute_value);
     old_offset = offset;
     offset = get_type_length(tvb, offset, &size);
     proto_item_append_text(attribute_item, ", value = %s", attribute_value);
@@ -3428,7 +3483,7 @@ dissect_sdp_service_attribute_list(proto_tree *tree, tvbuff_t *tvb, gint offset,
     gint             new_offset;
     guint16          service_uuid = 0;
     gint             service_offset;
-    emem_tree_key_t  key[10];
+    wmem_tree_key_t  key[10];
     guint32          k_interface_id;
     guint32          k_adapter_id;
     guint32          k_sdp_psm;
@@ -3538,7 +3593,7 @@ dissect_sdp_service_attribute_list(proto_tree *tree, tvbuff_t *tvb, gint offset,
         key[9].length = 0;
         key[9].key = NULL;
 
-        se_tree_insert32_array(service_infos, key, service_info);
+        wmem_tree_insert32_array(service_infos, key, service_info);
     }
 
     proto_item_set_len(list_item, offset - start_offset);
@@ -3661,7 +3716,7 @@ dissect_sdp_service_search_attribute_request(proto_tree *tree, tvbuff_t *tvb,
     proto_item_set_len(pitem, bytes_to_go + (offset - start_offset));
 
     while (bytes_to_go > 0) {
-        size = dissect_sdp_type(next_tree, pinfo, tvb, offset, -1, 0, 0, NULL, &str);
+        size = dissect_sdp_type(next_tree, pinfo, tvb, offset, -1, 0, 0, 0, NULL, &str);
         proto_item_append_text(ptree, "%s", str);
         col_append_fstr(pinfo->cinfo, COL_INFO, "%s", str);
 
@@ -3782,7 +3837,7 @@ dissect_sdp_service_search_request(proto_tree *tree, tvbuff_t *tvb, gint offset,
     while (bytes_to_go > 0) {
         gchar *str;
 
-        size = dissect_sdp_type(st, pinfo, tvb, offset, -1, 0, 0, NULL, &str);
+        size = dissect_sdp_type(st, pinfo, tvb, offset, -1, 0, 0, 0, NULL, &str);
 
         proto_item_append_text(st, " %s", str);
         col_append_fstr(pinfo->cinfo, COL_INFO, "%s", str);
@@ -3940,6 +3995,7 @@ void
 proto_register_btsdp(void)
 {
     module_t *module;
+	expert_module_t* expert_btsdp;
 
     static hf_register_info hf[] = {
         { &hf_pdu_id,
@@ -4169,12 +4225,12 @@ proto_register_btsdp(void)
         },
         { &hf_did_vendor_id_bluetooth_sig,
             { "Vendor ID",                       "btsdp.service.did.vendor_id",
-            FT_UINT16, BASE_HEX, &bthci_evt_comp_id_ext, 0,
+            FT_UINT16, BASE_HEX | BASE_EXT_STRING, &bthci_evt_comp_id_ext, 0,
             NULL, HFILL }
         },
         { &hf_did_vendor_id_usb_forum,
             { "Vendor ID",                       "btsdp.service.did.vendor_id",
-            FT_UINT16, BASE_HEX, &ext_usb_vendors_vals, 0,
+            FT_UINT16, BASE_HEX | BASE_EXT_STRING, &ext_usb_vendors_vals, 0,
             NULL, HFILL }
         },
         { &hf_did_product_id,
@@ -4730,12 +4786,12 @@ proto_register_btsdp(void)
         },
         { &hf_sdp_lang_id,
             { "Language ID",                     "btsdp.lang.id",
-            FT_UINT16, BASE_HEX|BASE_EXT_STRING, &usb_langid_vals_ext, 0,
+            FT_UINT16, BASE_HEX | BASE_EXT_STRING, &usb_langid_vals_ext, 0,
             NULL, HFILL }
         },
         { &hf_sdp_lang_encoding,
             { "Language Encoding",               "btsdp.lang.encoding",
-            FT_UINT16, BASE_HEX|BASE_EXT_STRING, &wap_mib_enum_vals_character_sets_ext, 0,
+            FT_UINT16, BASE_HEX | BASE_EXT_STRING, &wap_mib_enum_vals_character_sets_ext, 0,
             NULL, HFILL }
         },
         { &hf_sdp_lang_attribute_base,
@@ -5156,19 +5212,24 @@ proto_register_btsdp(void)
         &ett_btsdp_protocol
     };
 
+    static ei_register_info ei[] = {
+        { &ei_btsdp_continuation_state_none, { "btsdp.continuation_state_none", PI_MALFORMED, PI_WARN, "There is no Continuation State", EXPFILL }},
+        { &ei_btsdp_continuation_state_large, { "btsdp.continuation_state_large", PI_MALFORMED, PI_WARN, "Continuation State data is longer then 16", EXPFILL }},
+        { &ei_data_element_value_large, { "btavctp.data_element.value.large", PI_MALFORMED, PI_WARN, "Data size exceeds the length of payload", EXPFILL }},
+    };
+
     proto_btsdp = proto_register_protocol("Bluetooth SDP Protocol", "BT SDP", "btsdp");
     new_register_dissector("btsdp", dissect_btsdp, proto_btsdp);
 
     proto_register_field_array(proto_btsdp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_btsdp = expert_register_protocol(proto_btsdp);
+    expert_register_field_array(expert_btsdp, ei, array_length(ei));
 
-    tid_requests = se_tree_create(EMEM_TREE_TYPE_RED_BLACK,
-            "btsdp reassembling by tid");
-    continuation_states = se_tree_create(EMEM_TREE_TYPE_RED_BLACK,
-            "btsdp reassembling by continuation state");
+    tid_requests = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
+    continuation_states = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
 
-    service_infos = se_tree_create(EMEM_TREE_TYPE_RED_BLACK,
-            "btsdp service infos");
+    service_infos = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
     sdp_package.service_infos = service_infos;
     btsdp_tap = register_tap("btsdp");
 

@@ -185,14 +185,14 @@ static gboolean iseries_read (wtap * wth, int *err, gchar ** err_info,
                               gint64 *data_offset);
 static gboolean iseries_seek_read (wtap * wth, gint64 seek_off,
                                    struct wtap_pkthdr *phdr,
-                                   guint8 * pd, int len, int *err,
+                                   Buffer * buf, int len, int *err,
                                    gchar ** err_info);
 static gboolean iseries_check_file_type (wtap * wth, int *err, gchar **err_info,
                                          int format);
 static gint64 iseries_seek_next_packet (wtap * wth, int *err, gchar **err_info);
 static gboolean iseries_parse_packet (wtap * wth, FILE_T fh,
                                       struct wtap_pkthdr *phdr,
-                                      guint8 * pd, int *err, gchar ** err_info);
+                                      Buffer * buf, int *err, gchar ** err_info);
 static int iseries_UNICODE_to_ASCII (guint8 * buf, guint bytes);
 static gboolean iseries_parse_hex_string (const char * ascii, guint8 * buf,
                                           size_t len);
@@ -384,15 +384,13 @@ iseries_read (wtap * wth, int *err, gchar ** err_info, gint64 *data_offset)
   offset = iseries_seek_next_packet (wth, err, err_info);
   if (offset < 0)
     return FALSE;
+  *data_offset     = offset;
 
   /*
    * Parse the packet and extract the various fields
    */
-  if (!iseries_parse_packet (wth, wth->fh, &wth->phdr, NULL, err, err_info))
-    return FALSE;
-
-  *data_offset     = offset;
-  return TRUE;
+  return iseries_parse_packet (wth, wth->fh, &wth->phdr, wth->frame_buffer,
+                               err, err_info);
 }
 
 /*
@@ -423,7 +421,7 @@ iseries_seek_next_packet (wtap * wth, int *err, gchar **err_info)
         if (iseries->format == ISERIES_FORMAT_UNICODE)
           {
             /* buflen is #bytes to 1st 0x0A */
-           buflen = iseries_UNICODE_to_ASCII ((guint8 *) buf, ISERIES_LINE_LENGTH);
+            buflen = iseries_UNICODE_to_ASCII ((guint8 *) buf, ISERIES_LINE_LENGTH);
           }
         else
           {
@@ -464,7 +462,7 @@ iseries_seek_next_packet (wtap * wth, int *err, gchar **err_info)
  */
 static gboolean
 iseries_seek_read (wtap * wth, gint64 seek_off, struct wtap_pkthdr *phdr,
-                   guint8 * pd, int len, int *err, gchar ** err_info)
+                   Buffer * buf, int len _U_, int *err, gchar ** err_info)
 {
 
   /* seek to packet location */
@@ -474,19 +472,8 @@ iseries_seek_read (wtap * wth, gint64 seek_off, struct wtap_pkthdr *phdr,
   /*
    * Parse the packet and extract the various fields
    */
-  if (!iseries_parse_packet (wth, wth->random_fh, phdr, pd,
-                             err, err_info))
-    return FALSE;
-
-  if (phdr->caplen != (guint32)len)
-    {
-      *err = WTAP_ERR_BAD_FILE;
-      *err_info =
-        g_strdup_printf ("iseries: requested length %d doesn't match record length %d",
-                         len, phdr->caplen);
-      return FALSE;
-    }
-  return TRUE;
+  return iseries_parse_packet (wth, wth->random_fh, phdr, buf,
+                               err, err_info);
 }
 
 static int
@@ -572,7 +559,7 @@ done:
 /* Parses a packet. */
 static gboolean
 iseries_parse_packet (wtap * wth, FILE_T fh, struct wtap_pkthdr *phdr,
-                      guint8 *pd, int *err, gchar **err_info)
+                      Buffer *buf, int *err, gchar **err_info)
 {
   iseries_t *iseries = (iseries_t *)wth->priv;
   gint64     cur_off;
@@ -582,7 +569,6 @@ iseries_parse_packet (wtap * wth, FILE_T fh, struct wtap_pkthdr *phdr,
   char       direction[2], destmac[13], srcmac[13], type[5], csec[9+1];
   char       data[ISERIES_LINE_LENGTH * 2];
   int        offset;
-  guint8    *buf;
   char      *ascii_buf;
   int        ascii_offset;
   struct tm  tm;
@@ -850,19 +836,10 @@ iseries_parse_packet (wtap * wth, FILE_T fh, struct wtap_pkthdr *phdr,
    */
   phdr->caplen = ((guint32) strlen (ascii_buf))/2;
 
-  /* Make sure we have enough room for the packet, only create buffer if none supplied */
-  if (pd == NULL)
-    {
-      buffer_assure_space (wth->frame_buffer, ISERIES_MAX_PACKET_LEN);
-      buf = buffer_start_ptr (wth->frame_buffer);
-      /* Convert ascii data to binary and return in the frame buffer */
-      iseries_parse_hex_string (ascii_buf, buf, strlen (ascii_buf));
-    }
-  else
-    {
-      /* Convert ascii data to binary and return in the frame buffer */
-      iseries_parse_hex_string (ascii_buf, pd, strlen (ascii_buf));
-    }
+  /* Make sure we have enough room for the packet. */
+  buffer_assure_space (buf, ISERIES_MAX_PACKET_LEN);
+  /* Convert ascii data to binary and return in the frame buffer */
+  iseries_parse_hex_string (ascii_buf, buffer_start_ptr (buf), strlen (ascii_buf));
 
   /* free buffer allocs and return */
   *err = 0;

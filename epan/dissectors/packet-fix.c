@@ -52,7 +52,6 @@ typedef struct _fix_parameter {
 
 /* Initialize the protocol and registered fields */
 static int proto_fix = -1;
-static dissector_handle_t fix_handle;
 
 /* desegmentation of fix */
 static gboolean fix_desegment = TRUE;
@@ -70,6 +69,8 @@ static int hf_fix_checksum_good = -1;
 static int hf_fix_checksum_bad = -1;
 static int hf_fix_field_value = -1;
 static int hf_fix_field_tag = -1;
+
+static dissector_handle_t fix_handle;
 
 static range_t *global_fix_tcp_range = NULL;
 static range_t *fix_tcp_range = NULL;
@@ -230,6 +231,7 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     char          *value;
     char          *tag_str;
     fix_parameter *tag;
+    const char *msg_type;
 
     /* Make entries in Protocol column and Info column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "FIX");
@@ -268,13 +270,9 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         return;
     }
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        const char *msg_type;
-
-        value = tvb_get_ephemeral_string(tvb, tag->value_offset, tag->value_len);
-        msg_type = str_to_str(value, messages_val, "FIX Message (%s)");
-        col_add_str(pinfo->cinfo, COL_INFO, msg_type);
-    }
+    value = tvb_get_ephemeral_string(tvb, tag->value_offset, tag->value_len);
+    msg_type = str_to_str(value, messages_val, "FIX Message (%s)");
+    col_add_str(pinfo->cinfo, COL_INFO, msg_type);
 
     /* In the interest of speed, if "tree" is NULL, don't do any work not
      * necessary to generate protocol tree items.
@@ -516,7 +514,7 @@ proto_register_fix(void)
                                         "FIX", "fix");
 
     /* Allow dissector to find be found by name. */
-    register_dissector("fix", dissect_fix, proto_fix);
+    fix_handle = register_dissector("fix", dissect_fix, proto_fix);
 
     proto_register_field_array(proto_fix, hf, array_length(hf));
     proto_register_field_array(proto_fix, hf_FIX, array_length(hf_FIX));
@@ -544,7 +542,6 @@ proto_reg_handoff_fix(void)
     /* Let the tcp dissector know that we're interested in traffic      */
     heur_dissector_add("tcp", dissect_fix_heur, proto_fix);
     /* Register a fix handle to "tcp.port" to be able to do 'decode-as' */
-    fix_handle = create_dissector_handle(dissect_fix, proto_fix);
     dissector_add_handle("tcp.port", fix_handle);
 }
 

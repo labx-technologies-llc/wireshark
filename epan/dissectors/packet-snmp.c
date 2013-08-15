@@ -61,6 +61,9 @@
 
 #include <glib.h>
 
+#include <wsutil/sha1.h>
+#include <wsutil/md5.h>
+
 #include <epan/packet.h>
 #include <epan/strutil.h>
 #include <epan/conversation.h>
@@ -73,18 +76,12 @@
 #include <epan/asn1.h>
 #include "packet-ipx.h"
 #include "packet-hpext.h"
-
+#include <epan/expert.h>
+#include <epan/oids.h>
 
 #include "packet-ber.h"
 
 #include "packet-snmp.h"
-
-#include <epan/crypt/sha1.h>
-#include <epan/crypt/md5.h>
-#include <epan/expert.h>
-#include <epan/report_err.h>
-#include <epan/oids.h>
-
 
 #ifdef HAVE_LIBGCRYPT
 #include <wsutil/wsgcrypt.h>
@@ -240,6 +237,7 @@ static int hf_snmp_gauge32_value = -1;
 static int hf_snmp_objectname = -1;
 static int hf_snmp_scalar_instance_index = -1;
 
+static int hf_snmp_var_bind_str = -1;
 
 
 /*--- Included file: packet-snmp-hf.c ---*/
@@ -311,7 +309,7 @@ static int hf_snmp_priority = -1;                 /* INTEGER_M1_2147483647 */
 static int hf_snmp_operation = -1;                /* T_operation */
 
 /*--- End of included file: packet-snmp-hf.c ---*/
-#line 237 "../../asn1/snmp/packet-snmp-template.c"
+#line 235 "../../asn1/snmp/packet-snmp-template.c"
 
 static int hf_smux_version = -1;
 static int hf_smux_pdutype = -1;
@@ -354,7 +352,35 @@ static gint ett_snmp_SimpleOpen_U = -1;
 static gint ett_snmp_RReqPDU_U = -1;
 
 /*--- End of included file: packet-snmp-ett.c ---*/
-#line 256 "../../asn1/snmp/packet-snmp-template.c"
+#line 254 "../../asn1/snmp/packet-snmp-template.c"
+
+static expert_field ei_snmp_failed_decrypted_data_pdu = EI_INIT;
+static expert_field ei_snmp_decrypted_data_bad_formatted = EI_INIT;
+static expert_field ei_snmp_verify_authentication_error = EI_INIT;
+static expert_field ei_snmp_authentication_ok = EI_INIT;
+static expert_field ei_snmp_authentication_error = EI_INIT;
+static expert_field ei_snmp_varbind_not_uni_class_seq = EI_INIT;
+static expert_field ei_snmp_varbind_has_indicator = EI_INIT;
+static expert_field ei_snmp_objectname_not_oid = EI_INIT;
+static expert_field ei_snmp_objectname_has_indicator = EI_INIT;
+static expert_field ei_snmp_value_not_primitive_encoding = EI_INIT;
+static expert_field ei_snmp_invalid_oid = EI_INIT;
+static expert_field ei_snmp_varbind_wrong_tag = EI_INIT;
+static expert_field ei_snmp_varbind_response = EI_INIT;
+static expert_field ei_snmp_no_instance_subid = EI_INIT;
+static expert_field ei_snmp_wrong_num_of_subids = EI_INIT;
+static expert_field ei_snmp_index_suboid_too_short = EI_INIT;
+static expert_field ei_snmp_unimplemented_instance_index = EI_INIT;
+static expert_field ei_snmp_index_suboid_len0 = EI_INIT;
+static expert_field ei_snmp_index_suboid_too_long = EI_INIT;
+static expert_field ei_snmp_index_string_too_long = EI_INIT;
+static expert_field ei_snmp_column_parent_not_row = EI_INIT;
+static expert_field ei_snmp_uint_too_large = EI_INIT;
+static expert_field ei_snmp_int_too_large = EI_INIT;
+static expert_field ei_snmp_integral_value0 = EI_INIT;
+static expert_field ei_snmp_missing_mib = EI_INIT;
+static expert_field ei_snmp_varbind_wrong_length_value = EI_INIT;
+static expert_field ei_snmp_varbind_wrong_class_tag = EI_INIT;
 
 static const true_false_string auth_flags = {
 	"OK",
@@ -426,6 +452,100 @@ snmp_lookup_specific_trap (guint specific_trap)
 	}
 
 	return NULL;
+}
+
+static int
+dissect_snmp_variable_string(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, void *data _U_)
+{
+
+	proto_tree_add_item(tree, hf_snmp_var_bind_str, tvb, 0, -1, ENC_ASCII|ENC_NA);
+
+	return tvb_length(tvb);
+}
+
+/*
+DateAndTime ::= TEXTUAL-CONVENTION
+    DISPLAY-HINT "2d-1d-1d,1d:1d:1d.1d,1a1d:1d"
+    STATUS       current
+    DESCRIPTION
+            "A date-time specification.
+
+            field  octets  contents                  range
+            -----  ------  --------                  -----
+              1      1-2   year*                     0..65536
+              2       3    month                     1..12
+              3       4    day                       1..31
+              4       5    hour                      0..23
+              5       6    minutes                   0..59
+              6       7    seconds                   0..60
+                           (use 60 for leap-second)
+              7       8    deci-seconds              0..9
+              8       9    direction from UTC        '+' / '-'
+              9      10    hours from UTC*           0..13
+             10      11    minutes from UTC          0..59
+
+            * Notes:
+            - the value of year is in network-byte order
+            - daylight saving time in New Zealand is +13
+
+            For example, Tuesday May 26, 1992 at 1:30:15 PM EDT would be
+            displayed as:
+
+                             1992-5-26,13:30:15.0,-4:0
+
+            Note that if only local time is known, then timezone
+            information (fields 8-10) is not present."
+    SYNTAX       OCTET STRING (SIZE (8 | 11))
+	*/
+static proto_item *
+dissect_snmp_variable_date_and_time(proto_tree *tree,int hfid, tvbuff_t *tvb, int offset, int length)
+{
+    guint16 year;
+    guint8 month;
+    guint8 day;
+    guint8 hour;
+    guint8 minutes;
+    guint8 seconds;
+    guint8 deci_seconds;
+    guint8 hour_from_utc;
+    guint8 min_from_utc;
+    gchar *str;
+
+    year			= tvb_get_ntohs(tvb,offset);
+    month			= tvb_get_guint8(tvb,offset+2);
+    day				= tvb_get_guint8(tvb,offset+3);
+    hour			= tvb_get_guint8(tvb,offset+4);
+    minutes			= tvb_get_guint8(tvb,offset+5);
+    seconds			= tvb_get_guint8(tvb,offset+6);
+    deci_seconds	= tvb_get_guint8(tvb,offset+7);
+    if(length > 8){
+        hour_from_utc	= tvb_get_guint8(tvb,offset+9);
+        min_from_utc	= tvb_get_guint8(tvb,offset+10);
+
+		str = ep_strdup_printf("%u-%u-%u, %u:%u:%u.%u UTC %s%u:%u",
+             year,
+             month,
+             day,
+             hour,
+             minutes,
+             seconds,
+             deci_seconds,
+             tvb_get_ephemeral_string(tvb,offset+8,1),
+             hour_from_utc,
+             min_from_utc);
+    }else{
+         str = ep_strdup_printf("%u-%u-%u, %u:%u:%u.%u",
+             year,
+             month,
+             day,
+             hour,
+             minutes,
+             seconds,
+             deci_seconds);
+    }
+
+    return proto_tree_add_string(tree, hfid, tvb, offset, length, str);
+
 }
 
 /*
@@ -532,14 +652,14 @@ dissect_snmp_VarBind(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,
 	if (!pc && ber_class==BER_CLASS_UNI && tag==BER_UNI_TAG_SEQUENCE) {
 		proto_item* pi = proto_tree_add_text(tree, tvb, seq_offset, seq_len,"VarBind must be an universal class sequence");
 		pt = proto_item_add_subtree(pi,ett_decoding_error);
-		expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "VarBind is not an universal class sequence");
+		expert_add_info(actx->pinfo, pi, &ei_snmp_varbind_not_uni_class_seq);
 		return dissect_unknown_ber(actx->pinfo, tvb, seq_offset, pt);
 	}
 
 	if (ind) {
 		proto_item* pi = proto_tree_add_text(tree, tvb, seq_offset, seq_len,"Indicator must be clear in VarBind");
 		pt = proto_item_add_subtree(pi,ett_decoding_error);
-		expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "VarBind has indicator set");
+		expert_add_info(actx->pinfo, pi, &ei_snmp_varbind_has_indicator);
 		return dissect_unknown_ber(actx->pinfo, tvb, seq_offset, pt);
 	}
 
@@ -551,14 +671,14 @@ dissect_snmp_VarBind(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,
 	if (! ( !pc && ber_class==BER_CLASS_UNI && tag==BER_UNI_TAG_OID) ) {
 		proto_item* pi = proto_tree_add_text(tree, tvb, seq_offset, seq_len,"ObjectName must be an OID in primitive encoding");
 		pt = proto_item_add_subtree(pi,ett_decoding_error);
-		expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "ObjectName not an OID");
+		expert_add_info(actx->pinfo, pi, &ei_snmp_objectname_not_oid);
 		return dissect_unknown_ber(actx->pinfo, tvb, seq_offset, pt);
 	}
 
 	if (ind) {
 		proto_item* pi = proto_tree_add_text(tree, tvb, seq_offset, seq_len,"Indicator must be clear in ObjectName");
 		pt = proto_item_add_subtree(pi,ett_decoding_error);
-		expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "ObjectName has indicator set");
+		expert_add_info(actx->pinfo, pi, &ei_snmp_objectname_has_indicator);
 		return dissect_unknown_ber(actx->pinfo, tvb, seq_offset, pt);
 	}
 
@@ -572,7 +692,7 @@ dissect_snmp_VarBind(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,
 	if (! (!pc) ) {
 		proto_item* pi = proto_tree_add_text(tree, tvb, seq_offset, seq_len,"the value must be in primitive encoding");
 		pt = proto_item_add_subtree(pi,ett_decoding_error);
-		expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "value not in primitive encoding");
+		expert_add_info(actx->pinfo, pi, &ei_snmp_value_not_primitive_encoding);
 		return dissect_unknown_ber(actx->pinfo, tvb, seq_offset, pt);
 	}
 
@@ -600,7 +720,7 @@ dissect_snmp_VarBind(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,
 		repr = oid_encoded2string(oid_bytes, name_len);
 		pi = proto_tree_add_text(pt_name,tvb, 0, 0, "invalid oid: %s", repr);
 		pt = proto_item_add_subtree(pi, ett_decoding_error);
-		expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "invalid oid: %s", repr);
+		expert_add_info_format_text(actx->pinfo, pi, &ei_snmp_invalid_oid, "invalid oid: %s", repr);
 		return dissect_unknown_ber(actx->pinfo, tvb, name_offset, pt);
 	}
 
@@ -634,13 +754,13 @@ dissect_snmp_VarBind(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,
 			default: {
 				pi = proto_tree_add_text(pt_varbind,tvb,0,0,"Wrong tag for Error Value: expected 0, 1, or 2 but got: %d",tag);
 				pt = proto_item_add_subtree(pi,ett_decoding_error);
-				expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "Wrong tag for SNMP VarBind error value");
+				expert_add_info(actx->pinfo, pi, &ei_snmp_varbind_wrong_tag);
 				return dissect_unknown_ber(actx->pinfo, tvb, value_start, pt);
 			}
 		}
 
 		pi = proto_tree_add_item(pt_varbind,hfid,tvb,value_offset,value_len,ENC_BIG_ENDIAN);
-		expert_add_info_format(actx->pinfo, pi, PI_RESPONSE_CODE, PI_NOTE, "%s",note);
+		expert_add_info_format_text(actx->pinfo, pi, &ei_snmp_varbind_response, "%s",note);
 		g_strlcpy (label, note, ITEM_LABEL_LENGTH);
 		goto set_label;
 	}
@@ -660,13 +780,13 @@ dissect_snmp_VarBind(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,
 					goto set_label;
 				} else {
 					proto_item* pi = proto_tree_add_text(pt_name,tvb,0,0,"A scalar should have one instance sub-id this one has none");
-					expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "No instance sub-id in scalar value");
+					expert_add_info(actx->pinfo, pi, &ei_snmp_no_instance_subid);
 					oid_info_is_ok = FALSE;
 					goto indexing_done;
 				}
 			} else {
 				proto_item* pi = proto_tree_add_text(pt_name,tvb,0,0,"A scalar should have only one instance sub-id this has: %d",oid_left);
-				expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "Wrong number of instance sub-ids in scalar value");
+				expert_add_info(actx->pinfo, pi, &ei_snmp_wrong_num_of_subids);
 				oid_info_is_ok = FALSE;
 				goto indexing_done;
 			}
@@ -690,7 +810,7 @@ dissect_snmp_VarBind(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,
 
 						if (key_start >= oid_matched+oid_left) {
 							proto_item* pi = proto_tree_add_text(pt_name,tvb,0,0,"index sub-oid shorter than expected");
-							expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "index sub-oid shorter than expected");
+							expert_add_info(actx->pinfo, pi, &ei_snmp_index_suboid_too_short);
 							oid_info_is_ok = FALSE;
 							goto indexing_done;
 						}
@@ -698,7 +818,7 @@ dissect_snmp_VarBind(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,
 						switch(k->key_type) {
 							case OID_KEY_TYPE_WRONG: {
 								proto_item* pi = proto_tree_add_text(pt_name,tvb,0,0,"OID instaces not handled, if you want this implemented please contact the wireshark developers");
-								expert_add_info_format(actx->pinfo, pi, PI_UNDECODED, PI_WARN, "Unimplemented instance index");
+								expert_add_info(actx->pinfo, pi, &ei_snmp_unimplemented_instance_index);
 								oid_info_is_ok = FALSE;
 								goto indexing_done;
 							}
@@ -730,14 +850,14 @@ show_oid_index:
 
 								if( suboid_len == 0 ) {
 									proto_item* pi = proto_tree_add_text(pt_name,tvb,0,0,"an index sub-oid OID cannot be 0 bytes long!");
-									expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "index sub-oid OID with len=0");
+									expert_add_info(actx->pinfo, pi, &ei_snmp_index_suboid_len0);
 									oid_info_is_ok = FALSE;
 									goto indexing_done;
 								}
 
 								if( key_len < suboid_len ) {
 									proto_item* pi = proto_tree_add_text(pt_name,tvb,0,0,"index sub-oid should not be longer than remaining oid size");
-									expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "index sub-oid longer than remaining oid size");
+									expert_add_info(actx->pinfo, pi, &ei_snmp_index_suboid_too_long);
 									oid_info_is_ok = FALSE;
 									goto indexing_done;
 								}
@@ -784,7 +904,7 @@ show_oid_index:
 
 								if( key_len < buf_len ) {
 									proto_item* pi = proto_tree_add_text(pt_name,tvb,0,0,"index string should not be longer than remaining oid size");
-									expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "index string longer than remaining oid size");
+									expert_add_info(actx->pinfo, pi, &ei_snmp_index_string_too_long);
 									oid_info_is_ok = FALSE;
 									goto indexing_done;
 								}
@@ -826,13 +946,13 @@ show_oid_index:
 					goto indexing_done;
 				} else {
 					proto_item* pi = proto_tree_add_text(pt_name,tvb,0,0,"We do not know how to handle this OID, if you want this implemented please contact the wireshark developers");
-					expert_add_info_format(actx->pinfo, pi, PI_UNDECODED, PI_WARN, "Unimplemented instance index");
+					expert_add_info(actx->pinfo, pi, &ei_snmp_unimplemented_instance_index);
 					oid_info_is_ok = FALSE;
 					goto indexing_done;
 				}
 			} else {
 				proto_item* pi = proto_tree_add_text(pt_name,tvb,0,0,"The COLUMS's parent is not a ROW. This is a BUG! please contact the wireshark developers.");
-				expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_ERROR, "COLUMS's parent is not a ROW");
+				expert_add_info(actx->pinfo, pi, &ei_snmp_column_parent_not_row);
 				oid_info_is_ok = FALSE;
 				goto indexing_done;
 			}
@@ -899,7 +1019,11 @@ indexing_done:
 				goto already_added;
 			}
 			case BER_CLASS_UNI|(BER_UNI_TAG_OCTETSTRING<<4):
-				hfid = hf_snmp_octetstring_value;
+				if(oid_info->value_hfid> -1){
+					hfid = oid_info->value_hfid;
+				}else{
+					hfid = hf_snmp_octetstring_value;
+				}
 				break;
 			case BER_CLASS_UNI|(BER_UNI_TAG_OID<<4):
 				max_len = -1; min_len = 1;
@@ -956,7 +1080,7 @@ indexing_done:
 				if (value_len > 9 || tvb_get_guint8(tvb, value_offset) != 0) {
 					/* It is.  Fail. */
 					pi_value = proto_tree_add_text(pt_varbind,tvb,value_offset,value_len,"Integral value too large");
-					expert_add_info_format(actx->pinfo, pi_value, PI_UNDECODED, PI_NOTE, "Unsigned integer value > 2^64 - 1");
+					expert_add_info(actx->pinfo, pi_value, &ei_snmp_uint_too_large);
 					goto already_added;
 				}
 				/* Cheat and skip the leading 0 byte */
@@ -967,7 +1091,7 @@ indexing_done:
 				 * For now, just reject these.
 				 */
 				pi_value = proto_tree_add_text(pt_varbind,tvb,value_offset,value_len,"Integral value too large or too small");
-				expert_add_info_format(actx->pinfo, pi_value, PI_UNDECODED, PI_NOTE, "Signed integer value > 2^63 - 1 or <= -2^63");
+				expert_add_info(actx->pinfo, pi_value, &ei_snmp_int_too_large);
 				goto already_added;
 			}
 		} else if (value_len == 0) {
@@ -982,13 +1106,18 @@ indexing_done:
 			header_field_info *hfinfo = proto_registrar_get_nth(hfid);
 			if (hfinfo->type == FT_UINT64 || hfinfo->type == FT_INT64) {
 				pi_value = proto_tree_add_text(pt_varbind,tvb,value_offset,value_len,"Integral value is zero-length");
-				expert_add_info_format(actx->pinfo, pi_value, PI_UNDECODED, PI_NOTE, "Integral value is zero-length");
+				expert_add_info(actx->pinfo, pi_value, &ei_snmp_integral_value0);
 				goto already_added;
 			}
 		}
-		pi_value = proto_tree_add_item(pt_varbind,hfid,tvb,value_offset,value_len,ENC_BIG_ENDIAN);
+		/* Special case DATE AND TIME */
+		if((oid_info->value_type)&&(oid_info->value_type->keytype == OID_KEY_TYPE_DATE_AND_TIME)&&(value_len > 7)){
+			pi_value = dissect_snmp_variable_date_and_time(pt_varbind, hfid, tvb, value_offset, value_len);
+		}else{
+		    pi_value = proto_tree_add_item(pt_varbind,hfid,tvb,value_offset,value_len,ENC_BIG_ENDIAN);
+		}
 		if (format_error != BER_NO_ERROR) {
-			expert_add_info_format(actx->pinfo, pi_value, PI_UNDECODED, PI_NOTE, "Unresolved value, Missing MIB");
+			expert_add_info(actx->pinfo, pi_value, &ei_snmp_missing_mib);
 		}
 
 already_added:
@@ -1041,7 +1170,7 @@ set_label:
 			proto_item* pi = proto_tree_add_text(p_tree,tvb,0,0,"Wrong value length: %u  expecting: %u <= len <= %u",
 							     value_len, min_len, max_len == -1 ? 0xFFFFFF : max_len);
 			pt = proto_item_add_subtree(pi,ett_decoding_error);
-			expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "Wrong length for SNMP VarBind/value");
+			expert_add_info(actx->pinfo, pi, &ei_snmp_varbind_wrong_length_value);
 			return dissect_unknown_ber(actx->pinfo, tvb, value_start, pt);
 		}
 		case BER_WRONG_TAG: {
@@ -1050,7 +1179,7 @@ set_label:
 							     oid_info->value_type->ber_class, oid_info->value_type->ber_tag,
 							     ber_class, tag);
 			pt = proto_item_add_subtree(pi,ett_decoding_error);
-			expert_add_info_format(actx->pinfo, pi, PI_MALFORMED, PI_WARN, "Wrong class/tag for SNMP VarBind/value");
+			expert_add_info(actx->pinfo, pi, &ei_snmp_varbind_wrong_class_tag);
 			return dissect_unknown_ber(actx->pinfo, tvb, value_start, pt);
 		}
 		default:
@@ -1236,7 +1365,7 @@ static void set_ue_keys(snmp_ue_assoc_t* n ) {
 				    n->user.authKey.data);
 
 	if (n->priv_proto == PRIV_AES128 || n->priv_proto == PRIV_AES192 || n->priv_proto == PRIV_AES256) {
-		guint need_key_len = 
+		guint need_key_len =
 			(n->priv_proto == PRIV_AES128) ? 16 :
 			(n->priv_proto == PRIV_AES192) ? 24 :
 			(n->priv_proto == PRIV_AES256) ? 32 :
@@ -1997,7 +2126,7 @@ static int
 dissect_snmp_SpecificTrap(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 48 "../../asn1/snmp/snmp.cnf"
   guint specific_trap;
-  
+
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &specific_trap);
 
@@ -2352,7 +2481,7 @@ dissect_snmp_INTEGER_484_2147483647(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_snmp_T_msgFlags(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 227 "../../asn1/snmp/snmp.cnf"
+#line 218 "../../asn1/snmp/snmp.cnf"
 	tvbuff_t *parameter_tvb = NULL;
 
    offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -2361,11 +2490,11 @@ dissect_snmp_T_msgFlags(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
  if (parameter_tvb){
 	guint8 v3_flags = tvb_get_guint8(parameter_tvb, 0);
 	proto_tree* flags_tree = proto_item_add_subtree(actx->created_item,ett_msgFlags);
-	
+
 	proto_tree_add_item(flags_tree, hf_snmp_v3_flags_report, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
 	proto_tree_add_item(flags_tree, hf_snmp_v3_flags_crypt, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
 	proto_tree_add_item(flags_tree, hf_snmp_v3_flags_auth, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
-	
+
 	usm_p.encrypted = v3_flags & TH_CRYPT ? TRUE : FALSE;
 	usm_p.authenticated = v3_flags & TH_AUTH ? TRUE : FALSE;
   }
@@ -2407,10 +2536,10 @@ dissect_snmp_HeaderData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_snmp_T_msgSecurityParameters(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 170 "../../asn1/snmp/snmp.cnf"
+#line 166 "../../asn1/snmp/snmp.cnf"
 
 	switch(MsgSecurityModel){
-		case SNMP_SEC_USM:	/* 3 */		
+		case SNMP_SEC_USM:	/* 3 */
 			offset = dissect_snmp_UsmSecurityParameters(FALSE, tvb, offset+2, actx, tree, -1);
 			usm_p.user_assoc = get_user_assoc(usm_p.engine_tvb, usm_p.user_tvb);
 			break;
@@ -2456,20 +2585,17 @@ dissect_snmp_T_encryptedPDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 	if( usm_p.encrypted && crypt_tvb
 		&& usm_p.user_assoc
 		&& usm_p.user_assoc->user.privProtocol ) {
-		
+
 		const gchar* error = NULL;
 		proto_tree* encryptedpdu_tree = proto_item_add_subtree(actx->created_item,ett_encryptedPDU);
 		tvbuff_t* cleartext_tvb = usm_p.user_assoc->user.privProtocol(&usm_p, crypt_tvb, &error );
 
 		if (! cleartext_tvb) {
-			proto_item* cause = proto_tree_add_text(encryptedpdu_tree, crypt_tvb, 0, -1,
-				"Failed to decrypt encryptedPDU: %s", error);
-			
-			expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN,
-				"Failed to decrypt encryptedPDU: %s", error);
+			proto_tree_add_expert_format(encryptedpdu_tree, actx->pinfo, &ei_snmp_failed_decrypted_data_pdu,
+				crypt_tvb, 0, -1, "Failed to decrypt encryptedPDU: %s", error);
 
 			col_set_str(actx->pinfo->cinfo, COL_INFO, "encryptedPDU: Failed to decrypt");
-				
+
 			return offset;
 		} else {
 			proto_item* decrypted_item;
@@ -2478,18 +2604,17 @@ dissect_snmp_T_encryptedPDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 			if (! check_ScopedPdu(cleartext_tvb)) {
 				proto_item* cause = proto_tree_add_text(encryptedpdu_tree, cleartext_tvb, 0, -1,
 											"Decrypted data not formatted as expected, wrong key?");
-				
-				expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN,
-									   "Decrypted data not formatted as expected");
+
+				expert_add_info(actx->pinfo, cause, &ei_snmp_decrypted_data_bad_formatted);
 
 				col_set_str(actx->pinfo->cinfo, COL_INFO, "encryptedPDU: Decrypted data not formatted as expected");
-				
+
 				return offset;
 			}
 
-			
+
             add_new_data_source(actx->pinfo, cleartext_tvb, "Decrypted ScopedPDU");
-			
+
 			decrypted_item = proto_tree_add_item(encryptedpdu_tree, hf_snmp_decryptedPDU,cleartext_tvb,0,-1,ENC_NA);
 			decrypted_tree = proto_item_add_subtree(decrypted_item,ett_decrypted);
 			dissect_snmp_ScopedPDU(FALSE, cleartext_tvb, 0, actx, decrypted_tree, -1);
@@ -2539,7 +2664,7 @@ dissect_snmp_SNMPv3Message(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    SNMPv3Message_sequence, hf_index, ett_snmp_SNMPv3Message);
 
-#line 185 "../../asn1/snmp/snmp.cnf"
+#line 181 "../../asn1/snmp/snmp.cnf"
 
 	if( usm_p.authenticated
 		&& usm_p.user_assoc
@@ -2549,31 +2674,26 @@ dissect_snmp_SNMPv3Message(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 		proto_tree* authen_tree = proto_item_add_subtree(usm_p.auth_item,ett_authParameters);
 		guint8* calc_auth;
 		guint calc_auth_len;
-		
+
 		usm_p.authOK = usm_p.user_assoc->user.authModel->authenticate( &usm_p, &calc_auth, &calc_auth_len, &error );
 
 		if (error) {
-			authen_item = proto_tree_add_text(authen_tree,tvb,0,0,"Error while verifying Message authenticity: %s", error);
-			PROTO_ITEM_SET_GENERATED(authen_item);
-			expert_add_info_format( actx->pinfo, authen_item, PI_MALFORMED, PI_ERROR, "Error while verifying Message authenticity: %s", error );
+			expert_add_info_format_text( actx->pinfo, usm_p.auth_item, &ei_snmp_verify_authentication_error, "Error while verifying Message authenticity: %s", error );
 		} else {
-			int severity;
-			const gchar* msg;			
+			expert_field* expert;
 
 			authen_item = proto_tree_add_boolean(authen_tree, hf_snmp_msgAuthentication, tvb, 0, 0, usm_p.authOK);
 			PROTO_ITEM_SET_GENERATED(authen_item);
-			
+
 			if (usm_p.authOK) {
-				msg = "SNMP Authentication OK";
-				severity = PI_CHAT;
+				expert = &ei_snmp_authentication_ok;
 			} else {
 				const gchar* calc_auth_str = bytestring_to_str(calc_auth,calc_auth_len,' ');
 				proto_item_append_text(authen_item, " calculated = %s", calc_auth_str);
-				msg = "SNMP Authentication Error";
-				severity = PI_WARN;
+				expert = &ei_snmp_authentication_error;
 			}
 
-			expert_add_info_format( actx->pinfo, authen_item, PI_CHECKSUM, severity, "%s", msg );
+			expert_add_info( actx->pinfo, authen_item, expert);
 		}
 	}
 
@@ -2856,7 +2976,7 @@ static void dissect_SMUX_PDUs_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, pro
 
 
 /*--- End of included file: packet-snmp-fn.c ---*/
-#line 1636 "../../asn1/snmp/packet-snmp-template.c"
+#line 1765 "../../asn1/snmp/packet-snmp-template.c"
 
 
 guint
@@ -3512,6 +3632,9 @@ void proto_register_snmp(void) {
 		{ &hf_snmp_scalar_instance_index, {
 		    "Scalar Instance Index", "snmp.name.index", FT_UINT64, BASE_DEC,
 		    NULL, 0, NULL, HFILL }},
+		{ &hf_snmp_var_bind_str, {
+		    "Variable-binding-string", "snmp.var-bind_str", FT_STRING, BASE_NONE,
+		    NULL, 0, NULL, HFILL }},
 
 
 
@@ -3779,7 +3902,7 @@ void proto_register_snmp(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-snmp-hfarr.c ---*/
-#line 2294 "../../asn1/snmp/packet-snmp-template.c"
+#line 2426 "../../asn1/snmp/packet-snmp-template.c"
   };
 
   /* List of subtrees */
@@ -3819,8 +3942,40 @@ void proto_register_snmp(void) {
     &ett_snmp_RReqPDU_U,
 
 /*--- End of included file: packet-snmp-ettarr.c ---*/
-#line 2310 "../../asn1/snmp/packet-snmp-template.c"
+#line 2442 "../../asn1/snmp/packet-snmp-template.c"
   };
+  static ei_register_info ei[] = {
+     { &ei_snmp_failed_decrypted_data_pdu, { "snmp.failed_decrypted_data_pdu", PI_MALFORMED, PI_WARN, "Failed to decrypt encryptedPDU", EXPFILL }},
+     { &ei_snmp_decrypted_data_bad_formatted, { "snmp.decrypted_data_bad_formatted", PI_MALFORMED, PI_WARN, "Decrypted data not formatted as expected", EXPFILL }},
+     { &ei_snmp_verify_authentication_error, { "snmp.verify_authentication_error", PI_MALFORMED, PI_ERROR, "Error while verifying Message authenticity", EXPFILL }},
+     { &ei_snmp_authentication_ok, { "snmp.authentication_ok", PI_CHECKSUM, PI_CHAT, "SNMP Authentication OK", EXPFILL }},
+     { &ei_snmp_authentication_error, { "snmp.authentication_error", PI_CHECKSUM, PI_WARN, "SNMP Authentication Error", EXPFILL }},
+     { &ei_snmp_varbind_not_uni_class_seq, { "snmp.varbind.not_uni_class_seq", PI_MALFORMED, PI_WARN, "VarBind is not an universal class sequence", EXPFILL }},
+     { &ei_snmp_varbind_has_indicator, { "snmp.varbind.has_indicator", PI_MALFORMED, PI_WARN, "VarBind has indicator set", EXPFILL }},
+     { &ei_snmp_objectname_not_oid, { "snmp.objectname_not_oid", PI_MALFORMED, PI_WARN, "ObjectName not an OID", EXPFILL }},
+     { &ei_snmp_objectname_has_indicator, { "snmp.objectname_has_indicator", PI_MALFORMED, PI_WARN, "ObjectName has indicator set", EXPFILL }},
+     { &ei_snmp_value_not_primitive_encoding, { "snmp.value_not_primitive_encoding", PI_MALFORMED, PI_WARN, "value not in primitive encoding", EXPFILL }},
+     { &ei_snmp_invalid_oid, { "snmp.invalid_oid", PI_MALFORMED, PI_WARN, "invalid oid", EXPFILL }},
+     { &ei_snmp_varbind_wrong_tag, { "snmp.varbind.wrong_tag", PI_MALFORMED, PI_WARN, "Wrong tag for SNMP VarBind error value", EXPFILL }},
+     { &ei_snmp_varbind_response, { "snmp.varbind.response", PI_RESPONSE_CODE, PI_NOTE, "Response", EXPFILL }},
+     { &ei_snmp_no_instance_subid, { "snmp.no_instance_subid", PI_MALFORMED, PI_WARN, "No instance sub-id in scalar value", EXPFILL }},
+     { &ei_snmp_wrong_num_of_subids, { "snmp.wrong_num_of_subids", PI_MALFORMED, PI_WARN, "Wrong number of instance sub-ids in scalar value", EXPFILL }},
+     { &ei_snmp_index_suboid_too_short, { "snmp.index_suboid_too_short", PI_MALFORMED, PI_WARN, "index sub-oid shorter than expected", EXPFILL }},
+     { &ei_snmp_unimplemented_instance_index, { "snmp.unimplemented_instance_index", PI_UNDECODED, PI_WARN, "Unimplemented instance index", EXPFILL }},
+     { &ei_snmp_index_suboid_len0, { "snmp.ndex_suboid_len0", PI_MALFORMED, PI_WARN, "index sub-oid OID with len=0", EXPFILL }},
+     { &ei_snmp_index_suboid_too_long, { "snmp.index_suboid_too_long", PI_MALFORMED, PI_WARN, "index sub-oid longer than remaining oid size", EXPFILL }},
+     { &ei_snmp_index_string_too_long, { "snmp.index_string_too_long", PI_MALFORMED, PI_WARN, "index string longer than remaining oid size", EXPFILL }},
+     { &ei_snmp_column_parent_not_row, { "snmp.column_parent_not_row", PI_MALFORMED, PI_ERROR, "COLUMS's parent is not a ROW", EXPFILL }},
+     { &ei_snmp_uint_too_large, { "snmp.uint_too_large", PI_UNDECODED, PI_NOTE, "Unsigned integer value > 2^64 - 1", EXPFILL }},
+     { &ei_snmp_int_too_large, { "snmp.int_too_large", PI_UNDECODED, PI_NOTE, "Signed integer value > 2^63 - 1 or <= -2^63", EXPFILL }},
+     { &ei_snmp_integral_value0, { "snmp.integral_value0", PI_UNDECODED, PI_NOTE, "Integral value is zero-length", EXPFILL }},
+     { &ei_snmp_missing_mib, { "snmp.missing_mib", PI_UNDECODED, PI_NOTE, "Unresolved value, Missing MIB", EXPFILL }},
+     { &ei_snmp_varbind_wrong_length_value, { "snmp.varbind.wrong_length_value", PI_MALFORMED, PI_WARN, "Wrong length for SNMP VarBind/value", EXPFILL }},
+     { &ei_snmp_varbind_wrong_class_tag, { "snmp.varbind.wrong_class_tag", PI_MALFORMED, PI_WARN, "Wrong class/tag for SNMP VarBind/value", EXPFILL }},
+
+  };
+
+  expert_module_t* expert_snmp;
   module_t *snmp_module;
 
   static uat_field_t users_fields[] = {
@@ -3875,6 +4030,8 @@ void proto_register_snmp(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_snmp, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_snmp = expert_register_protocol(proto_snmp);
+  expert_register_field_array(expert_snmp, ei, array_length(ei));
 
 
   /* Register configuration preferences */
@@ -3941,6 +4098,13 @@ void proto_reg_handoff_snmp(void) {
 	dissector_add_uint("tcp.port", TCP_PORT_SNMP_TRAP, snmp_tcp_handle);
 
 	data_handle = find_dissector("data");
+
+	/* SNMPv2-MIB sysDescr "1.3.6.1.2.1.1.1.0" */
+	dissector_add_string("snmp.variable_oid", "1.3.6.1.2.1.1.1.0",
+		new_create_dissector_handle(dissect_snmp_variable_string, proto_snmp));
+	/* SNMPv2-MIB::sysName.0 (1.3.6.1.2.1.1.5.0) */
+	dissector_add_string("snmp.variable_oid", "1.3.6.1.2.1.1.5.0",
+		new_create_dissector_handle(dissect_snmp_variable_string, proto_snmp));
 
 	/*
 	 * Process preference settings.

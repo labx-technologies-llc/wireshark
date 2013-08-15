@@ -1,8 +1,28 @@
 #!/bin/bash
-(set -o igncr) 2>/dev/null && set -o igncr;  # hack to force this file to be processed by cygwin bash with -o igncr
-                                             # needed when this file is exec'd from win32-setup.sh & win64-setup.sh
+#
+# Copyright 2013 Gerald Combs <gerald@wireshark.org>
 #
 # $Id$
+#
+# Wireshark - Network traffic analyzer
+# By Gerald Combs <gerald@wireshark.org>
+# Copyright 1998 Gerald Combs
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+(set -o igncr) 2>/dev/null && set -o igncr;  # hack to force this file to be processed by cygwin bash with -o igncr
+                                             # needed when this file is exec'd from win32-setup.sh & win64-setup.sh
 
 err_exit () {
 	echo ""
@@ -173,13 +193,14 @@ case "$1" in
 			err_exit "Can't create '$DEST_PATH/$DEST_SUBDIR'"
 	fi
 	cd "$DEST_PATH" || err_exit "Can't find '$DEST_PATH'"
+	PKG_PATH="$PWD"
 	wget $use_proxy -nc "$DOWNLOAD_PREFIX/$PACKAGE_PATH" || \
 		err_exit "Can't download $DOWNLOAD_PREFIX/$PACKAGE_PATH"
 	cd "$DEST_SUBDIR" || err_exit "Can't find $DEST_SUBDIR"
-	echo "Extracting '$DEST_PATH/$PACKAGE' into '$DEST_PATH/$DEST_SUBDIR'"
+	echo "Extracting '$PKG_PATH/$PACKAGE' into '$PKG_PATH/$DEST_SUBDIR'"
         if [[ "$PACKAGE" == *.zip ]] ; then
-            unzip -oq "$DEST_PATH/$PACKAGE" ||
-                    err_exit "Couldn't unpack '$DEST_PATH/$PACKAGE'"
+            unzip -oq "$PKG_PATH/$PACKAGE" ||
+                    err_exit "Couldn't unpack '$PKG_PATH/$PACKAGE'"
             echo "Verifying that the DLLs and EXEs in $DEST_SUBDIR are executable."
             # XX: Note that find will check *all* dlls/exes in DEST_SUBDIR and below
             #     which may be more than those just unzipped depending upon DEST_SUBDIR.

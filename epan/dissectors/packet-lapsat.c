@@ -345,8 +345,7 @@ dissect_control(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int is_
 	}
 
 	/* Add info */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO, info);
+	col_add_str(pinfo->cinfo, COL_INFO, info);
 
 	/* Create item & subtree */
 	ctl_ti = proto_tree_add_uint_format_value(
@@ -521,7 +520,7 @@ dissect_lapsat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		/*
 		 * Potentially fragmented I frames
 		 */
-		fragment_data *fd_m = NULL;
+		fragment_head *fd_m = NULL;
 		tvbuff_t *reassembled = NULL;
 		guint32 fragment_id;
 		gboolean save_fragmented = pinfo->fragmented;

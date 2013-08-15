@@ -33,9 +33,11 @@ extern "C" {
 
 #include "color.h"
 
+#include <epan/addr_resolv.h>
 #include <epan/params.h>
 #include <epan/range.h>
-#include <epan/addr_resolv.h>
+#include <epan/uat.h>
+
 #include "ws_symbol_export.h"
 
 #define PR_DEST_CMD  0
@@ -137,6 +139,7 @@ typedef struct _e_prefs {
   GList       *col_list;
   gint         num_cols;
   color_t      st_client_fg, st_client_bg, st_server_fg, st_server_bg;
+  color_t      gui_text_valid, gui_text_invalid, gui_text_deprecated;
   gboolean     gui_altern_colors;
   gboolean     gui_expert_composite_eyecandy;
   gboolean     filter_toolbar_show_in_statusbar;
@@ -200,6 +203,9 @@ typedef struct _e_prefs {
   gboolean     gui_update_enabled;
   software_update_channel_e gui_update_channel;
   gint         gui_update_interval;
+  gchar       *saved_at_version;
+  gboolean     unknown_prefs;         /* unknown or obsolete pref(s) */ 
+  gboolean     unknown_colorfilters;  /* unknown or obsolete color filter(s) */
 } e_prefs;
 
 WS_DLL_PUBLIC e_prefs prefs;
@@ -433,7 +439,7 @@ WS_DLL_PUBLIC void prefs_register_uat_preference(module_t *module,
 										  const char *name,
 										  const char* title,
 										  const char *description,
-										  void* uat);
+										  uat_t* uat);
 
 /*
  * Register a color preference.  Currently does not have any "GUI Dialog" support

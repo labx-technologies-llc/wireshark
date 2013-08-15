@@ -103,20 +103,23 @@ MainWelcome::MainWelcome(QWidget *parent) :
     welcome_ui_->interfaceTree->setAttribute(Qt::WA_MacShowFocusRect, false);
 #endif
 
-    task_list_->setStyleSheet(
-                "QListWidget {"
-                "  margin-right: 2em;"
-                "}"
-                "QListWidget::item {"
-                "  padding: 1.5em;"
-                "  margin-bottom: 1em;"
-                "  border-radius: 0.5em;"
-                "}"
-//                "QListWidget::item:hover {"
-//                "  background-color: palette(midlight);"
-//                "  background-color: palette(midlight);"
-//                "}"
-                );
+    task_list_->setStyleSheet(QString(
+                                  "QListWidget {"
+                                  "  margin-right: 2em;"
+                                  "}"
+                                  "QListWidget::item {"
+                                  "  padding: 1.5em;"
+                                  "  margin-bottom: 1em;"
+                                  "  border-radius: 0.5em;"
+                                  "  border: 1px solid #%1;"
+                                  "}"
+                                  "QListWidget::item::selected {"
+                                  "  border: 1px solid #%2;"
+                                  "}"
+                                  )
+                              .arg(tango_aluminium_2, 6, 16, QChar('0'))   // Default border
+                              .arg(tango_sky_blue_4,  6, 16, QChar('0'))   // Selected border
+                              );
 
     recent_files_->setStyleSheet(
             "QListWidget::item {"
@@ -137,6 +140,16 @@ MainWelcome::MainWelcome(QWidget *parent) :
     connect(task_list_, SIGNAL(itemSelectionChanged()), this, SLOT(showTask()));
     connect(welcome_ui_->interfaceTree, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)),
             this, SLOT(interfaceDoubleClicked(QTreeWidgetItem*,int)));
+    connect(welcome_ui_->interfaceTree, SIGNAL(interfaceUpdated(const char*,bool)),
+            welcome_ui_->captureFilterComboBox, SIGNAL(interfacesChanged()));
+    connect(welcome_ui_->captureFilterComboBox, SIGNAL(pushFilterSyntaxStatus(QString&)),
+            this, SIGNAL(pushFilterSyntaxStatus(QString&)));
+    connect(welcome_ui_->captureFilterComboBox, SIGNAL(popFilterSyntaxStatus()),
+            this, SIGNAL(popFilterSyntaxStatus()));
+    connect(welcome_ui_->captureFilterComboBox, SIGNAL(captureFilterSyntaxChanged(bool)),
+            this, SIGNAL(captureFilterSyntaxChanged(bool)));
+    connect(welcome_ui_->captureFilterComboBox, SIGNAL(startCapture()),
+            this, SIGNAL(startCapture()));
     connect(recent_files_, SIGNAL(itemActivated(QListWidgetItem *)), this, SLOT(openRecentItem(QListWidgetItem *)));
     updateRecentFiles();
 

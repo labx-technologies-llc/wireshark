@@ -77,6 +77,8 @@ static gint ett_bfcp_attr = -1;
 
 static expert_field ei_bfcp_attribute_length_too_small = EI_INIT;
 
+static dissector_handle_t bfcp_handle;
+
 /* Initialize BFCP primitives */
 static const value_string map_bfcp_primitive[] = {
 	{ 0,  "<Invalid Primitive>"},
@@ -174,7 +176,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 	gint        length;
 	guint8      attribute_type;
 	gint        read_attr = 0;
-    guint8      first_byte, pad_len;
+	guint8      first_byte, pad_len;
 
 	while ((tvb_reported_length_remaining(tvb, offset) >= 2) &&
 			((bfcp_payload_length - read_attr) >= 2))
@@ -249,7 +251,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 7: /* ERROR-INFO */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_error_info_text, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_error_info_text, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -259,7 +261,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 8: /* PARTICIPANT-PROVIDED-INFO */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_part_prov_info_text, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_part_prov_info_text, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -269,7 +271,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 9: /* STATUS-INFO */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_status_info_text, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_status_info_text, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -305,7 +307,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 12: /* USER-DISPLAY-NAME */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_user_disp_name, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_user_disp_name, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -315,7 +317,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 13: /* USER-URI */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_user_uri, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_user_uri, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -444,7 +446,7 @@ dissect_bfcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		bfcp_payload_length = tvb_get_ntohs(tvb,
 							BFCP_OFFSET_PAYLOAD_LENGTH) * 4;
 
-		offset = dissect_bfcp_attributes(tvb, pinfo, bfcp_tree, offset, bfcp_payload_length);
+		/*offset = */dissect_bfcp_attributes(tvb, pinfo, bfcp_tree, offset, bfcp_payload_length);
 
 	} /* if(tree) */
 }
@@ -453,7 +455,7 @@ static gboolean
 dissect_bfcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
 	guint8       primitive;
-    guint8      first_byte;
+	guint8      first_byte;
 	const gchar *str;
 
 
@@ -667,7 +669,7 @@ void proto_register_bfcp(void)
 	proto_bfcp = proto_register_protocol("Binary Floor Control Protocol",
 				"BFCP", "bfcp");
 
-	register_dissector("bfcp", dissect_bfcp, proto_bfcp);
+	bfcp_handle = register_dissector("bfcp", dissect_bfcp, proto_bfcp);
 
 	bfcp_module = prefs_register_protocol(proto_bfcp,
 				proto_reg_handoff_bfcp);
@@ -695,11 +697,8 @@ void proto_reg_handoff_bfcp(void)
 	 */
 	if (!prefs_initialized)
 	{
-		dissector_handle_t bfcp_handle;
-
 		heur_dissector_add("tcp", dissect_bfcp_heur, proto_bfcp);
 		heur_dissector_add("udp", dissect_bfcp_heur, proto_bfcp);
-		bfcp_handle = create_dissector_handle(dissect_bfcp, proto_bfcp);
 		dissector_add_handle("tcp.port", bfcp_handle);
 		dissector_add_handle("udp.port", bfcp_handle);
 		prefs_initialized = TRUE;

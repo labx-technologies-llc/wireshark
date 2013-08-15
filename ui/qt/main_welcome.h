@@ -57,6 +57,9 @@ private:
 signals:
     void startCapture();
     void recentFileActivated(QString& cfile);
+    void pushFilterSyntaxStatus(QString&);
+    void popFilterSyntaxStatus();
+    void captureFilterSyntaxChanged(bool valid);
 
 private slots:
     void destroySplashOverlay();

@@ -27,12 +27,6 @@ HHC_EXE in ..\config.nmake. Microsoft has dropped support for HTML Help
 Settings:
 ---------
 
-Unix only: Makefile and catalog.xml
------------------------------------
-You have to edit the settings in these files, to point to the DTD/XSL files
-and FOP. (Makefile.auto.am is currently experimental and will probably NOT
-work - any progress on this would be appreciated!)
-
 Win32 only: ..\config.nmake
 ---------------------------
 Settings moved to: ..\config.nmake.
@@ -43,7 +37,7 @@ Requirements:
 
 DocBook XML DTD
 ---------------
-DocBook "official" XML DTD V4.2:
+DocBook "official" XML DTD V4.5:
 http://www.oasis-open.org/docbook/xml/
 (available as a package for Linux / Cygwin)
 

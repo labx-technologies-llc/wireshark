@@ -256,7 +256,7 @@ dissect_pft_fec_detailed(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree,
   gboolean fec _U_,
   guint16 rsk,
   guint16 rsz,
-  fragment_data *fdx
+  fragment_head *fdx
 )
 {
   guint32 decoded_size;
@@ -281,8 +281,8 @@ dissect_pft_fec_detailed(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree,
   else {
     guint fragments=0;
     guint32 *got;
-    fragment_data *fd;
-    fragment_data *fd_head;
+    fragment_item *fd;
+    fragment_head *fd_head;
 
     if(tree)
       proto_tree_add_text (tree, tvb, 0, -1, "want %d, got %d need %d",
@@ -293,14 +293,14 @@ dissect_pft_fec_detailed(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree,
     /* make a list of the findex (offset) numbers of the fragments we have */
     fd = fragment_get(&dcp_reassembly_table, pinfo, seq, NULL);
     for (fd_head = fd; fd_head != NULL && fragments < fcount; fd_head = fd_head->next) {
-      if(fd_head->data) {
+      if(fd_head->tvb_data) {
         got[fragments++] = fd_head->offset; /* this is the findex of the fragment */
       }
     }
     /* have we got enough for Reed Solomon to try to correct ? */
     if(fragments>=rx_min) { /* yes, in theory */
       guint i,current_findex;
-      fragment_data *frag=NULL;
+      fragment_head *frag=NULL;
       guint8 *dummy_data = (guint8*) ep_alloc0 (plen);
       tvbuff_t *dummytvb = tvb_new_real_data(dummy_data, plen, plen);
       /* try and decode with missing fragments */
@@ -393,7 +393,7 @@ dissect_pft_fragmented(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree,
 {
   gboolean first, last;
   tvbuff_t *new_tvb=NULL;
-  fragment_data *frag_edcp = NULL;
+  fragment_head *frag_edcp = NULL;
   pinfo->fragmented = TRUE;
   first = findex == 0;
   last = fcount == (findex+1);
@@ -518,9 +518,10 @@ dissect_pft(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
       if(li)
         proto_item_append_text(li, " (length error (%d))", real_len);
     }
-    if (real_len)
+    else {
       next_tvb = dissect_pft_fragmented(tvb, pinfo, pft_tree, findex, fcount,
                                         seq, offset, real_len, fec, rsk, rsz);
+    }
     pinfo->fragmented = save_fragmented;
   } else {
     next_tvb = tvb_new_subset_remaining (tvb, offset);
@@ -601,7 +602,8 @@ dissect_af (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
       proto_tree_add_boolean(af_tree, hf_edcp_crc_ok, tvb, offset, 2, c==0xe2f0);
     }
   }
-  offset += 2;
+  /*offset += 2;*/
+
   dissector_try_uint(af_dissector_table, pt, next_tvb, pinfo, tree);
 }
 

@@ -140,7 +140,8 @@ libwireshark_la_LIBADD = \
 	libwireshark_generated.la \
 	libwireshark_asmopt.la crypt/libairpdcap.la \
 	ftypes/libftypes.la dfilter/libdfilter.la dissectors/libdissectors.la \
-	dissectors/libdirtydissectors.la wmem/libwmem.la $(wslua_lib) $(wspython_lib) @SOCKET_LIBS@ @NSL_LIBS@ \
+	dissectors/libdirtydissectors.la dissectors/libfiledissectors.la \
+	wmem/libwmem.la $(wslua_lib) $(wspython_lib) @SOCKET_LIBS@ @NSL_LIBS@ \
 	@C_ARES_LIBS@ @ADNS_LIBS@ @LIBGCRYPT_LIBS@ @LIBGNUTLS_LIBS@ \
 	@KRB5_LIBS@ @SSL_LIBS@ @LIBSMI_LDFLAGS@ @GEOIP_LIBS@ \
 	${top_builddir}/wiretap/libwiretap.la @GLIB_LIBS@ \
@@ -154,14 +155,16 @@ libwireshark_la_DEPENDENCIES = \
 	${top_builddir}/wsutil/libwsutil.la \
 	${top_builddir}/wiretap/libwiretap.la
 
-EXTRA_PROGRAMS = reassemble_test
+EXTRA_PROGRAMS = reassemble_test tvbtest
 reassemble_test_LDADD = \
 	libwireshark.la \
 	$(GLIB_LIBS) \
 	-lz
 
-tvbtest: tvbtest.o tvbuff.o except.o to_str.o strutil.o emem.o charsets.o
-	$(LINK) $^ $(GLIB_LIBS) -lz
+tvbtest_LDADD = \
+	libwireshark.la \
+	$(GLIB_LIBS) \
+	-lz
 
 exntest: exntest.o except.o
 	$(LINK) $^ $(GLIB_LIBS)
@@ -191,6 +194,8 @@ tvbtest.o exntest.o: exceptions.h
 sminmpec.c: enterprise-numbers ../tools/make-sminmpec.pl
 	$(PERL) $(srcdir)/../tools/make-sminmpec.pl $(srcdir)/enterprise-numbers sminmpec.c
 
+ps.c: print.ps $(top_srcdir)/tools/rdps.py
+	$(PYTHON) $(top_srcdir)/tools/rdps.py $(srcdir)/print.ps ps.c
 
 if HAVE_PLUGINS
 
@@ -234,48 +239,48 @@ plugin_src = \
 	../plugins/mgcp/packet-mgcp.c \
 	../plugins/rdm/packet-rdm.c \
 	../plugins/sercosiii/packet-sercosiii.c \
-        ../plugins/wimax/crc.c \
-        ../plugins/wimax/crc_data.c \
-        ../plugins/wimax/mac_hd_generic_decoder.c \
-        ../plugins/wimax/mac_hd_type1_decoder.c \
-        ../plugins/wimax/mac_hd_type2_decoder.c \
-        ../plugins/wimax/mac_mgmt_msg_decoder.c \
-        ../plugins/wimax/msg_aas_beam.c \
-        ../plugins/wimax/msg_aas_fbck.c \
-        ../plugins/wimax/msg_arq.c \
-        ../plugins/wimax/msg_clk_cmp.c \
-        ../plugins/wimax/msg_dcd.c \
-        ../plugins/wimax/msg_dlmap.c \
-        ../plugins/wimax/msg_dreg.c \
-        ../plugins/wimax/msg_dsa.c \
-        ../plugins/wimax/msg_dsc.c \
-        ../plugins/wimax/msg_dsd.c \
-        ../plugins/wimax/msg_dsx_rvd.c \
-        ../plugins/wimax/msg_fpc.c \
-        ../plugins/wimax/msg_pkm.c \
-        ../plugins/wimax/msg_pmc.c \
-        ../plugins/wimax/msg_prc_lt_ctrl.c \
-        ../plugins/wimax/msg_reg_req.c \
-        ../plugins/wimax/msg_reg_rsp.c \
-        ../plugins/wimax/msg_rep.c \
-        ../plugins/wimax/msg_res_cmd.c \
-        ../plugins/wimax/msg_rng_req.c \
-        ../plugins/wimax/msg_rng_rsp.c \
-        ../plugins/wimax/msg_sbc.c \
-        ../plugins/wimax/msg_ucd.c \
-        ../plugins/wimax/msg_ulmap.c \
-        ../plugins/wimax/packet-wmx.c \
-        ../plugins/wimax/wimax_cdma_code_decoder.c \
-        ../plugins/wimax/wimax_compact_dlmap_ie_decoder.c \
-        ../plugins/wimax/wimax_compact_ulmap_ie_decoder.c \
-        ../plugins/wimax/wimax_fch_decoder.c \
-        ../plugins/wimax/wimax_ffb_decoder.c \
-        ../plugins/wimax/wimax_hack_decoder.c \
-        ../plugins/wimax/wimax_harq_map_decoder.c \
-        ../plugins/wimax/wimax_pdu_decoder.c \
-        ../plugins/wimax/wimax_phy_attributes_decoder.c \
-        ../plugins/wimax/wimax_tlv.c \
-        ../plugins/wimax/wimax_utils.c
+	../plugins/wimax/crc.c \
+	../plugins/wimax/crc_data.c \
+	../plugins/wimax/mac_hd_generic_decoder.c \
+	../plugins/wimax/mac_hd_type1_decoder.c \
+	../plugins/wimax/mac_hd_type2_decoder.c \
+	../plugins/wimax/mac_mgmt_msg_decoder.c \
+	../plugins/wimax/msg_aas_beam.c \
+	../plugins/wimax/msg_aas_fbck.c \
+	../plugins/wimax/msg_arq.c \
+	../plugins/wimax/msg_clk_cmp.c \
+	../plugins/wimax/msg_dcd.c \
+	../plugins/wimax/msg_dlmap.c \
+	../plugins/wimax/msg_dreg.c \
+	../plugins/wimax/msg_dsa.c \
+	../plugins/wimax/msg_dsc.c \
+	../plugins/wimax/msg_dsd.c \
+	../plugins/wimax/msg_dsx_rvd.c \
+	../plugins/wimax/msg_fpc.c \
+	../plugins/wimax/msg_pkm.c \
+	../plugins/wimax/msg_pmc.c \
+	../plugins/wimax/msg_prc_lt_ctrl.c \
+	../plugins/wimax/msg_reg_req.c \
+	../plugins/wimax/msg_reg_rsp.c \
+	../plugins/wimax/msg_rep.c \
+	../plugins/wimax/msg_res_cmd.c \
+	../plugins/wimax/msg_rng_req.c \
+	../plugins/wimax/msg_rng_rsp.c \
+	../plugins/wimax/msg_sbc.c \
+	../plugins/wimax/msg_ucd.c \
+	../plugins/wimax/msg_ulmap.c \
+	../plugins/wimax/packet-wmx.c \
+	../plugins/wimax/wimax_cdma_code_decoder.c \
+	../plugins/wimax/wimax_compact_dlmap_ie_decoder.c \
+	../plugins/wimax/wimax_compact_ulmap_ie_decoder.c \
+	../plugins/wimax/wimax_fch_decoder.c \
+	../plugins/wimax/wimax_ffb_decoder.c \
+	../plugins/wimax/wimax_hack_decoder.c \
+	../plugins/wimax/wimax_harq_map_decoder.c \
+	../plugins/wimax/wimax_pdu_decoder.c \
+	../plugins/wimax/wimax_phy_attributes_decoder.c \
+	../plugins/wimax/wimax_tlv.c \
+	../plugins/wimax/wimax_utils.c
 
 
 else		# ENABLE_STATIC

@@ -73,6 +73,8 @@ static gint ett_eapol_keydes_data = -1;
 static gint ett_eapol_key_index = -1;
 static gint ett_keyinfo = -1;
 
+static dissector_handle_t eapol_handle;
+
 static dissector_handle_t eap_handle;
 static dissector_handle_t data_handle;
 
@@ -177,8 +179,7 @@ dissect_eapol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   eapol_type = tvb_get_guint8(tvb, offset);
   if (tree)
     proto_tree_add_item(eapol_tree, hf_eapol_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_str(pinfo->cinfo, COL_INFO,
+  col_add_str(pinfo->cinfo, COL_INFO,
                 val_to_str(eapol_type, eapol_type_vals, "Unknown Type (0x%02X)"));
   offset++;
 
@@ -205,60 +206,58 @@ dissect_eapol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       offset += 1;
       if (keydesc_type == EAPOL_WPA_KEY || keydesc_type == EAPOL_RSN_KEY) {
         keyinfo = tvb_get_ntohs(tvb, offset);
-        if (check_col(pinfo->cinfo, COL_INFO)) {
-          if (keyinfo & KEY_INFO_REQUEST_MASK) {
-            col_set_str(pinfo->cinfo, COL_INFO, "Key (Request)");
-            if (keyinfo & KEY_INFO_ERROR_MASK)
-              col_set_str(pinfo->cinfo, COL_INFO, "Key (Request, Error)");
-          } else if (keyinfo & KEY_INFO_KEY_TYPE_MASK) {
-            guint16 masked;
-            masked = keyinfo &
-              (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
-               KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK);
+        if (keyinfo & KEY_INFO_REQUEST_MASK) {
+          col_set_str(pinfo->cinfo, COL_INFO, "Key (Request)");
+          if (keyinfo & KEY_INFO_ERROR_MASK)
+            col_set_str(pinfo->cinfo, COL_INFO, "Key (Request, Error)");
+        } else if (keyinfo & KEY_INFO_KEY_TYPE_MASK) {
+          guint16 masked;
+          masked = keyinfo &
+            (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
+             KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK);
 
-           if (keydesc_type == EAPOL_WPA_KEY) {
-               switch (masked) {
-                       case KEY_INFO_KEY_ACK_MASK:
-                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 1 of 4)");
-                       break;
-                       case KEY_INFO_KEY_MIC_MASK:
-                       counter = tvb_get_guint8(tvb, offset+11);
-                       if (!counter)
-                               col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 2 of 4)");
-                       else
-                               col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 4 of 4)");
-                       break;
-                       case (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
-                       KEY_INFO_KEY_MIC_MASK):
-                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 3 of 4)");
-                       break;
-               }
-           }
+         if (keydesc_type == EAPOL_WPA_KEY) {
+             switch (masked) {
+                     case KEY_INFO_KEY_ACK_MASK:
+                     col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 1 of 4)");
+                     break;
+                     case KEY_INFO_KEY_MIC_MASK:
+                     counter = tvb_get_guint8(tvb, offset+11);
+                     if (!counter)
+                             col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 2 of 4)");
+                     else
+                             col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 4 of 4)");
+                     break;
+                     case (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
+                     KEY_INFO_KEY_MIC_MASK):
+                     col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 3 of 4)");
+                     break;
+             }
+         }
 
-           if (keydesc_type == EAPOL_RSN_KEY) {
-               switch (masked) {
-                       case KEY_INFO_KEY_ACK_MASK:
-                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 1 of 4)");
-                       break;
-                       case KEY_INFO_KEY_MIC_MASK:
-                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 2 of 4)");
-                       break;
-                       case (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
-                       KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK):
-                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 3 of 4)");
-                       break;
-                       case (KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK):
-                       col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 4 of 4)");
-                       break;
-                }
-           }
+         if (keydesc_type == EAPOL_RSN_KEY) {
+             switch (masked) {
+                     case KEY_INFO_KEY_ACK_MASK:
+                     col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 1 of 4)");
+                     break;
+                     case KEY_INFO_KEY_MIC_MASK:
+                     col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 2 of 4)");
+                     break;
+                     case (KEY_INFO_INSTALL_MASK | KEY_INFO_KEY_ACK_MASK |
+                     KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK):
+                     col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 3 of 4)");
+                     break;
+                     case (KEY_INFO_KEY_MIC_MASK | KEY_INFO_SECURE_MASK):
+                     col_set_str(pinfo->cinfo, COL_INFO, "Key (Message 4 of 4)");
+                     break;
+              }
+         }
 
-          } else {
-            if (keyinfo & KEY_INFO_KEY_ACK_MASK)
-              col_set_str(pinfo->cinfo, COL_INFO, "Key (Group Message 1 of 2)");
-            else
-              col_set_str(pinfo->cinfo, COL_INFO, "Key (Group Message 2 of 2)");
-          }
+        } else {
+          if (keyinfo & KEY_INFO_KEY_ACK_MASK)
+            col_set_str(pinfo->cinfo, COL_INFO, "Key (Group Message 1 of 2)");
+          else
+            col_set_str(pinfo->cinfo, COL_INFO, "Key (Group Message 2 of 2)");
         }
         keyinfo_item =
           proto_tree_add_item(eapol_tree, hf_eapol_wpa_keydes_keyinfo, tvb,
@@ -524,7 +523,7 @@ proto_register_eapol(void)
   };
 
   proto_eapol = proto_register_protocol("802.1X Authentication", "EAPOL", "eapol");
-  register_dissector("eapol", dissect_eapol, proto_eapol);
+  eapol_handle = register_dissector("eapol", dissect_eapol, proto_eapol);
 
   proto_register_field_array(proto_eapol, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
@@ -533,15 +532,12 @@ proto_register_eapol(void)
 void
 proto_reg_handoff_eapol(void)
 {
-  dissector_handle_t eapol_handle;
-
   /*
    * Get handles for the EAP and raw data dissectors.
    */
   eap_handle  = find_dissector("eap");
   data_handle = find_dissector("data");
 
-  eapol_handle = create_dissector_handle(dissect_eapol, proto_eapol);
   dissector_add_uint("ethertype", ETHERTYPE_EAPOL, eapol_handle);
   dissector_add_uint("ethertype", ETHERTYPE_RSN_PREAUTH, eapol_handle);
 }

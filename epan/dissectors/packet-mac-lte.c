@@ -842,6 +842,9 @@ enum layer_to_show {
 /* Which layer's details to show in Info column */
 static gint     global_mac_lte_layer_to_show = (gint)ShowRLCLayer;
 
+/* Whether to decode Contention Resolution body as UL CCCH */
+static gboolean global_mac_lte_decode_cr_body = FALSE;
+
 /* When showing RLC info, count PDUs so can append info column properly */
 static guint8   s_number_of_rlc_pdus_shown = 0;
 
@@ -905,7 +908,8 @@ typedef struct dynamic_lcid_drb_mapping_t {
 } dynamic_lcid_drb_mapping_t;
 
 typedef struct ue_dynamic_drb_mappings_t {
-    dynamic_lcid_drb_mapping_t mapping[11];
+    dynamic_lcid_drb_mapping_t mapping[11];  /* Index is LCID */
+    guint8 drb_to_lcid_mappings[32];         /* Also map drbid -> lcid */
 } ue_dynamic_drb_mappings_t;
 
 static GHashTable *mac_lte_ue_channels_hash = NULL;
@@ -1266,7 +1270,7 @@ static gboolean dissect_mac_lte_heur(tvbuff_t *tvb, packet_info *pinfo,
        - fixed header bytes
        - tag for data
        - at least one byte of MAC PDU payload */
-    if ((size_t)tvb_length_remaining(tvb, offset) < (strlen(MAC_LTE_START_STRING)+3+2)) {
+    if (tvb_length_remaining(tvb, offset) < (gint)(strlen(MAC_LTE_START_STRING)+3+2)) {
         return FALSE;
     }
 
@@ -1829,7 +1833,7 @@ static void dissect_bch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 /* Dissect PCH PDU */
 static void dissect_pch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-                        proto_item *pdu_ti, int offset, guint8 direction)
+                        proto_item *pdu_ti, int offset, guint8 direction,  mac_lte_tap_info *tap_info)
 {
     proto_item *ti;
 
@@ -1843,6 +1847,10 @@ static void dissect_pch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     /* Always show as raw data */
     ti = proto_tree_add_item(tree, hf_mac_lte_pch_pdu,
                              tvb, offset, -1, ENC_NA);
+
+    /* Get number of paging IDs for tap */
+    tap_info->number_of_paging_ids = (tvb_get_guint8(tvb, offset) & 0x40) ?
+                                        ((tvb_get_ntohs(tvb, offset) >> 7) & 0x000f) + 1 : 0;
 
     if (global_mac_lte_attempt_rrc_decode) {
 
@@ -1991,7 +1999,7 @@ static void TrackReportedDLHARQResend(packet_info *pinfo, tvbuff_t *tvb, volatil
         guint8 transport_block = p_mac_lte_info->detailed_phy_info.dl_info.transport_block;
 
         /* Check harq-id bounds, give up if invalid */
-        if ((harq_id >= 15) || (transport_block+1 > 2)) {
+        if ((harq_id >= 15) || (transport_block > 1)) {
             return;
         }
 
@@ -2095,9 +2103,13 @@ int is_mac_lte_frame_retx(packet_info *pinfo, guint8 direction)
 {
     struct mac_lte_info *p_mac_lte_info = (struct mac_lte_info *)p_get_proto_data(pinfo->fd, proto_mac_lte, 0);
 
+    if (p_mac_lte_info == NULL) {
+        return FALSE;
+    }
+
     if (direction == DIRECTION_UPLINK) {
         /* For UL, retx count is stored in per-packet struct */
-        return ((p_mac_lte_info != NULL) && (p_mac_lte_info->reTxCount > 0));
+        return (p_mac_lte_info->reTxCount > 0);
     }
     else {
         /* Use answer if told directly */
@@ -3005,6 +3017,8 @@ static void dissect_ulsch_or_dlsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
     for (n=0; n < number_of_headers; n++) {
         /* Get out of loop once see any data SDU subheaders */
         if (lcids[n] <= 10) {
+            /* Update tap sdu count for this channel */
+            tap_info->sdus_for_lcid[lcids[n]]++;
             break;
         }
 
@@ -3068,9 +3082,16 @@ static void dissect_ulsch_or_dlsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
                                                              "Contention Resolution");
                         cr_tree = proto_item_add_subtree(cr_ti, ett_mac_lte_contention_resolution);
 
-
+                        /* Contention resolution body */
                         proto_tree_add_item(cr_tree, hf_mac_lte_control_ue_contention_resolution_identity,
                                             tvb, offset, 6, ENC_NA);
+                        if (global_mac_lte_decode_cr_body) {
+                            tvbuff_t *cr_body_tvb = tvb_new_subset(tvb, offset, 6, 6);
+                            dissector_handle_t ul_ccch_handle = find_dissector("lte_rrc.ul_ccch");
+                            if (ul_ccch_handle != 0) {
+                                call_with_catch_all(ul_ccch_handle, cr_body_tvb, pinfo, cr_tree);
+                            }
+                        }
 
                         /* Get pointer to result struct for this frame */
                         crResult =  (ContentionResolutionResult *)g_hash_table_lookup(mac_lte_cr_result_hash, GUINT_TO_POINTER(pinfo->fd->num));
@@ -3727,7 +3748,6 @@ static void dissect_ulsch_or_dlsch(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 
         /* Update tap byte count for this channel */
         tap_info->bytes_for_lcid[lcids[n]] += data_length;
-        tap_info->sdus_for_lcid[lcids[n]]++;
     }
 
 
@@ -4596,7 +4616,7 @@ void dissect_mac_lte(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         case P_RNTI:
             /* PCH PDU */
-            dissect_pch(tvb, pinfo, mac_lte_tree, pdu_ti, offset, p_mac_lte_info->direction);
+            dissect_pch(tvb, pinfo, mac_lte_tree, pdu_ti, offset, p_mac_lte_info->direction, tap_info);
             break;
 
         case RA_RNTI:
@@ -4716,50 +4736,69 @@ static void* lcid_drb_mapping_copy_cb(void* dest, const void* orig, size_t len _
 
 
 /* Set LCID -> RLC channel mappings from signalling protocol (i.e. RRC or similar). */
-void set_mac_lte_channel_mapping(guint16 ueid, guint8 lcid,
-                                 guint8  srbid, guint8 drbid,
-                                 guint8  rlcMode, guint8 um_sn_length,
-                                 guint8  ul_priority)
+void set_mac_lte_channel_mapping(drb_mapping_t *drb_mapping)
 {
     ue_dynamic_drb_mappings_t *ue_mappings;
+    guint8 lcid = 0;
 
-    /* Don't bother setting srb details - we just assume AM */
-    if (srbid != 0) {
-        return;
-    }
+    /* Check lcid range */
+    if (drb_mapping->lcid_present) {
+        lcid = drb_mapping->lcid;
 
-    /* Ignore if LCID is out of range */
-    if ((lcid < 3) || (lcid > 10)) {
-        return;
+        /* Ignore if LCID is out of range */
+        if ((lcid < 3) || (lcid > 10)) {
+            return;
+        }
     }
 
     /* Look for existing UE entry */
-    ue_mappings = (ue_dynamic_drb_mappings_t *)g_hash_table_lookup(mac_lte_ue_channels_hash, GUINT_TO_POINTER((guint)ueid));
+    ue_mappings = (ue_dynamic_drb_mappings_t *)g_hash_table_lookup(mac_lte_ue_channels_hash,
+                                                                   GUINT_TO_POINTER((guint)drb_mapping->ueid));
     if (!ue_mappings) {
+        /* If not found, create & add to table */
         ue_mappings = se_new0(ue_dynamic_drb_mappings_t);
-        g_hash_table_insert(mac_lte_ue_channels_hash, GUINT_TO_POINTER((guint)ueid), ue_mappings);
+        g_hash_table_insert(mac_lte_ue_channels_hash,
+                            GUINT_TO_POINTER((guint)drb_mapping->ueid),
+                            ue_mappings);
+    }
+
+    /* If lcid wasn't supplied, need to try to look up from drbid */
+    if ((lcid == 0) && (drb_mapping->drbid < 32)) {
+        lcid = ue_mappings->drb_to_lcid_mappings[drb_mapping->drbid];
+    }
+    if (lcid == 0) {
+        /* Still no lcid - give up */
+        return;
     }
 
     /* Set array entry */
     ue_mappings->mapping[lcid].valid = TRUE;
-    ue_mappings->mapping[lcid].drbid = drbid;
-    ue_mappings->mapping[lcid].ul_priority = ul_priority;
+    ue_mappings->mapping[lcid].drbid = drb_mapping->drbid;
+    ue_mappings->drb_to_lcid_mappings[drb_mapping->drbid] = lcid;
+    if (drb_mapping->ul_priority_present) {
+        ue_mappings->mapping[lcid].ul_priority = drb_mapping->ul_priority;
+    }
 
-    switch (rlcMode) {
-        case RLC_AM_MODE:
-            ue_mappings->mapping[lcid].channel_type = rlcAM;
-            break;
-        case RLC_UM_MODE:
-            if (um_sn_length == 5) {
-                ue_mappings->mapping[lcid].channel_type = rlcUM5;
-            }
-            else {
-                ue_mappings->mapping[lcid].channel_type = rlcUM10;
-            }
-            break;
+    /* Fill in available RLC info */
+    if (drb_mapping->rlcMode_present) {
+        switch (drb_mapping->rlcMode) {
+            case RLC_AM_MODE:
+                ue_mappings->mapping[lcid].channel_type = rlcAM;
+                break;
+            case RLC_UM_MODE:
+                if (drb_mapping->um_sn_length_present) {
+                    if (drb_mapping->um_sn_length == 5) {
+                        ue_mappings->mapping[lcid].channel_type = rlcUM5;
+                    }
+                    else {
+                        ue_mappings->mapping[lcid].channel_type = rlcUM10;
+                    }
+                    break;
+                }
 
-        default:
-            break;
+            default:
+                break;
+        }
     }
 }
 
@@ -5936,6 +5975,11 @@ void proto_register_mac_lte(void)
         "Which layer info to show in Info column",
         "Can show PHY, MAC or RLC layer info in Info column",
         &global_mac_lte_layer_to_show, show_info_col_vals, FALSE);
+
+    prefs_register_bool_preference(mac_lte_module, "decode_cr_body",
+        "Decode CR body as UL CCCH",
+        "Attempt to decode 6 bytes of Contention Resolution body as an UL CCCH PDU",
+        &global_mac_lte_decode_cr_body);
 
     register_init_routine(&mac_lte_init_protocol);
 }

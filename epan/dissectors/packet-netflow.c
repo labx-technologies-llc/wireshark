@@ -605,6 +605,11 @@ static const value_string v9_v10_template_types[] = {
     { 33000, "INGRESS_ACL_ID" },
     { 33001, "EGRESS_ACL_ID" },
     { 33002, "FW_EXT_EVENT" },
+    /* Cisco TrustSec */
+    { 34000, "SGT_SOURCE_TAG" },
+    { 34001, "SGT_DESTINATION_TAG" },
+    { 34002, "SGT_SOURCE_NAME" },
+    { 34003, "SGT_DESTINATION_NAME" },
     /* medianet performance monitor */
     { 37000, "PACKETS_DROPPED" },
     { 37003, "BYTE_RATE" },
@@ -1048,6 +1053,8 @@ static int      hf_cflow_octets                              = -1;
 static int      hf_cflow_octets64                            = -1;
 static int      hf_cflow_length_min                          = -1;
 static int      hf_cflow_length_max                          = -1;
+static int      hf_cflow_length_min64                        = -1;
+static int      hf_cflow_length_max64                        = -1;
 static int      hf_cflow_timedelta                           = -1;
 static int      hf_cflow_sys_init_time                       = -1;
 static int      hf_cflow_timestart                           = -1;
@@ -1311,6 +1318,10 @@ static int      hf_cflow_information_element_range_end       = -1;      /* ID: 3
 static int      hf_cflow_information_element_semantics       = -1;      /* ID: 344 */
 static int      hf_cflow_information_element_units           = -1;      /* ID: 345 */
 static int      hf_cflow_private_enterprise_number           = -1;      /* ID: 346 */
+static int      hf_cflow_cts_sgt_source_tag                  = -1;      /* ID: 34000 */
+static int      hf_cflow_cts_sgt_destination_tag             = -1;      /* ID: 34001 */
+static int      hf_cflow_cts_sgt_source_name                 = -1;      /* ID: 34002 */
+static int      hf_cflow_cts_sgt_destination_name            = -1;      /* ID: 34003 */
 static int      hf_cflow_packets_dropped                     = -1;      /* ID: 37000 */
 static int      hf_cflow_byte_rate                           = -1;      /* ID: 37003 */
 static int      hf_cflow_application_media_bytes             = -1;      /* ID: 37004 */
@@ -1664,25 +1675,23 @@ dissect_netflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
     /*
      * set something interesting in the display now that we have info
      */
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        if (ver == 9) {
-            col_add_fstr(pinfo->cinfo, COL_INFO,
-                         "total: %u (v%u) record%s", pdus, ver,
-                         plurality(pdus, "", "s"));
-        } else if (ver == 10) {
-            gint remaining = tvb_reported_length_remaining(tvb, offset)+4;
+    if (ver == 9) {
+        col_add_fstr(pinfo->cinfo, COL_INFO,
+                        "total: %u (v%u) record%s", pdus, ver,
+                        plurality(pdus, "", "s"));
+    } else if (ver == 10) {
+        gint remaining = tvb_reported_length_remaining(tvb, offset)+4;
 
-            if(remaining == flow_len)
-                col_add_fstr(pinfo->cinfo, COL_INFO, "IPFIX flow (%d bytes)", flow_len);
-            else
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                             "IPFIX partial flow (%u/%u bytes)",
-                             remaining, flow_len);
-        } else {
+        if(remaining == flow_len)
+            col_add_fstr(pinfo->cinfo, COL_INFO, "IPFIX flow (%d bytes)", flow_len);
+        else
             col_add_fstr(pinfo->cinfo, COL_INFO,
-                         "total: %u (v%u) flow%s", pdus, ver,
-                         plurality(pdus, "", "s"));
-        }
+                            "IPFIX partial flow (%u/%u bytes)",
+                            remaining, flow_len);
+    } else {
+        col_add_fstr(pinfo->cinfo, COL_INFO,
+                        "total: %u (v%u) flow%s", pdus, ver,
+                        plurality(pdus, "", "s"));
     }
 
     /*
@@ -2775,13 +2784,31 @@ dissect_v9_v10_pdu_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, 
             break;
 
         case 25: /* length_min */
-            ti = proto_tree_add_item(pdutree, hf_cflow_length_min,
-                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            if (length == 2) {
+                ti = proto_tree_add_item(pdutree, hf_cflow_length_min,
+                        tvb, offset, length, ENC_BIG_ENDIAN);
+            } else if (length == 8) {
+                ti = proto_tree_add_item(pdutree, hf_cflow_length_min64,
+                        tvb, offset, length, ENC_BIG_ENDIAN);
+            } else {
+                ti = proto_tree_add_text(pdutree,
+                                         tvb, offset, length,
+                                         "MinLength: length %u", length);
+            }
             break;
 
         case 26: /* length_max */
-            ti = proto_tree_add_item(pdutree, hf_cflow_length_max,
-                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            if (length == 2) {
+                ti = proto_tree_add_item(pdutree, hf_cflow_length_max,
+                        tvb, offset, length, ENC_BIG_ENDIAN);
+            } else if (length == 8) {
+                ti = proto_tree_add_item(pdutree, hf_cflow_length_max64,
+                        tvb, offset, length, ENC_BIG_ENDIAN);
+            } else {
+                ti = proto_tree_add_text(pdutree,
+                                         tvb, offset, length,
+                                         "MaxLength: length %u", length);
+            }
             break;
 
         case 27: /* IPv6 src addr */
@@ -4272,6 +4299,26 @@ dissect_v9_v10_pdu_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, 
 
         case 346: /* privateEnterpriseNumber */
             ti = proto_tree_add_item(pdutree, hf_cflow_private_enterprise_number,
+                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            break;
+
+        case 34000: /* cts_sgt_source_tag */
+            ti = proto_tree_add_item(pdutree, hf_cflow_cts_sgt_source_tag,
+                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            break;
+
+        case 34001: /* cts_sgt_destination_tag */
+            ti = proto_tree_add_item(pdutree, hf_cflow_cts_sgt_destination_tag,
+                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            break;
+
+        case 34002: /* cts_sgt_source_name */
+            ti = proto_tree_add_item(pdutree, hf_cflow_cts_sgt_source_name,
+                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            break;
+
+        case 34003: /* cts_sgt_destination_name */
+            ti = proto_tree_add_item(pdutree, hf_cflow_cts_sgt_destination_name,
                                      tvb, offset, length, ENC_BIG_ENDIAN);
             break;
 
@@ -5929,6 +5976,16 @@ proto_register_netflow(void)
           FT_UINT16, BASE_DEC, NULL, 0x0,
           "Packet Length Max", HFILL}
         },
+        {&hf_cflow_length_min64,
+         {"MinLength", "cflow.length_min",
+          FT_UINT64, BASE_DEC, NULL, 0x0,
+          "Packet Length Min", HFILL}
+        },
+        {&hf_cflow_length_max64,
+         {"MaxLength", "cflow.length_max",
+          FT_UINT64, BASE_DEC, NULL, 0x0,
+          "Packet Length Max", HFILL}
+        },
         {&hf_cflow_timedelta,
          {"Duration", "cflow.timedelta",
           FT_RELATIVE_TIME, BASE_NONE, NULL, 0x0,
@@ -5976,12 +6033,12 @@ proto_register_netflow(void)
         },
         {&hf_cflow_srcas,
          {"SrcAS", "cflow.srcas",
-          FT_UINT16, BASE_DEC, NULL, 0x0,
+          FT_UINT32, BASE_DEC, NULL, 0x0,
           "Source AS", HFILL}
         },
         {&hf_cflow_dstas,
          {"DstAS", "cflow.dstas",
-          FT_UINT16, BASE_DEC, NULL, 0x0,
+          FT_UINT32, BASE_DEC, NULL, 0x0,
           "Destination AS", HFILL}
         },
         {&hf_cflow_srcmask,
@@ -6171,12 +6228,12 @@ proto_register_netflow(void)
         },
         {&hf_cflow_peer_srcas,
          {"PeerSrcAS", "cflow.peer_srcas",
-          FT_UINT16, BASE_DEC, NULL, 0x0,
+          FT_UINT32, BASE_DEC, NULL, 0x0,
           "Peer Source AS", HFILL}
         },
         {&hf_cflow_peer_dstas,
          {"PeerDstAS", "cflow.peer_dstas",
-          FT_UINT16, BASE_DEC, NULL, 0x0,
+          FT_UINT32, BASE_DEC, NULL, 0x0,
           "Peer Destination AS", HFILL}
         },
         {&hf_cflow_flow_exporter,
@@ -7285,6 +7342,30 @@ proto_register_netflow(void)
           "cflow.template_ipfix_field_pen",
           FT_UINT32, BASE_DEC, NULL, 0x0,
           "IPFIX Private Enterprise Number", HFILL}
+        },
+        {&hf_cflow_cts_sgt_source_tag,
+         {"Source SGT",
+          "cflow.source_sgt_tag",
+          FT_UINT16, BASE_DEC, NULL, 0x0,
+          NULL, HFILL}
+        },
+        {&hf_cflow_cts_sgt_destination_tag,
+         {"Destination SGT",
+          "cflow.destination_sgt_tag",
+          FT_UINT16, BASE_DEC, NULL, 0x0,
+          NULL, HFILL}
+        },
+        {&hf_cflow_cts_sgt_source_name,
+         {"Source SGT Name",
+          "cflow.source_sgt_name",
+          FT_STRING, BASE_NONE, NULL, 0x0,
+          NULL, HFILL}
+        },
+        {&hf_cflow_cts_sgt_destination_name,
+         {"Destination SGT Name",
+          "cflow.destination_sgt_name",
+          FT_STRING, BASE_NONE, NULL, 0x0,
+          NULL, HFILL}
         },
         {&hf_cflow_packets_dropped,
          {"Packets Dropped",

@@ -34,14 +34,16 @@
 #include "config.h"
 
 #include <glib.h>
+
+#include <wsutil/rc4.h>
+
 #include <epan/packet.h>
 #include <epan/asn1.h>
 #include "packet-dcerpc.h"
 #include "packet-gssapi.h"
 #include "packet-kerberos.h"
-#include <epan/crypt/rc4.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/asn1.h>
 
 #include <string.h>
@@ -311,7 +313,7 @@ dissect_spnego_krb5(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 }
 
 #ifdef HAVE_KERBEROS
-#include <epan/crypt/md5.h>
+#include <wsutil/md5.h>
 
 #ifndef KEYTYPE_ARCFOUR_56
 # define KEYTYPE_ARCFOUR_56 24
@@ -592,7 +594,7 @@ decrypt_gssapi_krb_arcfour_wrap(proto_tree *tree, packet_info *pinfo, tvbuff_t *
 	/* XXX we should only do this for first time, then store somewhere */
 	/* XXX We also need to re-read the keytab when the preference changes */
 
-	cryptocopy=(guint8 *)ep_alloc(length);
+	cryptocopy=(guint8 *)wmem_alloc(wmem_packet_scope(), length);
 	if(output_message_buffer){
 		g_free(output_message_buffer);
 		output_message_buffer=NULL;

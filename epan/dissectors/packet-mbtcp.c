@@ -2,7 +2,7 @@
  * Routines for Modbus/TCP and Modbus/UDP dissection
  * By Riaan Swart <rswart@cs.sun.ac.za>
  * Copyright 2001, Institute for Applied Computer Science
- * 					 University of Stellenbosch
+ *                   University of Stellenbosch
  *
  * See http://www.modbus.org/ for information on Modbus/TCP.
  *
@@ -15,6 +15,9 @@
  * - Include decoding of holding/input response register data
  * - Optionally decode holding/input registers as UINT16, UINT32, 32-bit Float IEEE/Modicon
  * - Add various register address formatting options as "Raw", "Modicon 5-digit", "Modicon 6-digit"
+ *
+ * Updates Aug 2013 (Chris Bontje)
+ * - Improved dissection support for serial Modbus RTU with detection of query or response messages
  *
  *****************************************************************************************************
  * A brief explanation of the distinction between Modbus/TCP and Modbus RTU over TCP:
@@ -160,9 +163,12 @@ static gint ett_device_id_object_items = -1;
 static expert_field ei_mbrtu_crc16_incorrect = EI_INIT;
 static expert_field ei_modbus_data_decode = EI_INIT;
 
+static dissector_handle_t modbus_handle;
+static dissector_handle_t mbtcp_handle;
+static dissector_handle_t mbrtu_handle;
+
 static dissector_table_t   modbus_data_dissector_table;
 static dissector_table_t   modbus_dissector_table;
-static dissector_handle_t  modbus_handle;
 
 
 /* Globals for Modbus/TCP Preferences */
@@ -198,7 +204,7 @@ classify_mbtcp_packet(packet_info *pinfo)
 }
 
 static int
-classify_mbrtu_packet(packet_info *pinfo)
+classify_mbrtu_packet(packet_info *pinfo, tvbuff_t *tvb)
 {
     /* see if nature of packets can be derived from src/dst ports */
     /* if so, return as found */
@@ -207,10 +213,31 @@ classify_mbrtu_packet(packet_info *pinfo)
     if (( pinfo->srcport != global_mbus_rtu_port ) && ( pinfo->destport == global_mbus_rtu_port ))
         return QUERY_PACKET;
 
-   /* Special case for serial-captured packets that don't have an Ethernet header */
-   /* Default these to a response packet, so they at least attempt to decode a good chunk of data */
-   if (!pinfo->srcport)
-        return RESPONSE_PACKET;
+    /* Special case for serial-captured packets that don't have an Ethernet header */
+    /* Dig into these a little deeper to try to guess the message type */
+    if (!pinfo->srcport) {
+        /* If length is 8, this is either a query or very short response */
+        if (tvb_length(tvb) == 8) {
+            /* Only possible to get a response message of 8 bytes with Discrete or Coils */
+            if ((tvb_get_guint8(tvb, 1) == READ_COILS) || (tvb_get_guint8(tvb, 1) == READ_DISCRETE_INPUTS)) {
+                /* If this is, in fact, a response then the data byte count will be 3 */
+                /* This will correctly identify all messages except for those that are discrete or coil polls */
+                /* where the base address range happens to have 0x03 in the upper 16-bit address register     */
+                if (tvb_get_guint8(tvb, 2) == 3) {
+                    return RESPONSE_PACKET;
+                }
+                else {
+                    return QUERY_PACKET;
+                }
+            }
+            else {
+                return QUERY_PACKET;
+            }
+        }
+        else {
+            return RESPONSE_PACKET;
+        }
+    }
 
     /* else, cannot classify */
     return CANNOT_CLASSIFY;
@@ -393,52 +420,49 @@ dissect_mbtcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* "Request" or "Response" */
     packet_type = classify_mbtcp_packet(pinfo);
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-    {
-        switch ( packet_type ) {
-            case QUERY_PACKET :
-                pkt_type_str="Query";
-                break;
-            case RESPONSE_PACKET :
-                pkt_type_str="Response";
-                break;
-            case CANNOT_CLASSIFY :
-                err_str="Unable to classify as query or response.";
-                pkt_type_str="unknown";
-                break;
-            default :
-                break;
-        }
-        if ( exception_code != 0 )
-            err_str="Exception returned ";
+    switch ( packet_type ) {
+        case QUERY_PACKET :
+            pkt_type_str="Query";
+            break;
+        case RESPONSE_PACKET :
+            pkt_type_str="Response";
+            break;
+        case CANNOT_CLASSIFY :
+            err_str="Unable to classify as query or response.";
+            pkt_type_str="unknown";
+            break;
+        default :
+            break;
+    }
+    if ( exception_code != 0 )
+        err_str="Exception returned ";
 
-        if (subfunction_code == 0) {
-            if (strlen(err_str) > 0) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Trans: %5u; Unit: %3u, Func: %3u: %s. %s",
-                      pkt_type_str, transaction_id, unit_id,
-                      function_code, func_string, err_str);
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Trans: %5u; Unit: %3u, Func: %3u: %s",
-                      pkt_type_str, transaction_id, unit_id,
-                      function_code, func_string);
-            }
+    if (subfunction_code == 0) {
+        if (strlen(err_str) > 0) {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Trans: %5u; Unit: %3u, Func: %3u: %s. %s",
+                    pkt_type_str, transaction_id, unit_id,
+                    function_code, func_string, err_str);
         }
         else {
-            if (strlen(err_str) > 0) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Trans: %5u; Unit: %3u, Func: %3u/%3u: %s. %s",
-                      pkt_type_str, transaction_id, unit_id,
-                      function_code, subfunction_code, func_string, err_str);
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Trans: %5u; Unit: %3u, Func: %3u/%3u: %s",
-                      pkt_type_str, transaction_id, unit_id,
-                      function_code, subfunction_code, func_string);
-            }
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Trans: %5u; Unit: %3u, Func: %3u: %s",
+                    pkt_type_str, transaction_id, unit_id,
+                    function_code, func_string);
+        }
+    }
+    else {
+        if (strlen(err_str) > 0) {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Trans: %5u; Unit: %3u, Func: %3u/%3u: %s. %s",
+                    pkt_type_str, transaction_id, unit_id,
+                    function_code, subfunction_code, func_string, err_str);
+        }
+        else {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Trans: %5u; Unit: %3u, Func: %3u/%3u: %s",
+                    pkt_type_str, transaction_id, unit_id,
+                    function_code, subfunction_code, func_string);
         }
     }
 
@@ -526,54 +550,51 @@ dissect_mbrtu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     /* "Request" or "Response" */
-    packet_type = classify_mbrtu_packet(pinfo);
+    packet_type = classify_mbrtu_packet(pinfo, tvb);
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-    {
-        switch ( packet_type ) {
-            case QUERY_PACKET :
-                pkt_type_str="Query";
-                break;
-            case RESPONSE_PACKET :
-                pkt_type_str="Response";
-                break;
-            case CANNOT_CLASSIFY :
-                err_str="Unable to classify as query or response.";
-                pkt_type_str="unknown";
-                break;
-            default :
-                break;
-        }
-        if ( exception_code != 0 )
-            err_str="Exception returned ";
+    switch ( packet_type ) {
+        case QUERY_PACKET :
+            pkt_type_str="Query";
+            break;
+        case RESPONSE_PACKET :
+            pkt_type_str="Response";
+            break;
+        case CANNOT_CLASSIFY :
+            err_str="Unable to classify as query or response.";
+            pkt_type_str="unknown";
+            break;
+        default :
+            break;
+    }
+    if ( exception_code != 0 )
+        err_str="Exception returned ";
 
-        if (subfunction_code == 0) {
-            if (strlen(err_str) > 0) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Unit: %3u, Func: %3u: %s. %s",
-                      pkt_type_str, unit_id,
-                      function_code, func_string, err_str);
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Unit: %3u, Func: %3u: %s",
-                      pkt_type_str, unit_id,
-                      function_code, func_string);
-            }
+    if (subfunction_code == 0) {
+        if (strlen(err_str) > 0) {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Unit: %3u, Func: %3u: %s. %s",
+                    pkt_type_str, unit_id,
+                    function_code, func_string, err_str);
         }
         else {
-            if (strlen(err_str) > 0) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Unit: %3u, Func: %3u/%3u: %s. %s",
-                      pkt_type_str, unit_id,
-                      function_code, subfunction_code, func_string, err_str);
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Unit: %3u, Func: %3u/%3u: %s",
-                      pkt_type_str, unit_id,
-                      function_code, subfunction_code, func_string);
-            }
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Unit: %3u, Func: %3u: %s",
+                    pkt_type_str, unit_id,
+                    function_code, func_string);
+        }
+    }
+    else {
+        if (strlen(err_str) > 0) {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Unit: %3u, Func: %3u/%3u: %s. %s",
+                    pkt_type_str, unit_id,
+                    function_code, subfunction_code, func_string, err_str);
+        }
+        else {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Unit: %3u, Func: %3u/%3u: %s",
+                    pkt_type_str, unit_id,
+                    function_code, subfunction_code, func_string);
         }
     }
 
@@ -610,7 +631,7 @@ dissect_mbrtu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     request_info->register_format = (guint8)global_mbus_rtu_register_format;
     p_add_proto_data(pinfo->fd, proto_modbus, 0, request_info);
 
-    /* Continue with dissection of Modbus data payload following Modbus/TCP frame */
+    /* Continue with dissection of Modbus data payload following Modbus RTU frame */
     if( tvb_length_remaining(tvb, offset) > 0 )
         call_dissector(modbus_handle, next_tvb, pinfo, tree);
 
@@ -679,7 +700,7 @@ dissect_mbrtu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 {
 
     /* Make sure there's at least enough data to determine it's a Modbus packet */
-    if (!tvb_bytes_exist(tvb, 0, 8))
+    if (!tvb_bytes_exist(tvb, 0, 6))
         return 0;
 
     /* For Modbus RTU mode, confirm that the first byte is a valid address (non-zero), */
@@ -720,13 +741,17 @@ dissect_modbus_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 
         return;
     }
 
+    /* If data type of payload is Holding or Input registers */
+    /* AND */
     /* if payload length is not a multiple of 4, don't attempt to decode anything in 32-bit format */
-    if ((payload_len % 4 != 0) && ( (register_format == MBTCP_PREF_REGISTER_FORMAT_UINT32) ||
-        (register_format == MBTCP_PREF_REGISTER_FORMAT_IEEE_FLOAT) ||
-        (register_format == MBTCP_PREF_REGISTER_FORMAT_MODICON_FLOAT) ) ) {
-        register_item = proto_tree_add_item(tree, hf_modbus_data, tvb, payload_start, payload_len, ENC_NA);
-        expert_add_info(pinfo, register_item, &ei_modbus_data_decode);
-        return;
+    if ((function_code == READ_HOLDING_REGS) || (function_code == READ_INPUT_REGS) || (function_code == WRITE_MULT_REGS)) {
+        if ((payload_len % 4 != 0) && ( (register_format == MBTCP_PREF_REGISTER_FORMAT_UINT32) ||
+            (register_format == MBTCP_PREF_REGISTER_FORMAT_IEEE_FLOAT) ||
+            (register_format == MBTCP_PREF_REGISTER_FORMAT_MODICON_FLOAT) ) ) {
+            register_item = proto_tree_add_item(tree, hf_modbus_data, tvb, payload_start, payload_len, ENC_NA);
+            expert_add_info(pinfo, register_item, &ei_modbus_data_decode);
+            return;
+        }
     }
 
     /* Build a new tvb containing just the data payload   */
@@ -1706,9 +1731,9 @@ proto_register_modbus(void)
     proto_modbus = proto_register_protocol("Modbus", "Modbus", "modbus");
 
     /* Registering protocol to be called by another dissector */
-    new_register_dissector("mbtcp", dissect_mbtcp, proto_mbtcp);
-    new_register_dissector("mbrtu", dissect_mbrtu, proto_mbrtu);
-    new_register_dissector("modbus", dissect_modbus, proto_modbus);
+    modbus_handle = new_register_dissector("modbus", dissect_modbus, proto_modbus);
+    mbtcp_handle = new_register_dissector("mbtcp", dissect_mbtcp, proto_mbtcp);
+    mbrtu_handle = new_register_dissector("mbrtu", dissect_mbrtu, proto_mbrtu);
 
     /* Registering subdissectors table */
     modbus_data_dissector_table = register_dissector_table("modbus.data", "Modbus Data", FT_STRING, BASE_NONE);
@@ -1800,15 +1825,9 @@ proto_register_modbus(void)
 void
 proto_reg_handoff_mbtcp(void)
 {
-    static int mbtcp_prefs_initialized = FALSE;
-    static dissector_handle_t mbtcp_handle;
     static unsigned int mbtcp_port;
 
     /* Make sure to use Modbus/TCP Preferences field to determine default TCP port */
-    if (! mbtcp_prefs_initialized) {
-        mbtcp_handle = new_create_dissector_handle(dissect_mbtcp, proto_mbtcp);
-        mbtcp_prefs_initialized = TRUE;
-    }
 
     if(mbtcp_port != 0 && mbtcp_port != global_mbus_tcp_port){
         dissector_delete_uint("tcp.port", mbtcp_port, mbtcp_handle);
@@ -1820,7 +1839,6 @@ proto_reg_handoff_mbtcp(void)
 
     mbtcp_port = global_mbus_tcp_port;
 
-    modbus_handle = new_create_dissector_handle(dissect_modbus, proto_modbus);
     dissector_add_uint("mbtcp.prot_id", MODBUS_PROTOCOL_ID, modbus_handle);
 
 }
@@ -1828,15 +1846,9 @@ proto_reg_handoff_mbtcp(void)
 void
 proto_reg_handoff_mbrtu(void)
 {
-    static int mbrtu_prefs_initialized = FALSE;
-    static dissector_handle_t mbrtu_handle;
     static unsigned int mbrtu_port = 0;
 
     /* Make sure to use Modbus RTU Preferences field to determine default TCP port */
-    if (! mbrtu_prefs_initialized) {
-        mbrtu_handle = new_create_dissector_handle(dissect_mbrtu, proto_mbrtu);
-        mbrtu_prefs_initialized = TRUE;
-    }
 
     if(mbrtu_port != 0 && mbrtu_port != global_mbus_rtu_port){
         dissector_delete_uint("tcp.port", mbrtu_port, mbrtu_handle);
@@ -1848,7 +1860,6 @@ proto_reg_handoff_mbrtu(void)
 
     mbrtu_port = global_mbus_rtu_port;
 
-    modbus_handle = new_create_dissector_handle(dissect_modbus, proto_modbus);
     dissector_add_uint("mbtcp.prot_id", MODBUS_PROTOCOL_ID, modbus_handle);
 
 }

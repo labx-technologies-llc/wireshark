@@ -815,7 +815,15 @@ file_fdopen(int fd)
 
 #ifdef _STATBUF_ST_BLKSIZE
 	if (fstat(fd, &st) >= 0) {
-		want = st.st_blksize;
+		/*
+		 * Yes, st_blksize can be bigger than an int; apparently,
+		 * it's a long on LP64 Linux, for example.
+		 *
+		 * If the value is too big to fit into an int, just
+		 * use the default.
+		 */
+		if (st.st_blksize <= G_MAXINT)
+			want = (int)st.st_blksize;
 		/* XXX, verify result? */
 	}
 #endif
@@ -1104,10 +1112,12 @@ file_seek(FILE_T file, gint64 offset, int whence, int *err)
  * sequentially from a pipe, this could instead just skip
  * forward by reading the bytes in question.
  */
-gint64
+gboolean
 file_skip(FILE_T file, gint64 delta, int *err)
 {
-	return file_seek(file, delta, SEEK_CUR, err);
+	if (file_seek(file, delta, SEEK_CUR, err) == -1)
+		return FALSE;
+	return TRUE;
 }
 
 gint64
@@ -1572,7 +1582,7 @@ gzwfile_write(GZWFILE_T state, const void *buf, guint len)
             memcpy(strm->next_in + strm->avail_in, buf, n);
             strm->avail_in += n;
             state->pos += n;
-            buf = (char *)buf + n;
+            buf = (const char *)buf + n;
             len -= n;
             if (len && gz_comp(state, Z_NO_FLUSH) == -1)
                 return 0;

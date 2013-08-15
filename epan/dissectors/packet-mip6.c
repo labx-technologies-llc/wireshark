@@ -52,6 +52,7 @@
 #include <epan/packet.h>
 
 #include <epan/ipproto.h>
+#include <epan/expert.h>
 #include <epan/ip_opts.h>
 #include <epan/expert.h>
 #include <epan/sminmpec.h>
@@ -171,7 +172,7 @@ typedef enum {
     MIP6_ALT_IP4_CO= 49,        /* 49 Alternate IPv4 Care-of Address [RFC6463] */
     MIP6_MNG       = 50,        /* 50 Mobile Node Group Identifier [RFC6602] */
     MIP6_MAG_IPv6  = 51,        /* 51 MAG IPv6 Address [RFC6705] */
-    MIP6_ACC_NET_ID= 52,        /* 52 Access Network Identifier [RFC6757] */
+    MIP6_ACC_NET_ID= 52         /* 52 Access Network Identifier [RFC6757] */
 
 } optTypes;
 
@@ -1729,7 +1730,7 @@ dissect_mip6_opt_vsm_3gpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
 
     /* see 3GPP TS 29.275 version 10.5.0 Release 10 */
     switch (sub_type) {
-    /*  1, Protocol Configuration Options 
+    /*  1, Protocol Configuration Options
      *     3GPP PCO data, in the format from 3GPP TS 24.008 [16] subclause 10.5.6.3, starting with octet 3
      *     de_sm_pco(tvb, tree, pinfo, 0, length, NULL, 0);
      *     Note needs pinfo->link_dir ?
@@ -1754,13 +1755,13 @@ dissect_mip6_opt_vsm_3gpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
             proto_tree_add_item(tree, hf_mip6_opt_3gpp_pdn_gw_ipv6_addr, tvb, offset, 16, ENC_BIG_ENDIAN);
         }
         break;
-    /*  4, PMIPv6 DHCPv4 Address Allocation Procedure Indication 
+    /*  4, PMIPv6 DHCPv4 Address Allocation Procedure Indication
      *     DHCPv4 Address Allocation Procedure Indication, as specified in subclause 12.1.1.5
      */
     case 4:
         proto_tree_add_item(tree, hf_mip6_opt_3gpp_dhcpv4_addr_all_proc_ind, tvb, offset, 1, ENC_BIG_ENDIAN);
         break;
-    /*  5, PMIPv6 Fully Qualified PDN Connection Set Identifier 
+    /*  5, PMIPv6 Fully Qualified PDN Connection Set Identifier
      * FQ-CSID as specified in subclause 12.1.1.2
      */
     case 5:
@@ -1835,7 +1836,7 @@ dissect_mip6_opt_vsm_3gpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
     case 19:
          proto_tree_add_item(tree, hf_hf_mip6_opt_3gpp_lapi, tvb, offset, 1, ENC_BIG_ENDIAN);
          break;
-    /* 20, Additional Protocol Configuration Options 
+    /* 20, Additional Protocol Configuration Options
      *     12.1.1.19 Additional Protocol Configuration Options
      *     The Additional Protocol Configuration Options IE contains additional 3GPP protocol configuration options
      *     information. The IE is in the same format as the PCO IE specified in 3GPP TS 24.008 [16] subclause 10.5.6.3, starting
@@ -1851,16 +1852,21 @@ dissect_mip6_opt_vsm_3gpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
 /* 1 PadN [RFC3775] */
 static void
 dissect_mip6_opt_padn(const mip6_opt *optp, tvbuff_t *tvb, int offset,
-              guint optlen, packet_info *pinfo _U_,
+              guint optlen _U_, packet_info *pinfo _U_,
               proto_tree *opt_tree, proto_item *hdr_item _U_ )
 {
+    guint8 len;
+
     /* offset points to tag(opt) */
     offset++;
+    len = tvb_get_guint8(tvb, offset);
     proto_tree_add_item(opt_tree, hf_mip6_opt_len, tvb, offset, 1, ENC_BIG_ENDIAN);
     offset++;
 
-    proto_tree_add_text(opt_tree, tvb, offset, optlen,
-            "%s: %u bytes", optp->name, optlen);
+    if (len > 0) {
+        proto_tree_add_text(opt_tree, tvb, offset, len,
+                "%s: %u bytes", optp->name, len);
+    }
 }
 
 /* 2 Binding Refresh Advice */
@@ -2226,7 +2232,7 @@ dissect_mip6_opt_ssm(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
 
     len = optlen - MIP6_SSM_SSM_OFF;
 
-    /* 3GPP TS 29.275 version 10.5.0 Release 10, Table 5.1.1.1-2 
+    /* 3GPP TS 29.275 version 10.5.0 Release 10, Table 5.1.1.1-2
 	 * Set to the EPS Access Point Name to which the UE
 	 * attaches the new PDN connection.
 	 * The encoding the APN field follows 3GPP TS 23.003
@@ -2796,13 +2802,8 @@ dissect_pmip6_opt_ipv4dsm(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
     proto_tree_add_item(opt_tree, hf_mip6_ipv4dsm_reserved, tvb,
             offset, 2, ENC_BIG_ENDIAN);
     proto_tree_add_item(opt_tree, hf_mip6_ipv4dsm_s_flag, tvb, offset, 2, ENC_BIG_ENDIAN);
-
-    offset += 2;
-
-
-    proto_item_append_text(hdr_item, ": %s", tvb_ip_to_str(tvb,offset));
-
 }
+
 /* 40 Context Request Option [RFC5949] */
 /*
      0                   1                   2                   3
@@ -3557,7 +3558,7 @@ dissect_mip6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         break;
     case MIP6_EMH:
         /* 11 Experimental Mobility Header RFC5096 */
-		/* There are no fields in the message beyond the required fields 
+		/* There are no fields in the message beyond the required fields
          * in the Mobility Header.
          */
 		offset = MIP6_DATA_OFF;

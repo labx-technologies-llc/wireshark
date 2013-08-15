@@ -51,9 +51,9 @@
 #include <epan/epan_dissect.h>
 #include <epan/strutil.h>
 #include <epan/tvbuff-int.h>
+#include <epan/print.h>
 
 #include "../file.h"
-#include "../print.h"
 #include "../summary.h"
 
 #include "ui/recent.h"
@@ -68,11 +68,14 @@
 #include "ui/gtk/gtkglobals.h"
 #include "ui/gtk/gui_utils.h"
 
+#include "frame_tvbuff.h"
+
 #define BV_SIZE 75
 #define TV_SIZE 95
 
 /* Data structure holding information about a packet-detail window. */
 struct PacketWinData {
+	epan_t *epan;
 	frame_data *frame;	   /* The frame being displayed */
 	struct wtap_pkthdr phdr;   /* Packet header */
 	guint8     *pd;		   /* Packet data */
@@ -89,6 +92,7 @@ struct PacketWinData {
 
 #ifdef WANT_PACKET_EDITOR
 struct FieldinfoWinData {
+	epan_t *epan;
 	frame_data *frame;	   /* The frame being displayed */
 	struct wtap_pkthdr phdr;   /* Packet header */
 	guint8     *pd;		   /* Packet data */
@@ -192,8 +196,8 @@ redissect_packet_window(gpointer object, gpointer user_data _U_)
 	/* XXX, can be optimized? */
 	proto_tree_draw(NULL, DataPtr->tree_view);
 	epan_dissect_cleanup(&(DataPtr->edt));
-	epan_dissect_init(&(DataPtr->edt), TRUE, TRUE);
-	epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, DataPtr->pd, DataPtr->frame, NULL);
+	epan_dissect_init(&(DataPtr->edt), DataPtr->epan, TRUE, TRUE);
+	epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, frame_tvbuff_new(DataPtr->frame, DataPtr->pd), DataPtr->frame, NULL);
 	add_byte_views(&(DataPtr->edt), DataPtr->tree_view, DataPtr->bv_nb_ptr);
 	proto_tree_draw(DataPtr->edt.tree, DataPtr->tree_view);
 
@@ -263,12 +267,12 @@ finfo_window_refresh(struct FieldinfoWinData *DataPtr)
 	}
 
 	/* redisect */
-	epan_dissect_init(&edt, TRUE, TRUE);
+	epan_dissect_init(&edt, DataPtr->epan, TRUE, TRUE);
 	/* Makes any sense?
 	if (old_finfo->hfinfo)
 		proto_tree_prime_hfid(edt.tree, old_finfo->hfinfo->id);
 	*/
-	epan_dissect_run(&edt, &DataPtr->phdr, DataPtr->pd, DataPtr->frame, NULL);
+	epan_dissect_run(&edt, &DataPtr->phdr, frame_tvbuff_new(DataPtr->frame, DataPtr->pd), DataPtr->frame, NULL);
 
 	/* Try to find finfo which looks like old_finfo.
 	 * We might not found one, if protocol requires specific magic values, etc... */
@@ -402,8 +406,8 @@ finfo_integer_changed(GtkSpinButton *spinbutton, gpointer user_data)
 		return;
 	}
 
-	if (hfinfo->bitmask && hfinfo->bitshift > 0)
-		u_val <<= hfinfo->bitshift;
+	if (hfinfo->bitmask)
+		u_val <<= hfinfo_bitshift(hfinfo);
 
 	finfo_integer_common(DataPtr, u_val);
 }
@@ -574,8 +578,8 @@ new_finfo_window(GtkWidget *w, struct FieldinfoWinData *DataPtr)
 		if (finfo->length * 8 < bitcount)
 			bitcount = finfo->length / 8;
 
-		if (hfinfo->bitmask && hfinfo->bitshift > 0)
-			bitcount -= hfinfo->bitshift;
+		if (hfinfo->bitmask)
+			bitcount -= hfinfo_bitshift(hfinfo);
 
 		/* XXX, hfinfo->bitmask: Can we configure GTK_ADJUSTMENT to do custom step? (value-changed signal?) */
 
@@ -712,6 +716,7 @@ edit_pkt_tree_row_activated_cb(GtkTreeView *tree_view, GtkTreePath *path, GtkTre
 	{
 		struct FieldinfoWinData data;
 
+		data.epan = DataPtr->epan;
 		data.frame = DataPtr->frame;
 		data.phdr  = DataPtr->phdr;
 		data.pd = (guint8 *) g_memdup(DataPtr->pd, DataPtr->frame->cap_len);
@@ -730,8 +735,8 @@ edit_pkt_tree_row_activated_cb(GtkTreeView *tree_view, GtkTreePath *path, GtkTre
 
 			proto_tree_draw(NULL, DataPtr->tree_view);
 			epan_dissect_cleanup(&(DataPtr->edt));
-			epan_dissect_init(&(DataPtr->edt), TRUE, TRUE);
-			epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, DataPtr->pd, DataPtr->frame, NULL);
+			epan_dissect_init(&(DataPtr->edt), DataPtr->epan, TRUE, TRUE);
+			epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, frame_tvbuff_new(DataPtr->frame, DataPtr->pd), DataPtr->frame, NULL);
 			add_byte_views(&(DataPtr->edt), DataPtr->tree_view, DataPtr->bv_nb_ptr);
 			proto_tree_draw(DataPtr->edt.tree, DataPtr->tree_view);
 		}
@@ -877,7 +882,7 @@ edit_pkt_win_key_pressed_cb(GtkWidget *win _U_, GdkEventKey *event, gpointer use
 static void
 edit_pkt_destroy_new_window(GObject *object _U_, gpointer user_data)
 {
-	/* like destroy_new_window, but without freeding DataPtr->pd */
+	/* like destroy_new_window, but without freeing DataPtr->pd */
 	struct PacketWinData *DataPtr = (struct PacketWinData *)user_data;
 
 	detail_windows = g_list_remove(detail_windows, DataPtr);
@@ -957,13 +962,15 @@ void new_packet_window(GtkWidget *w _U_, gboolean reference, gboolean editable _
 	/* Allocate data structure to represent this window. */
 	DataPtr = (struct PacketWinData *) g_malloc(sizeof(struct PacketWinData));
 
+	/* XXX, protect cfile.epan from closing (ref counting?) */
+	DataPtr->epan  = cfile.epan;
 	DataPtr->frame = fd;
 	DataPtr->phdr  = cfile.phdr;
 	DataPtr->pd = (guint8 *)g_malloc(DataPtr->frame->cap_len);
-	memcpy(DataPtr->pd, cfile.pd, DataPtr->frame->cap_len);
+	memcpy(DataPtr->pd, buffer_start_ptr(&cfile.buf), DataPtr->frame->cap_len);
 
-	epan_dissect_init(&(DataPtr->edt), TRUE, TRUE);
-	epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, DataPtr->pd,
+	epan_dissect_init(&(DataPtr->edt), DataPtr->epan, TRUE, TRUE);
+	epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, frame_tvbuff_new(DataPtr->frame, DataPtr->pd),
 			 DataPtr->frame, &cfile.cinfo);
 	epan_dissect_fill_in_columns(&(DataPtr->edt), FALSE, TRUE);
 

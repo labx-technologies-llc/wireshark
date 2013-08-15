@@ -94,7 +94,7 @@ typedef enum mac_lte_carrier_id {
     carrier_id_secondary_1,
     carrier_id_secondary_2,
     carrier_id_secondary_3,
-    carrier_id_secondary_4,
+    carrier_id_secondary_4
 } mac_lte_carrier_id;
 
 /* Context info attached to each LTE MAC frame */
@@ -164,7 +164,7 @@ typedef struct mac_lte_info
             mac_lte_crc_status crc_status;
             guint8 harq_id;
             gboolean ndi;
-            guint8   transport_block;  /* 1..2 */
+            guint8   transport_block;  /* 0..1 */
         } dl_info;
     } detailed_phy_info;
 
@@ -200,6 +200,7 @@ typedef struct mac_lte_tap_info {
     guint32  bytes_for_lcid[11];
     guint32  sdus_for_lcid[11];
     guint8   number_of_rars;
+    guint8   number_of_paging_ids;
 
     /* Number of padding bytes includes padding subheaders and trailing padding */
     guint16  padding_bytes;
@@ -270,12 +271,28 @@ int is_mac_lte_frame_retx(packet_info *pinfo, guint8 direction);
 #define MAC_LTE_PAYLOAD_TAG 0x01
 
 
+/* Type to store parameters for configuring LCID->RLC channel settings for DRB */
+/* Some are optional, and may not be seen (e.g. on reestablishment) */
+typedef struct drb_mapping_t
+{
+    guint16    ueid;              /* Mandatory */
+    guint8     drbid;             /* Mandatory */
+    gboolean   lcid_present;
+    guint8     lcid;              /* Part of LogicalChannelConfig - optional */
+    gboolean   rlcMode_present;
+    guint8     rlcMode;           /* Part of RLC config - optional */
+    gboolean   um_sn_length_present;
+    guint8     um_sn_length;      /* Part of RLC config - optional */
+    gboolean   ul_priority_present;
+    guint8     ul_priority;       /* Part of LogicalChannelConfig - optional */
+    gboolean   pdcp_sn_size_present;
+    guint8     pdcp_sn_size;      /* Part of pdcp-Config - optional */
+} drb_mapping_t;
+
+
 /* Set details of an LCID -> drb channel mapping.  To be called from
    configuration protocol (e.g. RRC) */
-void set_mac_lte_channel_mapping(guint16 ueid, guint8 lcid,
-                                 guint8  srbid, guint8 drbid,
-                                 guint8  rlcMode, guint8 um_sn_length,
-                                 guint8  ul_priority);
+void set_mac_lte_channel_mapping(drb_mapping_t *drb_mapping);
 
 /* Functions to be called from outside this module (e.g. in a plugin, where mac_lte_info
    isn't available) to get/set per-packet data */

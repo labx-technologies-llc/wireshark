@@ -166,30 +166,6 @@ fcdns_init_protocol(void)
 }
 
 
-static const true_false_string tfs_fcdns_cos_f = {
-    "F is set",
-    "f is NOT set"
-};
-static const true_false_string tfs_fcdns_cos_1 = {
-    "1 is set",
-    "1 is NOT set"
-};
-static const true_false_string tfs_fcdns_cos_2 = {
-    "2 is set",
-    "2 is NOT set"
-};
-static const true_false_string tfs_fcdns_cos_3 = {
-    "3 is set",
-    "3 is NOT set"
-};
-static const true_false_string tfs_fcdns_cos_4 = {
-    "4 is set",
-    "4 is NOT set"
-};
-static const true_false_string tfs_fcdns_cos_6 = {
-    "6 is set",
-    "6 is NOT set"
-};
 static void
 dissect_cos_flags (proto_tree *parent_tree, tvbuff_t *tvb, int offset, int hfindex)
 {
@@ -239,18 +215,10 @@ dissect_cos_flags (proto_tree *parent_tree, tvbuff_t *tvb, int offset, int hfind
     if (flags&0x40){
         proto_item_append_text(item, "  6");
     }
-    flags&=(~( 0x40 ));
+    /*flags&=(~( 0x40 ));*/
 }
 
 
-static const true_false_string tfs_fcdns_fc4features_i = {
-    "I is set",
-    "i is NOT set"
-};
-static const true_false_string tfs_fcdns_fc4features_t = {
-    "T is set",
-    "t is NOT set"
-};
 
 /* The feature routines just decode FCP's FC-4 features field
  * based on the flahs in offset and the type in offset+1
@@ -317,34 +285,6 @@ dissect_fc4features (proto_tree *parent_tree, tvbuff_t *tvb, int offset)
 }
 
 
-static const true_false_string tfs_fcdns_fc4type_llcsnap = {
-    "LLC/SNAP is SET",
-    "Llc/snap is NOT set"
-};
-static const true_false_string tfs_fcdns_fc4type_ip = {
-    "IP is SET",
-    "Ip is NOT set"
-};
-static const true_false_string tfs_fcdns_fc4type_fcp = {
-    "FCP is SET",
-    "Fcp is NOT set"
-};
-static const true_false_string tfs_fcdns_fc4type_swils = {
-    "SW_ILS is SET",
-    "Sw_ils is NOT set"
-};
-static const true_false_string tfs_fcdns_fc4type_snmp = {
-    "SNMP is SET",
-    "Snmp is NOT set"
-};
-static const true_false_string tfs_fcdns_fc4type_gs3 = {
-    "GS3 is SET",
-    "Gs3 is NOT set"
-};
-static const true_false_string tfs_fcdns_fc4type_vi = {
-    "VI is SET",
-    "Vi is NOT set"
-};
 
 /* Decodes LLC/SNAP, IP, FCP, VI, GS, SW_ILS types only */
 static void
@@ -1462,12 +1402,10 @@ dissect_fcdns (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     cthdr.maxres_size = g_ntohs (cthdr.maxres_size);
 
     /* Determine the type of server the request/response is for */
-    if (check_col(pinfo->cinfo, COL_PROTOCOL)) {
-        if (cthdr.gstype == FCCT_GSTYPE_DIRSVC)
-            col_set_str (pinfo->cinfo, COL_PROTOCOL, "dNS");
-        else
-            col_set_str (pinfo->cinfo, COL_PROTOCOL, "Unzoned NS");
-    }
+    if (cthdr.gstype == FCCT_GSTYPE_DIRSVC)
+        col_set_str (pinfo->cinfo, COL_PROTOCOL, "dNS");
+    else
+        col_set_str (pinfo->cinfo, COL_PROTOCOL, "Unzoned NS");
 
     if (tree) {
         if (cthdr.gstype == FCCT_GSTYPE_DIRSVC) {
@@ -1514,10 +1452,8 @@ dissect_fcdns (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
             g_hash_table_insert (fcdns_req_hash, req_key, cdata);
         }
-        if (check_col (pinfo->cinfo, COL_INFO)) {
-            col_add_str (pinfo->cinfo, COL_INFO, val_to_str (opcode, fc_dns_opcode_val,
+        col_add_str (pinfo->cinfo, COL_INFO, val_to_str (opcode, fc_dns_opcode_val,
                                                           "0x%x"));
-        }
     }
     else {
         /* Opcode is ACC or RJT */
@@ -1526,12 +1462,10 @@ dissect_fcdns (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                           pinfo->rxid, NO_PORT2);
         isreq = 0;
         if (!conversation) {
-            if (tree && (opcode == FCCT_MSG_ACC)) {
-                if (check_col (pinfo->cinfo, COL_INFO)) {
-                    col_add_str (pinfo->cinfo, COL_INFO,
+            if (opcode == FCCT_MSG_ACC) {
+                col_add_str (pinfo->cinfo, COL_INFO,
                                  val_to_str (opcode, fc_dns_opcode_val,
                                              "0x%x"));
-                }
                 /* No record of what this accept is for. Can't decode */
                 proto_tree_add_text (fcdns_tree, tvb, 0, -1,
                                      "No record of Exchg. Unable to decode MSG_ACC/RJT");
@@ -1551,18 +1485,16 @@ dissect_fcdns (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     failed_opcode = cdata->opcode;
             }
 
-            if (check_col (pinfo->cinfo, COL_INFO)) {
-                if (opcode != FCCT_MSG_RJT) {
-                    col_add_fstr (pinfo->cinfo, COL_INFO, "ACC (%s)",
-                                  val_to_str (opcode, fc_dns_opcode_val,
-                                              "0x%x"));
-                }
-                else {
-                    col_add_fstr (pinfo->cinfo, COL_INFO, "RJT (%s)",
-                                  val_to_str (failed_opcode,
-                                              fc_dns_opcode_val,
-                                              "0x%x"));
-                }
+            if (opcode != FCCT_MSG_RJT) {
+                col_add_fstr (pinfo->cinfo, COL_INFO, "ACC (%s)",
+                                val_to_str (opcode, fc_dns_opcode_val,
+                                            "0x%x"));
+            }
+            else {
+                col_add_fstr (pinfo->cinfo, COL_INFO, "RJT (%s)",
+                                val_to_str (failed_opcode,
+                                            fc_dns_opcode_val,
+                                            "0x%x"));
             }
 
             if (tree) {
@@ -1869,43 +1801,43 @@ proto_register_fcdns (void)
            NULL, 0x0, NULL, HFILL}},
         { &hf_fcdns_cos_f,
           {"F", "fcdns.cos.f", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_cos_f), 0x01, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x01, NULL, HFILL}},
         { &hf_fcdns_cos_1,
           {"1", "fcdns.cos.1", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_cos_1), 0x02, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x02, NULL, HFILL}},
         { &hf_fcdns_cos_2,
           {"2", "fcdns.cos.2", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_cos_2), 0x04, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x04, NULL, HFILL}},
         { &hf_fcdns_cos_3,
           {"3", "fcdns.cos.3", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_cos_3), 0x08, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x08, NULL, HFILL}},
         { &hf_fcdns_cos_4,
           {"4", "fcdns.cos.4", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_cos_4), 0x10, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x10, NULL, HFILL}},
         { &hf_fcdns_cos_6,
           {"6", "fcdns.cos.6", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_cos_6), 0x40, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x40, NULL, HFILL}},
         { &hf_fcdns_fc4type_llcsnap,
           {"LLC/SNAP", "fcdns.fc4types.llc_snap", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_fc4type_llcsnap), 0x0010, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x0010, NULL, HFILL}},
         { &hf_fcdns_fc4type_ip,
           {"IP", "fcdns.fc4types.ip", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_fc4type_ip), 0x0020, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x0020, NULL, HFILL}},
         { &hf_fcdns_fc4type_fcp,
           {"FCP", "fcdns.fc4types.fcp", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_fc4type_fcp), 0x0100, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x0100, NULL, HFILL}},
         { &hf_fcdns_fc4type_swils,
           {"SW_ILS", "fcdns.fc4types.swils", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_fc4type_swils), 0x0010, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x0010, NULL, HFILL}},
         { &hf_fcdns_fc4type_snmp,
           {"SNMP", "fcdns.fc4types.snmp", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_fc4type_snmp), 0x0004, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x0004, NULL, HFILL}},
         { &hf_fcdns_fc4type_gs3,
           {"GS3", "fcdns.fc4types.gs3", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_fc4type_gs3), 0x0001, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x0001, NULL, HFILL}},
         { &hf_fcdns_fc4type_vi,
           {"VI", "fcdns.fc4types.vi", FT_BOOLEAN, 32,
-           TFS(&tfs_fcdns_fc4type_vi), 0x0001, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x0001, NULL, HFILL}},
         { &hf_fcdns_rply_gft,
           {"FC-4 Types Supported", "fcdns.rply.fc4type", FT_NONE, BASE_NONE,
            NULL, 0x0, NULL, HFILL}},
@@ -1920,10 +1852,10 @@ proto_register_fcdns (void)
            BASE_HEX, NULL, 0x0, NULL, HFILL}},
         { &hf_fcdns_fc4features_i,
           {"I", "fcdns.fc4features.i", FT_BOOLEAN, 8,
-           TFS(&tfs_fcdns_fc4features_i), 0x02, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x02, NULL, HFILL}},
         { &hf_fcdns_fc4features_t,
           {"T", "fcdns.fc4features.t", FT_BOOLEAN, 8,
-           TFS(&tfs_fcdns_fc4features_t), 0x01, NULL, HFILL}},
+           TFS(&tfs_set_notset), 0x01, NULL, HFILL}},
     };
 
     static gint *ett[] = {

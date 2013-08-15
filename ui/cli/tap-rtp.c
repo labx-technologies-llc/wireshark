@@ -45,7 +45,7 @@
 #include <epan/rtp_pt.h>
 #include <epan/stat_cmd_args.h>
 #include <epan/addr_resolv.h>
-#include "tap-rtp-common.h"
+#include "ui/tap-rtp-common.h"
 
 /* The one and only global rtpstream_tapinfo_t structure for tshark and wireshark.
  */
@@ -131,7 +131,7 @@ rtp_streams_stat_draw(void *arg _U_)
 
 
 static void
-rtp_streams_stat_init(const char *optarg _U_, void* userdata _U_)
+rtp_streams_stat_init(const char *opt_arg _U_, void* userdata _U_)
 {
     GString		*err_p;
 

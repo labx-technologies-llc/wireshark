@@ -31,6 +31,7 @@
 #include "packet.h"
 #include "expert.h"
 #include "emem.h"
+#include "wmem/wmem.h"
 #include "tap.h"
 
 
@@ -38,6 +39,8 @@
  * print routines
  */
 int proto_expert              = -1;
+
+static int proto_malformed    = -1;
 
 static int expert_tap         = -1;
 static int highest_severity   =  0;
@@ -52,9 +55,7 @@ static int hf_expert_severity = -1;
 struct expert_module
 {
 	const char* proto_name;
-	int        proto_id;      /* Cache this for registering hfs */
-	GList      *experts;      /* expert_infos for this protocol */
-	GList      *last_expert;  /* pointer to end of list of expert_infos */
+	int         proto_id;      /* Cache this for registering hfs */
 };
 
 /* List which stores protocols and expert_info that have been registered */
@@ -65,10 +66,14 @@ typedef struct _gpa_expertinfo_t {
 } gpa_expertinfo_t;
 static gpa_expertinfo_t gpa_expertinfo;
 
-/*
- * List of all modules with expert info.
- */
-static emem_tree_t *expert_modules = NULL;
+/* Possible values for a checksum evaluation */
+const value_string expert_checksum_vals[] = {
+	{ EXPERT_CHECKSUM_DISABLED,   "Disabled"  },
+	{ EXPERT_CHECKSUM_UNKNOWN,    "Unknown"  },
+	{ EXPERT_CHECKSUM_GOOD,       "Good"  },
+	{ EXPERT_CHECKSUM_BAD,        "Bad" },
+	{ 0,        NULL }
+};
 
 
 #define EXPERT_REGISTRAR_GET_NTH(eiindex, expinfo)						\
@@ -109,9 +114,7 @@ expert_packet_init(void)
 
 	highest_severity = 0;
 
-	if (expert_modules == NULL) {
-		expert_modules = pe_tree_create(EMEM_TREE_TYPE_RED_BLACK, "expert_modules");
-	}
+	proto_malformed = proto_get_id_by_filter_name("malformed");
 }
 
 void
@@ -145,6 +148,13 @@ expert_get_highest_severity(void)
 	return highest_severity;
 }
 
+void
+expert_update_comment_count(guint64 count)
+{
+   if (count==0 && highest_severity==PI_COMMENT)
+      highest_severity = 0;
+}
+
 expert_module_t *expert_register_protocol(int id)
 {
 	expert_module_t *module;
@@ -152,16 +162,9 @@ expert_module_t *expert_register_protocol(int id)
 
 	protocol = find_protocol_by_id(id);
 
-	module = g_new(expert_module_t,1);
+	module = wmem_new(wmem_epan_scope(), expert_module_t);
 	module->proto_id = id;
 	module->proto_name = proto_get_protocol_short_name(protocol);
-	module->experts = NULL;
-	module->last_expert = NULL;
-
-	/*
-	 * Insert this module into the appropriate place in the tree.
-	 */
-	pe_tree_insert_string(expert_modules, module->proto_name, module, EMEM_TREE_STRING_NOCASE);
 
 	return module;
 }
@@ -214,16 +217,6 @@ expert_register_field_array(expert_module_t* module, ei_register_info *exp, cons
 			return;
 		}
 
-		if (module != NULL) {
-			if (module->experts == NULL) {
-				module->experts = g_list_append(NULL, ptr);
-				module->last_expert = module->experts;
-			} else {
-				module->last_expert =
-					g_list_append(module->last_expert, ptr)->next;
-			}
-		}
-
 		/* Register the field with the experts */
 		ptr->ids->ei = expert_register_field_init(&ptr->eiinfo, module);
 
@@ -236,17 +229,25 @@ expert_register_field_array(expert_module_t* module, ei_register_info *exp, cons
 	}
 }
 
+/** clear flags according to the mask and set new flag values */
+#define FI_REPLACE_FLAGS(fi, mask, flags_in) { \
+	(fi->flags = (fi)->flags & ~(mask)); \
+	(fi->flags = (fi)->flags | (flags_in)); \
+}
 
 /* set's the PI_ flags to a protocol item
  * (and its parent items till the toplevel) */
 static void
-expert_set_item_flags(proto_item *pi, int group, int severity)
+expert_set_item_flags(proto_item *pi, const int group, const guint severity)
 {
-	if (proto_item_set_expert_flags(pi, group, severity)) {
+	if (pi != NULL && PITEM_FINFO(pi) != NULL && (severity >= FI_GET_FLAG(PITEM_FINFO(pi), PI_SEVERITY_MASK))) {
+		FI_REPLACE_FLAGS(PITEM_FINFO(pi), PI_GROUP_MASK, group);
+		FI_REPLACE_FLAGS(PITEM_FINFO(pi), PI_SEVERITY_MASK, severity);
+
 		/* propagate till toplevel item */
 		pi = proto_item_get_parent(pi);
 		expert_set_item_flags(pi, group, severity);
-	}
+    }
 }
 
 static proto_tree*
@@ -264,7 +265,6 @@ expert_create_tree(proto_item *pi, int group, int severity, const char *msg)
 
 	if (group == PI_MALFORMED) {
 		/* Add hidden malformed protocol filter */
-		gint proto_malformed = proto_get_id_by_filter_name("malformed");
 		proto_item *malformed_ti = proto_tree_add_item(tree, proto_malformed, NULL, 0, 0, ENC_NA);
 		PROTO_ITEM_SET_HIDDEN(malformed_ti);
 	}
@@ -391,6 +391,43 @@ expert_add_info_format_text(packet_info *pinfo, proto_item *pi, expert_field *ex
 	va_end(ap);
 }
 
+proto_item *
+proto_tree_add_expert(proto_tree *tree, packet_info *pinfo, expert_field* expindex,
+		tvbuff_t *tvb, gint start, gint length)
+{
+	expert_field_info* eiinfo;
+	proto_item *ti;
+
+	/* Look up the item */
+	EXPERT_REGISTRAR_GET_NTH(expindex->ei, eiinfo);
+
+	ti = proto_tree_add_text(tree, tvb, start, length, "%s", eiinfo->summary);
+	expert_set_info_vformat(pinfo, ti, eiinfo->group, eiinfo->severity, *eiinfo->hf_info.p_id, FALSE, eiinfo->summary, NULL);
+	return ti;
+}
+
+proto_item *
+proto_tree_add_expert_format(proto_tree *tree, packet_info *pinfo, expert_field* expindex,
+		tvbuff_t *tvb, gint start, gint length, const char *format, ...)
+{
+	va_list ap;
+	expert_field_info* eiinfo;
+	proto_item *ti;
+
+	/* Look up the item */
+	EXPERT_REGISTRAR_GET_NTH(expindex->ei, eiinfo);
+
+	va_start(ap, format);
+	ti = proto_tree_add_text_valist(tree, tvb, start, length, format, ap);
+	va_end(ap);
+
+	va_start(ap, format);
+	expert_set_info_vformat(pinfo, ti, eiinfo->group, eiinfo->severity, *eiinfo->hf_info.p_id, TRUE, format, ap);
+	va_end(ap);
+
+	return ti;
+}
+
 void
 expert_add_undecoded_item(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, int length, const int severity)
 {
@@ -399,7 +436,7 @@ expert_add_undecoded_item(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, i
 
 	expert_item = proto_tree_add_text(tree, tvb, offset, length, "Not dissected yet");
 
-	expert_add_info_format(pinfo, expert_item, PI_UNDECODED, severity, "Not dissected yet(report to wireshark.org)"); \
-	PROTO_ITEM_SET_GENERATED(expert_item); \
+	expert_add_info_format(pinfo, expert_item, PI_UNDECODED, severity, "Not dissected yet(report to wireshark.org)");
+	PROTO_ITEM_SET_GENERATED(expert_item);
 
 }

@@ -38,10 +38,11 @@
 #include <string.h>
 
 #include <wsutil/file_util.h>
+#include <wsutil/report_err.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
-#include <epan/report_err.h>
 #include <epan/dissectors/packet-tcp.h>
+#include <epan/wmem/wmem.h>
 
 /*
  * maximum numbers for symbols from config files
@@ -133,6 +134,8 @@ static int hf_etch_struct = -1;
 static int hf_etch_dim = -1;
 static int hf_etch_symbol = -1;
 
+static dissector_handle_t etch_handle;
+
 /*
  * internal fields/defines for dissector
  */
@@ -183,7 +186,7 @@ gbl_symbols_new(void)
 static void
 gbl_symbols_free(void)
 {
-  g_free(gbl_symbols_vs_ext);
+  wmem_free(wmem_epan_scope(), gbl_symbols_vs_ext);
   gbl_symbols_vs_ext = NULL;
 
   if (gbl_symbols_array != NULL) {
@@ -199,7 +202,7 @@ gbl_symbols_free(void)
 }
 
 static void
-gbl_symbols_array_append(int hash, gchar *symbol)
+gbl_symbols_array_append(guint32 hash, gchar *symbol)
 {
   value_string vs = {hash, symbol};
   DISSECTOR_ASSERT(gbl_symbols_array != NULL);
@@ -291,7 +294,7 @@ add_symbols_of_file(const char *filename)
   if (pFile != NULL) {
     char line[256];
     while (fgets(line, sizeof line, pFile) != NULL) {
-      int    hash;
+      unsigned int hash;
       size_t length, pos;
 
       length = strlen(line);
@@ -949,7 +952,7 @@ void proto_register_etch(void)
 
   proto_register_field_array(proto_etch, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-  new_register_dissector("etch", dissect_etch, proto_etch);
+  etch_handle = new_register_dissector("etch", dissect_etch, proto_etch);
 
   register_init_routine(&etch_dissector_init);
 
@@ -972,12 +975,10 @@ void proto_register_etch(void)
 void proto_reg_handoff_etch(void)
 {
   static gboolean etch_prefs_initialized = FALSE;
-  static dissector_handle_t etch_handle;
   static guint old_etch_port = 0;
 
   /* create dissector handle only once */
   if(!etch_prefs_initialized) {
-    etch_handle = new_create_dissector_handle(dissect_etch, proto_etch);
     /* add heuristic dissector for tcp */
     heur_dissector_add("tcp", dissect_etch, proto_etch);
     etch_prefs_initialized = TRUE;

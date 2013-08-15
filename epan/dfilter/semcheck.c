@@ -49,7 +49,7 @@
 #endif
 
 static void
-semcheck(stnode_t *st_node);
+semcheck(stnode_t *st_node, GPtrArray *deprecated);
 
 static stnode_t*
 check_param_entity(stnode_t *st_node);
@@ -82,8 +82,9 @@ compatible_ftypes(ftenum_t a, ftenum_t b)
 		case FT_GUID:
 		case FT_OID:
 		case FT_AX25:
+		case FT_VINES:
 
-			return (b == FT_ETHER || b == FT_BYTES || b == FT_UINT_BYTES || b == FT_GUID || b == FT_OID || b == FT_AX25);
+			return (b == FT_ETHER || b == FT_BYTES || b == FT_UINT_BYTES || b == FT_GUID || b == FT_OID || b == FT_AX25 || b == FT_VINES);
 
 		case FT_BOOLEAN:
 		case FT_FRAMENUM:
@@ -144,6 +145,18 @@ mk_uint32_fvalue(guint32 val)
 	return fv;
 }
 
+/* Creates a FT_UINT64 fvalue with a given value. */
+static fvalue_t*
+mk_uint64_fvalue(guint64 val)
+{
+	fvalue_t *fv;
+
+	fv = fvalue_new(FT_UINT64);
+	fvalue_set_integer64(fv, val);
+
+	return fv;
+}
+
 /* Try to make an fvalue from a string using a value_string or true_false_string.
  * This works only for ftypes that are integers. Returns the created fvalue_t*
  * or NULL if impossible. */
@@ -165,14 +178,13 @@ mk_fvalue_from_val_string(header_field_info *hfinfo, char *s)
 		case FT_IPv6:
 		case FT_IPXNET:
 		case FT_AX25:
+		case FT_VINES:
 		case FT_ETHER:
 		case FT_BYTES:
 		case FT_UINT_BYTES:
 		case FT_STRING:
 		case FT_STRINGZ:
 		case FT_UINT_STRING:
-		case FT_UINT64:
-		case FT_INT64:
 		case FT_EUI64:
 		case FT_PCRE:
 		case FT_GUID:
@@ -185,10 +197,12 @@ mk_fvalue_from_val_string(header_field_info *hfinfo, char *s)
 		case FT_UINT16:
 		case FT_UINT24:
 		case FT_UINT32:
+		case FT_UINT64:
 		case FT_INT8:
 		case FT_INT16:
 		case FT_INT24:
 		case FT_INT32:
+		case FT_INT64:
 			break;
 
 		case FT_NUM_TYPES:
@@ -231,6 +245,18 @@ mk_fvalue_from_val_string(header_field_info *hfinfo, char *s)
 		dfilter_fail("\"%s\" cannot accept [range] strings as values.",
 				hfinfo->abbrev);
 	}
+	else if (hfinfo->display & BASE_VAL64_STRING) {
+		const val64_string *vals = (const val64_string *)hfinfo->strings;
+
+		while (vals->strptr != NULL) {
+			if (g_ascii_strcasecmp(s, vals->strptr) == 0) {
+				return mk_uint64_fvalue(vals->value);
+			}
+			vals++;
+		}
+		dfilter_fail("\"%s\" cannot be found among the possible values for %s.",
+				s, hfinfo->abbrev);
+	}
 	else if (hfinfo->display == BASE_CUSTOM) {
 		/*  If a user wants to match against a custom string, we would
 		 *  somehow have to have the integer value here to pass it in
@@ -263,6 +289,7 @@ is_bytes_type(enum ftenum type)
 {
 	switch(type) {
 		case FT_AX25:
+		case FT_VINES:
 		case FT_ETHER:
 		case FT_BYTES:
 		case FT_UINT_BYTES:
@@ -358,14 +385,14 @@ struct check_drange_sanity_args {
 	gboolean		err;
 };
 
-/* Q: Where are sttype_range_drange() and sttype_range_hfinfo() defined?
+/* Q: Where are sttype_range_drange() and sttype_range_entity() defined?
  *
  * A: Those functions are defined by macros in epan/dfilter/sttype-range.h
  *
  *    The macro which creates them, STTYPE_ACCESSOR, is defined in
  *    epan/dfilter/syntax-tree.h.
  *
- * From http://www.ethereal.com/lists/ethereal-dev/200308/msg00070.html
+ * From http://www.wireshark.org/lists/ethereal-dev/200308/msg00070.html
  */
 
 static void
@@ -374,6 +401,7 @@ check_drange_node_sanity(gpointer data, gpointer user_data)
 	drange_node*		drnode = (drange_node*)data;
 	struct check_drange_sanity_args *args = (struct check_drange_sanity_args*)user_data;
 	gint			start_offset, end_offset, length;
+	stnode_t                *entity;
 	header_field_info	*hfinfo;
 
 	switch (drange_node_get_ending(drnode)) {
@@ -384,12 +412,20 @@ check_drange_node_sanity(gpointer data, gpointer user_data)
 			if (!args->err) {
 				args->err = TRUE;
 				start_offset = drange_node_get_start_offset(drnode);
-				hfinfo = sttype_range_hfinfo(args->st);
-				dfilter_fail("Range %d:%d specified for \"%s\" isn't valid, "
-					"as length %d isn't positive",
-					start_offset, length,
-					hfinfo->abbrev,
-					length);
+				entity = sttype_range_entity(args->st);
+				if (entity && stnode_type_id(entity) == STTYPE_FIELD) {
+					hfinfo = (header_field_info *)stnode_data(entity);
+
+					dfilter_fail("Range %d:%d specified for \"%s\" isn't valid, "
+						"as length %d isn't positive",
+						start_offset, length,
+						hfinfo->abbrev,
+						length);
+				} else
+					dfilter_fail("Range %d:%d isn't valid, "
+						"as length %d isn't positive",
+						start_offset, length,
+						length);
 			}
 		}
 		break;
@@ -410,12 +446,21 @@ check_drange_node_sanity(gpointer data, gpointer user_data)
 		if (start_offset > end_offset) {
 			if (!args->err) {
 				args->err = TRUE;
-				hfinfo = sttype_range_hfinfo(args->st);
-				dfilter_fail("Range %d-%d specified for \"%s\" isn't valid, "
-					"as %d is greater than %d",
-					start_offset, end_offset,
-					hfinfo->abbrev,
-					start_offset, end_offset);
+				entity = sttype_range_entity(args->st);
+				if (entity && stnode_type_id(entity) == STTYPE_FIELD) {
+					hfinfo = (header_field_info *)stnode_data(entity);
+
+					dfilter_fail("Range %d-%d specified for \"%s\" isn't valid, "
+						"as %d is greater than %d",
+						start_offset, end_offset,
+						hfinfo->abbrev,
+						start_offset, end_offset);
+
+				} else
+					dfilter_fail("Range %d-%d isn't valid, "
+						"as %d is greater than %d",
+						start_offset, end_offset,
+						start_offset, end_offset);
 			}
 		}
 		break;
@@ -443,6 +488,23 @@ check_drange_sanity(stnode_t *st)
 	if (args.err) {
 		THROW(TypeError);
 	}
+}
+
+static stnode_t *
+convert_to_bytes(stnode_t *arg)
+{
+	stnode_t      *new_st;
+	drange_node   *rn;
+
+	new_st = stnode_new(STTYPE_RANGE, NULL);
+
+	rn = drange_node_new();
+	drange_node_set_start_offset(rn, 0);
+	drange_node_set_to_the_end(rn);
+	/* new_st is owner of arg in this step */
+	sttype_range_set1(new_st, arg, rn);
+
+	return new_st;
 }
 
 static void
@@ -490,7 +552,6 @@ check_relation_LHS_FIELD(const char *relation_string, FtypeCanFunc can_func,
 	ftenum_t		ftype1, ftype2;
 	fvalue_t		*fvalue;
 	char			*s;
-	drange_node		*rn;
 
 	type2 = stnode_type_id(st_arg2);
 
@@ -557,8 +618,8 @@ check_relation_LHS_FIELD(const char *relation_string, FtypeCanFunc can_func,
 				}
 				if (!fvalue) {
 					/* Try another field with the same name */
-					if (hfinfo1->same_name_prev) {
-						hfinfo1 = hfinfo1->same_name_prev;
+					if (hfinfo1->same_name_prev_id != -1) {
+						hfinfo1 = proto_registrar_get_nth(hfinfo1->same_name_prev_id);
 						ftype1 = hfinfo1->type;
 					} else {
 						break;
@@ -585,13 +646,7 @@ check_relation_LHS_FIELD(const char *relation_string, FtypeCanFunc can_func,
 			}
 
 			/* Convert entire field to bytes */
-			new_st = stnode_new(STTYPE_RANGE, NULL);
-
-			rn = drange_node_new();
-			drange_node_set_start_offset(rn, 0);
-			drange_node_set_to_the_end(rn);
-			/* st_arg1 is freed in this step */
-			sttype_range_set1(new_st, st_arg1, rn);
+			new_st = convert_to_bytes(st_arg1);
 
 			sttype_test_set2_args(st_node, new_st, st_arg2);
 		}
@@ -806,23 +861,41 @@ check_relation_LHS_RANGE(const char *relation_string, FtypeCanFunc can_func _U_,
 {
 	stnode_t		*new_st;
 	sttype_id_t		type2;
+	stnode_t		*entity1;
 	header_field_info	*hfinfo1, *hfinfo2;
-	df_func_def_t		*funcdef;
 	ftenum_t		ftype1, ftype2;
 	fvalue_t		*fvalue;
 	char			*s;
-	drange_node		*rn;
         int                     len_range;
-
-	type2 = stnode_type_id(st_arg2);
-	hfinfo1 = sttype_range_hfinfo(st_arg1);
-	ftype1 = hfinfo1->type;
 
 	DebugLog(("    5 check_relation_LHS_RANGE(%s)\n", relation_string));
 
-	if (!ftype_can_slice(ftype1)) {
-		dfilter_fail("\"%s\" is a %s and cannot be sliced into a sequence of bytes.",
-				hfinfo1->abbrev, ftype_pretty_name(ftype1));
+	type2 = stnode_type_id(st_arg2);
+	entity1 = sttype_range_entity(st_arg1);
+	if (entity1 && stnode_type_id(entity1) == STTYPE_FIELD) {
+		hfinfo1 = (header_field_info *)stnode_data(entity1);
+		ftype1 = hfinfo1->type;
+
+		if (!ftype_can_slice(ftype1)) {
+			dfilter_fail("\"%s\" is a %s and cannot be sliced into a sequence of bytes.",
+					hfinfo1->abbrev, ftype_pretty_name(ftype1));
+			THROW(TypeError);
+		}
+	} else if (entity1 && stnode_type_id(entity1) == STTYPE_FUNCTION) {
+		df_func_def_t *funcdef = sttype_function_funcdef(entity1);
+		ftype1 = funcdef->retval_ftype;
+
+		if (!ftype_can_slice(ftype1)) {
+			dfilter_fail("Return value of function \"%s\" is a %s and cannot be converted into a sequence of bytes.",
+					funcdef->name, ftype_pretty_name(ftype1));
+			THROW(TypeError);
+		}
+
+		check_function(entity1);
+
+	} else {
+		dfilter_fail("Range is not supported, details: " G_STRLOC " entity: %p of type %d",
+				entity1, entity1 ? (int) stnode_type_id(entity1) : -1);
 		THROW(TypeError);
 	}
 
@@ -842,13 +915,7 @@ check_relation_LHS_RANGE(const char *relation_string, FtypeCanFunc can_func _U_,
 			}
 
 			/* Convert entire field to bytes */
-			new_st = stnode_new(STTYPE_RANGE, NULL);
-
-			rn = drange_node_new();
-			drange_node_set_start_offset(rn, 0);
-			drange_node_set_to_the_end(rn);
-			/* st_arg2 is freed in this step */
-			sttype_range_set1(new_st, st_arg2, rn);
+			new_st = convert_to_bytes(st_arg2);
 
 			sttype_test_set2_args(st_node, st_arg1, new_st);
 		}
@@ -913,7 +980,7 @@ check_relation_LHS_RANGE(const char *relation_string, FtypeCanFunc can_func _U_,
 		check_drange_sanity(st_arg2);
 	}
 	else if (type2 == STTYPE_FUNCTION) {
-		funcdef = sttype_function_funcdef(st_arg2);
+		df_func_def_t *funcdef = sttype_function_funcdef(st_arg2);
 		ftype2  = funcdef->retval_ftype;
 
 		if (!is_bytes_type(ftype2)) {
@@ -924,7 +991,10 @@ check_relation_LHS_RANGE(const char *relation_string, FtypeCanFunc can_func _U_,
 				THROW(TypeError);
 			}
 
-			/* XXX should I add a new drange node? */
+			/* Convert function result to bytes */
+			new_st = convert_to_bytes(st_arg2);
+
+			sttype_test_set2_args(st_node, st_arg1, new_st);
 		}
 
 		check_function(st_arg2);
@@ -972,7 +1042,6 @@ check_relation_LHS_FUNCTION(const char *relation_string, FtypeCanFunc can_func,
 	ftenum_t		ftype1, ftype2;
 	fvalue_t		*fvalue;
 	char			*s;
-	drange_node		*rn;
 	df_func_def_t   *funcdef;
 	df_func_def_t   *funcdef2;
 	/* GSList          *params; */
@@ -1053,14 +1122,8 @@ check_relation_LHS_FUNCTION(const char *relation_string, FtypeCanFunc can_func,
 				THROW(TypeError);
 			}
 
-			/* Convert entire field to bytes */
-			new_st = stnode_new(STTYPE_RANGE, NULL);
-
-			rn = drange_node_new();
-			drange_node_set_start_offset(rn, 0);
-			drange_node_set_to_the_end(rn);
-			/* st_arg1 is freed in this step */
-			sttype_range_set1(new_st, st_arg1, rn);
+			/* Convert function result to bytes */
+			new_st = convert_to_bytes(st_arg1);
 
 			sttype_test_set2_args(st_node, new_st, st_arg2);
 		}
@@ -1151,9 +1214,9 @@ header_field_info   *hfinfo;
 
 /* Check the semantics of any type of TEST */
 static void
-check_test(stnode_t *st_node)
+check_test(stnode_t *st_node, GPtrArray *deprecated)
 {
-	test_op_t		st_op;
+	test_op_t		st_op, st_arg_op;
 	stnode_t		*st_arg1, *st_arg2;
 #ifdef DEBUG_dfilter
 	static guint i = 0;
@@ -1173,13 +1236,29 @@ check_test(stnode_t *st_node)
 			break;
 
 		case TEST_OP_NOT:
-			semcheck(st_arg1);
+			semcheck(st_arg1, deprecated);
 			break;
 
 		case TEST_OP_AND:
 		case TEST_OP_OR:
-			semcheck(st_arg1);
-			semcheck(st_arg2);
+			if (stnode_type_id(st_arg1) == STTYPE_TEST) {
+				sttype_test_get(st_arg1, &st_arg_op, NULL, NULL);
+				if (st_arg_op == TEST_OP_AND || st_arg_op == TEST_OP_OR) {
+					if (st_op != st_arg_op && !st_arg1->inside_brackets)
+						g_ptr_array_add(deprecated, g_strdup("suggest parentheses around '&&' within '||'"));
+				}
+			}
+
+			if (stnode_type_id(st_arg2) == STTYPE_TEST) {
+				sttype_test_get(st_arg2, &st_arg_op, NULL, NULL);
+				if (st_arg_op == TEST_OP_AND || st_arg_op == TEST_OP_OR) {
+					if (st_op != st_arg_op && !st_arg2->inside_brackets)
+						g_ptr_array_add(deprecated, g_strdup("suggest parentheses around '&&' within '||'"));
+				}
+			}
+
+			semcheck(st_arg1, deprecated);
+			semcheck(st_arg2, deprecated);
 			break;
 
 		case TEST_OP_EQ:
@@ -1218,7 +1297,7 @@ check_test(stnode_t *st_node)
 
 /* Check the entire syntax tree. */
 static void
-semcheck(stnode_t *st_node)
+semcheck(stnode_t *st_node, GPtrArray *deprecated)
 {
 #ifdef DEBUG_dfilter
 	static guint i = 0;
@@ -1228,7 +1307,7 @@ semcheck(stnode_t *st_node)
 	 * node will be a TEST node, no matter what. So assert that. */
 	switch (stnode_type_id(st_node)) {
 		case STTYPE_TEST:
-			check_test(st_node);
+			check_test(st_node, deprecated);
 			break;
 		default:
 			g_assert_not_reached();
@@ -1240,7 +1319,7 @@ semcheck(stnode_t *st_node)
  * some of the nodes into the form they need to be in order to
  * later generate the DFVM bytecode. */
 gboolean
-dfw_semcheck(dfwork_t *dfw)
+dfw_semcheck(dfwork_t *dfw, GPtrArray *deprecated)
 {
 	volatile gboolean ok_filter = TRUE;
 #ifdef DEBUG_dfilter
@@ -1252,7 +1331,7 @@ dfw_semcheck(dfwork_t *dfw)
 	 * the semantic-checking, the semantic-checking code will
 	 * throw an exception if a problem is found. */
 	TRY {
-		semcheck(dfw->st_root);
+		semcheck(dfw->st_root, deprecated);
 	}
 	CATCH(TypeError) {
 		ok_filter = FALSE;

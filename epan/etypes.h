@@ -27,13 +27,19 @@
 
 #include "ws_symbol_export.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+#include <epan/value_string.h>
+
 /*
  * Maximum length of an IEEE 802.3 frame; Ethernet type/length values
  * less than or equal to it are lengths.
  */
 #define IEEE_802_3_MAX_LEN		1500
 
-/* 
+/*
  * Minimum length of an Ethernet II frame;  Ethernet type/length values
  * greater than or equal to it are types.
  */
@@ -486,6 +492,10 @@
 #define ETHERTYPE_FCOE			0x8906	/* Fibre Channel over Ethernet */
 #endif
 
+#ifndef ETHERTYPE_CMD
+#define ETHERTYPE_CMD			0x8909	/* Cisco Systems Inc - Cisco MetaData */
+#endif
+
 #ifndef ETHERTYPE_IEEE80211_DATA_ENCAP
 #define ETHERTYPE_IEEE80211_DATA_ENCAP	0x890d	/* IEEE 802.11 data encapsulation */
 #endif
@@ -540,4 +550,8 @@
 
 WS_DLL_PUBLIC const value_string etype_vals[];
 
-#endif /* etypes.h */
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* __ETYPES_H__ */

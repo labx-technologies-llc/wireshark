@@ -95,11 +95,9 @@ static const unsigned char eyesdn_hdr_magic[]  =
 static gboolean eyesdn_read(wtap *wth, int *err, gchar **err_info,
 	gint64 *data_offset);
 static gboolean eyesdn_seek_read(wtap *wth, gint64 seek_off,
-	struct wtap_pkthdr *phdr, guint8 *pd, int len,
+	struct wtap_pkthdr *phdr, Buffer *buf, int len,
 	int *err, gchar **err_info);
-static gboolean parse_eyesdn_packet_data(FILE_T fh, int pkt_len, guint8* buf,
-	int *err, gchar **err_info);
-static int parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
+static int read_eyesdn_rec(FILE_T fh, struct wtap_pkthdr *phdr, Buffer* buf,
 	int *err, gchar **err_info);
 
 /* Seeks to the beginning of the next packet, and returns the
@@ -158,60 +156,33 @@ static gboolean eyesdn_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset)
 {
 	gint64	offset;
-	guint8	*buf;
-	int	pkt_len;
 
-	/* Find the next packet */
+	/* Find the next record */
 	offset = eyesdn_seek_next_packet(wth, err, err_info);
 	if (offset < 1)
 		return FALSE;
-
-	/* Parse the header */
-	pkt_len = parse_eyesdn_rec_hdr(wth->fh, &wth->phdr, err, err_info);
-	if (pkt_len == -1)
-		return FALSE;
-
-	/* Make sure we have enough room for the packet */
-	buffer_assure_space(wth->frame_buffer, EYESDN_MAX_PACKET_LEN);
-	buf = buffer_start_ptr(wth->frame_buffer);
-
-	/* Read the packet data */
-	if (!parse_eyesdn_packet_data(wth->fh, pkt_len, buf, err, err_info))
-		return FALSE;
-
 	*data_offset = offset;
-	return TRUE;
+
+	/* Parse the record */
+	return read_eyesdn_rec(wth->fh, &wth->phdr, wth->frame_buffer,
+	    err, err_info);
 }
 
 /* Used to read packets in random-access fashion */
 static gboolean
-eyesdn_seek_read (wtap *wth, gint64 seek_off,struct wtap_pkthdr *phdr,
-	guint8 *pd, int len, int *err, gchar **err_info)
+eyesdn_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr,
+	Buffer *buf, int len _U_, int *err, gchar **err_info)
 {
-	int	pkt_len;
-
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
 
-	pkt_len = parse_eyesdn_rec_hdr(wth->random_fh, phdr, err, err_info);
-
-	if (pkt_len != len) {
-		if (pkt_len != -1) {
-			*err = WTAP_ERR_BAD_FILE;
-			*err_info = g_strdup_printf("eyesdn: requested length %d doesn't match length %d",
-			    len, pkt_len);
-		}
-		return FALSE;
-	}
-
-	return parse_eyesdn_packet_data(wth->random_fh, pkt_len, pd, err,
-	    err_info);
+	return read_eyesdn_rec(wth->random_fh, phdr, buf, err, err_info);
 }
 
-/* Parses a packet record header. */
-static int
-parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
-    int *err, gchar **err_info)
+/* Parses a record. */
+static gboolean
+read_eyesdn_rec(FILE_T fh, struct wtap_pkthdr *phdr, Buffer *buf, int *err,
+    gchar **err_info)
 {
 	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	guint8		hdr[EYESDN_HDR_LENGTH];
@@ -219,6 +190,8 @@ parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
 	int		usecs;
 	int		pkt_len;
 	guint8		channel, direction;
+        int		bytes_read;
+        guint8		*pd;
 
 	/* Our file pointer should be at the summary information header
 	 * for a packet. Read in that header and extract the useful
@@ -228,7 +201,7 @@ parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
 		*err = file_error(fh, err_info);
 		if (*err == 0)
 			*err = WTAP_ERR_SHORT_READ;
-		return -1;
+		return FALSE;
 	}
     
         /* extract information from header */
@@ -281,7 +254,7 @@ parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
 			*err_info = g_strdup_printf(
 			    "eyesdn: ATM cell has a length != 53 (%u)",
 			    pkt_len);
-			return -1;
+			return FALSE;
 		}
 
 		cur_off = file_tell(fh);
@@ -289,10 +262,10 @@ parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
 			*err = file_error(fh, err_info);
 			if (*err == 0)
 				*err = WTAP_ERR_SHORT_READ;
-			return -1;
+			return FALSE;
 		}
 		if (file_seek(fh, cur_off, SEEK_SET, err) == -1)
-			return -1;
+			return FALSE;
 		phdr->pkt_encap = WTAP_ENCAP_ATM_PDUS_UNTRUNCATED;
 		pseudo_header->atm.flags=ATM_RAW_CELL;
 		pseudo_header->atm.aal=AAL_UNKNOWN;
@@ -340,7 +313,7 @@ parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup_printf("eyesdn: File has %u-byte packet, bigger than maximum of %u",
 		    pkt_len, EYESDN_MAX_PACKET_LEN);
-		return -1;
+		return FALSE;
 	}
 
 	phdr->presence_flags = WTAP_HAS_TS;
@@ -349,18 +322,12 @@ parse_eyesdn_rec_hdr(FILE_T fh, struct wtap_pkthdr *phdr,
 	phdr->caplen = pkt_len;
 	phdr->len = pkt_len;
 
-	return pkt_len;
-}
-
-/* read a packet */
-static gboolean
-parse_eyesdn_packet_data(FILE_T fh, int pkt_len, guint8* buf, int *err,
-    gchar **err_info)
-{
-        int bytes_read;
+	/* Make sure we have enough room for the packet */
+	buffer_assure_space(buf, EYESDN_MAX_PACKET_LEN);
 
 	errno = WTAP_ERR_CANT_READ;
-	bytes_read = esc_read(buf, pkt_len, fh);
+	pd = buffer_start_ptr(buf);
+	bytes_read = esc_read(pd, pkt_len, fh);
 	if (bytes_read != pkt_len) {
 		if (bytes_read == -2) {
 			*err = file_error(fh, err_info);

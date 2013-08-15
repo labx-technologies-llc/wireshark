@@ -38,7 +38,6 @@
 #include <epan/asn1.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
-#include <epan/nstime.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -127,7 +126,7 @@ static int hf_sv_seqData = -1;                    /* Data */
 static int hf_sv_smpMod = -1;                     /* T_smpMod */
 
 /*--- End of included file: packet-sv-hf.c ---*/
-#line 105 "../../asn1/sv/packet-sv-template.c"
+#line 104 "../../asn1/sv/packet-sv-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_sv = -1;
@@ -143,7 +142,9 @@ static gint ett_sv_SEQUENCE_OF_ASDU = -1;
 static gint ett_sv_ASDU = -1;
 
 /*--- End of included file: packet-sv-ett.c ---*/
-#line 112 "../../asn1/sv/packet-sv-template.c"
+#line 111 "../../asn1/sv/packet-sv-template.c"
+
+static expert_field ei_sv_mal_utctime = EI_INIT;
 
 #if 0
 static const value_string sv_q_validity_vals[] = {
@@ -279,7 +280,6 @@ static int
 dissect_sv_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 25 "../../asn1/sv/sv.cnf"
 	guint32 len;
-	proto_item *cause;
 	guint32 seconds;
 	guint32	fraction;
 	guint32 nanoseconds;
@@ -290,11 +290,8 @@ dissect_sv_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_,
 
 	if(len != 8)
 	{
-		cause = proto_tree_add_text(tree, tvb, offset, len,
-				"BER Error: malformed UTCTime encoding, "
-				"length must be 8 bytes");
-		proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-		expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "BER Error: malformed UTCTime encoding");
+		proto_tree_add_expert_format(tree, actx->pinfo, &ei_sv_mal_utctime, tvb, offset, len,
+				"BER Error: malformed UTCTime encoding, length must be 8 bytes");
 		if(hf_index >= 0)
 		{
 			proto_tree_add_string(tree, hf_index, tvb, offset, len, "????");
@@ -333,7 +330,7 @@ static const value_string sv_T_smpSynch_vals[] = {
 
 static int
 dissect_sv_T_smpSynch(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 70 "../../asn1/sv/sv.cnf"
+#line 66 "../../asn1/sv/sv.cnf"
 	guint32 value;
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &value);
@@ -365,7 +362,7 @@ static const value_string sv_T_smpMod_vals[] = {
 
 static int
 dissect_sv_T_smpMod(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 76 "../../asn1/sv/sv.cnf"
+#line 72 "../../asn1/sv/sv.cnf"
 	guint32 value;
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &value);
@@ -448,7 +445,7 @@ dissect_sv_SampledValues(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 
 /*--- End of included file: packet-sv-fn.c ---*/
-#line 193 "../../asn1/sv/packet-sv-template.c"
+#line 194 "../../asn1/sv/packet-sv-template.c"
 
 /*
 * Dissect SV PDUs inside a PPDU.
@@ -622,7 +619,7 @@ void proto_register_sv(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-sv-hfarr.c ---*/
-#line 310 "../../asn1/sv/packet-sv-template.c"
+#line 311 "../../asn1/sv/packet-sv-template.c"
 	};
 
 	/* List of subtrees */
@@ -639,8 +636,14 @@ void proto_register_sv(void) {
     &ett_sv_ASDU,
 
 /*--- End of included file: packet-sv-ettarr.c ---*/
-#line 318 "../../asn1/sv/packet-sv-template.c"
+#line 319 "../../asn1/sv/packet-sv-template.c"
 	};
+
+	static ei_register_info ei[] = {
+		{ &ei_sv_mal_utctime, { "sv.malformed.utctime", PI_MALFORMED, PI_WARN, "BER Error: malformed UTCTime encoding", EXPFILL }},
+	};
+
+	expert_module_t* expert_sv;
 
 	/* Register protocol */
 	proto_sv = proto_register_protocol(PNAME, PSNAME, PFNAME);
@@ -649,6 +652,8 @@ void proto_register_sv(void) {
 	/* Register fields and subtrees */
 	proto_register_field_array(proto_sv, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_sv = expert_register_protocol(proto_sv);
+	expert_register_field_array(expert_sv, ei, array_length(ei));
 
 	/* Register tap */
 	sv_tap = register_tap("sv");

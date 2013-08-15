@@ -32,13 +32,13 @@
 #include "profile_dialog.h"
 #include "ui_profile_dialog.h"
 #include "wireshark_application.h"
-#include "tango_colors.h"
+#include "color_utils.h"
 
-#include <QFont>
-#include <QUrl>
 #include <QBrush>
+#include <QDir>
+#include <QFont>
 #include <QMessageBox>
-#include <QDebug>
+#include <QUrl>
 
 Q_DECLARE_METATYPE(GList *)
 
@@ -90,6 +90,7 @@ ProfileDialog::ProfileDialog(QWidget *parent) :
 
     connect(pd_ui_->profileTreeWidget->itemDelegate(), SIGNAL(closeEditor(QWidget*, QAbstractItemDelegate::EndEditHint)),
             this, SLOT(editingFinished()));
+    pd_ui_->profileTreeWidget->setCurrentItem(pd_ui_->profileTreeWidget->topLevelItem(0));
     updateWidgets();
 }
 
@@ -144,22 +145,22 @@ void ProfileDialog::updateWidgets()
         current_profile = (profile_def *) item->data(0, Qt::UserRole).value<GList *>()->data;
         enable_new = true;
         enable_copy = true;
-        if (!current_profile->is_global || current_profile->status != PROF_STAT_DEFAULT) {
+        if (!current_profile->is_global && current_profile->status != PROF_STAT_DEFAULT) {
             enable_del = true;
         }
     }
 
-    if (current_profile && current_profile->status != PROF_STAT_DEFAULT) {
+    if (current_profile) {
         QString profile_path = current_profile->is_global ? get_global_profiles_dir() : get_profiles_dir();
-        QString elided_path = pd_ui_->pathLabel->fontMetrics().elidedText(profile_path, Qt::ElideMiddle, pd_ui_->pathLabel->width());
-        pd_ui_->pathLabel->setText(QString("<i><a href=\"%1\">%2</a></i>")
-                                        .arg(QUrl::fromLocalFile(profile_path).toString())
-                                        .arg(elided_path));
+        if (current_profile->status != PROF_STAT_DEFAULT) {
+            profile_path.append(QDir::separator()).append(current_profile->name);
+        }
+        pd_ui_->pathLabel->setText(profile_path);
+        pd_ui_->pathLabel->setUrl(QUrl::fromLocalFile(profile_path).toString());
         pd_ui_->pathLabel->setToolTip(tr("Go to") + profile_path);
         pd_ui_->pathLabel->setEnabled(true);
-        pd_ui_->pathLabel->show();
     } else {
-        pd_ui_->pathLabel->hide();
+        pd_ui_->pathLabel->clear();
     }
 
     if (pd_ui_->profileTreeWidget->topLevelItemCount() > 0) {
@@ -170,12 +171,10 @@ void ProfileDialog::updateWidgets()
             if (profile->is_global) continue;
             if (current_profile && !current_profile->is_global && profile != current_profile && strcmp(profile->name, current_profile->name) == 0) {
                 item->setToolTip(0, tr("A profile already exists with that name."));
-                item->setBackground(0, QColor(ws_syntax_invalid_background));
-                item->setForeground(0, QColor(ws_syntax_invalid_foreground));
+                item->setBackground(0, ColorUtils::fromColorT(&prefs.gui_text_invalid));
                 enable_ok = false;
             } else {
                 item->setBackground(0, QBrush());
-                item->setForeground(0, QBrush());
             }
         }
     }
@@ -216,11 +215,15 @@ void ProfileDialog::on_deleteToolButton_clicked()
 
     if (item) {
         GList *fl_entry = item->data(0, Qt::UserRole).value<GList *>();
-        // Select the default
-        pd_ui_->profileTreeWidget->setCurrentItem(pd_ui_->profileTreeWidget->topLevelItem(0));
-
+        profile_def *profile = (profile_def *) fl_entry->data;
+        if (profile->is_global || profile->status == PROF_STAT_DEFAULT) {
+            return;
+        }
         remove_from_profile_list(fl_entry);
         delete item;
+
+        // Select the default
+        pd_ui_->profileTreeWidget->setCurrentItem(pd_ui_->profileTreeWidget->topLevelItem(0));
     }
 }
 

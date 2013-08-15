@@ -778,7 +778,6 @@ ucp_mktime(const char *datestr)
  * \param       offset  Location of field within the buffer, returns location
  *                      of next field.
  *
- * \return              For 'int'-types, the value of the field.
  */
 static void
 ucp_handle_string(proto_tree *tree, tvbuff_t *tvb, int field, int *offset)
@@ -951,7 +950,6 @@ ucp_handle_data_string(proto_tree *tree, tvbuff_t *tvb, int field, int *offset)
  *
  * \param       tree    The protocol tree to add to
  * \param       tvb     Buffer containing the data
- * \param       field   The actual field, whose value needs displaying
  * \param       offset  Location of field within the buffer, returns location
  *                      of next field.
  */
@@ -1828,13 +1826,11 @@ dissect_ucp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     tap_rec->operation = OT;
 
      /* Make entries in  Info column on summary display */
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_append_fstr(pinfo->cinfo, COL_INFO, "%s (%s)",
-                     val_to_str_const(OT,  vals_hdr_OT,  "unknown operation"),
-                     val_to_str(O_R, vals_hdr_O_R, "Unknown (%d)"));
-        if (result == UCP_INV_CHK)
-            col_append_str(pinfo->cinfo, COL_INFO, " [checksum invalid]");
-    }
+    col_append_fstr(pinfo->cinfo, COL_INFO, "%s (%s)",
+                    val_to_str_const(OT,  vals_hdr_OT,  "unknown operation"),
+                    val_to_str(O_R, vals_hdr_O_R, "Unknown (%d)"));
+    if (result == UCP_INV_CHK)
+        col_append_str(pinfo->cinfo, COL_INFO, " [checksum invalid]");
 
     /* In the interest of speed, if "tree" is NULL, don't do any work not
        necessary to generate protocol tree items. */
