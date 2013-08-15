@@ -1315,6 +1315,11 @@
 #define AECP_GPTP_ENABLED_FLAG_MASK             0x02 
 #define AECP_SRP_ENABLED_FLAG_MASK              0x04
 
+
+/* AECP Sampling Rate masks */
+#define AECP_SAMPLING_RATE_PULL_MASK            0xE0000000
+#define AECP_SAMPLING_RATE_BASE_FREQ_MASK       0x1FFFFFFF
+
 /* Stream Flags (7.130) */
 #define AECP_STREAM_VLAN_ID_VALID_FLAG_MASK     0x02000000
 #define AECP_CONNECTED_FLAG_MASK                0x04000000
@@ -1856,6 +1861,16 @@ static const value_string acmp_status_field_vals[] = {
    {0,                                  NULL }
 };
 
+static const value_string aecp_sampling_rate_pull_field_vals[] = {
+   {0,        "Multiply by 1.0"},
+   {1,        "Multiply by 1/1.001"},
+   {2,        "Multiply by 1.001"},
+   {3,        "Multiply by 24/25"},
+   {4,        "Multiply by 25/24"},
+   {0,        NULL }
+};
+
+
 /**********************************************************/
 /* Initialize the protocol and registered fields          */
 /**********************************************************/
@@ -2070,7 +2085,8 @@ static int hf_aecp_persistent_flag = -1;
 /* static int hf_aecp_query_period = -1; */
 /* static int hf_aecp_query_type = -1; */
 static int hf_aecp_release_flag = -1;
-static int hf_aecp_sampling_rate = -1;
+static int hf_aecp_sampling_rate_base_frequency = -1;
+static int hf_aecp_sampling_rate_pull = -1;
 static int hf_aecp_sequence_id = -1;
 static int hf_aecp_signal_index = -1;
 static int hf_aecp_signal_type = -1;
@@ -4022,8 +4038,10 @@ dissect_17221_aecp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aecp_tree)
             proto_tree_add_item(aecp_tree, hf_aecp_descriptor_index, tvb,
                   AECP_OFFSET_SAMPLING_RATE_DESCRIPTOR_INDEX, 2, ENC_BIG_ENDIAN);
             if ((mess_type == AECP_AEM_RESPONSE_MESSAGE) || (c_type == AECP_COMMAND_SET_SAMPLING_RATE)) {
-               proto_tree_add_item(aecp_tree, hf_aecp_sampling_rate, tvb,
-                     AECP_OFFSET_SAMPLING_RATE_SAMPLING_RATE, 64, ENC_BIG_ENDIAN);
+               proto_tree_add_item(aecp_tree,hf_aecp_sampling_rate_pull , tvb,
+                     AECP_OFFSET_SAMPLING_RATE_SAMPLING_RATE, 1, ENC_BIG_ENDIAN);
+               proto_tree_add_item(aecp_tree, hf_aecp_sampling_rate_base_frequency, tvb,
+                     AECP_OFFSET_SAMPLING_RATE_SAMPLING_RATE, 4, ENC_BIG_ENDIAN);
             }
             break;
           case AECP_COMMAND_SET_CLOCK_SOURCE:
@@ -5814,9 +5832,15 @@ proto_register_17221(void)
          {"Video Format", "ieee17221.video_format",
             FT_BYTES, BASE_NONE, NULL, 0x00, NULL, HFILL }
       },
-      { &hf_aecp_sampling_rate,
-         {"Sampling Rate", "ieee17221.sampling_rate",
-            FT_UINT32, BASE_HEX, NULL, 0x00, NULL, HFILL }
+
+      { &hf_aecp_sampling_rate_pull,
+         { "Sampling Rate Pull Value", "ieee17221.sampling_rate_pull",
+            FT_UINT32, BASE_HEX, VALS(aecp_sampling_rate_pull_field_vals), AECP_SAMPLING_RATE_PULL_MASK, NULL, HFILL }
+      },
+
+      { &hf_aecp_sampling_rate_base_frequency,
+         {"Sampling Rate Base Frequency", "ieee17221.sampling_rate_base_frequency",
+            FT_UINT32, BASE_DEC, NULL, AECP_SAMPLING_RATE_BASE_FREQ_MASK, NULL, HFILL }
       },
 
       /* REGISTER_STATE_NOTIFICATION */
