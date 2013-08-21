@@ -141,8 +141,6 @@
 #define HASHETHSIZE      2048
 #define HASHHOSTSIZE     2048
 #define HASHIPXNETSIZE    256
-#define HASHMANUFSIZE     256
-#define HASHPORTSIZE      256
 #define SUBNETLENGTHSIZE   32  /*1-32 inc.*/
 
 /* g_int64_hash() and g_int64_equal() first appear in GLib 2.22, make a local copy here */
@@ -219,11 +217,8 @@ typedef struct sub_net_hashipv4 {
     gchar             name[MAXNAMELEN];
 } sub_net_hashipv4_t;
 
-/* hash table used for IPv6 lookup */
 
-#define HASH_IPV6_ADDRESS(addr) \
-    ((((addr).bytes[14] << 8)|((addr).bytes[15])) & (HASHHOSTSIZE - 1))
-
+#if 0
 typedef struct hashipv6 {
     struct e_in6_addr addr;
     gboolean          is_dummy_entry; /* name is IPv6 address in colon format */
@@ -232,17 +227,13 @@ typedef struct hashipv6 {
     gchar             ip6[MAX_IP6_STR_LEN]; /* XX */
     gchar             name[MAXNAMELEN];
 } hashipv6_t;
-
+#endif
 /* Array of entries of subnets of different lengths */
 typedef struct {
     gsize        mask_length;      /*1-32*/
     guint32      mask;             /* e.g. 255.255.255.*/
     sub_net_hashipv4_t** subnet_addresses; /* Hash table of subnet addresses */
 } subnet_length_entry_t;
-
-/* hash table used for TCP/UDP/SCTP port lookup */
-
-#define HASH_PORT(port) ((port) & (HASHPORTSIZE - 1))
 
 
 #if 0
@@ -295,9 +286,9 @@ typedef struct _ipxnet
     char              name[MAXNAMELEN];
 } ipxnet_t;
 
-static hashipv6_t   *ipv6_table[HASHHOSTSIZE];
-
+static GHashTable   *ipxnet_hash_table = NULL;
 static GHashTable   *ipv4_hash_table = NULL;
+static GHashTable   *ipv6_hash_table = NULL;
 
 static gchar        *cb_service;
 static port_type    cb_proto = PT_NONE;
@@ -307,8 +298,6 @@ static GHashTable *manuf_hashtable = NULL;
 static GHashTable *wka_hashtable = NULL;
 static GHashTable *eth_hashtable = NULL;
 static GHashTable *serv_port_hashtable = NULL;
-
-static hashipxnet_t *ipxnet_table[HASHIPXNETSIZE];
 
 static subnet_length_entry_t subnet_length_entries[SUBNETLENGTHSIZE]; /* Ordered array of entries */
 static gboolean have_subnet_entry = FALSE;
@@ -321,6 +310,42 @@ static GPtrArray* extra_hosts_files = NULL;
 
 static hashether_t *add_eth_name(const guint8 *addr, const gchar *name);
 static void add_serv_port_cb(const guint32 port);
+
+
+/* http://eternallyconfuzzled.com/tuts/algorithms/jsw_tut_hashing.aspx#existing 
+ * One-at-a-Time hash
+ */
+static guint32 
+ipv6_oat_hash(gconstpointer key)
+{
+	int len = 16;
+    const unsigned char *p = (const unsigned char *)key;
+    guint32 h = 0;
+    int i;
+
+    for ( i = 0; i < len; i++ ) {
+        h += p[i];
+        h += ( h << 10 );
+        h ^= ( h >> 6 );
+    }
+
+    h += ( h << 3 );
+    h ^= ( h >> 11 );
+    h += ( h << 15 );
+
+    return h;
+}
+
+static gboolean
+ipv6_equal(gconstpointer v1, gconstpointer v2)
+{
+
+	if( memcmp(v1, v2, sizeof (struct e_in6_addr)) == 0 ) {
+		return TRUE;
+	}
+
+	return FALSE;
+}
 
 /*
  * Flag controlling what names to resolve.
@@ -956,9 +981,8 @@ try_resolv:
 static hashipv6_t *
 new_ipv6(const struct e_in6_addr *addr)
 {
-    hashipv6_t *tp = se_new(hashipv6_t);
+    hashipv6_t *tp = g_new(hashipv6_t,1);
     tp->addr = *addr;
-    tp->next = NULL;
     tp->resolve = FALSE;
     tp->is_dummy_entry = FALSE;
     ip6_to_str_buf(addr, tp->ip6);
@@ -969,7 +993,6 @@ new_ipv6(const struct e_in6_addr *addr)
 static hashipv6_t *
 host_lookup6(const struct e_in6_addr *addr, gboolean *found)
 {
-    int hash_idx;
     hashipv6_t * volatile tp;
 #ifdef INET6
 #ifdef HAVE_C_ARES
@@ -980,30 +1003,25 @@ host_lookup6(const struct e_in6_addr *addr, gboolean *found)
 
     *found = TRUE;
 
-    hash_idx = HASH_IPV6_ADDRESS(*addr);
+    tp = (hashipv6_t *)g_hash_table_lookup(ipv6_hash_table, addr);
+    if(tp == NULL){
+		struct e_in6_addr *addr_key;
 
-    tp = ipv6_table[hash_idx];
-
-    if( tp == NULL ) {
-        tp = ipv6_table[hash_idx] = new_ipv6(addr);
-    } else {
-        while(1) {
-            if( memcmp(&tp->addr, addr, sizeof (struct e_in6_addr)) == 0 ) {
-                if (tp->is_dummy_entry && !tp->resolve)
-                    break;
-                if (tp->is_dummy_entry)
-                    *found = FALSE;
-                return tp;
-            }
-            if (tp->next == NULL) {
-                tp->next = new_ipv6(addr);
-                tp = tp->next;
-                break;
-            }
-            tp = tp->next;
+		addr_key = g_new(struct e_in6_addr,1);
+        tp = new_ipv6(addr);
+		memcpy(addr_key, addr, 16);
+        g_hash_table_insert(ipv6_hash_table, addr_key, tp);
+    }else{
+        if (tp->is_dummy_entry && !tp->resolve){
+            goto try_resolv;
         }
+        if (tp->is_dummy_entry){
+            *found = FALSE;
+        }
+        return tp;
     }
 
+try_resolv:
     if (gbl_resolv_flags.network_name &&
             gbl_resolv_flags.use_external_net_name_resolver) {
         tp->resolve = TRUE;
@@ -1780,6 +1798,7 @@ static guint8 *
 eth_addr_lookup(const gchar *name _U_)
 {
 #if 0
+	/* XXX Do we need reverse lookup??? */
     ether_t      *eth;
     hashether_t  *tp;
     hashether_t **table = eth_table;
@@ -1904,6 +1923,8 @@ get_ipxnetent(void)
 
 } /* get_ipxnetent */
 
+/* Unused ??? */
+#if 0
 static ipxnet_t *
 get_ipxnetbyname(const gchar *name)
 {
@@ -1928,6 +1949,7 @@ get_ipxnetbyname(const gchar *name)
     return ipxnet;
 
 } /* get_ipxnetbyname */
+#endif
 
 static ipxnet_t *
 get_ipxnetbyaddr(guint32 addr)
@@ -1979,33 +2001,30 @@ initialize_ipxnets(void)
 static void
 ipx_name_lookup_cleanup(void)
 {
-    /* The memory pointed to by this table is se_ allocated so we don't have to
-     * free it here.
-     */
-    memset(ipxnet_table, 0, sizeof(ipxnet_table));
+    if(ipxnet_hash_table){
+        g_hash_table_destroy(ipxnet_hash_table);
+		ipxnet_hash_table = NULL;
+    }
+
 }
 
+#if 0
 static hashipxnet_t *
 add_ipxnet_name(guint addr, const gchar *name)
 {
-    int hash_idx;
     hashipxnet_t *tp;
 
-    hash_idx = HASH_IPX_NET(addr);
+    tp = (hashipxnet_t   *)g_hash_table_lookup(ipxnet_hash_table, &addr);
+    if(tp){
+        g_strlcpy(tp->name, name, MAXNAMELEN);
+    }else{
+        int *key;
 
-    tp = ipxnet_table[hash_idx];
-
-    if( tp == NULL ) {
-        tp = ipxnet_table[hash_idx] = se_new(hashipxnet_t);
-    } else {
-        while(1) {
-            if (tp->next == NULL) {
-                tp->next = se_new(hashipxnet_t);
-                tp = tp->next;
-                break;
-            }
-            tp = tp->next;
-        }
+        key = (int *)g_new(int, 1);
+        *key = addr;
+        tp = g_new(hashipxnet_t,1);
+        g_strlcpy(tp->name, name, MAXNAMELEN);
+        g_hash_table_insert(ipxnet_hash_table, key, tp);
     }
 
     tp->addr = addr;
@@ -2016,38 +2035,29 @@ add_ipxnet_name(guint addr, const gchar *name)
     return tp;
 
 } /* add_ipxnet_name */
+#endif
 
 static gchar *
 ipxnet_name_lookup(const guint addr)
 {
-    int hash_idx;
     hashipxnet_t *tp;
     ipxnet_t *ipxnet;
 
-    hash_idx = HASH_IPX_NET(addr);
+    tp = (hashipxnet_t *)g_hash_table_lookup(ipxnet_hash_table, &addr);
+    if(tp == NULL){
+        int *key;
 
-    tp = ipxnet_table[hash_idx];
-
-    if( tp == NULL ) {
-        tp = ipxnet_table[hash_idx] = se_new(hashipxnet_t);
-    } else {
-        while(1) {
-            if (tp->addr == addr) {
-                return tp->name;
-            }
-            if (tp->next == NULL) {
-                tp->next = se_new(hashipxnet_t);
-                tp = tp->next;
-                break;
-            }
-            tp = tp->next;
-        }
+        key = (int *)g_new(int, 1);
+        *key = addr;
+        tp = g_new(hashipxnet_t, 1);
+        g_hash_table_insert(ipxnet_hash_table, key, tp);
+    }else{
+        return tp->name;
     }
 
     /* fill in a new entry */
 
     tp->addr = addr;
-    tp->next = NULL;
 
     if ( (ipxnet = get_ipxnetbyaddr(addr)) == NULL) {
         /* unknown name */
@@ -2062,8 +2072,12 @@ ipxnet_name_lookup(const guint addr)
 } /* ipxnet_name_lookup */
 
 static guint
-ipxnet_addr_lookup(const gchar *name, gboolean *success)
+ipxnet_addr_lookup(const gchar *name _U_, gboolean *success)
 {
+	*success = FALSE;
+	return 0;
+#if 0
+	/* XXX Do we need reverse lookup??? */
     ipxnet_t *ipxnet;
     hashipxnet_t *tp;
     hashipxnet_t **table = ipxnet_table;
@@ -2094,7 +2108,7 @@ ipxnet_addr_lookup(const gchar *name, gboolean *success)
 
     *success = TRUE;
     return tp->addr;
-
+#endif
 } /* ipxnet_addr_lookup */
 
 static gboolean
@@ -2731,7 +2745,6 @@ add_ipv4_name(const guint addr, const gchar *name)
 void
 add_ipv6_name(const struct e_in6_addr *addrp, const gchar *name)
 {
-    int hash_idx;
     hashipv6_t *tp;
     struct addrinfo *ai;
     struct sockaddr_in6 *sa6;
@@ -2743,31 +2756,21 @@ add_ipv6_name(const struct e_in6_addr *addrp, const gchar *name)
     if (name[0] == '\0')
         return;
 
-    hash_idx = HASH_IPV6_ADDRESS(*addrp);
+    tp = (hashipv6_t *)g_hash_table_lookup(ipv6_hash_table, addrp);
+    if(tp){
+        g_strlcpy(tp->name, name, MAXNAMELEN);
+        tp->resolve = TRUE;
+    }else{
+		struct e_in6_addr *addr_key;
 
-    tp = ipv6_table[hash_idx];
-
-    if( tp == NULL ) {
-        tp = ipv6_table[hash_idx] = new_ipv6(addrp);
-    } else {
-        while(1) {
-            if (memcmp(&tp->addr, addrp, sizeof (struct e_in6_addr)) == 0) {
-                /* address already known */
-                if (!tp->is_dummy_entry) {
-                    return;
-                } else {
-                    /* replace this dummy entry with the new one */
-                    break;
-                }
-            }
-            if (tp->next == NULL) {
-                tp->next = new_ipv6(addrp);
-                tp = tp->next;
-                break;
-            }
-            tp = tp->next;
-        }
+		addr_key = g_new(struct e_in6_addr,1);
+        tp = new_ipv6(addrp);
+		memcpy(addr_key, addrp, 16);
+        g_strlcpy(tp->name, name, MAXNAMELEN);
+        tp->resolve = TRUE;
+        g_hash_table_insert(ipv6_hash_table, addr_key, tp);
     }
+
     g_strlcpy(tp->name, name, MAXNAMELEN);
     tp->resolve = TRUE;
     new_resolved_objects = TRUE;
@@ -2807,8 +2810,14 @@ host_name_lookup_init(void)
 #endif /* _WIN32 */
 #endif /*GNU_ADNS */
 
+    g_assert(ipxnet_hash_table == NULL);
+    ipxnet_hash_table = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, g_free);
+
     g_assert(ipv4_hash_table == NULL);
     ipv4_hash_table = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, g_free);
+
+    g_assert(ipv6_hash_table == NULL);
+    ipv6_hash_table = g_hash_table_new_full(ipv6_oat_hash, ipv6_equal, g_free, g_free);
 
     if (!addrinfo_list) {
         ai = se_new0(struct addrinfo);
@@ -2910,11 +2919,20 @@ host_name_lookup_cleanup(void)
 {
     _host_name_lookup_cleanup();
 
+    if(ipxnet_hash_table){
+        g_hash_table_destroy(ipxnet_hash_table);
+		ipxnet_hash_table = NULL;
+    }
+
     if(ipv4_hash_table){
         g_hash_table_destroy(ipv4_hash_table);
 		ipv4_hash_table = NULL;
     }
-    memset(ipv6_table, 0, sizeof(ipv6_table));
+
+    if(ipv6_hash_table){
+        g_hash_table_destroy(ipv6_hash_table);
+		ipv6_hash_table = NULL;
+    }
 
     memset(subnet_length_entries, 0, sizeof(subnet_length_entries));
 
@@ -3466,11 +3484,22 @@ get_serv_port_hashtable(void)
 }
 
 GHashTable *
+get_ipxnet_hash_table(void)
+{
+        return ipxnet_hash_table;
+}
+
+GHashTable *
 get_ipv4_hash_table(void)
 {
         return ipv4_hash_table;
 }
 
+GHashTable *
+get_ipv6_hash_table(void)
+{
+        return ipv6_hash_table;
+}
 /* Initialize all the address resolution subsystems in this file */
 void
 addr_resolv_init(void)

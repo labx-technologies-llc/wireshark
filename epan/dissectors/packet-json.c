@@ -27,6 +27,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#define NEW_PROTO_TREE_API
+
 #include "config.h"
 
 #include <glib.h>
@@ -35,23 +37,45 @@
 #include <epan/packet.h>
 #include <epan/tvbparse.h>
 
-static gint proto_json = -1;
-
 static gint ett_json = -1;
 static gint ett_json_array = -1;
 static gint ett_json_object = -1;
 static gint ett_json_member = -1;
 
-static gint hf_json_array = -1;
-static gint hf_json_object = -1;
-static gint hf_json_member = -1;
-/* XXX, static gint hf_json_member_key = -1; */
+static header_field_info *hfi_json = NULL;
 
-static gint hf_json_value_string = -1;
-static gint hf_json_value_number = -1;
-static gint hf_json_value_false = -1;
-static gint hf_json_value_null = -1;
-static gint hf_json_value_true = -1;
+#define JSON_HFI_INIT HFI_INIT(proto_json)
+
+static header_field_info hfi_json_array JSON_HFI_INIT =
+	{ "Array", "json.array", FT_NONE, BASE_NONE, NULL, 0x00, "JSON array", HFILL };
+
+static header_field_info hfi_json_object JSON_HFI_INIT =
+	{ "Object", "json.object", FT_NONE, BASE_NONE, NULL, 0x00, "JSON object", HFILL };
+
+static header_field_info hfi_json_member JSON_HFI_INIT =
+	{ "Member", "json.member", FT_NONE, BASE_NONE, NULL, 0x00, "JSON object member", HFILL };
+
+#if 0
+/* XXX */
+static header_field_info hfi_json_member_key JSON_HFI_INIT =
+	{ "Key", "json.member.key", FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL };
+#endif
+
+static header_field_info hfi_json_value_string JSON_HFI_INIT = /* FT_STRINGZ? */
+	{ "String value", "json.value.string", FT_STRING, BASE_NONE, NULL, 0x00, "JSON string value", HFILL };
+
+static header_field_info hfi_json_value_number JSON_HFI_INIT = /* FT_DOUBLE/ FT_INT64? */
+	{ "Number value", "json.value.number", FT_STRING, BASE_NONE, NULL, 0x00, "JSON number value", HFILL };
+
+static header_field_info hfi_json_value_false JSON_HFI_INIT =
+	{ "False value", "json.value.false", FT_NONE, BASE_NONE, NULL, 0x00, "JSON false value", HFILL };
+
+static header_field_info hfi_json_value_null JSON_HFI_INIT =
+	{ "Null value", "json.value.null", FT_NONE, BASE_NONE, NULL, 0x00, "JSON null value", HFILL };
+
+static header_field_info hfi_json_value_true JSON_HFI_INIT =
+	{ "True value", "json.value.true", FT_NONE, BASE_NONE, NULL, 0x00, "JSON true value", HFILL };
+
 
 static tvbparse_wanted_t* want;
 static tvbparse_wanted_t* want_ignore;
@@ -104,7 +128,7 @@ dissect_json(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 
 	if (tree) {
-		ti = proto_tree_add_item(tree, proto_json, tvb, 0, -1, ENC_NA);
+		ti = proto_tree_add_item(tree, hfi_json, tvb, 0, -1, ENC_NA);
 		json_tree = proto_item_add_subtree(ti, ett_json);
 
 		if (data_name)
@@ -149,7 +173,7 @@ static void before_object(void *tvbparse_data, const void *wanted_data _U_, tvbp
 	proto_tree *subtree;
 	proto_item *ti;
 
-	ti = proto_tree_add_item(tree, hf_json_object, tok->tvb, tok->offset, tok->len, ENC_NA);
+	ti = proto_tree_add_item(tree, &hfi_json_object, tok->tvb, tok->offset, tok->len, ENC_NA);
 
 	subtree = proto_item_add_subtree(ti, ett_json_object);
 	ep_stack_push(data->stack, subtree);
@@ -168,7 +192,7 @@ static void before_member(void *tvbparse_data, const void *wanted_data _U_, tvbp
 	proto_tree *subtree;
 	proto_item *ti;
 
-	ti = proto_tree_add_item(tree, hf_json_member, tok->tvb, tok->offset, tok->len, ENC_NA);
+	ti = proto_tree_add_item(tree, &hfi_json_member, tok->tvb, tok->offset, tok->len, ENC_NA);
 
 	subtree = proto_item_add_subtree(ti, ett_json_member);
 	ep_stack_push(data->stack, subtree);
@@ -187,7 +211,7 @@ static void after_member(void *tvbparse_data, const void *wanted_data _U_, tvbpa
 
 			proto_item_append_text(tree, " Key: %s", key);
 		}
-		/* XXX, hf_json_member_key */
+		/* XXX, &hfi_json_member_key */
 	}
 }
 
@@ -198,7 +222,7 @@ static void before_array(void *tvbparse_data, const void *wanted_data _U_, tvbpa
 	proto_tree *subtree;
 	proto_item *ti;
 
-	ti = proto_tree_add_item(tree, hf_json_array, tok->tvb, tok->offset, tok->len, ENC_NA);
+	ti = proto_tree_add_item(tree, &hfi_json_array, tok->tvb, tok->offset, tok->len, ENC_NA);
 
 	subtree = proto_item_add_subtree(ti, ett_json_array);
 	ep_stack_push(data->stack, subtree);
@@ -359,26 +383,26 @@ static void after_value(void *tvbparse_data, const void *wanted_data _U_, tvbpar
 	switch (value_id) {
 		case JSON_TOKEN_STRING:
 			if (tok->len >= 2)
-				proto_tree_add_unicode_string(tree, hf_json_value_string, tok->tvb, tok->offset, tok->len, json_string_unescape(tok));
+				proto_tree_add_unicode_string(tree, hfi_json_value_string.id, tok->tvb, tok->offset, tok->len, json_string_unescape(tok));
 			else
-				proto_tree_add_item(tree, hf_json_value_string, tok->tvb, tok->offset, tok->len, ENC_ASCII|ENC_NA);
+				proto_tree_add_item(tree, &hfi_json_value_string, tok->tvb, tok->offset, tok->len, ENC_ASCII|ENC_NA);
 			break;
 
 		case JSON_TOKEN_NUMBER:
 			/* XXX, convert to number */
-			proto_tree_add_item(tree, hf_json_value_number, tok->tvb, tok->offset, tok->len, ENC_ASCII|ENC_NA);
+			proto_tree_add_item(tree, &hfi_json_value_number, tok->tvb, tok->offset, tok->len, ENC_ASCII|ENC_NA);
 			break;
 
 		case JSON_TOKEN_FALSE:
-			proto_tree_add_item(tree, hf_json_value_false, tok->tvb, tok->offset, tok->len, ENC_NA);
+			proto_tree_add_item(tree, &hfi_json_value_false, tok->tvb, tok->offset, tok->len, ENC_NA);
 			break;
 
 		case JSON_TOKEN_NULL:
-			proto_tree_add_item(tree, hf_json_value_null, tok->tvb, tok->offset, tok->len, ENC_NA);
+			proto_tree_add_item(tree, &hfi_json_value_null, tok->tvb, tok->offset, tok->len, ENC_NA);
 			break;
 
 		case JSON_TOKEN_TRUE:
-			proto_tree_add_item(tree, hf_json_value_true, tok->tvb, tok->offset, tok->len, ENC_NA);
+			proto_tree_add_item(tree, &hfi_json_value_true, tok->tvb, tok->offset, tok->len, ENC_NA);
 			break;
 
 		case JSON_OBJECT:
@@ -534,42 +558,24 @@ proto_register_json(void) {
 		&ett_json_member
 	};
 
-	static hf_register_info hf[] = {
-		{ &hf_json_array,
-			{ "Array", "json.array", FT_NONE, BASE_NONE, NULL, 0x00, "JSON array", HFILL }
-		}, 
-		{ &hf_json_object,
-			{ "Object", "json.object", FT_NONE, BASE_NONE, NULL, 0x00, "JSON object", HFILL }
-		}, 
-		{ &hf_json_member,
-			{ "Member", "json.member", FT_NONE, BASE_NONE, NULL, 0x00, "JSON object member", HFILL },
-		},
-/* XXX
-		{ &hf_json_member_key,
-			{ "Key", "json.member.key", FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL },
-		},
-*/
-		{ &hf_json_value_string, /* FT_STRINGZ? */
-			{ "String value", "json.value.string", FT_STRING, BASE_NONE, NULL, 0x00, "JSON string value", HFILL },
-		},
-		{ &hf_json_value_number, /* FT_DOUBLE/ FT_INT64? */
-			{ "Number value", "json.value.number", FT_STRING, BASE_NONE, NULL, 0x00, "JSON number value", HFILL },
-		},
-		{ &hf_json_value_false,
-			{ "False value", "json.value.false", FT_NONE, BASE_NONE, NULL, 0x00, "JSON false value", HFILL },
-		},
-		{ &hf_json_value_null,
-			{ "Null value", "json.value.null", FT_NONE, BASE_NONE, NULL, 0x00, "JSON null value", HFILL },
-		},
-		{ &hf_json_value_true,
-			{ "True value", "json.value.true", FT_NONE, BASE_NONE, NULL, 0x00, "JSON true value", HFILL },
-		},
-
+	static header_field_info *hfi[] = {
+		&hfi_json_array,
+		&hfi_json_object,
+		&hfi_json_member,
+		/* &hfi_json_member_key, */
+		&hfi_json_value_string,
+		&hfi_json_value_number,
+		&hfi_json_value_false,
+		&hfi_json_value_null,
+		&hfi_json_value_true,
 	};
 
-	proto_json = proto_register_protocol("JavaScript Object Notation", "JSON", "json");
+	int proto_json;
 
-	proto_register_field_array(proto_json, hf, array_length(hf));
+	proto_json = proto_register_protocol("JavaScript Object Notation", "JSON", "json");
+	hfi_json = proto_registrar_get_nth(proto_json);
+
+	proto_register_fields(proto_json, hfi, array_length(hfi));
 	proto_register_subtree_array(ett, array_length(ett));
 
 	register_dissector("json", dissect_json, proto_json);

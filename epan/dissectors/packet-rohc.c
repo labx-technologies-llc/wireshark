@@ -39,7 +39,7 @@
 #include <epan/addr_resolv.h>
 #include <epan/rtp_pt.h>
 #include <epan/expert.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-rohc.h"
 
@@ -314,7 +314,6 @@ get_self_describing_var_len_val(tvbuff_t *tvb, proto_tree *tree, int offset, int
     proto_tree_add_bits_item(tree, hf_index, tvb, bit_offset, num_bits, ENC_BIG_ENDIAN);
 
     return val;
-
 }
 
 /* 5.7.1. Packet type 0: UO-0, R-0, R-0-CRC */
@@ -414,7 +413,7 @@ dissect_rohc_pkt_type_0(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 }
 
 /* 5.7.5. Extension formats */
-static int 
+static int
 dissect_rohc_ext_format(tvbuff_t *tvb, proto_tree *tree, int offset, guint8 t, rohc_cid_context_t *rohc_cid_context)
 {
     guint8 ext_type = tvb_get_guint8(tvb, offset) & 0xc0;
@@ -491,7 +490,8 @@ dissect_rohc_ext_format(tvbuff_t *tvb, proto_tree *tree, int offset, guint8 t, r
         offset++;
     } else {
         proto_tree_add_text(tree, tvb, offset, -1, "extension 3[Not dissected yet]");
-        offset += tvb_length_remaining(tvb, offset);
+        if (tvb_length_remaining(tvb, offset) > 0)
+            offset += tvb_length_remaining(tvb, offset);
     }
     return offset;
 }
@@ -599,7 +599,7 @@ dissect_rohc_pkt_type_1_r_mode(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
         offset = dissect_rohc_ext_format(tvb, pkt_tree, offset, t, rohc_cid_context);
     }
     proto_item_set_len(ti, offset-start_offset);
-    
+
     return offset;
 }
 
@@ -706,7 +706,7 @@ dissect_rohc_pkt_type_1_u_o_mode(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
         offset = dissect_rohc_ext_format(tvb, pkt_tree, offset, t, rohc_cid_context);
     }
     proto_item_set_len(ti, offset-start_offset);
-    
+
     return offset;
 }
 
@@ -829,7 +829,7 @@ dissect_rohc_pkt_type_2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
         offset = dissect_rohc_ext_format(tvb, pkt_tree, offset, t, rohc_cid_context);
     }
     proto_item_set_len(ti, offset-start_offset);
-    
+
     return offset;
 }
 
@@ -855,7 +855,7 @@ dissect_rohc_feedback_data(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, 
     if(!rohc_cid_context){
         if (p_rohc_info == pinfo->private_data) {
             /* Reuse info coming from private data */
-            rohc_cid_context = ep_new(rohc_cid_context_t);
+            rohc_cid_context = wmem_new(wmem_packet_scope(), rohc_cid_context_t);
             /*rohc_cid_context->d_mode;*/
             rohc_cid_context->rnd = p_rohc_info->rnd;
             rohc_cid_context->udp_checksum_present = p_rohc_info->udp_checksum_present;
@@ -1777,7 +1777,7 @@ dissect_rohc_ir_packet(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
     int                 ir_item_start;
     int                 x_bit_offset;
     gboolean            d = FALSE;
-    guint8              oct, profile, val_len;
+    guint8              oct, profile, val_len = 0;
     gint16              feedback_data_len = 0;
     tvbuff_t           *next_tvb;
     rohc_cid_context_t *rohc_cid_context = NULL;
@@ -1863,7 +1863,7 @@ dissect_rohc_ir_packet(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
 
             /*g_warning("IR pkt found CID %u",cid);*/
 
-            rohc_cid_context = se_new(rohc_cid_context_t);
+            rohc_cid_context = wmem_new(wmem_file_scope(), rohc_cid_context_t);
             rohc_cid_context->profile = profile;
             rohc_cid_context->prev_ir_frame_number = tmp_prev_ir_frame_number;
             rohc_cid_context->ir_frame_number = pinfo->fd->num;
@@ -1876,7 +1876,7 @@ dissect_rohc_ir_packet(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
             g_hash_table_replace(rohc_cid_hash, GUINT_TO_POINTER(key), rohc_cid_context);
             p_add_proto_data(pinfo->fd, proto_rohc, 0, rohc_cid_context);
         }else{
-            rohc_cid_context = se_new(rohc_cid_context_t);
+            rohc_cid_context = wmem_new(wmem_file_scope(), rohc_cid_context_t);
             rohc_cid_context->large_cid_present = p_rohc_info->large_cid_present;
             /*rohc_cid_context->mode     mode;*/
             /*rohc_cid_context->d_mode;*/
@@ -1900,7 +1900,7 @@ dissect_rohc_ir_packet(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
 
     switch(profile){
         case ROHC_PROFILE_UNCOMPRESSED:
-            if (tvb_length_remaining(tvb, offset)) {
+            if (tvb_length_remaining(tvb, offset) > 0) {
                 oct = tvb_get_guint8(tvb, offset);
                 if ( (oct&0xf0) == 0x60 ) {
                     next_tvb = tvb_new_subset_remaining(tvb, offset);
@@ -1942,7 +1942,7 @@ dissect_rohc_ir_dyn_packet(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
     proto_item         *ir_item, *item;
     proto_tree         *ir_tree;
     gint                ir_item_start;
-    guint8              profile, val_len;
+    guint8              profile, val_len = 0;
     gint16              feedback_data_len = 0;
     rohc_cid_context_t *rohc_cid_context;
 
@@ -1984,7 +1984,7 @@ dissect_rohc_ir_dyn_packet(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
 
             /*g_warning("IR pkt found CID %u",cid);*/
 
-            rohc_cid_context = se_new(rohc_cid_context_t);
+            rohc_cid_context = wmem_new(wmem_file_scope(), rohc_cid_context_t);
             rohc_cid_context->profile = profile;
             rohc_cid_context->prev_ir_frame_number = tmp_prev_ir_frame_number;
             rohc_cid_context->ir_frame_number = pinfo->fd->num;
@@ -1997,7 +1997,7 @@ dissect_rohc_ir_dyn_packet(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
             g_hash_table_replace(rohc_cid_hash, GUINT_TO_POINTER(key), rohc_cid_context);
             p_add_proto_data(pinfo->fd, proto_rohc, 0, rohc_cid_context);
         }else{
-            rohc_cid_context = se_new(rohc_cid_context_t);
+            rohc_cid_context = wmem_new(wmem_file_scope(), rohc_cid_context_t);
             /*rohc_cid_context->rohc_ip_version;*/
             rohc_cid_context->large_cid_present = p_rohc_info->large_cid_present;
             /*rohc_cid_context->mode     mode;*/
@@ -2043,13 +2043,13 @@ dissect_rohc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_item         *ti, *item, *conf_item;
     proto_tree         *rohc_tree, *sub_tree = NULL, *conf_tree;
     int                 offset               = 0, length;
-    guint8              oct, code, size, val_len;
+    guint8              oct, code, size, val_len = 0;
     gint16              feedback_data_len    = 0, cid = 0;
     gboolean            is_add_cid           = FALSE;
     rohc_info          *p_rohc_info          = NULL;
     rohc_info           g_rohc_info;
     void               *save_private_data    = pinfo->private_data;
-    tvbuff_t           *next_tvb, *payload_tvb;
+    tvbuff_t           *next_tvb=NULL, *payload_tvb;
     rohc_cid_context_t *rohc_cid_context     = NULL;
 
     if(pinfo->private_data == NULL){
@@ -2269,7 +2269,7 @@ start_over:
         if(rohc_cid_context){
             /*g_warning("Found CID %u",cid);*/
         }else{
-            rohc_cid_context = se_new(rohc_cid_context_t);
+            rohc_cid_context = wmem_new(wmem_file_scope(), rohc_cid_context_t);
             /*rohc_cid_context->d_mode;*/
             rohc_cid_context->rnd = p_rohc_info->rnd;
             rohc_cid_context->udp_checksum_present = p_rohc_info->udp_checksum_present;
@@ -2292,12 +2292,15 @@ start_over:
             guint8 *data;
             gint len;
             get_self_describing_var_len_val(tvb, rohc_tree, offset+1, hf_rohc_large_cid, &val_len);
-            len = tvb_length_remaining(tvb, offset) - val_len;
-            data = (guint8 *)ep_alloc(len);
-            tvb_memcpy(tvb, data, offset, 1);
-            tvb_memcpy(tvb, &data[1], offset+1+val_len, len-1);
-            next_tvb = tvb_new_child_real_data(tvb, data, len, len);
-            add_new_data_source(pinfo, next_tvb, "Payload");
+            len = tvb_length_remaining(tvb, offset);
+            if (len >= val_len) {
+                len -= val_len;
+                data = (guint8 *)wmem_alloc(pinfo->pool, len);
+                tvb_memcpy(tvb, data, offset, 1);
+                tvb_memcpy(tvb, &data[1], offset+1+val_len, len-1);
+                next_tvb = tvb_new_child_real_data(tvb, data, len, len);
+                add_new_data_source(pinfo, next_tvb, "Payload");
+            }
         }
         else {
             next_tvb = tvb_new_subset_remaining(tvb, offset);
